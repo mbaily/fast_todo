@@ -1,14 +1,46 @@
 {% extends 'base.html' %}
 {% block title %}Todo: {{ todo.text }} — Fast Todo (no-js){% endblock %}
 {% block content %}
+  {# provide a back_to_list_url for the shared toolbar when rendering a todo #}
+  {% if todo and todo.list_id %}
+    {% set back_to_list_url = ('/html_no_js/lists/' ~ todo.list_id ~ '#todo-' ~ todo.id) %}
+  {% endif %}
   <style>
     /* page-specific: remove top page margin so the site title sits flush to the top */
     body { margin-top: 0 !important; }
     header { margin-top: 0 !important; }
   </style>
-  <p style="margin-top:0;margin-bottom:0.25rem"><a href="/html_no_js/recent">Recently visited lists</a> <a href="/html_no_js/lists/{{ todo.list_id }}#todo-{{ todo.id }}" style="margin-left:0.75rem">Back to list</a></p>
-  <h2>{{ todo.text }}</h2>
-  <p class="meta">List: <a href="/html_no_js/lists/{{ todo.list_id }}">{{ list.name if list else todo.list_id }}</a></p>
+  
+  {# Page toolbar (placed just below the main navigation toolbar) #}
+  <nav class="page-toolbar" role="toolbar" aria-label="Todo actions" style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.6rem;">
+    <form id="todo-save-form" method="post" action="/html_no_js/todos/{{ todo.id }}/edit" style="display:inline">
+      {{ csrf_field() }}
+      <button type="submit" class="tb-item" aria-label="Save todo">💾 <span class="sr-only">Save</span></button>
+    </form>
+    <form id="todo-delete-form" method="post" action="/html_no_js/todos/{{ todo.id }}/delete" class="confirm-delete" data-confirm="Delete this todo? This cannot be undone." style="display:inline">
+      {{ csrf_field() }}
+      <input type="hidden" name="anchor" value="todo-{{ todo.id }}">
+      <input type="hidden" name="list_id" value="{{ todo.list_id }}">
+      <button type="submit" class="tb-item" aria-label="Delete todo">🗑 <span class="sr-only">Delete</span></button>
+    </form>
+    <div style="flex:1 1 auto"></div>
+    <span id="autosave-status" class="meta" aria-live="polite"></span>
+  </nav>
+
+  <div class="todo-header" style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.4rem;">
+    <div class="controls-left" style="flex:0 0 auto;">
+      <form id="todo-complete-form" method="post" action="/html_no_js/todos/{{ todo.id }}/complete" style="display:inline">
+        {{ csrf_field() }}
+        <input type="hidden" name="anchor" value="todo-{{ todo.id }}">
+        <input type="hidden" name="done" value="{{ 'false' if completed else 'true' }}">
+        <button type="submit" title="{{ 'Unmark' if completed else 'Mark' }}" aria-label="{{ 'Unmark' if completed else 'Mark' }}">{{ '☑' if completed else '☐' }}</button>
+      </form>
+    </div>
+    <div class="todo-title" style="flex:1 1 auto;">
+      <h2 style="margin:0">{{ todo.text }}</h2>
+      <p class="meta" style="margin:0">List: <a href="/html_no_js/lists/{{ todo.list_id }}">{{ list.name if list else todo.list_id }}</a></p>
+    </div>
+  </div>
   {% if todo.note %}
     <p class="note-text">{{ todo.note|linkify }}</p>
   {% endif %}
@@ -27,36 +59,30 @@
     </div>
   {% endif %}
 
-  <h3>Tags</h3>
+  {# Tags input (label visually hidden) #}
   <form method="post" action="/html_no_js/todos/{{ todo.id }}/hashtags" aria-label="Add tag">
     {{ csrf_field() }}
-    <label>Add tag <input name="tag" placeholder="#tag" aria-label="Tag name"></label>
+    <label>Add Tag <input name="tag" placeholder="#tag" aria-label="Tag name"></label>
     <button type="submit">Add</button>
   </form>
   <p class="meta">Created: {{ todo.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }} &nbsp; Modified: {{ todo.modified_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</p>
 
-  <h3>Edit</h3>
-  <form method="post" action="/html_no_js/todos/{{ todo.id }}/edit" autocomplete="off">
+  <form id="todo-edit-form" method="post" action="/html_no_js/todos/{{ todo.id }}/edit" autocomplete="off">
     {{ csrf_field() }}
     {# Make the title editable as a textarea with rows matching the note's newline count so it visually matches note height #}
   <label>Text<br><textarea id="todo-text-input" class="full-bleed" name="text" required autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" rows="{{ (todo.note or '').split('\n')|length }}">{{ todo.text }}</textarea></label><br>
     <div id="todo-hashtag-suggest" class="hashtag-suggest" role="listbox" aria-label="Hashtag suggestions" data-tags="{% if all_hashtags and all_hashtags|length > 0 %}{% for tag in all_hashtags %}{{ tag }}{% if not loop.last %},{% endif %}{% endfor %}{% endif %}"></div>
   <label>Note<br><textarea id="note-textarea" class="full-bleed" name="note" rows="9">{{ todo.note or '' }}</textarea></label><br>
-  <button type="submit">Save</button>
-  <span id="autosave-status" class="meta" aria-live="polite" style="margin-left:0.5rem"></span>
+  {# Save button moved to page toolbar above; keep a hidden submit for progressive enhancement if needed #}
+  <button type="submit" style="display:none">Save</button>
   </form>
 
-  <h3>Actions</h3>
+  {# Actions (heading removed to reduce visual clutter) #}
   {# Use an anchor link for mark/unmark so no-JS clients can click it. The GET handler will perform the toggle and redirect back. #}
-  <a class="action-link" href="/html_no_js/todos/{{ todo.id }}/complete?done={{ 'false' if completed else 'true' }}&amp;anchor=todo-{{ todo.id }}">{{ 'Unmark' if completed else 'Mark' }}</a>
-  <form method="post" action="/html_no_js/todos/{{ todo.id }}/delete" class="confirm-delete" data-confirm="Delete this todo? This cannot be undone.">
-    {{ csrf_field() }}
-  <input type="hidden" name="anchor" value="todo-{{ todo.id }}">
-  <input type="hidden" name="list_id" value="{{ todo.list_id }}">
-    <button type="submit">Delete</button>
-  </form>
+  {# mark/unmark moved to a left-aligned checkbox next to the title above #}
+  {# Delete moved to page-toolbar above. #}
 
-  <p><a href="/html_no_js/recent">Recent lists</a> <a href="/html_no_js/lists/{{ todo.list_id }}#todo-{{ todo.id }}" style="margin-left:0.75rem">Back to list</a></p>
+  {# navigation links removed (Recent lists / Back to list moved to toolbar) #}
 {% endblock %}
 
 {% block scripts %}
@@ -194,6 +220,15 @@
       const res = await fetch(url, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
       if (!res.ok) throw new Error('save failed');
       setStatus('Saved');
+      // Also update the toolbar save button to show saved status briefly
+      try {
+        var tbBtn = document.querySelector('#todo-save-form button[type="submit"]');
+        if (tbBtn) {
+          if (!tbBtn.dataset._orig) tbBtn.dataset._orig = tbBtn.textContent || '';
+          tbBtn.textContent = 'Saved';
+          setTimeout(function(){ if (tbBtn && tbBtn.textContent === 'Saved') tbBtn.textContent = tbBtn.dataset._orig || '💾'; }, 1200);
+        }
+      } catch(e) { /* ignore */ }
       setTimeout(()=>{ if (statusEl && statusEl.textContent === 'Saved') statusEl.textContent = ''; }, 1200);
     }catch(err){
       setStatus('Save failed');
@@ -202,6 +237,9 @@
       inFlight = false;
     }
   }
+
+  // expose the save function for manual toolbar save to call
+  try { window.todo_do_save = doSave; } catch(e) { /* ignore */ }
 
   function scheduleSave(){
   if (timer) clearTimeout(timer);
@@ -218,6 +256,19 @@
     titleInput.addEventListener('input', scheduleSave);
     titleInput.addEventListener('blur', ()=>{ if (timer) clearTimeout(timer); doSave(); });
   }
+
+  // Wire the toolbar save button to call the same save routine without redirect
+  try {
+    var toolbarSaveForm = document.getElementById('todo-save-form');
+    if (toolbarSaveForm) {
+      toolbarSaveForm.addEventListener('submit', function(ev){
+        ev.preventDefault();
+        try {
+          if (window.todo_do_save) window.todo_do_save();
+        } catch(e) { try { toolbarSaveForm.submit(); } catch(_){} }
+      });
+    }
+  } catch(e) { /* ignore */ }
 
 })();
 
@@ -260,6 +311,47 @@
   window.addEventListener('load', syncTitleToNote);
   window.addEventListener('resize', function(){ if (t) clearTimeout(t); t = setTimeout(syncTitleToNote, 150); });
   setTimeout(syncTitleToNote, 120);
+})();
+
+// Intercept the todo complete form to POST via fetch so toggling doesn't redirect the page.
+(function(){
+  try {
+    var form = document.getElementById('todo-complete-form');
+    if (!form) return;
+    form.addEventListener('submit', function(ev){
+      // if JS is disabled, the browser will submit normally (no handler). Here we prevent default and
+      // send a fetch so the UI doesn't navigate.
+      ev.preventDefault();
+      // Build form data, prefer existing hidden inputs
+      var fd = new FormData(form);
+      // Read CSRF token: prefer _csrf hidden input or cookie fallback
+      function getCookie(name){ var m = document.cookie.match('(?:^|;)\\s*' + name + '=([^;]*)'); return m ? decodeURIComponent(m[1]) : null; }
+      if (!fd.has('_csrf')) {
+        var cookie = getCookie('csrf_token'); if (cookie) fd.append('_csrf', cookie);
+      }
+      fetch(form.action, { method: 'POST', credentials: 'same-origin', body: fd, headers: { 'Accept': 'application/json' } })
+        .then(function(res){
+          if (!res.ok) throw res;
+          return res.json().catch(function(){ return null; });
+        })
+        .then(function(body){
+          // Toggle UI: flip the button content between checked/unchecked
+          try {
+            var btn = form.querySelector('button[type="submit"]');
+            if (btn) {
+              var was = btn.textContent && btn.textContent.indexOf('☑') !== -1;
+              btn.textContent = was ? '☐' : '☑';
+            }
+            // Optionally update autosave/status if server returned a message
+            var status = document.getElementById('autosave-status'); if (status && body && body.message) status.textContent = body.message; else if (status) status.textContent = '';
+          } catch(e) { /* ignore UI update errors */ }
+        })
+        .catch(function(err){
+          // On error, fall back to full submit to ensure server state changes (progressive enhancement)
+          try { form.submit(); } catch(e) { console.error('complete toggle failed', err); }
+        });
+    });
+  } catch(e) { /* ignore */ }
 })();
 
 </script>

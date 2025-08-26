@@ -11,13 +11,7 @@
   ul.lists-list li.list-item { margin-bottom: 0.75rem !important; padding-bottom: 0.125rem !important; }
     ul.lists-list li.list-item:last-child { margin-bottom: 0; }
   </style>
-  <h2>
-    Recently visited lists
-    <a class="small-link" href="/html_no_js/calendar" style="margin-left:1rem; font-size:0.85em; display:inline-flex; align-items:center; gap:0.35rem;">
-      <img src="/static/icons/calendar.svg" alt="Calendar" width="18" height="18" aria-hidden="true" style="display:inline-block; vertical-align:middle;"/>
-      <span>Calendar</span>
-    </a>
-  </h2>
+  <h2>Recently visited lists</h2>
   {% if recent and recent|length > 0 %}
     <ul class="lists-list">
       {% for lst in recent %}

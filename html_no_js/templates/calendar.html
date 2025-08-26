@@ -4,6 +4,11 @@
 
 {% block content %}
 <!-- DEBUG_TEMPLATE_ID: 20250825-1 -->
+  <style>
+    /* remove top gap so toolbar sits flush to the top on calendar page */
+    body { margin-top: 0 !important; }
+    header { margin-top: 0 !important; }
+  </style>
   <section class="full-bleed">
     <div style="display:flex; align-items:center; gap:0.5rem;">
       <h2>Calendar - {{ year }}-{{ '%02d'|format(month) }}</h2>

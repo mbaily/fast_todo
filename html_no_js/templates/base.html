@@ -280,9 +280,11 @@
     </style>
   </head>
   <body>
-    <header>
-      <h1><a href="/html_no_js/">Fast Todo (no-js)</a></h1>
-    </header>
+  <header></header>
+  {# compute a back_to_list_url when appropriate: prefer an explicit value, then build one for todo pages only.
+    Do NOT set a back_to_list_url for list pages (avoid showing 'Back to List' when already on a list). #}
+  {% set back_to_list_url = back_to_list_url if back_to_list_url is defined else (('/html_no_js/lists/' ~ todo.list_id ~ '#todo-' ~ todo.id) if (todo is defined and todo and todo.list_id) else None) %}
+  {% include '_top_toolbar.html' %}
     <main>
       {% macro csrf_field() %}
         {% if csrf_token %}

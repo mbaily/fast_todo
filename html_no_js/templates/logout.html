@@ -1,7 +1,11 @@
 {% extends 'base.html' %}
 {% block title %}Logged out — Fast Todo (no-js){% endblock %}
 {% block content %}
+  <style>
+    /* remove top gap so toolbar sits flush on logout page */
+    body { margin-top: 0 !important; }
+    header { margin-top: 0 !important; }
+  </style>
   <h2>Logged out</h2>
   <p>You have been logged out.</p>
-  <p><a href="/html_no_js/">Back to lists</a></p>
 {% endblock %}

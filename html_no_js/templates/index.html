@@ -65,24 +65,7 @@
     /* Make html match the app background so Safari doesn't show the theme-color blue in page margins */
     html { background: var(--bg); }
   </style>
-  <!-- Recently visited lists (per-user). Placed above auth actions. -->
-  <section class="recent-lists-link" style="margin-top:0.25rem;">
-    <a href="/html_no_js/recent">Recently visited lists</a>
-  </section>
-
-  <p></p>
-
-  <div class="auth-actions">
-    {% if csrf_token %}
-      <form method="post" action="/html_no_js/logout" style="display:inline">
-        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-        <button type="submit">Logout</button>
-      </form>
-    {% else %}
-      <a href="/html_no_js/login">Login</a>
-    {% endif %}
   
-  </div>
 
   <!-- search form: search lists and todos -->
   <form method="get" action="/html_no_js/search" style="margin:0.5rem 0">
@@ -110,14 +93,12 @@
       </ul>
     </section>
   {% endif %}
-  <h3>Create list</h3>
   <form method="post" action="/html_no_js/lists/create">
   {{ csrf_field() }}
   <input name="name" placeholder="List name" required>
     <button type="submit">Create</button>
   </form>
-
-  <h2>Your Lists</h2>
+  
   {% if cursors %}
     <nav class="pagination" aria-label="Pages">
       {% if cursors.has_prev %}

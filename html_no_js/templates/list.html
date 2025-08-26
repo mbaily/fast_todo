@@ -91,10 +91,7 @@
   }
 
   </style>
-  <!-- Recently visited lists (per-user). Placed just below the site title. -->
-  <section class="recent-lists-link" style="margin-top:0.5rem;">
-    <a href="/html_no_js/recent">Recently visited lists</a><a href="/html_no_js/" style="margin-left:1rem">Back to lists </a><p></p>
-  </section>
+  
   <div class="list-header">
     <div class="list-action-left">
       <form method="post" action="/html_no_js/lists/{{ list.id }}/complete" style="display:inline">
@@ -102,21 +99,26 @@
         <input type="hidden" name="completed" value="{{ 'false' if list.completed else 'true' }}">
         <button type="submit" class="list-action-btn" title="{{ 'Unmark list complete' if list.completed else 'Mark list complete' }}" aria-label="Toggle list complete">{{ '☑' if list.completed else '☐' }}</button>
       </form>
-      <form method="post" action="/html_no_js/lists/{{ list.id }}/delete" class="confirm-delete" data-confirm="Delete list '{{ list.name }}' and all its todos? This cannot be undone.">
-        {{ csrf_field() }}
-        <button type="submit" class="list-action-btn" title="Delete list">🗑</button>
-      </form>
+      {# Delete moved to page-toolbar below; keep this area compact and only show the complete toggle here. #}
     </div>
     <div class="list-main">
       <h2 class="list-title">{{ list.name }}</h2>
     </div>
   </div>
 
+  {# Page toolbar (placed just below the main navigation toolbar) #}
+  <nav class="page-toolbar" role="toolbar" aria-label="List actions" style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.6rem;">
+    <form id="list-delete-form" method="post" action="/html_no_js/lists/{{ list.id }}/delete" class="confirm-delete" data-confirm="Delete list '{{ list.name }}' and all its todos? This cannot be undone." style="display:inline">
+      {{ csrf_field() }}
+      <button type="submit" class="tb-item" aria-label="Delete list">🗑 <span class="sr-only">Delete</span></button>
+    </form>
+    <div style="flex:1 1 auto"></div>
+  </nav>
+
 
   {% if completion_types is not none %}
   {% endif %}
 
-  <h3>Create todo</h3>
   <form id="create-todo-form" method="post" action="/html_no_js/todos/create" autocomplete="off">
   {{ csrf_field() }}
   <input id="new-todo-text" name="text" placeholder="Todo text" required autofocus autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
@@ -444,7 +446,6 @@
     })();
   </script>
 
-  <h3>Todos</h3>
   {% if todos %}
   <ul class="todos-list{% if list.hide_icons %} hide-icons{% endif %}">
     {% for t in todos %}

@@ -20,27 +20,7 @@
     </style>
   </head>
   <body>
-  <div style="margin-bottom:0.5rem;">
-    <div style="margin-bottom:0.25rem;">
-      <a href="/html_no_js/recent" style="color:inherit;">Recently visited lists</a>
-    </div>
-    <div style="margin-bottom:0.25rem;">
-      <form method="get" action="/html_no_js/search" style="display:block;">
-        <input name="q" placeholder="Search lists and todos">
-        <button type="submit">Search</button>
-      </form>
-    </div>
-    <div>
-      {% if csrf_token %}
-        <form method="post" action="/html_no_js/logout" style="display:block;margin-top:0.25rem;">
-          <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-          <button type="submit">Logout</button>
-        </form>
-      {% else %}
-        <div style="margin-top:0.25rem;"><a href="/html_no_js/login">Login</a></div>
-      {% endif %}
-    </div>
-  </div>
+  
  
 
     {% if pinned_todos and pinned_todos|length > 0 %}
