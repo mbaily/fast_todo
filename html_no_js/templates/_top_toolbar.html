@@ -45,11 +45,6 @@
     <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M8 1L2 5v8h12V5L8 1zM8 2.2l4 2.2v6.8H4V4.4l4-2.2z"/></svg>
   </a>
 
-  {# Recently visited lists (always safe to show) #}
-  <a class="tb-item" href="/html_no_js/recent">
-    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M8 3a5 5 0 100 10A5 5 0 008 3zm0 1a4 4 0 110 8A4 4 0 018 4zM8 6v3l2 1"/></svg>
-  </a>
-
   {# Back to lists - link to main lists index. Hide on the lists index itself (# requirement) #}
   {% set _path = (request.path if request is defined and request.path is defined else (request.url.path if request is defined and request.url is defined else '')) %}
   {% if not (_path == '/html_no_js/' or _path == '/html_no_js' or _path.startswith('/html_no_js/todos')) %}
@@ -66,6 +61,11 @@
       <span class="label">List</span>
     </a>
   {% endif %}
+
+  {# Recently visited lists (always safe to show) #}
+  <a class="tb-item" href="/html_no_js/recent">
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M8 3a5 5 0 100 10A5 5 0 008 3zm0 1a4 4 0 110 8A4 4 0 018 4zM8 6v3l2 1"/></svg>
+  </a>
 
   {# Calendar link (present on some pages) #}
   <a class="tb-item" href="/html_no_js/calendar">

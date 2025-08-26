@@ -41,13 +41,20 @@
   </ul>
     {% endif %}
 
-    <h3>Create list</h3>
     <form method="post" action="/html_no_js/lists/create">
       {% if csrf_token %}
         <input type="hidden" name="_csrf" value="{{ csrf_token }}">
       {% endif %}
       <input name="name" placeholder="List name" required>
       <button type="submit">Create</button>
+    </form>
+
+    <form method="get" action="/html_no_js/search" style="margin:0.6rem 0;">
+      {% if csrf_token %}
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+      {% endif %}
+      <input name="q" placeholder="Search" aria-label="Search" style="width:60%;">
+      <button type="submit">Search</button>
     </form>
 
     {% if cursors %}
@@ -61,7 +68,6 @@
       </nav>
     {% endif %}
 
-  <h2 style="margin-top:0">Your Lists</h2>
     <ul>
     {% for lst in lists %}
       <li>
