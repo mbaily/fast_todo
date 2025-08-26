@@ -1,0 +1,99 @@
+{% set _path = (request.path if request is defined and request.path is defined else (request.url.path if request is defined and request.url is defined else '')) %}
+
+{% if _path == '/html_no_js/login' or _path == '/html_no_js/login/' or _path == '/html_no_js/logout' or _path == '/html_no_js/logout/' %}
+  <nav class="top-toolbar" role="navigation" aria-label="Top toolbar">
+    <style>
+      /* minimal toolbar styles for login-only view */
+      .top-toolbar { display:flex; gap:0.5rem; align-items:center; margin-bottom:0.5rem; }
+      .top-toolbar .tb-item { display:inline-flex; align-items:center; gap:0.4rem; padding:0.35rem 0.6rem; border-radius:6px; background:var(--surface); border:1px solid var(--border); color:var(--text); text-decoration:none; }
+      .top-toolbar .tb-item svg { width:1.05rem; height:1.05rem; }
+      .top-toolbar .tb-item .label { font-size:0.95rem; }
+    </style>
+
+    {# Only show login (or logout if already authenticated) on the login page per request #}
+    {% if csrf_token %}
+      <form method="post" action="/html_no_js/logout">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+        <button type="submit" class="tb-item" aria-label="Logout">
+          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M6 2h6v2H6V2zm0 10h6v2H6v-2zM3 8h7v1H3V8zm10-4V3a1 1 0 00-1-1H3a1 1 0 00-1 1v10a1 1 0 001 1h9a1 1 0 001-1v-1h-1v1H3V3h9v1h1z"/></svg>
+          <span class="label">Logout</span>
+        </button>
+      </form>
+    {% else %}
+      <a class="tb-item" href="/html_no_js/login">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M6 2h6v2H6V2zm6 8v2a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1h8a1 1 0 011 1v2h-1V3H3v10h8v-2h1zM9 7l2-2 1 1-3 3-3-3 1-1 2 2z"/></svg>
+        <span class="label">Login</span>
+      </a>
+    {% endif %}
+
+  </nav>
+{% else %}
+  <nav class="top-toolbar" role="navigation" aria-label="Top toolbar">
+  <style>
+    /* Minimal toolbar styles: horizontal on wide, stacked on narrow */
+    .top-toolbar { display:flex; gap:0.5rem; align-items:center; margin-bottom:0.5rem; flex-wrap:wrap; }
+    .top-toolbar .tb-item { display:inline-flex; align-items:center; gap:0.4rem; padding:0.35rem 0.6rem; border-radius:6px; background:var(--surface); border:1px solid var(--border); color:var(--text); text-decoration:none; }
+    .top-toolbar .tb-item svg { width:1.05rem; height:1.05rem; display:inline-block; vertical-align:middle; }
+    .top-toolbar .tb-item .label { font-size:0.95rem; }
+    .top-toolbar form { display:inline-block; margin:0; }
+    .top-toolbar .spacer { flex:1 1 auto; }
+    @media (max-width:540px){ .top-toolbar { gap:0.35rem; } .top-toolbar .tb-item { padding:0.5rem; min-width:48px; justify-content:center; } .top-toolbar .tb-item .label{display:none;} }
+  </style>
+
+  {# Fast Todo / Home link #}
+  <a class="tb-item" href="/html_no_js/">
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M8 1L2 5v8h12V5L8 1zM8 2.2l4 2.2v6.8H4V4.4l4-2.2z"/></svg>
+  </a>
+
+  {# Recently visited lists (always safe to show) #}
+  <a class="tb-item" href="/html_no_js/recent">
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M8 3a5 5 0 100 10A5 5 0 008 3zm0 1a4 4 0 110 8A4 4 0 018 4zM8 6v3l2 1"/></svg>
+  </a>
+
+  {# Back to lists - link to main lists index. Hide on the lists index itself (# requirement) #}
+  {% set _path = (request.path if request is defined and request.path is defined else (request.url.path if request is defined and request.url is defined else '')) %}
+  {% if not (_path == '/html_no_js/' or _path == '/html_no_js' or _path.startswith('/html_no_js/todos')) %}
+    <a class="tb-item" href="/html_no_js/">
+      <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M6.5 3.5L2 8l4.5 4.5L8 11.5 5.75 9.25H14v-2.5H5.75L8 4.5 6.5 3.5z"/></svg>
+      <span class="label">Lists</span>
+    </a>
+  {% endif %}
+
+  {# Optional Back to List - only render if context provides 'back_to_list_url' #}
+  {% if back_to_list_url %}
+    <a class="tb-item" href="{{ back_to_list_url }}">
+      <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M4 8l4-4v3h6v2H8v3L4 8z"/></svg>
+      <span class="label">List</span>
+    </a>
+  {% endif %}
+
+  {# Calendar link (present on some pages) #}
+  <a class="tb-item" href="/html_no_js/calendar">
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M3 2v1H2v11h12V3h-1V2h-1v1H5V2H4v1H3zm1 4h8v6H4V6z"/></svg>
+  </a>
+
+  <div class="spacer" aria-hidden="true"></div>
+
+  {# Prefer rendering a Logout POST form so pages like the calendar show Logout instead of Login.
+     If `csrf_token` is present include the hidden field; if not present still render the form as a
+     POST fallback (the server may accept session cookie-based CSRF). If your server requires the
+     token and it's not present, the form will fail — in that case show Login link. #}
+  {% if true %}
+    <form method="post" action="/html_no_js/logout">
+      {% if csrf_token %}
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+      {% endif %}
+      <button type="submit" class="tb-item" aria-label="Logout">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M6 2h6v2H6V2zm0 10h6v2H6v-2zM3 8h7v1H3V8zm10-4V3a1 1 0 00-1-1H3a1 1 0 00-1 1v10a1 1 0 001 1h9a1 1 0 001-1v-1h-1v1H3V3h9v1h1z"/></svg>
+        <span class="label">Logout</span>
+      </button>
+    </form>
+  {% else %}
+    <a class="tb-item" href="/html_no_js/login">
+      <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M6 2h6v2H6V2zm6 8v2a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1h8a1 1 0 011 1v2h-1V3H3v10h8v-2h1zM9 7l2-2 1 1-3 3-3-3 1-1 2 2z"/></svg>
+      <span class="label">Login</span>
+    </a>
+  {% endif %}
+
+  </nav>
+{% endif %}
