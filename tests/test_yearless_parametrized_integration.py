@@ -33,14 +33,13 @@ async def test_param_integration_calendar_resolution(client, month, day, created
     assert r.status_code == 200
     tid = r.json().get('id')
 
-    # override created_at
+    # override created_at (commit while session is open so change persists)
     async with async_session() as sess:
         q = await sess.exec(select(Todo).where(Todo.id == tid))
         t = q.first()
         t.created_at = created_at
         sess.add(t)
-    await sess.commit()
-    await sess.close()
+        await sess.commit()
 
     # query a window covering the expected year. If expected_year is None (no
     # candidate due to 1-year cap), query the original todo created_at..+1yr

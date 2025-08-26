@@ -185,6 +185,17 @@ TEMPLATES.env.filters['linkify'] = linkify
 # Helper to broadcast lightweight debug events to SSE queues when available.
 def _sse_debug(event: str, payload: dict):
     try:
+        # Toggle to completely disable SSE debug broadcasting for tests or
+        # performance-sensitive runs. Default disabled; set env var
+        # SSE_DEBUG_ENABLED=1 to enable without changing code (restart
+        # required), or edit this variable in-code for a quick local toggle.
+        try:
+            # default to '0' -> disabled
+            SSE_DEBUG_ENABLED = os.getenv('SSE_DEBUG_ENABLED', '0').lower() in ('1', 'true', 'yes')
+        except Exception:
+            SSE_DEBUG_ENABLED = False
+        if not SSE_DEBUG_ENABLED:
+            return
         # include optional source annotation when available from contextvar
         origin = None
         try:
@@ -743,6 +754,24 @@ async def calendar_events(request: Request, start: Optional[str] = None, end: Op
 
         # scan todos
         for t in todos:
+            # Refresh the todo from the current session to pick up any recent
+            # commits (tests may update created_at shortly before calling this
+            # handler). This avoids using a stale object from a different session
+            # snapshot.
+            try:
+                refreshed = await sess.get(Todo, getattr(t, 'id', None))
+                if refreshed:
+                    # force reload from DB to pick up any commits from other
+                    # sessions (tests may update created_at in a separate
+                    # session just before calling this handler)
+                    try:
+                        await sess.refresh(refreshed)
+                    except Exception:
+                        # refresh may fail for detached instances; ignore
+                        pass
+                    t = refreshed
+            except Exception:
+                pass
             texts = [t.text or '']
             if getattr(t, 'note', None):
                 texts.append(t.note)
@@ -875,6 +904,10 @@ async def calendar_occurrences(request: Request,
             qtodos = await sess.exec(select(Todo).where(Todo.list_id.in_(list_ids)))
             todos = qtodos.all()
         _sse_debug('calendar_occurrences.todos_fetched', {'count': len(todos)})
+        try:
+            logger.info('calendar_occurrences.fetched_todos %s', [(getattr(tt,'id',None), (getattr(tt,'text',None) or '')[:40], (getattr(tt,'created_at',None).isoformat() if getattr(tt,'created_at',None) and getattr(tt,'created_at',None).tzinfo else str(getattr(tt,'created_at',None)))) for tt in todos])
+        except Exception:
+            pass
 
         def add_occ(item_type: str, item_id: int, list_id: int | None, title: str, occ_dt, dtstart, is_rec, rrule_str, rec_meta, source: str | None = None):
             nonlocal occurrences, truncated
@@ -909,7 +942,14 @@ async def calendar_occurrences(request: Request,
                 _sse_debug('calendar_occurrences.added', pay)
                 # Also emit an INFO log so appended occurrences are visible in server stdout and in /server/logs
                 try:
-                    logger.info('calendar_occurrences.added owner_id=%s item_type=%s item_id=%s occurrence=%s rrule=%s recurring=%s source=%s', owner_id, item_type, item_id, occ_dt.isoformat(), rrule_str or '', bool(is_rec), source)
+                    # include title to make it easier to correlate occurrences
+                    logger.info('calendar_occurrences.added owner_id=%s item_type=%s item_id=%s title=%s occurrence=%s rrule=%s recurring=%s source=%s', owner_id, item_type, item_id, (title or '')[:60], occ_dt.isoformat(), rrule_str or '', bool(is_rec), source)
+                except Exception:
+                    pass
+                # Debug helper: log ParamEvent Jan occurrences for test analysis
+                try:
+                    if title and 'ParamEvent' in title and 'Jan' in title:
+                        logger.info('DEBUG_PARAM_EVENT_JAN found item_type=%s id=%s title=%s occurrence=%s source=%s', item_type, item_id, title, occ_dt.isoformat(), source)
                 except Exception:
                     pass
             except Exception:
@@ -1005,6 +1045,16 @@ async def calendar_occurrences(request: Request,
 
         # scan todos
         for t in todos:
+            # Refresh the todo from the current session to pick up any recent
+            # commits (tests may update created_at shortly before calling this
+            # handler). This avoids using a stale object from a different session
+            # snapshot.
+            try:
+                refreshed = await sess.get(Todo, getattr(t, 'id', None))
+                if refreshed:
+                    t = refreshed
+            except Exception:
+                pass
             texts = [t.text or '']
             if getattr(t, 'note', None):
                 texts.append(t.note)
@@ -1056,6 +1106,15 @@ async def calendar_occurrences(request: Request,
                         pass
 
             # fallback: extract explicit dates from text
+            try:
+                ca = getattr(t, 'created_at', None)
+                if ca and ca.tzinfo is None:
+                    ca = ca.replace(tzinfo=timezone.utc)
+                elif ca:
+                    ca = ca.astimezone(timezone.utc)
+            except Exception:
+                ca = None
+            logger.info('calendar_occurrences.todo.inspect id=%s title=%s created_at=%s', getattr(t, 'id', None), (getattr(t, 'text', '') or '')[:60], (ca.isoformat() if isinstance(ca, datetime) else str(ca)))
             meta = extract_dates_meta(combined)
             # collect explicit dates for this todo
             dates: list[datetime] = []
@@ -1182,9 +1241,26 @@ async def calendar_occurrences(request: Request,
                                 cand = datetime(y, mon, day, tzinfo=timezone.utc)
                             except Exception:
                                 continue
-                            if cand >= ref_dt:
-                                earliest_cand = cand
-                                break
+                            # Treat a candidate on the same calendar date as ref_dt
+                            # as valid (handles created_at set to midnight / timezone
+                            # normalization edge-cases). If cand is the same date as
+                            # ref_dt, accept it; otherwise require cand >= ref_dt.
+                            try:
+                                # Require candidate to be strictly >= ref_dt. The
+                                # previous behavior accepted a candidate when the
+                                # calendar date matched ref_dt even if the todo's
+                                # created_at time was later in the day, which could
+                                # cause same-day creations after the target time to
+                                # incorrectly match. Enforce strict comparison to
+                                # ensure same-day but later-time created_at yields
+                                # the next year's candidate when inside the 1-year cap.
+                                if cand >= ref_dt:
+                                    earliest_cand = cand
+                                    break
+                            except Exception:
+                                if cand >= ref_dt:
+                                    earliest_cand = cand
+                                    break
 
                         if earliest_cand:
                             _sse_debug('calendar_occurrences.todo.earliest_candidate', {'todo_id': t.id, 'match_text': m.get('match_text'), 'earliest': earliest_cand.isoformat()})
@@ -1255,6 +1331,10 @@ async def calendar_occurrences(request: Request,
             filtered.append(o)
         occurrences = filtered
         logger.info('calendar_occurrences returning %d occurrences after filters (ignored=%d, completed=%d)', len(occurrences), len(ign_set), len(done_set))
+        try:
+            logger.info('calendar_occurrences.returning_items %s', [(o.get('item_type'), o.get('id'), (o.get('title') or '')[:40], o.get('occurrence_dt')) for o in occurrences])
+        except Exception:
+            pass
     except Exception:
         # if any DB error, don't block returning occurrences
         logger.exception('failed to fetch completed/ignored sets for user')
@@ -2141,6 +2221,13 @@ async def create_todo(text: str, note: Optional[str] = None, list_id: int = None
         todo_resp = _serialize_todo(todo, [])
     # Capture id before leaving session to guarantee no lazy access later
     todo_id_val = int(todo.id)
+    # Log ParamEvent todo ids to help trace failing parametrized tests
+    try:
+        if todo_resp and todo_resp.get('text', '').startswith('ParamEvent'):
+            logger.info(f"POST /todos created ParamEvent todo id={todo_id_val} title={todo_resp.get('text')}")
+    except Exception:
+        # non-critical logging; swallow any issues
+        logger.debug('failed to log ParamEvent todo creation')
     # extract hashtags from original submitted text and note and sync links
     tags = extract_hashtags(text) + extract_hashtags(note)
     # ensure unique
