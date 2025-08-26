@@ -51,13 +51,14 @@ def normalize_hashtag(tag: str) -> str:
         raise ValueError("invalid hashtag: empty")
     if not t.startswith('#'):
         t = '#' + t
-    # validate: only allow alphanumeric characters after '#'
+    # validate: must start with a letter and only contain alphanumeric characters
     body = t[1:]
     # empty body is invalid
     if not body:
         raise ValueError("invalid hashtag: empty")
-    if not body.isalnum():
-        raise ValueError("invalid hashtag: must be alphanumeric after '#'")
+    # first char must be a letter
+    if not re.fullmatch(r"[A-Za-z][A-Za-z0-9]*", body):
+        raise ValueError("invalid hashtag: must start with a letter and be alphanumeric after '#'")
     # enforce lowercase body
     return '#' + body.lower()
 
@@ -69,8 +70,11 @@ def extract_hashtags(text: str | None) -> list[str]:
     """
     if not text:
         return []
-    # find sequences starting with '#' followed by one or more alphanumeric chars
-    matches = re.findall(r"#([A-Za-z0-9]+)", text)
+    # find whole-token sequences starting with '#' followed by a letter then zero or more alphanumeric chars
+    # require start-of-string or whitespace before the '#' and whitespace or end after the token
+    matches = []
+    for m in re.finditer(r"(?:(?<=\s)|^)#([A-Za-z][A-Za-z0-9]*)(?=\s|$)", text):
+        matches.append(m.group(1))
     seen: set[str] = set()
     out: list[str] = []
     for m in matches:
@@ -95,8 +99,9 @@ def remove_hashtags_from_text(text: str | None) -> str:
     """
     if not text:
         return ""
-    # Remove hashtags with optional leading space; keep a space so words don't join
-    cleaned = re.sub(r"(^|\s)#[A-Za-z0-9]+(?=\s|$)", lambda m: (" " if m.group(1) else ""), text)
+    # Remove hashtags that match the stricter rule (start with letter, then alnum)
+    # with optional leading space; keep a space so words don't join
+    cleaned = re.sub(r"(^|\s)#[A-Za-z][A-Za-z0-9]*(?=\s|$)", lambda m: (" " if m.group(1) else ""), text)
     # Collapse all whitespace sequences to a single space and strip
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     return cleaned

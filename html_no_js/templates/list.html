@@ -395,7 +395,8 @@
       function findFragment(){
         var pos = input.selectionStart || 0;
         var left = (input.value || '').slice(0, pos);
-        var m = left.match(/(^|\s)#([A-Za-z0-9_]*)$/);
+  // require first char after '#' to be a letter and subsequent chars to be alphanumeric
+  var m = left.match(/(^|\s)#([A-Za-z][A-Za-z0-9]*)$/);
         if (!m) return null;
         var fragment = m[2] || '';
         var start = pos - fragment.length - 1; // include '#'
