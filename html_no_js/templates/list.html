@@ -102,12 +102,12 @@
       {# Delete moved to page-toolbar below; keep this area compact and only show the complete toggle here. #}
     </div>
     <div class="list-main">
-      <h2 class="list-title">{{ list.name }}</h2>
+      <h3 class="list-title">{{ list.name }}</h3>
     </div>
   </div>
 
   {# Page toolbar (placed just below the main navigation toolbar) #}
-  <nav class="page-toolbar" role="toolbar" aria-label="List actions" style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.6rem;">
+  <nav class="page-toolbar" role="toolbar" aria-label="List actions" style="display:flex;gap:0.0rem;align-items:center;margin-bottom:0.0rem;">
     <form id="list-delete-form" method="post" action="/html_no_js/lists/{{ list.id }}/delete" class="confirm-delete" data-confirm="Delete list '{{ list.name }}' and all its todos? This cannot be undone." style="display:inline">
       {{ csrf_field() }}
       <button type="submit" class="tb-item" aria-label="Delete list">🗑 <span class="sr-only">Delete</span></button>
