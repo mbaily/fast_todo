@@ -446,6 +446,7 @@
     })();
   </script>
 
+  {% if not list.hide_icons %}
   <div style="margin:0.5rem 0; display:flex; align-items:center; gap:0.5rem;">
     <label style="display:inline-flex; align-items:center; gap:0.4rem;">
       <input type="checkbox" id="completed-after-checkbox">
@@ -470,8 +471,8 @@
       var originalOrder = initialItems.map(function(it){ return it.id; });
 
       // init checkbox from cookie (namespaced per-list)
-        var cookieName = 'completed_after_list_{{ list.id }}';
-        var v = getCookie(cookieName);
+      var cookieName = 'completed_after_list_{{ list.id }}';
+      var v = getCookie(cookieName);
       cb.checked = v === '1';
 
       function isCompletedElem(it){
@@ -502,7 +503,7 @@
         } catch(e){ /* ignore */ }
       }
 
-  cb.addEventListener('change', function(){ setCookie(cookieName, cb.checked ? '1' : '0', 365); reorder(); });
+      cb.addEventListener('change', function(){ setCookie(cookieName, cb.checked ? '1' : '0', 365); reorder(); });
       // initial ordering based on cookie
       reorder();
     }
@@ -521,6 +522,7 @@
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', findOrWaitForUl); else findOrWaitForUl();
   })();
   </script>
+  {% endif %}
 
   {% if todos %}
   <ul class="todos-list{% if list.hide_icons %} hide-icons{% endif %}">
