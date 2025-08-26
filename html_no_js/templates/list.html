@@ -446,6 +446,82 @@
     })();
   </script>
 
+  <div style="margin:0.5rem 0; display:flex; align-items:center; gap:0.5rem;">
+    <label style="display:inline-flex; align-items:center; gap:0.4rem;">
+      <input type="checkbox" id="completed-after-checkbox">
+      <span>completed after</span>
+    </label>
+  </div>
+
+  <script>
+  (function(){
+    function setCookie(name, value, days){ var expires=''; if(days){ var d=new Date(); d.setTime(d.getTime() + (days*24*60*60*1000)); expires='; expires='+d.toUTCString(); } document.cookie = name + '=' + encodeURIComponent(value) + expires + '; path=/'; }
+    function getCookie(name){ var m = document.cookie.match('(?:^|; )' + name + '=([^;]*)'); return m ? decodeURIComponent(m[1]) : null; }
+
+    var cb = document.getElementById('completed-after-checkbox');
+    if (!cb) return;
+
+    var initialized = false;
+
+    function attachOnce(ul){
+      if (initialized) return; initialized = true;
+      // capture original server-provided order by id
+      var initialItems = Array.from(ul.querySelectorAll('li.todo'));
+      var originalOrder = initialItems.map(function(it){ return it.id; });
+
+      // init checkbox from cookie (namespaced per-list)
+        var cookieName = 'completed_after_list_{{ list.id }}';
+        var v = getCookie(cookieName);
+      cb.checked = v === '1';
+
+      function isCompletedElem(it){
+        var chk = it.querySelector('.controls-left form[action*="/complete"] button');
+        if (chk && chk.textContent && chk.textContent.indexOf('☑') !== -1) return true;
+        if (it.querySelector('.todo-title-inline.done')) return true;
+        return false;
+      }
+
+      function reorder(){
+        try {
+          var currentItems = Array.from(ul.querySelectorAll('li.todo'));
+          var map = {};
+          currentItems.forEach(function(it){ if (it.id) map[it.id] = it; });
+
+          if (!cb.checked) {
+            // restore original server order (for items present) then append any new items in their current order
+            originalOrder.forEach(function(id){ var el = map[id]; if (el) ul.appendChild(el); });
+            currentItems.forEach(function(it){ if (!it.id || originalOrder.indexOf(it.id) === -1) ul.appendChild(it); });
+            return;
+          }
+
+          var incomplete = [], completed = [];
+          // iterate originalOrder first so we preserve server ordering within groups
+          var orderedIds = originalOrder.concat(currentItems.map(function(it){ return it.id; }).filter(function(id){ return originalOrder.indexOf(id) === -1; }));
+          orderedIds.forEach(function(id){ var el = map[id]; if (!el) return; if (isCompletedElem(el)) completed.push(el); else incomplete.push(el); });
+          incomplete.concat(completed).forEach(function(el){ ul.appendChild(el); });
+        } catch(e){ /* ignore */ }
+      }
+
+  cb.addEventListener('change', function(){ setCookie(cookieName, cb.checked ? '1' : '0', 365); reorder(); });
+      // initial ordering based on cookie
+      reorder();
+    }
+
+    function findOrWaitForUl(){
+      var ul = document.querySelector('.todos-list');
+      if (ul) return attachOnce(ul);
+      // wait for UL to appear (e.g., template renders after this script or a partial renders)
+      var ro = new MutationObserver(function(mutations, obs){
+        var u = document.querySelector('.todos-list');
+        if (u) { obs.disconnect(); attachOnce(u); }
+      });
+      try { ro.observe(document.body || document.documentElement, { childList: true, subtree: true }); } catch(e){ /* ignore */ }
+    }
+
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', findOrWaitForUl); else findOrWaitForUl();
+  })();
+  </script>
+
   {% if todos %}
   <ul class="todos-list{% if list.hide_icons %} hide-icons{% endif %}">
     {% for t in todos %}
