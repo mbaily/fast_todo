@@ -1,0 +1,113 @@
+There is an issue with plain dates not showing up in the calendar now.
+
+Use the './test.db' SQLite database for debugging this issue.
+
+First issue is the scripts/add_user.py script. It requires the PYTHONPATH to be set. Can you clarify how PYTHONPATH is working. I get an error:
+Traceback (most recent call last):
+  File "/home/mbaily/fast_todo_gpt5_mini/./scripts/add_user.py", line 16, in <module>
+    from app.db import init_db, async_session
+ModuleNotFoundError: No module named 'app'
+
+2nd point
+The scripts/add_user.py script is in the scripts/ dir so how can you put a 3-line guard in to put the project root in sys.path (which is .. from the scripts/ dir)?
+
+3rd point
+Go ahead put 3-line guard in.
+
+4th point
+Add --db flag to specify the database file to use. Default to ./test.db
+
+5th point
+Write a python script to complete the rest of this debugging plain dates not working. 
+
+Put it in debuggings/
+
+Call it debuggings/plain_dates_not_showing.py
+
+
+Create a list and create 20 todos with plain dates in their text (like appointments). Use various date formats including DD/MM with leading 0's removed.
+
+It will use user 'dev_user' password 'dev'
+
+6th point
+In debuggings/plain_dates_not_showing.py, abstract the phrases variable etc into a resuable variable that other testing functions in the same script can reuse and refer to. So we can know for sure what we put in the DB to start with.
+
+7th point
+Also abstract the list name to be reusable from other functions in the same script. Create a function that retrieves the todos from the database and returns them. This will help us verify what is actually in the DB during testing. Use sqlite directly from python and query the database 'test.db' to make sure the todos we put in the list and the list are there in the DB.
+
+8th point
+Add to the debugging script the option to delete the db file first. On this dev laptop, it is OK to delete the db ('test.db').
+
+9th point
+For each todo in our python script variable, confirm it is in the database as a todo. Output count of confirmed matching todos to console.
+
+10th point
+Yes add extractor that runs app.utils.extract_dates (plain date extractions) against each seeded phrase and print results.
+
+point 11.
+analyze extractor for dates like 'Sep 3' and '10 Sep' which should be parsing. 
+
+It is good that '6 9' does not extract a date as it is not really a date format I want.
+
+point 12.
+Write a count for -extract (matching todos).
+
+point 13.
+For --extract don't show matching todos, instead print out non-matching todos (matching our python  phrases variable), then the count.
+
+point 14.
+Treat 'Standup 6 9' as intentionally non-matching (keep).
+
+Further analysis and your do best path forward to ensure the others are parsed.
+
+point 15.
+Add 10 more date phrases to test using australian date formats which work on dd/mm and dd/mm/yyyy with and without leading 0's.
+
+point 16.
+do your best with the remaining 4 phrases that do not parse. (they should). The ones like '10 Sep'.
+
+point 17.
+add 5 more phrases  like 'Sept 7' with text before and after the phrase to further test extraction.
+
+point 18.
+add --verbose flag. this prints the extraction data and the phrases being matched each sorted, side by side in a table format to the console.
+
+point 19.
+now let's look at the server API. is it possible to run a dev server within this script (since we deleted the db)? use the --server flag. then use python libraries to query the endpoints for calendar months like sep 2025, etc. Then kill the  dev server we just ran once results have been obtained.
+
+point 20.
+Q. The plain date extraction should work with ENABLE_RECURRING_DETECTION = 0. Do you agree with that?
+
+point 21.
+the meaning of ENABLE_RECURRING_DETECTION is to allow plain dates but not bother to find and extract recurring dates phrases like 'Water pot plant every 2 weeks'. How could you integrate this into the server code?
+
+point 22.
+for the --server check in our script, print out at the end the count of matching todos.
+
+point 23.
+add to debugging script 'debuggings/plain_dates_not_showing_helper.sh' single digit dates in australian date format like 5/9, 6/9, 7/1, etc. add 10 phrases.
+Re-test with debugging script.
+
+point 24.
+I found the ENABLE_RECURRING_DETECTION = 0 is disabling the plain date extraction for notes with recurring phrases. Instead it should bypass the whole recurring detection process and only apply plain date extraction.
+
+Add 10 phrases to the debuggin script that have recurring phrases but also have plain dates in them. e.g. 'Doctor appointment 10 Sep every year'.
+
+The exact phrase I found didn't work was "Water out plant out front every 2 weeks 5/9".
+
+Re-test and debug server.
+
+point 25
+test server with ENABLE_RECURRING_DETECTION = 0. It should extract the plain dates.
+
+point 26
+I found 'Water out plant out front every 2 weeks 5/9' was in the august 2025 calendar. It should be in september.
+
+point 27
+extract from debugging script to a json file with all phrases, in debugging/
+add to phrases the expected datetime (using your own knowledge) for each phrase. Convert list items to tuple and as a 2nd item to the tuple. Do it for all phrases in debugging script. I will examine and check the JSON filethen. Do not run the debugging script yet.
+
+point 28
+add phrase to the json file with multiple plain dates. Add multiple dates juxtaposed together and add some with other text interspersed. Add expected matching dates to tuple in json file.
+
+point 29

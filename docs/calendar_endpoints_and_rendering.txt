@@ -1,0 +1,86 @@
+Summary: calendar endpoints and rendering (plain dates / non-recurring)
+
+Purpose
+- Quick reference for which server endpoints handle plain calendar dates (explicit, non-recurring occurrences), which endpoints handle occurrence actions, and what the no-JS calendar template renders server-side vs what the client fetches.
+
+Key endpoints (plain/non-recurring)
+- GET /calendar/events
+  - Purpose: Extracts explicit dates found in lists and todos (text-parsed occurrences that are not recurrence-rule expansions).
+  - Query params: start (ISO datetime), end (ISO datetime)
+  - Response: JSON list of extracted event objects with at least: { id?, text, dt (ISO), source (todo/list), list_id?, todo_id? }
+  - Used when you only need explicit text-extracted dates; does not expand RRULEs.
+
+- GET /calendar/occurrences
+  - Purpose: Primary endpoint used by the calendar UI. Returns flattened occurrences in a time window. For plain dates it returns the explicit extracted dates; if recurrence expansion is enabled it also includes expanded recurrence occurrences.
+  - Query params: start (ISO), end (ISO), tz (optional), expand (bool), max_per_item, max_total
+  - Response includes occurrence records with fields such as: { occ_hash, dt (ISO), dt_end?, text, todo_id, list_id, is_recurring (bool), rrule? }
+  - Notes: Server filters out persisted IgnoredScope and CompletedOccurrence entries before returning results.
+
+Action endpoints (used by the client)
+- POST /occurrence/complete
+  - Form params: hash (occurrence hash)
+  - Effect: Idempotently stores a CompletedOccurrence record marking that occurrence complete.
+  - Auth/CSRF: If using cookie-based session, requires CSRF token verification; bearer token auth allowed for API clients.
+
+- POST /ignore/scope
+  - Form params: scope_type (e.g., occurrence | todo_from | list | todo), scope_key (todo/list identifier or occ hash), from_dt (optional ISO)
+  - Effect: Persists an IgnoredScope which suppresses future occurrences according to scope semantics.
+  - Auth/CSRF: Cookie sessions require CSRF verification; bearer token allowed.
+
+Supporting endpoint
+- POST /parse_text_to_rrule
+  - Purpose: Probe how a free-text phrase would be parsed to dtstart/rrule. Useful for client-side preview before saving a recurring todo. Not required for plain explicit dates but available.
+
+Template endpoint
+- GET /html_no_js/calendar
+  - Purpose: Serves the no-JS calendar HTML (Jinja2 template). Renders basic page chrome and a placeholder for occurrences.
+  - Server-side rendered values: year, month, prev_year/prev_month, next_year/next_month and navigation links; small header/controls and the static HTML skeleton.
+  - Client-side responsibilities: the page's JS (if enabled) computes a window start/end using server-provided year/month and immediately fetches GET /calendar/occurrences?start=...&end=... and renders the occurrence list into the DOM.
+
+Server vs Client rendering (no-JS / plain flow)
+
+- Server-side (what the template renders at initial load):
+  - Month/year navigation links and basic header text.
+  - A lightweight placeholder (e.g., "Loading calendar events...") and any server-derived values needed to build the initial fetch window ({{ year }}, {{ month }}).
+  - No per-occurrence HTML is rendered by default for the no-JS calendar template—the template intentionally leaves occurrence rendering to the client.
+
+- Client-side (what JS does after page load):
+  - Builds start/end datetimes for the given month (uses year/month rendered into template).
+  - Calls GET /calendar/occurrences with that window and builds the occurrence list (UL/LI), including controls per occurrence:
+    - checkbox posting to POST /occurrence/complete (sends occ_hash)
+    - "Ignore occurrence" button posting to POST /ignore/scope (scope_type=occurrence, scope_key=occ_hash)
+    - "Ignore from" button posting to POST /ignore/scope (scope_type=todo_from, scope_key=todo_id, from_dt=occurrence_dt)
+  - Applies client-side sorting/formatting and optionally visual indicators for recurring vs explicit events.
+
+Direct answer: are plain (non-recurring) dates server-side rendered at initial load?
+
+- Short answer: No — the default `GET /html_no_js/calendar` template does not render per-occurrence HTML on the server. It provides the month/year and skeleton. After the page loads the client JS calls `GET /calendar/occurrences` to retrieve explicit (plain) dates and renders them into the DOM.
+
+- Why: There are two related server endpoints for plain dates:
+  - `GET /calendar/events` — returns raw text-extracted explicit dates (useful for server-side processing or if you want to pre-render occurrences on the server).
+  - `GET /calendar/occurrences` — primary endpoint used by the calendar UI; returns the occurrences for the window (explicit dates and optionally expanded recurrences). This is the endpoint the client calls after the page loads.
+
+- If you need server-side rendered occurrences (for SEO, email, or server-side snapshots), call `GET /calendar/events` or call the same `GET /calendar/occurrences` from server-side code and inject the results into the template prior to returning HTML. That behaviour is not the default for `GET /html_no_js/calendar`.
+
+Important server behaviors and notes
+- Recurrence expansion toggle: the server reads a config flag (ENABLE_RECURRING_DETECTION). When disabled, /calendar/occurrences can return only explicit dates (or an empty set depending on config), simplifying non-recurring inspection.
+- Persistence: IgnoredScope and CompletedOccurrence are stored and consulted by /calendar/occurrences to suppress returned items.
+- Auth/CSRF: POST endpoints used by the calendar require CSRF for cookie-based sessions; bearer-token clients can bypass CSRF (standard API flow).
+- Parsing helpers live in app/utils.py (parse_text_to_rrule, extract_dates, extract_dates_meta) and are used by both /calendar/events and /calendar/occurrences.
+
+Example (conceptual) flows
+- Page load: GET /html_no_js/calendar -> server returns template with year/month -> client JS issues GET /calendar/occurrences?start=2025-08-01T00:00:00Z&end=2025-08-31T23:59:59Z -> server returns occurrences -> client renders list.
+- Mark occurrence complete: client POST /occurrence/complete (form) with occ_hash -> server stores CompletedOccurrence -> subsequent /calendar/occurrences calls omit that occurrence.
+- Ignore from a date: client POST /ignore/scope with scope_type=todo_from and from_dt=2025-08-15T... -> server stores IgnoredScope -> occurrences for that todo on/after that date are suppressed.
+
+Where to look in code
+- app/main.py: route handlers for /calendar/occurrences, /calendar/events, /occurrence/complete, /ignore/scope, /parse_text_to_rrule, and GET /html_no_js/calendar.
+- app/utils.py: parsing helpers (extract_dates, parse_text_to_rrule).
+- app/models.py: IgnoredScope and CompletedOccurrence models.
+- html_no_js/templates/calendar.html: no-JS calendar template and the small client-side script used to fetch occurrences.
+
+Notes / gotchas
+- Plain text-extracted dates are returned by both /calendar/events and /calendar/occurrences; use /calendar/events for raw extraction-only use cases and /calendar/occurrences for the UI (including filtering of ignored/completed entries).
+- If you need strictly non-recurring-only results from /calendar/occurrences, ensure recurrence expansion is disabled (config flag) or filter returned items where is_recurring is false.
+
+

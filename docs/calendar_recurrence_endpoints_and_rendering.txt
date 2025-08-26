@@ -1,0 +1,52 @@
+Summary: calendar occurrences and recurrence rules (server endpoints and rendering)
+
+Purpose
+- Document how recurrence rules and expanded occurrences are handled by the server, what endpoints the client uses to fetch recurring occurrences, what server-side rendering (if any) exists for recurring occurrences, and how the client applies actions (complete / ignore) to recurring items.
+
+Key endpoints (recurrence/occurrences)
+- GET /calendar/occurrences
+  - Purpose: Returns flattened occurrences for a requested time window. For recurrence rules this is the endpoint that returns expanded occurrences generated from stored RRULEs (or parsed inline rules) in addition to explicit text-extracted dates.
+  - Query params: start (ISO), end (ISO), tz (optional), expand (bool), max_per_item, max_total
+  - Response: JSON containing occurrences in the window. Recurrence-related fields include: { occ_hash, occurrence_dt (ISO), dt_end?, item_type, id (todo/list id), title, is_recurring (bool), rrule (optional), rrule_dtstart (optional), completed (bool) }
+  - Server-side behavior: expands recurrence rules (if enabled by config) into individual occurrences, then filters out IgnoredScope and CompletedOccurrence entries before returning results.
+
+- POST /parse_text_to_rrule
+  - Purpose: Parse a free-text recurrence phrase into dtstart/rrule parameters. Used by clients for preview when creating/editing recurring todos.
+  - Response: parsed dtstart (ISO) and rrule string / params (or error info).
+
+Action endpoints (same as plain dates)
+- POST /occurrence/complete
+  - Marks a single occurrence complete (persisted in CompletedOccurrence), identified by occ_hash.
+- POST /ignore/scope
+  - Creates an IgnoredScope for a single occurrence or a todo-from scope, preventing future occurrences from being returned.
+
+Server-side rendering vs client fetching (recurrence)
+- No-JS calendar template (`GET /html_no_js/calendar`) does not render expanded recurrence occurrences at initial load. It renders only navigation (year/month) and a placeholder. The client JS is responsible for calling `GET /calendar/occurrences` to retrieve expanded recurrences for the requested window and render the UI.
+
+- Recurrence expansion details:
+  - Recurrence rules may be stored on todos as `recurrence_rrule` plus an optional `recurrence_dtstart` in the DB.
+  - When `/calendar/occurrences` is called with `expand=true` (or by default), the server expands stored RRULEs into occurrences in the time window. If rules are missing but inline phrases are present, the parser (`parse_text_to_rrule`) may be used as a fallback.
+  - The server respects performance limits (`max_per_item`, `max_total`) and may cap expansion to avoid huge result sets.
+
+Persistence and filtering
+- Before returning occurrences, the server filters out:
+  - `IgnoredScope` records (single-occurrence ignores, todo_from, list-level ignores) according to scope semantics.
+  - `CompletedOccurrence` records that mark occurrences as complete.
+
+Auth and CSRF
+- POST endpoints require CSRF for cookie-authenticated browser requests; API clients using bearer tokens may post without CSRF.
+
+Client responsibilities
+- Client builds the start/end window for the month (using year/month from template) and calls `GET /calendar/occurrences`.
+- Client renders each occurrence and attaches controls that call `POST /occurrence/complete` and `POST /ignore/scope`.
+- For creating or editing recurring todos, client can call `POST /parse_text_to_rrule` to preview parsed recurrence.
+
+Where to look in code
+- app/main.py: main handlers for `/calendar/occurrences`, `/parse_text_to_rrule`, `/occurrence/complete`, `/ignore/scope`.
+- app/utils.py: parse and expansion helpers (parse_text_to_rrule, extract_dates, rrule expansion helpers).
+- app/models.py: storage models for recurrence fields, IgnoredScope, CompletedOccurrence.
+- html_no_js/templates/calendar.html: client JS fetches `/calendar/occurrences` and renders expanded occurrences.
+
+Notes and operational tips
+- If you want server-side pre-rendered occurrence HTML for archives or emails, call `/calendar/occurrences` from the server and render results into the template before returning HTML (this is not part of the default `GET /html_no_js/calendar` path).
+- To debug expansions, use `POST /parse_text_to_rrule` to check how the server interprets a phrase and then call `/calendar/occurrences` for the expected window to see expanded results.

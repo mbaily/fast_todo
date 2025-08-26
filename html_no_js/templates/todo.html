@@ -1,0 +1,266 @@
+{% extends 'base.html' %}
+{% block title %}Todo: {{ todo.text }} — Fast Todo (no-js){% endblock %}
+{% block content %}
+  <style>
+    /* page-specific: remove top page margin so the site title sits flush to the top */
+    body { margin-top: 0 !important; }
+    header { margin-top: 0 !important; }
+  </style>
+  <p style="margin-top:0;margin-bottom:0.25rem"><a href="/html_no_js/recent">Recently visited lists</a> <a href="/html_no_js/lists/{{ todo.list_id }}#todo-{{ todo.id }}" style="margin-left:0.75rem">Back to list</a></p>
+  <h2>{{ todo.text }}</h2>
+  <p class="meta">List: <a href="/html_no_js/lists/{{ todo.list_id }}">{{ list.name if list else todo.list_id }}</a></p>
+  {% if todo.note %}
+    <p class="note-text">{{ todo.note|linkify }}</p>
+  {% endif %}
+  {% if tags and tags|length > 0 %}
+    <div class="tags" role="list" aria-label="Tags">
+      {% for tag in (tags | sort) %}
+        <div role="listitem" style="display:inline-block; margin-right:0.4rem">
+          <a class="tag-chip" href="/html_no_js/search?q={{ tag|urlencode }}" role="link">{{ tag }}</a>
+          <form method="post" action="/html_no_js/todos/{{ todo.id }}/hashtags/remove" style="display:inline">
+            {{ csrf_field() }}
+            <input type="hidden" name="tag" value="{{ tag }}">
+            <button type="submit" class="tag-remove" aria-label="Remove {{ tag }}"><span aria-hidden="true">✖</span><span class="sr-only">Remove {{ tag }}</span></button>
+          </form>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <h3>Tags</h3>
+  <form method="post" action="/html_no_js/todos/{{ todo.id }}/hashtags" aria-label="Add tag">
+    {{ csrf_field() }}
+    <label>Add tag <input name="tag" placeholder="#tag" aria-label="Tag name"></label>
+    <button type="submit">Add</button>
+  </form>
+  <p class="meta">Created: {{ todo.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }} &nbsp; Modified: {{ todo.modified_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</p>
+
+  <h3>Edit</h3>
+  <form method="post" action="/html_no_js/todos/{{ todo.id }}/edit" autocomplete="off">
+    {{ csrf_field() }}
+    {# Make the title editable as a textarea with rows matching the note's newline count so it visually matches note height #}
+  <label>Text<br><textarea id="todo-text-input" class="full-bleed" name="text" required autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" rows="{{ (todo.note or '').split('\n')|length }}">{{ todo.text }}</textarea></label><br>
+    <div id="todo-hashtag-suggest" class="hashtag-suggest" role="listbox" aria-label="Hashtag suggestions" data-tags="{% if all_hashtags and all_hashtags|length > 0 %}{% for tag in all_hashtags %}{{ tag }}{% if not loop.last %},{% endif %}{% endfor %}{% endif %}"></div>
+  <label>Note<br><textarea id="note-textarea" class="full-bleed" name="note" rows="9">{{ todo.note or '' }}</textarea></label><br>
+  <button type="submit">Save</button>
+  <span id="autosave-status" class="meta" aria-live="polite" style="margin-left:0.5rem"></span>
+  </form>
+
+  <h3>Actions</h3>
+  {# Use an anchor link for mark/unmark so no-JS clients can click it. The GET handler will perform the toggle and redirect back. #}
+  <a class="action-link" href="/html_no_js/todos/{{ todo.id }}/complete?done={{ 'false' if completed else 'true' }}&amp;anchor=todo-{{ todo.id }}">{{ 'Unmark' if completed else 'Mark' }}</a>
+  <form method="post" action="/html_no_js/todos/{{ todo.id }}/delete" class="confirm-delete" data-confirm="Delete this todo? This cannot be undone.">
+    {{ csrf_field() }}
+  <input type="hidden" name="anchor" value="todo-{{ todo.id }}">
+  <input type="hidden" name="list_id" value="{{ todo.list_id }}">
+    <button type="submit">Delete</button>
+  </form>
+
+  <p><a href="/html_no_js/recent">Recent lists</a> <a href="/html_no_js/lists/{{ todo.list_id }}#todo-{{ todo.id }}" style="margin-left:0.75rem">Back to list</a></p>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Styles for hashtag suggestion box shared with list page
+(function(){
+  var style = document.createElement('style');
+  style.textContent = `
+    .hashtag-suggest{position:fixed;z-index:9999;background:#fff;border:1px solid #cbd5e1;border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,0.15);padding:4px;display:none;max-height:200px;overflow-y:auto;min-width:160px;font-size:.95rem}
+    .hashtag-suggest .item{padding:4px 8px;border-radius:4px;cursor:pointer;white-space:nowrap}
+    .hashtag-suggest .item.active,.hashtag-suggest .item:hover{background:rgba(29,78,216,.12)}
+  `;
+  document.head.appendChild(style);
+})();
+
+// Caret-based hashtag completion for the todo title input
+(function(){
+  var input = document.getElementById('todo-text-input');
+  var box = document.getElementById('todo-hashtag-suggest');
+  if (!input || !box) return;
+  var ALL_TAGS = (box.getAttribute('data-tags') || '').split(',').map(function(s){return s.trim();}).filter(Boolean);
+  var state = { open:false, items:[], active:0, range:[0,0] };
+  function closeBox(){ box.style.display='none'; state.open=false; }
+  function render(items){
+    box.innerHTML='';
+    if(!items||items.length===0){ closeBox(); return; }
+    items.slice(0,20).forEach(function(tag, idx){
+      var el=document.createElement('div');
+      el.className='item'+(idx===state.active?' active':'');
+      el.setAttribute('role','option');
+      el.textContent=(typeof tag==='string' && tag.charAt(0)==='#')?tag:('#'+tag);
+      el.dataset.idx=String(idx);
+      el.addEventListener('mousedown', function(ev){ ev.preventDefault(); commit(idx); });
+      box.appendChild(el);
+    });
+    box.style.display='block';
+  }
+  function positionBox(caretIndex){
+    try{
+      var rect=input.getBoundingClientRect();
+      var style=window.getComputedStyle(input);
+      var leftPad=parseFloat(style.paddingLeft)||0;
+      var font=[style.fontWeight, style.fontSize, style.fontFamily].filter(Boolean).join(' ');
+      var text=input.value.slice(0, caretIndex);
+      var canvas=positionBox._c||(positionBox._c=document.createElement('canvas'));
+      var ctx=canvas.getContext('2d');
+      ctx.font=font;
+      var metrics=ctx.measureText(text);
+      var x=rect.left+leftPad+metrics.width-(input.scrollLeft||0);
+      var vw=Math.max(document.documentElement.clientWidth||0, window.innerWidth||0);
+      var maxLeft=vw-200;
+      box.style.left=Math.max(8, Math.min(x, maxLeft))+'px';
+      box.style.top=(rect.bottom+4)+'px';
+      box.style.minWidth=Math.max(160, rect.width*0.4)+'px';
+    }catch(_){ var r=input.getBoundingClientRect(); box.style.left=(r.left)+'px'; box.style.top=(r.bottom+4)+'px'; }
+  }
+  function openFor(fragment, start, end){
+    var frag=(fragment||'').toLowerCase();
+    function body(t){ return (t&&t.charAt(0)==='#')?t.slice(1):(t||''); }
+    var items=ALL_TAGS.filter(function(t){ return body(t).toLowerCase().indexOf(frag)===0; });
+    state.items=items; state.active=0; state.range=[start,end];
+    if(items.length===0){ closeBox(); return; }
+    positionBox(end); render(items); state.open=true;
+  }
+  function findFragment(){
+    var pos=input.selectionStart||0;
+    var left=(input.value||'').slice(0,pos);
+    var m=left.match(/(^|\s)#([A-Za-z0-9_]*)$/);
+    if(!m) return null;
+    var fragment=m[2]||'';
+    var start=pos-fragment.length-1; // include '#'
+    return { fragment:fragment, start:start, end:pos };
+  }
+  function commit(idx){
+    if(!state.open||idx==null||idx<0||idx>=state.items.length) return;
+    var tag=state.items[idx];
+    var v=input.value; var start=state.range[0]; var end=state.range[1];
+    var before=v.slice(0,start); var after=v.slice(end);
+    var replacement=(typeof tag==='string' && tag.charAt(0)==='#')?tag:('#'+tag);
+    var needsSpace=after.length===0 || !/^\s/.test(after);
+    var newVal=before+replacement+(needsSpace?' ':'')+after;
+    var newCaret=(before+replacement).length+(needsSpace?1:0);
+    input.value=newVal; input.setSelectionRange(newCaret,newCaret);
+    closeBox();
+  }
+  input.addEventListener('input', function(){ var f=findFragment(); if(!f){ closeBox(); return; } openFor(f.fragment, f.start, f.end); });
+  input.addEventListener('keydown', function(ev){ if(!state.open) return; if(ev.key==='ArrowDown'){ ev.preventDefault(); state.active=Math.min(state.active+1, state.items.length-1); render(state.items);} else if(ev.key==='ArrowUp'){ ev.preventDefault(); state.active=Math.max(state.active-1,0); render(state.items);} else if(ev.key==='Enter'||ev.key==='Tab'){ ev.preventDefault(); commit(state.active);} else if(ev.key==='Escape'){ ev.preventDefault(); closeBox(); } });
+  input.addEventListener('focus', function(){ var f=findFragment(); if(f){ positionBox(f.end); } });
+  window.addEventListener('scroll', function(){ if(state.open){ var f=findFragment(); if(f) positionBox(f.end); } }, true);
+  window.addEventListener('resize', function(){ if(state.open){ var f=findFragment(); if(f) positionBox(f.end); } });
+  // Close suggestion box on outside click, touchstart or page scroll to avoid dual scroll indicators on mobile
+  document.addEventListener('click', function(ev){ if(!box.contains(ev.target) && ev.target!==box && ev.target!==input) closeBox(); });
+  try { document.addEventListener('touchstart', function(ev){ if(!box.contains(ev.target) && ev.target!==box && ev.target!==input) closeBox(); }, { passive: true }); } catch(e) {}
+  try { window.addEventListener('scroll', function(){ if(state.open) closeBox(); }, true); } catch(e) {}
+})();
+
+// Minimal autosave: debounce textarea changes and POST form via fetch to the existing edit endpoint.
+;(function(){
+  const textarea = document.getElementById('note-textarea');
+  if (!textarea) return; // nothing to do
+  const form = textarea.closest('form');
+  const statusEl = document.getElementById('autosave-status');
+  // helper to read csrf_token cookie (csrf cookie is not HttpOnly)
+  function getCookie(name){
+    const v = document.cookie.match('(?:^|;)\\s*' + name + '=([^;]*)');
+    return v ? decodeURIComponent(v[1]) : null;
+  }
+
+  let timer = null;
+  let inFlight = false;
+  const debounceMs = 1000;
+
+  function setStatus(text){
+    if (statusEl) statusEl.textContent = text;
+  }
+
+  async function doSave(){
+    if (inFlight) return; // simple guard
+    inFlight = true;
+    setStatus('Saving...');
+    try{
+      const url = form.action;
+      const fd = new FormData();
+      const textInput = form.querySelector('[name="text"]');
+      const textVal = textInput ? textInput.value : '';
+      fd.append('text', textVal);
+      fd.append('note', textarea.value || '');
+  // include csrf token: prefer the form hidden field (rendered server-side)
+  // and fall back to the csrf_token cookie.
+  let csrf = null;
+  const hiddenCsrf = form.querySelector('input[name="_csrf"]');
+  if (hiddenCsrf && hiddenCsrf.value) csrf = hiddenCsrf.value;
+  if (!csrf) csrf = getCookie('csrf_token');
+  if (csrf) fd.append('_csrf', csrf);
+      const res = await fetch(url, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
+      if (!res.ok) throw new Error('save failed');
+      setStatus('Saved');
+      setTimeout(()=>{ if (statusEl && statusEl.textContent === 'Saved') statusEl.textContent = ''; }, 1200);
+    }catch(err){
+      setStatus('Save failed');
+      console.error('autosave error', err);
+    }finally{
+      inFlight = false;
+    }
+  }
+
+  function scheduleSave(){
+  if (timer) clearTimeout(timer);
+  timer = setTimeout(doSave, debounceMs);
+  }
+
+  // save on input and on blur
+  textarea.addEventListener('input', scheduleSave);
+  textarea.addEventListener('blur', ()=>{ if (timer) clearTimeout(timer); doSave(); });
+
+  // also save when text field changes (title)
+  const titleInput = form.querySelector('[name="text"]');
+  if (titleInput){
+    titleInput.addEventListener('input', scheduleSave);
+    titleInput.addEventListener('blur', ()=>{ if (timer) clearTimeout(timer); doSave(); });
+  }
+
+})();
+
+// Sync the title textarea height/rows to match the rendered note height (accounts for word-wrapping)
+// More robust sync: set the title textarea pixel height to match the rendered note height.
+(function(){
+  function syncTitleToNote(){
+    try{
+      var titleEl = document.getElementById('todo-text-input');
+      if (!titleEl) return;
+      // Prefer the editable note textarea's height (more deterministic), fall back to rendered .note-text
+      var noteTextarea = document.getElementById('note-textarea');
+      var noteEl = document.querySelector('.note-text');
+      var noteHeight = 0;
+      if (noteTextarea) {
+        // use scrollHeight so we capture wrapped content height
+        noteHeight = noteTextarea.scrollHeight || noteTextarea.clientHeight || 0;
+      }
+      if (!noteHeight && noteEl) {
+        var noteRect = noteEl.getBoundingClientRect();
+        noteHeight = noteRect.height || 0;
+      }
+      if (!noteHeight) return;
+      var computed = window.getComputedStyle(titleEl);
+      var lineHeight = parseFloat(computed.lineHeight);
+      if (!lineHeight || isNaN(lineHeight)) {
+        var fontSize = parseFloat(computed.fontSize) || 16;
+        lineHeight = Math.round(fontSize * 1.2);
+      }
+      // Directly set the height to match the note's rendered height (keep small padding)
+  var desiredHeight = Math.max(24, Math.round(noteHeight));
+      titleEl.style.boxSizing = 'border-box';
+      titleEl.style.height = desiredHeight + 'px';
+      // Also update rows for accessibility and form autosizing fallbacks
+      var rows = Math.max(1, Math.round(desiredHeight / lineHeight));
+      titleEl.rows = rows;
+    }catch(e){ /* ignore */ }
+  }
+  var t;
+  window.addEventListener('load', syncTitleToNote);
+  window.addEventListener('resize', function(){ if (t) clearTimeout(t); t = setTimeout(syncTitleToNote, 150); });
+  setTimeout(syncTitleToNote, 120);
+})();
+
+</script>
+{% endblock %}

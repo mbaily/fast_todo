@@ -1,0 +1,185 @@
+Fast Todo — Data Model
+
+Overview
+--------
+This document describes the SQLModel (SQLAlchemy) data model for the Fast Todo app, including each table, fields, relationships, constraints, invariants, and important edge cases.
+
+Files: `app/models.py`
+
+Entities
+--------
+1) ServerState
+   - Purpose: global server settings (singleton-like table).
+   - Fields:
+     - id: PK (int)
+     - default_list_id: FK -> ListState.id | nullable
+   - Notes:
+     - There is typically a single ServerState row. default_list_id may be null.
+
+2) User
+   - Purpose: authenticated users.
+   - Fields:
+     - id: PK
+     - username: unique, indexed
+     - password_hash: bcrypt hash
+     - is_admin: bool
+   - Notes:
+     - username unique constraint enforced in DB. Passwords stored only as hashes.
+
+3) Session
+   - Purpose: server-side sessions mapped to user_id.
+   - Fields: id (PK), session_token (unique indexed), user_id FK -> User.id, created_at, expires_at, timezone
+   - Notes:
+     - session_token is stored in an HttpOnly cookie in the browser.
+
+4) ListState
+   - Purpose: a list (collection) of todos.
+   - Fields:
+     - id: PK
+     - name: text
+     - owner_id: FK -> User.id | nullable (null = public/shared)
+     - created_at, modified_at
+     - expanded: bool
+     - hide_done: bool
+     - completed: bool
+   - Relationships:
+     - todos: one-to-many with Todo (ListState.todos)
+     - hashtags: many-to-many with Hashtag via ListHashtag
+     - completion_types: one-to-many with CompletionType
+   - Invariants & constraints:
+     - Name uniqueness is enforced per-owner via an index (see `app/db.py`). Multiple users may have lists with the same name; an owner can't have two lists with the same name.
+     - owner_id = NULL indicates a public list visible to anonymous users.
+     - completed is a list-level boolean that can be toggled.
+
+5) Todo
+   - Purpose: a single todo item.
+   - Fields:
+     - id: PK
+     - text: string (required)
+     - note: optional text
+     - pinned: bool (default false)
+     - created_at, modified_at
+     - deferred_until: optional datetime
+     - list_id: FK -> ListState.id (non-nullable)
+   - Relationships:
+     - list: many-to-one to ListState (back_populates todos)
+     - hashtags: many-to-many via TodoHashtag
+     - completions: one-to-many to TodoCompletion
+   - Invariants & constraints:
+     - A Todo must always reference an existing ListState via list_id. Creation without a list_id will fail.
+     - Deleting a ListState cascades to tombstones and Todo deletions via application logic (see app/main.py delete_list), but the DB-level relationship is not cascading in the model.
+
+6) Hashtag
+   - Purpose: tag that can be attached to todos and lists.
+   - Fields: id PK, tag (unique indexed)
+   - Relationships: many-to-many to Todo via TodoHashtag, many-to-many to ListState via ListHashtag
+   - Notes: tag is unique globally (no duplicate tag strings)
+
+
+7) TodoHashtag / ListHashtag (link tables)
+   - Purpose: many-to-many join tables for hashtags
+   - Fields: composite PK (todo_id, hashtag_id) or (list_id, hashtag_id) with FKs
+   - Notes: duplicate link rows prevented by composite PK.
+
+mbaily: I am going to be getting GPT5 to implement server-side automatic extraction of hashtags on note create/update.
+
+8) CompletionType
+   - Purpose: defines named completion types for a list (e.g., "default").
+   - Fields: id PK, name, list_id FK -> ListState.id
+   - Constraints: UniqueConstraint(list_id, name) ensures names are unique per-list.
+   - Relationships: list (many-to-one), completions (one-to-many to TodoCompletion)
+
+Yes — the app uses a "default" completion type by convention and the server ensures it exists.
+The HTML (no-JS) flows and the API default to the completion type named "default" when none is specified.
+When a new list is created the server checks for a CompletionType with name == "default" for that list and inserts one if missing. So a defThe HTML (no-JS) flows and the API default to the completion type named "default" when none is specified.
+When a new list is created the server checks for a CompletionType with name == "default" for that list and inserts one if missing. So a default completion type is created for each list on creation (or at least ensured).ault completion type is created for each list on creation (or at least ensured).
+
+9) TodoCompletion
+   - Purpose: associates a todo with a completion_type and a boolean done flag.
+   - Fields: composite PK (todo_id, completion_type_id), done: bool
+   - Notes: one todo may have multiple completion rows (for multiple types). The app expects at most one active completion per type per todo.
+
+10) SyncOperation
+    - Purpose: record processed sync ops to provide idempotency for PWA clients.
+    - Fields: id PK, user_id FK, op_id unique indexed (client-provided id), op_name, client_id, server_id, result_json, created_at
+
+11) Tombstone
+    - Purpose: record deletions for offline sync clients.
+    - Fields: id PK, item_type (string: 'todo' or 'list'), item_id (int), created_at
+
+Relationships and ownership model
+--------------------------------
+- Lists (ListState) may be owned by a User (owner_id) or public (owner_id = NULL). Ownership gates who may edit/delete lists and todos.
+- Todos belong to exactly one ListState via the non-nullable list_id.
+- Hashtags are global strings; lists and todos reference hashtags via link tables. Duplicate tag strings are prevented by a unique constraint on Hashtag.tag.
+- CompletionType is tied to a list; names are unique per list.
+- TodoCompletion links a Todo and a CompletionType and records whether that completion type is done for the todo.
+
+What is allowed / not allowed
+----------------------------
+Allowed:
+- Create lists (with or without owner) and todos inside lists.
+- Create hashtags and link them to lists/todos.
+- Toggle pinned on todos.
+- Toggle list.completed and todo completion rows via endpoints.
+- Delete lists and todos; delete_list logic records tombstones and removes related rows.
+
+Not allowed / enforced by code or DB:
+- Creating a Todo without a valid list_id will fail (DB FK, model expects int).
+- Creating two CompletionType rows with the same (list_id, name) is prevented by UniqueConstraint.
+- Duplicate Hashtag.tag strings are prevented by a unique index.
+- Creating multiple identical TodoHashtag or ListHashtag rows is prevented by composite PKs.
+- Unauthorized users cannot modify lists they don't own; server-side code enforces ownership.
+
+Prominent edge cases & behaviors
+--------------------------------
+1) List deletion cascade
+   - Application code (app/main.py) handles cascade deletion: when a list is deleted, it records tombstone rows for todos, deletes TodoCompletion and TodoHashtag rows for those todos, and finally deletes the Todo rows. The DB model does not define ON DELETE CASCADE for these relationships, so application logic must be used when deleting.
+   - The app preserves original Todo.list_id values when deleting lists (comment in code indicates this) until it explicitly deletes the todos. Offline clients rely on tombstones to remove deleted items.
+
+2) Public lists (owner_id = NULL)
+   - Public lists are visible in pinned search and index views. Code often queries for lists where owner_id == current_user.id OR owner_id IS NULL to collect visible lists.
+   - Anonymous users are forbidden from deleting or modifying lists that have owner_id not null. The server enforces ownership checks.
+
+3) Missing columns in older DBs
+   - Code includes try/except around optional features (e.g., pinned column) to tolerate older DBs that haven't run migrations. If the column is missing, features degrade gracefully (e.g., pinned_todos empty).
+
+4) Completion semantics
+   - TodoCompletion is a mapping table with a done boolean. A todo may have multiple completion_type rows. The app treats completion toggles by creating/updating the appropriate TodoCompletion row. There may be no active completion rows for a todo.
+
+5) Sync idempotency
+   - SyncOperation records processed op_id values to prevent re-applying the same client operation multiple times. The op_id is unique per user for idempotency.
+
+6) Timezones
+   - Session rows may store a timezone string used to format datetimes for the client.
+
+7) Deferred todos
+   - Todos may have deferred_until timestamps; a background worker undefer jobs when their deferred_until <= now, clearing the field and updating modified_at.
+
+8) ServerState default list
+   - The ServerState may store a default_list_id. When the default list is deleted, application code selects a new default by modified_at/created_at order or clears it when no lists remain.
+
+9) Consistency expectations
+   - Because application code performs some cascades and tombstone bookkeeping in multiple steps and commits, there are brief windows where partial state exists (e.g., tombstones created but related Todo rows not yet deleted). Clients must be tolerant of such transient states during sync.
+
+Testing and recommendations
+---------------------------
+- Run the provided migration scripts when upgrading the schema to ensure columns like `pinned` and `completed` exist.
+- Add DB-level ON DELETE CASCADE where appropriate if you want the DB to enforce cascades instead of application logic, but be careful because the app relies on creating tombstones before removing todos.
+- Add indexes on frequently-searched fields (Todo.text, Todo.note) or use a full-text index for search-heavy workloads.
+- Consider adding explicit foreign key `ON DELETE SET NULL` or `CASCADE` semantics if you change how deletion should behave.
+
+Appendix: quick ER summary
+-------------------------
+- User (1) <-- (N) ListState
+- ListState (1) <-- (N) Todo
+- Todo (N) <-- (M) Hashtag via TodoHashtag
+- ListState (N) <-- (M) Hashtag via ListHashtag
+- ListState (1) <-- (N) CompletionType
+- Todo (1) <-- (N) TodoCompletion --> (1) CompletionType
+- SyncOperation and Tombstone are standalone audit/metadata tables
+
+If you want, I can also:
+- Produce a diagram (DOT/Graphviz) of the ER model.
+- Add explicit SQL DDL snippets for indexes and constraints used by the app.
+- Add recommended migrations to tighten FK cascade behavior.

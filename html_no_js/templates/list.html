@@ -1,0 +1,594 @@
+{% extends 'base.html' %}
+{% block title %}List: {{ list.name }} — Fast Todo (no-js){% endblock %}
+{% block content %}
+  <style>
+    /* page-specific: remove top page margin so the site title sits flush to the top */
+    body { margin-top: 0 !important; }
+    header { margin-top: 0 !important; }
+
+    /* Tweak spacing for the list header actions so the checkbox, trashcan
+       and title have a bit more breathing room on the list page. */
+    .list-header .list-action-left {
+      width: 2.4rem; /* keep compact so title doesn't drop */
+      flex: 0 0 2.4rem;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      min-width: 50px;
+      font-size: 0.95rem;
+    }
+    .hashtag-suggest .item {
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .hashtag-suggest .item.active,
+    .hashtag-suggest .item:hover {
+      background: rgba(29, 78, 216, 0.12); /* light blue */
+    }
+   /* Slightly grey note text for the list view when hide-icons is enabled.
+     Remove default paragraph margins so it sits flush with surrounding content. */
+  .note-text { color: #6b7280; margin: 0; }
+  .todo-hide-icon { color: #16a34a; margin-right: 0.4rem; }
+  /* When hide-icons is enabled (applied as class on the todos-list):
+     place the check glyph in a fixed left column and make titles/notes left-aligned. */
+  /* Make the title+magnifier act as a compact inline-flex block so the magnifier remains
+    directly after the last word of the title instead of being pushed to the far right. */
+  .todos-list.hide-icons .todo-title-inline { display: inline-flex; align-items: center; gap: 0.4rem; flex: 1 1 auto; min-width: 0; max-width: 100%; flex-wrap: nowrap; }
+  /* Ensure the left controls column shows the check glyph in hide-icons mode */
+  .todos-list.hide-icons .controls-left { align-items: center; justify-content: flex-start; width: 1rem; flex: 0 0 1rem; }
+  .todos-list.hide-icons .controls-left .hide-icon { width: 100%; display: flex; align-items: center; justify-content: center; }
+  /* Keep the todo text and the open-link inline so the magnifier appears directly after the name.
+    Prevent the title text from expanding to fill the line (which pushes the magnifier to the far right).
+    Limit the title's max width so long titles wrap but the magnifier remains adjacent. */
+  /* make the title text take the available space consistently so each row wraps the same
+    amount; keep min-width:0 so flex children can shrink when necessary. The magnifier
+    (next sibling) remains adjacent because the parent is inline-flex. */
+  .todos-list.hide-icons .todo-title-inline .wrap-text { flex: 1 1 auto; display: inline-block; min-width: 0; text-align: left; max-width: none; overflow-wrap: anywhere; }
+  .todos-list.hide-icons .todo-open-link { margin-left: 0.25rem; display: inline-block; vertical-align: baseline; line-height:1; flex: 0 0 auto; }
+  .todos-list.hide-icons .note-text { text-align: left; }
+  /* Ensure the magnifier sits on the text baseline and doesn't center-vertically within the paragraph */
+  .todos-list.hide-icons .note-text .todo-open-link { vertical-align: baseline; line-height: 1; }
+  .todos-list.hide-icons .note-text .note-body { vertical-align: baseline; display: inline; }
+  /* Mobile override: ensure hide-icons left column width for small screens takes precedence.
+     Placed after the general rules so the cascade applies this on mobile. Adjust value as needed. */
+  @media (max-width: 480px) {
+    .todos-list.hide-icons .controls-left { width: 2rem !important; flex: 0 0 2rem !important; }
+    .todos-list.hide-icons .controls-left .hide-icon { width: 100% !important; display: flex !important; align-items: center !important; justify-content: center !important; }
+  }
+
+  /* show a small custom tooltip on hover using data-date to avoid relying on native title
+     (some environments or JS libraries suppress native tooltips). Applies to the title wrapper. */
+  .wrap-text[data-date]:not([data-date=""]) { position: relative; display: inline-block; }
+  /* ensure parent containers don't clip the tooltip */
+  .todos-list .todo-content, .todos-list .todo-main { overflow: visible; }
+  .wrap-text[data-date]:not([data-date=""]):hover::after {
+    content: attr(data-date);
+    position: absolute;
+    left: 0;
+    top: calc(100% + 6px);
+    background: rgba(0,0,0,0.85);
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    z-index: 99999;
+    pointer-events: none;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+    transform-origin: top left;
+  }
+
+  /* Create-todo form: make the input expand to fill the row and keep the Add button to the right.
+     On very small screens the controls stack vertically. */
+  #create-todo-form { display: flex; gap: 0.5rem; align-items: center; width: 100%; }
+  #create-todo-form input#new-todo-text { flex: 1 1 auto; min-width: 0; box-sizing: border-box; }
+  #create-todo-form button { flex: 0 0 auto; }
+  @media (max-width: 420px) {
+    #create-todo-form { flex-direction: column; }
+    #create-todo-form input#new-todo-text, #create-todo-form button { width: 100%; }
+  }
+
+  </style>
+  <!-- Recently visited lists (per-user). Placed just below the site title. -->
+  <section class="recent-lists-link" style="margin-top:0.5rem;">
+    <a href="/html_no_js/recent">Recently visited lists</a><a href="/html_no_js/" style="margin-left:1rem">Back to lists </a><p></p>
+  </section>
+  <div class="list-header">
+    <div class="list-action-left">
+      <form method="post" action="/html_no_js/lists/{{ list.id }}/complete" style="display:inline">
+        {{ csrf_field() }}
+        <input type="hidden" name="completed" value="{{ 'false' if list.completed else 'true' }}">
+        <button type="submit" class="list-action-btn" title="{{ 'Unmark list complete' if list.completed else 'Mark list complete' }}" aria-label="Toggle list complete">{{ '☑' if list.completed else '☐' }}</button>
+      </form>
+      <form method="post" action="/html_no_js/lists/{{ list.id }}/delete" class="confirm-delete" data-confirm="Delete list '{{ list.name }}' and all its todos? This cannot be undone.">
+        {{ csrf_field() }}
+        <button type="submit" class="list-action-btn" title="Delete list">🗑</button>
+      </form>
+    </div>
+    <div class="list-main">
+      <h2 class="list-title">{{ list.name }}</h2>
+    </div>
+  </div>
+
+
+  {% if completion_types is not none %}
+  {% endif %}
+
+  <h3>Create todo</h3>
+  <form id="create-todo-form" method="post" action="/html_no_js/todos/create" autocomplete="off">
+  {{ csrf_field() }}
+  <input id="new-todo-text" name="text" placeholder="Todo text" required autofocus autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+  <div id="hashtag-suggest" class="hashtag-suggest" role="listbox" aria-label="Hashtag suggestions" data-tags="{% if all_hashtags and all_hashtags|length > 0 %}{% for tag in all_hashtags %}{{ tag }}{% if not loop.last %},{% endif %}{% endfor %}{% endif %}"></div>
+    <input type="hidden" name="list_id" value="{{ list.id }}">
+  <button type="submit" onclick="if (window.createTodoClick){ try { window.createTodoClick(event); } catch(e){}; return false; }">Add</button>
+  </form>
+
+  <script>
+  // Enhance the create-todo form to POST via fetch and insert the new todo into
+  // the DOM without a full page reload.
+  (function(){
+  var form = document.getElementById('create-todo-form');
+  if (!form) return;
+  // tooltip debug controller (disabled by default). Toggle with `window.tooltip.enabled = true` in console.
+  window.tooltip = window.tooltip || {
+    enabled: false,
+    debug: function(){ if (this.enabled && console && console.debug) console.debug.apply(console, arguments); },
+    log: function(){ if (this.enabled && console && console.log) console.log.apply(console, arguments); }
+  };
+  window.tooltip.log('[tooltip-debug] create-todo script loaded');
+    var input = document.getElementById('new-todo-text');
+  var submitBtn = form.querySelector('button[type="submit"]');
+  // avoid leaving raw Jinja braces inside JS which can break static checks;
+  // detect hide-icons mode from the rendered list element instead
+  var _existingUL = document.querySelector('.todos-list');
+  var HIDE_ICONS = !!(_existingUL && _existingUL.classList && _existingUL.classList.contains('hide-icons'));
+
+    function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  window.createTodoClick = async function(e){
+      e.preventDefault();
+      var text = input.value && input.value.trim();
+      if (!text) return;
+      if (submitBtn) submitBtn.disabled = true;
+      try {
+        var listIdInput = form.querySelector('input[name="list_id"]');
+        var listIdVal = listIdInput ? Number(listIdInput.value) : undefined;
+        var q = '?text=' + encodeURIComponent(text) + (typeof listIdVal !== 'undefined' ? ('&list_id=' + encodeURIComponent(String(listIdVal))) : '');
+        var apiUrl = '/todos' + q;
+        var res = await fetch(apiUrl, { method: 'POST', credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
+        if (!res.ok) {
+          var body = await res.text().catch(function(){ return null; });
+          console.error('create-todo fetch failed', res.status, body);
+          if (submitBtn) submitBtn.disabled = false;
+          return;
+        }
+    var todo = await res.json();
+  window.tooltip.debug('[tooltip-debug] createTodoClick API response:', todo);
+
+  var ul = document.querySelector('.todos-list');
+        if (!ul) {
+          ul = document.createElement('ul');
+          ul.className = 'todos-list' + (HIDE_ICONS ? ' hide-icons' : '');
+          var p = form.parentNode && form.parentNode.querySelector('p');
+          if (p && (p.textContent || '').trim().toLowerCase() === 'no todos yet.') p.replaceWith(ul);
+          else {
+            var ref = null; var sib = form.nextElementSibling;
+            while (sib) { if (sib.tagName === 'H3' && /\bTodos\b/i.test(sib.textContent || '')) { ref = sib.nextElementSibling; break; } sib = sib.nextElementSibling; }
+            if (ref && form.parentNode) form.parentNode.insertBefore(ul, ref); else form.parentNode.insertBefore(ul, form.nextSibling);
+          }
+        }
+
+        var li = document.createElement('li');
+        li.id = 'todo-' + todo.id;
+        li.className = 'todo';
+        // Simple innerHTML assembly (escaped) to match visible structure.
+        // format date/time for tooltip: D/MM H:MMAM (day no leading zero, month zero-padded, hour 12-hour no leading zero)
+        function formatInlineDateTime(ts){
+          try {
+            window.tooltip.debug('[tooltip-debug] formatInlineDateTime input:', ts);
+            if (!ts) { window.tooltip.debug('[tooltip-debug] formatInlineDateTime: no ts'); return null; }
+            var d = new Date(ts);
+            if (isNaN(d.getTime())) { window.tooltip.debug('[tooltip-debug] formatInlineDateTime: invalid date for', ts); return null; }
+            var day = String(d.getDate());
+            var month = String(d.getMonth() + 1).padStart(2,'0');
+            var hh = d.getHours();
+            var ampm = hh >= 12 ? 'PM' : 'AM';
+            var hour12 = hh % 12; if (hour12 === 0) hour12 = 12;
+            var min = String(d.getMinutes()).padStart(2,'0');
+            var out = day + '/' + month + ' ' + String(hour12) + ':' + min + ampm;
+            window.tooltip.debug('[tooltip-debug] formatInlineDateTime ->', out);
+            return out;
+          } catch(err) { window.tooltip.debug('[tooltip-debug] formatInlineDateTime exception', err); return null; }
+        }
+
+  var inlineDate = formatInlineDateTime(todo.created_at || todo.createdAt || todo.created || null);
+  var titleAttr = inlineDate ? (' title="' + escapeHtml(inlineDate) + '"') : '';
+  var dataAttr = inlineDate ? (' data-date="' + escapeHtml(inlineDate) + '"') : '';
+
+        var titleHtml;
+        if (HIDE_ICONS) {
+          // wrap text in a span with tooltip and include magnifier inside the span
+          titleHtml = '<span class="wrap-text"' + titleAttr + dataAttr + '>' + escapeHtml(todo.text) + ' <a href="/html_no_js/todos/' + todo.id + '" class="todo-open-link" aria-label="View todo ' + todo.id + '" style="margin-left:0.25rem; text-decoration:none;">🔎</a></span>';
+        } else {
+          titleHtml = '<a class="wrap-text" href="/html_no_js/todos/' + todo.id + '"' + titleAttr + dataAttr + '>' + escapeHtml(todo.text) + '</a>';
+        }
+        var noteHtml = todo.note ? (HIDE_ICONS ? ('<p class="note-text"><span class="note-body">' + escapeHtml(todo.note) + '</span></p>') : ('<div class="meta line-clamp-1 wrap-text">' + escapeHtml(todo.note) + '</div>')) : '';
+        li.innerHTML = (HIDE_ICONS ? '<div class="controls-left controls-left-wide"><div class="hide-icon" aria-hidden="true">' + (todo.completed ? '<span class="todo-hide-icon">✅</span>' : '&nbsp;') + '</div></div>' : '') + '<div class="todo-content"><div class="todo-main"><div class="todo-title-inline">' + titleHtml + '</div>' + noteHtml + '</div></div>';
+
+  ul.insertBefore(li, ul.firstChild);
+  window.tooltip.debug('[tooltip-debug] create insertion inlineDate ->', inlineDate);
+  window.tooltip.debug('[tooltip-debug] inserted li outerHTML:', li.outerHTML);
+        input.value = '';
+        if (submitBtn) submitBtn.disabled = false;
+        try { input.focus(); } catch(e) {}
+      } catch(err) {
+        console.error('create-todo handler error', err && err.stack ? err.stack : err);
+        if (submitBtn) submitBtn.disabled = false;
+      }
+  };
+  try { form.addEventListener('submit', window.createTodoClick); } catch(e){}
+  })();
+  </script>
+  <script>
+    // Populate debug tooltip text 'DEBUG - DD/MM' from data-created-at for any wrap-text
+    (function(){
+      // use the global tooltip controller (created by the create-todo script); create if missing
+      window.tooltip = window.tooltip || { enabled: false, debug: function(){}, log: function(){} };
+      window.tooltip.log('[tooltip-debug] tooltip formatter script loaded');
+      function formatFromISO(iso){
+        try {
+          window.tooltip.debug('[tooltip-debug] formatFromISO input:', iso);
+          if (!iso) { window.tooltip.debug('[tooltip-debug] formatFromISO: no iso'); return null; }
+          var d = new Date(iso);
+          if (isNaN(d.getTime())) { window.tooltip.debug('[tooltip-debug] formatFromISO: invalid iso', iso); return null; }
+          var day = String(d.getDate());
+          var mo = String(d.getMonth()+1).padStart(2,'0');
+          var hh = d.getHours();
+          var ampm = hh >= 12 ? 'PM' : 'AM';
+          var hour12 = hh % 12; if (hour12 === 0) hour12 = 12;
+          var min = String(d.getMinutes()).padStart(2,'0');
+          var out = day + '/' + mo + ' ' + String(hour12) + ':' + min + ampm;
+          window.tooltip.debug('[tooltip-debug] formatFromISO ->', out);
+          return out;
+        } catch(_) { return null; }
+      }
+      function extractFromExisting(el){
+        // try to find a full pattern DD/MM H:MMAM in data-date or title; do NOT fabricate current time
+        var attrs = [el.getAttribute('data-date'), el.getAttribute('title')];
+        window.tooltip.debug('[tooltip-debug] extractFromExisting attrs for element', el, attrs);
+        for (var i=0;i<attrs.length;i++){
+          var v = attrs[i]; if (!v) continue;
+          // full pattern e.g. 3/08 9:05AM or 03/08 09:05AM
+          var m = v.match(/(\d{1,2}\/\d{2}\s+\d{1,2}:\d{2}(?:AM|PM))/);
+          if (m) { window.tooltip.debug('[tooltip-debug] extractFromExisting found full datetime ->', m[1]); return m[1]; }
+        }
+        return null;
+      }
+      function applyAll(){
+      var nodes = document.querySelectorAll('.wrap-text[data-created-at]:not([data-created-at=""])');
+      window.tooltip.debug('[tooltip-debug] applyAll found (non-empty) ', nodes.length, 'nodes');
+        nodes.forEach(function(el){
+          try {
+            var existing = el.getAttribute('data-date') || el.getAttribute('title') || '';
+            var fullDtRE = /\d{1,2}\/\d{2}\s+\d{1,2}:\d{2}(?:AM|PM)/;
+            window.tooltip.debug('[tooltip-debug] applyAll element attrs', { existing: existing, data_created_at: el.getAttribute('data-created-at'), title: el.getAttribute('title'), data_date: el.getAttribute('data-date') });
+            if (existing && fullDtRE.test(existing)) { window.tooltip.debug('[tooltip-debug] applyAll skipping existing full dt'); return; }
+
+            var iso = el.getAttribute('data-created-at');
+            window.tooltip.debug('[tooltip-debug] applyAll iso value:', iso);
+            // prefer ISO if present; otherwise try to extract a full datetime from existing attributes
+            var ddm = iso ? formatFromISO(iso) : extractFromExisting(el);
+            if (!ddm) {
+              var partialRE = /\d{1,2}\/\d{1,2}/;
+              if (existing && partialRE.test(existing)) { window.tooltip.debug('[tooltip-debug] applyAll existing partial, skipping'); return; }
+              window.tooltip.debug('[tooltip-debug] applyAll: no reliable datetime for element, skipping');
+              return;
+            }
+            window.tooltip.debug('[tooltip-debug] applyAll setting ddm ->', ddm);
+            el.setAttribute('data-date', ddm);
+            el.setAttribute('title', ddm);
+          } catch(e) { window.tooltip.debug('[tooltip-debug] applyAll element error', e); }
+        });
+      }
+      // Log hover attributes to help diagnose blank tooltip boxes
+      try {
+        document.body.addEventListener('mouseover', function(ev){
+          var w = ev.target && ev.target.closest ? ev.target.closest('.wrap-text') : null;
+          if (!w) return;
+          window.tooltip.log('[tooltip-debug] hover on wrap-text attrs', { data_created_at: w.getAttribute('data-created-at'), data_date: w.getAttribute('data-date'), title: w.getAttribute('title'), text: w.textContent && w.textContent.trim() });
+        }, true);
+  } catch(e) { window.tooltip.debug('[tooltip-debug] hover listener attach failed', e); }
+      // run once and also watch for future additions
+      try { applyAll(); } catch(e){}
+      var ro = new MutationObserver(function(){ try { applyAll(); } catch(e){} });
+      ro.observe(document.body, { childList: true, subtree: true });
+    })();
+  </script>
+  <script>
+    // Fallback: some browsers or assistive tech may ignore autofocus; ensure focus on the input.
+    (function(){
+      try {
+        var el = document.getElementById('new-todo-text');
+        if (el && document.activeElement !== el) el.focus();
+      } catch(e) {}
+    })();
+    // Inline caret-based hashtag completion for the new-todo input
+    (function(){
+      var input = document.getElementById('new-todo-text');
+      var box = document.getElementById('hashtag-suggest');
+      if (!input || !box) return;
+
+      // Build the suggestions source from server-provided tags (user-owned)
+      var ALL_TAGS = (box.getAttribute('data-tags') || '')
+        .split(',')
+        .map(function(s){ return s.trim(); })
+        .filter(function(s){ return s.length > 0; });
+
+      var state = { open: false, items: [], active: 0, range: [0,0] };
+
+      function closeBox(){ box.style.display = 'none'; state.open = false; }
+
+    function render(items){
+        box.innerHTML = '';
+        if (!items || items.length === 0) { closeBox(); return; }
+        items.slice(0, 20).forEach(function(tag, idx){
+          var el = document.createElement('div');
+          el.className = 'item' + (idx === state.active ? ' active' : '');
+          el.setAttribute('role', 'option');
+      // Tags from server already include '#'; avoid doubling it
+      el.textContent = (typeof tag === 'string' && tag.charAt(0) === '#') ? tag : ('#' + tag);
+          el.dataset.idx = String(idx);
+          el.addEventListener('mousedown', function(ev){
+            // mousedown, not click, to run before input loses focus
+            ev.preventDefault();
+            commit(idx);
+          });
+          box.appendChild(el);
+        });
+        box.style.display = 'block';
+      }
+
+      function positionBox(caretIndex){
+        try {
+          var rect = input.getBoundingClientRect();
+          var style = window.getComputedStyle(input);
+          var leftPad = parseFloat(style.paddingLeft) || 0;
+          var font = [style.fontWeight, style.fontSize, style.fontFamily].filter(Boolean).join(' ');
+          var text = input.value.slice(0, caretIndex);
+          var canvas = positionBox._c || (positionBox._c = document.createElement('canvas'));
+          var ctx = canvas.getContext('2d');
+          ctx.font = font;
+          var metrics = ctx.measureText(text);
+          var x = rect.left + leftPad + metrics.width - (input.scrollLeft || 0);
+          // Keep within viewport
+          var vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
+          var maxLeft = vw - 200; // leave room
+          box.style.left = Math.max(8, Math.min(x, maxLeft)) + 'px';
+          box.style.top = (rect.bottom + 4) + 'px';
+          box.style.minWidth = Math.max(160, rect.width * 0.4) + 'px';
+        } catch(_) {
+          // Fallback: left-align under input
+          var r = input.getBoundingClientRect();
+          box.style.left = (r.left) + 'px';
+          box.style.top = (r.bottom + 4) + 'px';
+        }
+      }
+
+      function openFor(fragment, start, end){
+        // fragment excludes '#'; filter by the tag body (without leading '#')
+        var frag = (fragment || '').toLowerCase();
+        function body(t){ return (t && t.charAt(0) === '#') ? t.slice(1) : (t || ''); }
+        var items = ALL_TAGS.filter(function(t){ return body(t).toLowerCase().indexOf(frag) === 0; });
+        state.items = items;
+        state.active = 0;
+        state.range = [start, end];
+        if (items.length === 0) { closeBox(); return; }
+        positionBox(end);
+        render(items);
+        state.open = true;
+      }
+
+      function findFragment(){
+        var pos = input.selectionStart || 0;
+        var left = (input.value || '').slice(0, pos);
+        var m = left.match(/(^|\s)#([A-Za-z0-9_]*)$/);
+        if (!m) return null;
+        var fragment = m[2] || '';
+        var start = pos - fragment.length - 1; // include '#'
+        return { fragment: fragment, start: start, end: pos };
+      }
+
+      function commit(idx){
+        if (!state.open || idx == null || idx < 0 || idx >= state.items.length) return;
+        var tag = state.items[idx];
+        var v = input.value;
+        var start = state.range[0];
+        var end = state.range[1];
+        var before = v.slice(0, start);
+        var after = v.slice(end);
+        // Use the tag as-is if it already includes '#'
+        var replacement = (typeof tag === 'string' && tag.charAt(0) === '#') ? tag : ('#' + tag);
+        // Insert a trailing space if the next char is not whitespace
+        var needsSpace = after.length === 0 || !/^\s/.test(after);
+        var newVal = before + replacement + (needsSpace ? ' ' : '') + after;
+        var newCaret = (before + replacement).length + (needsSpace ? 1 : 0);
+        input.value = newVal;
+        input.setSelectionRange(newCaret, newCaret);
+        closeBox();
+      }
+
+      input.addEventListener('input', function(){
+        var f = findFragment();
+        if (!f) { closeBox(); return; }
+        openFor(f.fragment, f.start, f.end);
+      });
+
+      input.addEventListener('keydown', function(ev){
+        if (!state.open) return;
+        if (ev.key === 'ArrowDown') { ev.preventDefault(); state.active = Math.min(state.active + 1, state.items.length - 1); render(state.items); }
+        else if (ev.key === 'ArrowUp') { ev.preventDefault(); state.active = Math.max(state.active - 1, 0); render(state.items); }
+        else if (ev.key === 'Enter' || ev.key === 'Tab') { ev.preventDefault(); commit(state.active); }
+        else if (ev.key === 'Escape') { ev.preventDefault(); closeBox(); }
+      });
+
+      // Reposition on focus/scroll to keep alignment sensible
+      input.addEventListener('focus', function(){ var f = findFragment(); if (f) { positionBox(f.end); } });
+  window.addEventListener('scroll', function(){ if (state.open) { var f = findFragment(); if (f) positionBox(f.end); } }, true);
+  window.addEventListener('resize', function(){ if (state.open) { var f = findFragment(); if (f) positionBox(f.end); } });
+  // Close suggestion box on outside click, touchstart or page scroll to avoid dual scroll indicators on mobile
+  document.addEventListener('click', function(ev){ if (!box.contains(ev.target) && ev.target !== box && ev.target !== input) closeBox(); });
+  try { document.addEventListener('touchstart', function(ev){ if (!box.contains(ev.target) && ev.target !== box && ev.target !== input) closeBox(); }, { passive: true }); } catch(e) {}
+  try { window.addEventListener('scroll', function(){ if (state.open) closeBox(); }, true); } catch(e) {}
+    })();
+  </script>
+
+  <h3>Todos</h3>
+  {% if todos %}
+  <ul class="todos-list{% if list.hide_icons %} hide-icons{% endif %}">
+    {% for t in todos %}
+      <li id="todo-{{ t.id }}" class="todo">
+          <div class="controls-left controls-left-wide">
+            {% if list.hide_icons %}
+              <div class="hide-icon" aria-hidden="true">{% if t.completed %}<span class="todo-hide-icon">✅</span>{% else %}&nbsp;{% endif %}</div>
+            {% endif %}
+            {% if not list.hide_icons %}
+            <form method="post" action="/html_no_js/todos/{{ t.id }}/complete">
+              {{ csrf_field() }}
+              <input type="hidden" name="anchor" value="todo-{{ t.id }}">
+              <input type="hidden" name="done" value="{{ 'false' if t.completed else 'true' }}">
+              <button type="submit" aria-label="{{ 'Unmark' if t.completed else 'Mark' }}" title="{{ 'Unmark' if t.completed else 'Mark' }}">{{ '☑' if t.completed else '☐' }}</button>
+            </form>
+            {# Extra completion type toggles #}
+            {% if t.extra_completions and t.extra_completions|length > 0 %}
+              {% for ec in t.extra_completions %}
+                <form method="post" action="/html_no_js/todos/{{ t.id }}/complete_type" style="display:inline">
+                  {{ csrf_field() }}
+                  <input type="hidden" name="anchor" value="todo-{{ t.id }}">
+                  <input type="hidden" name="completion_type_id" value="{{ ec.id }}">
+                  <input type="hidden" name="done" value="{{ 'false' if ec.done else 'true' }}">
+                  <button type="submit" aria-label="{{ 'Unmark ' + ec.name if ec.done else 'Mark ' + ec.name }}" title="{{ ec.name }}">{{ '☑' if ec.done else '☐' }}</button>
+                </form>
+              {% endfor %}
+            {% endif %}
+            <form method="post" action="/html_no_js/todos/{{ t.id }}/delete">
+              {{ csrf_field() }}
+              <input type="hidden" name="anchor" value="todo-{{ t.id }}">
+              <button type="submit" aria-label="Delete" title="Delete">🗑</button>
+            </form>
+            <form method="post" action="/html_no_js/todos/{{ t.id }}/pin">
+              {{ csrf_field() }}
+              <input type="hidden" name="pinned" value="{{ 'false' if t.pinned|default(false) else 'true' }}">
+              <button type="submit" aria-label="Pin" title="Pin" class="pin-button {% if t.pinned|default(false) %}pinned{% endif %}">{{ '📌' if t.pinned|default(false) else '📍' }}</button>
+            </form>
+            {% endif %}
+          </div>
+          <div class="todo-content">
+            <div class="todo-main">
+              <div class="todo-title-inline {% if t.completed and not list.hide_icons %}done{% endif %}">
+                  {% set dt_iso = t.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') %}
+                  {% set dt_fmt = t.created_at|in_tz(client_tz, '%-d/%m %-I:%M%p') %}
+                  {% if list.hide_icons %}
+                    <span class="wrap-text"{% if dt_iso %} data-created-at="{{ dt_iso }}"{% endif %}{% if dt_fmt %} data-date="{{ dt_fmt }}"{% endif %}>{{ t.text }} <a href="/html_no_js/todos/{{ t.id }}" class="todo-open-link" aria-label="View todo {{ t.id }}" style="margin-left:0.25rem; text-decoration:none;">🔎</a></span>
+                  {% else %}
+                    <a class="wrap-text"{% if dt_iso %} data-created-at="{{ dt_iso }}"{% endif %} href="/html_no_js/todos/{{ t.id }}"{% if dt_fmt %} data-date="{{ dt_fmt }}"{% endif %}>{{ t.text }}</a>
+                  {% endif %}
+              </div>
+              {% if t.note %}
+                {% if list.hide_icons %}
+                  <p class="note-text"><span class="note-body">{{ t.note | linkify }}</span></p>
+                {% else %}
+                  <div class="meta line-clamp-1 wrap-text">{{ t.note }}</div>
+                  <div class="meta"><a href="/html_no_js/todos/{{ t.id }}">view full</a></div>
+                {% endif %}
+              {% endif %}
+        {% if t.tags and t.tags|length > 0 %}
+                <div class="tags meta">
+          {% for tag in (t.tags | sort) %}
+                    <a class="tag-chip" href="/html_no_js/search?q={{ tag|urlencode }}">{{ tag }}</a>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </li>
+    {% endfor %}
+    </ul>
+  {% else %}
+    <p>No todos yet.</p>
+  {% endif %}
+
+  {# Show list tags on their own line, like todo.html, placed just above completion types #}
+  {% if list and list.id and list.hashtags and list.hashtags|length > 0 %}
+    <div class="tags" role="list" aria-label="List tags">
+      {% for tag in (list.hashtags | sort) %}
+        {% if tag and tag != '#' %}
+          <div role="listitem" style="display:inline-block; margin-right:0.4rem">
+            <a class="tag-chip" href="/html_no_js/search?q={{ tag|urlencode }}" role="link">{{ tag }}</a>
+            <form method="post" action="/html_no_js/lists/{{ list.id }}/hashtags/remove" style="display:inline">
+              {{ csrf_field() }}
+              <input type="hidden" name="tag" value="{{ tag }}">
+              <button type="submit" class="tag-remove" aria-label="Remove {{ tag }}"><span aria-hidden="true">✖</span><span class="sr-only">Remove {{ tag }}</span></button>
+            </form>
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  {% endif %}
+  {% if completion_types is not none %}
+  <h3>Completion types</h3>
+  <div class="meta" style="margin-bottom:0.5rem">
+    {% if completion_types and completion_types|length > 0 %}
+      <div class="tags-inline" role="list" aria-label="Completion types">
+        {% for ct in completion_types %}
+          <div role="listitem" style="display:inline-block; margin-right:0.35rem">
+            <span class="tag-chip ctype-chip" title="Completion type">{{ ct.name }}</span>
+            {% if ct.name != 'default' %}
+              <form method="post" action="/html_no_js/lists/{{ list.id }}/completion_types/remove" style="display:inline">
+                {{ csrf_field() }}
+                <input type="hidden" name="name" value="{{ ct.name }}">
+                <button type="submit" class="tag-remove" aria-label="Remove completion type {{ ct.name }}">✖</button>
+              </form>
+            {% else %}
+              <span class="meta" title="Built-in default completion">(default)</span>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="meta">No completion types defined yet.</div>
+    {% endif %}
+    <form method="post" action="/html_no_js/lists/{{ list.id }}/completion_types" style="display:inline-block; margin-left:0.5rem" aria-label="Add completion type">
+      {{ csrf_field() }}
+      <label class="sr-only">Add completion type</label>
+      <input name="name" placeholder="Type name" aria-label="Completion type name">
+      <button type="submit">Add</button>
+    </form>
+    <!-- Hide icons toggle: moves the header toggle into a more discoverable place under completion types -->
+    <form method="post" action="/html_no_js/lists/{{ list.id }}/icons" style="margin-top:0.6rem;" id="hide-icons-form-{{ list.id }}">
+      {{ csrf_field() }}
+      <!-- Hidden field carries explicit true/false value; checkbox toggles it and submits immediately -->
+      <input type="hidden" name="hide_icons" id="hide-icons-hidden-{{ list.id }}" value="{{ 'true' if list.hide_icons else 'false' }}">
+      <label style="display:inline-flex; align-items:center; gap:0.4rem;">
+        <input type="checkbox" id="hide-icons-checkbox-{{ list.id }}" {% if list.hide_icons %}checked{% endif %}>
+        <span>hide icons</span>
+      </label>
+      <script>
+        (function(){
+          var cb = document.getElementById('hide-icons-checkbox-{{ list.id }}');
+          var hidden = document.getElementById('hide-icons-hidden-{{ list.id }}');
+          var form = document.getElementById('hide-icons-form-{{ list.id }}');
+          if (!cb || !hidden || !form) return;
+          cb.addEventListener('change', function(){
+            hidden.value = cb.checked ? 'true' : 'false';
+            try { form.submit(); } catch(e) { /* ignore */ }
+          });
+        })();
+      </script>
+    </form>
+  {% if list.hide_icons %}{% endif %}
+  </div>
+  {% endif %}
+    
+{% endblock %}

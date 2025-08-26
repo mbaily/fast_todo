@@ -1,0 +1,180 @@
+from typing import List, Optional
+from datetime import datetime, timezone
+from .utils import now_utc
+from sqlmodel import SQLModel, Field, Relationship
+from sqlalchemy import UniqueConstraint
+
+
+class TodoHashtag(SQLModel, table=True):
+    todo_id: Optional[int] = Field(default=None, foreign_key="todo.id", primary_key=True)
+    hashtag_id: Optional[int] = Field(default=None, foreign_key="hashtag.id", primary_key=True)
+
+
+class ListHashtag(SQLModel, table=True):
+    list_id: Optional[int] = Field(default=None, foreign_key="liststate.id", primary_key=True)
+    hashtag_id: Optional[int] = Field(default=None, foreign_key="hashtag.id", primary_key=True)
+
+
+class ServerState(SQLModel, table=True):
+    """Singleton-ish table to store server-level settings like the default list id."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    default_list_id: Optional[int] = Field(default=None, foreign_key="liststate.id")
+
+
+class ListState(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    # Name uniqueness is enforced per-owner via a DB index (see app/db.py)
+    name: str
+    owner_id: Optional[int] = Field(default=None, foreign_key="user.id", index=True)
+    created_at: datetime | None = Field(default_factory=now_utc)
+    modified_at: datetime | None = Field(default_factory=now_utc)
+    expanded: bool = Field(default=True)
+    hide_done: bool = Field(default=False)
+    # If true, hide UI action icons (completion checkbox, pin, delete) for this list
+    hide_icons: bool = Field(default=False)
+    completed: bool = Field(default=False)
+
+    todos: List["Todo"] = Relationship(back_populates="list")
+    hashtags: List["Hashtag"] = Relationship(back_populates="lists", link_model=ListHashtag)
+    completion_types: List["CompletionType"] = Relationship(back_populates="list")
+
+
+class Hashtag(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    tag: str = Field(sa_column_kwargs={"unique": True, "index": True})
+    todos: List["Todo"] = Relationship(back_populates="hashtags", link_model=TodoHashtag)
+    lists: List[ListState] = Relationship(back_populates="hashtags", link_model=ListHashtag)
+
+
+class CompletionType(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    list_id: Optional[int] = Field(default=None, foreign_key="liststate.id")
+    __table_args__ = (UniqueConstraint('list_id', 'name'),)
+
+    list: Optional[ListState] = Relationship(back_populates="completion_types")
+    completions: List["TodoCompletion"] = Relationship(back_populates="completion_type")
+
+
+class Todo(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    text: str
+    note: Optional[str] = None
+    pinned: bool = Field(default=False)
+    created_at: datetime | None = Field(default_factory=now_utc)
+    modified_at: datetime | None = Field(default_factory=now_utc)
+    deferred_until: Optional[datetime] = None
+    # Recurrence metadata: persisted parsed recurrence info to avoid reparsing
+    recurrence_rrule: Optional[str] = None
+    recurrence_meta: Optional[str] = None  # JSON-encoded string
+    recurrence_dtstart: Optional[datetime] = None
+    recurrence_parser_version: Optional[str] = None
+    # Every Todo must belong to a ListState. Make list_id required (non-optional)
+    # so creation will fail if no list_id is provided.
+    list_id: int = Field(foreign_key="liststate.id")
+
+    # Relationship should reflect that a todo always has a parent list.
+    list: ListState = Relationship(back_populates="todos")
+    hashtags: List[Hashtag] = Relationship(back_populates="todos", link_model=TodoHashtag)
+    completions: List["TodoCompletion"] = Relationship(back_populates="todo")
+
+
+class TodoCompletion(SQLModel, table=True):
+    todo_id: Optional[int] = Field(default=None, foreign_key="todo.id", primary_key=True)
+    completion_type_id: Optional[int] = Field(default=None, foreign_key="completiontype.id", primary_key=True)
+    done: bool = Field(default=False)
+
+    todo: Optional[Todo] = Relationship(back_populates="completions")
+    completion_type: Optional[CompletionType] = Relationship(back_populates="completions")
+
+
+class User(SQLModel, table=True):
+    """Basic user model for future auth: password stored as bcrypt hash."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    username: str = Field(index=True, sa_column_kwargs={"unique": True})
+    password_hash: str
+    is_admin: bool = Field(default=False)
+
+
+class Session(SQLModel, table=True):
+    """Server-side session store for browser clients.
+
+    session_token is a secure random string stored in an HttpOnly cookie and
+    mapped to a user_id in the DB. Expires_at is optional; cleanup is best-effort
+    and handled by DB maintenance tasks or token rotation.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    session_token: str = Field(sa_column_kwargs={"unique": True, "index": True})
+    user_id: int = Field(foreign_key="user.id", index=True)
+    created_at: datetime | None = Field(default_factory=now_utc)
+    expires_at: Optional[datetime] = None
+    timezone: Optional[str] = None
+
+
+class SyncOperation(SQLModel, table=True):
+    """Record of a processed sync operation to support idempotency for PWA clients."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    op_id: str = Field(sa_column_kwargs={"unique": True, "index": True})
+    op_name: Optional[str] = None
+    client_id: Optional[str] = None
+    server_id: Optional[int] = None
+    result_json: Optional[str] = None
+    created_at: datetime | None = Field(default_factory=now_utc)
+
+
+class Tombstone(SQLModel, table=True):
+    """Simple tombstone table to record deletions for sync clients.
+
+    item_type: 'todo' | 'list' (string)
+    item_id: the integer id of the deleted item
+    created_at: timestamp when deletion recorded
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    item_type: str
+    item_id: int
+    created_at: datetime | None = Field(default_factory=now_utc)
+
+
+class RecentListVisit(SQLModel, table=True):
+    """Per-user record of recently visited lists.
+
+    Composite primary key (user_id, list_id) enforces one row per pair; visited_at
+    is updated on repeat visits. Indexed for fast per-user lookup ordered by
+    visited_at.
+    """
+    user_id: Optional[int] = Field(default=None, foreign_key="user.id", primary_key=True)
+    list_id: Optional[int] = Field(default=None, foreign_key="liststate.id", primary_key=True)
+    visited_at: datetime | None = Field(default_factory=now_utc, index=True)
+    # position: integer position for top-N ordering (0 = top). NULL/None means not in top-N.
+    position: Optional[int] = Field(default=None, index=True)
+
+
+class CompletedOccurrence(SQLModel, table=True):
+    """Persisted completed occurrence hashes per-user."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key='user.id', index=True)
+    occ_hash: str = Field(index=True, sa_column_kwargs={"unique": False})
+    item_type: Optional[str] = None
+    item_id: Optional[int] = None
+    occurrence_dt: Optional[datetime] = None
+    completed_at: datetime | None = Field(default_factory=now_utc)
+
+
+class IgnoredScope(SQLModel, table=True):
+    """Records ignore rules per-user (list-wide or todo-from-date).
+
+    scope_type: 'list' or 'todo_from'
+    scope_key: textual key (list id or todo id)
+    from_dt: optional datetime for todo_from
+    scope_hash: the canonical hash produced by ignore_list_hash or ignore_todo_from_hash
+    active: whether the ignore is currently active
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key='user.id', index=True)
+    scope_type: str
+    scope_key: str
+    from_dt: Optional[datetime] = None
+    scope_hash: str = Field(index=True)
+    created_at: datetime | None = Field(default_factory=now_utc)
+    active: bool = Field(default=True, index=True)

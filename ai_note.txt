@@ -1,0 +1,1 @@
+Note from human author. Most of this app was written entirely with GPT-5 mini or other AI through VS Code using Github Copilot Pro (first paid tier) through which GPT-5 mini is free.

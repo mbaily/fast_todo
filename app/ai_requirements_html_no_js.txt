@@ -1,0 +1,13 @@
+The list view has the list name and detail (like created) on the same line.
+
+-------------------
+
+So the lists in the server API (and the todos) are per-user already?
+So this should be working to logon as different users (I mean different users will only get their own lists and todos)?
+
+
+Are there any tests which are incompatible with requiring a user logon to access data (like Lists, etc.)?
+
+So the server API is ready now for the website to not allow access to lists or todos without a user logon?
+
+And with the server API ready, the html_no_js client - is that ready also for user logon?

@@ -1,0 +1,56 @@
+
+Server requirements (English)
+
+Overview
+--------
+This service is a lightweight todo/notes server. It is implemented using Python and FastAPI and stores data in SQLite.
+
+Core data model
+---------------
+- Todo: has `id`, `text` (required, unbounded unicode), optional `note`, `created_at` (timestamp), `modified_at` (timestamp), optional `deferred_until` (timestamp), `list_id` (foreign key).
+- List: named collection of todos. One list named `default` must always exist and be used as a fallback.
+- Hashtag: a string normalized to start with `#` and a lowercase canonical form; linked many-to-many with todos and lists.
+- CompletionType: per-list named completion types (string). Every list must have a `default` completion type. A todo can have one boolean completion state per completion type.
+- TodoCompletion / ListHashtag / TodoHashtag: link tables to represent relationships and completion booleans.
+
+Functional requirements
+-----------------------
+- CRUD for todos: create, read, update (patch), delete.
+- Todos may be deferred for N hours; the server should automatically undefer todos when the time expires (background worker or admin trigger).
+- Per-list completion types: create, list, delete (but `default` cannot be deleted). Mark/unmark a todo's completion state for a specific completion type.
+- Lists: create, list, delete. Deleting a list must move its todos to a default/fallback list; deleting the server's configured default list is disallowed.
+- Hashtags: add/remove hashtags to/from lists and todos. Hashtags are validated and normalized (no spaces, leading `#`, canonical lowercase form).
+- List state: server stores per-list UI state flags (e.g., `expanded`, `hide_done`) that clients may use.
+
+Authentication & admin
+----------------------
+- The server will include a basic `User` model (username, password_hash, is_admin) and support for password hashing (bcrypt via `passlib`).
+- For now, administrative user management is performed from the server host via a small Debian-friendly shell helper (e.g. `scripts/manage_users.sh`) that can create/delete/promote users; future work will add a web-based admin UI.
+- Future plan: provide token-based authentication for the web client (JWT via `python-jose`), login endpoint, and FastAPI dependency-based route protection.
+
+API expectations (high-level)
+----------------------------
+- POST /todos?text=... -> create todo and return serialized object (ISO timestamps with timezone)
+- GET /todos/{id} -> return todo with completion states
+- PATCH /todos/{id} -> partial update (text, note, list_id)
+- POST /todos/{id}/defer?hours=N -> defer
+- POST /admin/undefer -> admin trigger to undefer due todos (background worker also runs periodically)
+- POST/GET/DELETE endpoints for lists, completion types, hashtags, and server default list
+
+Data correctness and constraints
+-------------------------------
+- Enforce uniqueness where appropriate (list.name, hashtag.tag, completion type name per list). Use DB-level unique indexes and handle races (IntegrityError) gracefully.
+- Use timezone-aware timestamps for API responses (assume UTC if DB returns naive datetimes).
+
+Testing and deployment notes
+----------------------------
+- Tests should exercise concurrency paths for creation of hashtags and completion types (race conditions) and verify DB-level constraints are enforced.
+- Development server can run with Uvicorn; use SQLite for storage. For CI, create a fresh SQLite file per run.
+
+Operational
+-----------
+- Repository should not track the SQLite database file. Add `*.db` to `.gitignore` and keep local backups if needed.
+
+``` 
+
+

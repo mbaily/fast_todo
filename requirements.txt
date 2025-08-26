@@ -1,0 +1,34 @@
+aiosqlite
+alembic
+dateparser
+fastapi
+httpx
+passlib[bcrypt]
+pytest
+pytest-asyncio
+python-dotenv
+python-jose[cryptography]
+python-multipart
+SQLAlchemy
+sqlmodel
+tzdata
+uvicorn[standard]
+
+# Notes:
+# - fastapi: web framework
+# - uvicorn[standard]: ASGI server for development/production
+# - sqlmodel: simple ORM (builds on SQLAlchemy + pydantic) for SQLite models
+
+# Authentication libs
+# passlib[bcrypt] for secure password hashing
+# python-jose[cryptography] for JWT tokens
+passlib[bcrypt]
+python-jose[cryptography]
+# - aiosqlite: async driver for SQLite when using async SQLAlchemy/sqlmodel
+
+# Additional runtime dependency for server-rendered HTML templates
+jinja2
+
+# - SQLAlchemy & alembic: core ORM and migrations (alembic optional but useful)
+# - python-dotenv: load environment variables from a .env file (optional)
+# - pytest: test runner for unit tests

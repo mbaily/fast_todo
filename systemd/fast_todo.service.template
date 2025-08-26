@@ -1,0 +1,26 @@
+[Unit]
+Description=Fast Todo FastAPI service
+After=network.target
+
+[Service]
+# The user which will run the uvicorn process. Default is 'www-data'.
+User=${RUN_AS_USER:-www-data}
+Group=${RUN_AS_GROUP:-www-data}
+
+# Path where the app lives
+WorkingDirectory=${WORKDIR}
+
+# Optional environment file (created by deploy script)
+# The installer will write /etc/default/${SERVICE_NAME}
+EnvironmentFile=/etc/default/${SERVICE_NAME}
+Environment="PYTHONPATH=${WORKDIR}"
+
+# ExecStart runs uvicorn from the virtualenv. Adjust venv path if needed.
+ExecStart=${VENV_BIN}/uvicorn app.main:app --host 0.0.0.0 --port ${PORT} \
+  --ssl-keyfile ${SSL_KEYFILE} --ssl-certfile ${SSL_CERTFILE}
+
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,10 @@
+{
+  "name": "fast-todo-puppeteer",
+  "version": "0.0.0",
+  "description": "Puppeteer helper scripts for fast-todo dev server",
+  "private": true,
+  "dependencies": {
+    "minimist": "^1.2.8",
+    "puppeteer": "^22.0.0"
+  }
+}

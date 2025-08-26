@@ -1,0 +1,29 @@
+you can delete the esrver default
+
+please clean up any code where you cannot delete the server default cleanly.
+please remove any code paths where there is a special list named 'default'.
+point out why any tests are failing due to these 2 issues.
+no DB migration is required at this point. if you need, delete the test.db and start again.
+
+how many of the tests relying on a list name of 'default' remain?
+
+either modify these tests so they don't need a literal string name of 'default' or delete these tests.
+
+please modify or delete if absolutely necessary, the tests where you cannot delete a server default list. we changed that to you can - the server is supposed to change the default to the last modified or created list.
+
+
+Changed create_todo to require an existent list_id.
+
+Please make the list a non-optional part of a todo in models.py. This is currently the list_id and list members of class Todo which are currently optional. Every todo belongs to a list.
+
+Now fix up the tests which don't know about that every todo belongs to a list.
+
+# If we deleted the server default, pick a new one preferring
+# modified_at, falling back to created_at. If no lists remain, clear it.
+
+This was in main.py. It is OK. If you delete the server default, it picks a new default one preferring modified_at. OK OK.
+
+So deleting a list deletes all the todos in that list, right? We don't move any todos to the server default, right?
+
+Test.
+

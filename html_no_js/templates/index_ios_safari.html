@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Lists — Fast Todo (iOS)</title>
+    <style>
+      /* Minimal dark mode for the standalone template */
+      :root { color-scheme: dark; }
+      html, body { background: #0b0b0b; color: #e5e7eb; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
+      a { color: #60a5fa; }
+      h1, h2, h3 { color: #f8fafc; margin: 0 0 0.5rem 0; }
+  ul { padding-left: 0; list-style: none; margin: 0; }
+      li { padding: 0.25rem 0; }
+      input, button { background: #111827; color: #e5e7eb; border: 1px solid #374151; padding: 0.35rem 0.5rem; border-radius: 4px; }
+      input::placeholder { color: #9ca3af; }
+      button { cursor: pointer; }
+      nav a { color: #9ae6ff; margin-right: 0.5rem; }
+      .muted { color: #9ca3af; }
+    </style>
+  </head>
+  <body>
+  <div style="margin-bottom:0.5rem;">
+    <div style="margin-bottom:0.25rem;">
+      <a href="/html_no_js/recent" style="color:inherit;">Recently visited lists</a>
+    </div>
+    <div style="margin-bottom:0.25rem;">
+      <form method="get" action="/html_no_js/search" style="display:block;">
+        <input name="q" placeholder="Search lists and todos">
+        <button type="submit">Search</button>
+      </form>
+    </div>
+    <div>
+      {% if csrf_token %}
+        <form method="post" action="/html_no_js/logout" style="display:block;margin-top:0.25rem;">
+          <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+          <button type="submit">Logout</button>
+        </form>
+      {% else %}
+        <div style="margin-top:0.25rem;"><a href="/html_no_js/login">Login</a></div>
+      {% endif %}
+    </div>
+  </div>
+ 
+
+    {% if pinned_todos and pinned_todos|length > 0 %}
+  <h3 style="margin-top:0">Pinned</h3>
+  <ul style="padding-left: 0; list-style: none; margin: 0;">
+      {% for t in pinned_todos %}
+        <li>
+          {{ '📌' if t.pinned|default(false) else '📍' }}
+          <a href="/html_no_js/todos/{{ t.id }}">{{ t.text }}</a>
+          <span> in <a href="/html_no_js/lists/{{ t.list_id }}">{{ t.list_name or t.list_id }}</a></span>
+          {% if t.tags and t.tags|length > 0 %}
+            {% for tag in (t.tags | sort) %}
+              &nbsp;<a href="/html_no_js/search?q={{ tag|urlencode }}" style="background:#012383;color:#ffffff;border-radius:999px;text-decoration:none;font-size:0.95em;">{{ tag }}</a>
+            {% endfor %}
+          {% endif %}
+        </li>
+      {% endfor %}
+  </ul>
+    {% endif %}
+
+    <h3>Create list</h3>
+    <form method="post" action="/html_no_js/lists/create">
+      {% if csrf_token %}
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+      {% endif %}
+      <input name="name" placeholder="List name" required>
+      <button type="submit">Create</button>
+    </form>
+
+    {% if cursors %}
+      <nav>
+        {% if cursors.has_prev %}
+          <a href="?dir=prev&cursor_created_at={{ cursors.prev_cursor_created_at|urlencode }}&cursor_id={{ cursors.prev_cursor_id }}">&laquo; Newer</a>
+        {% endif %}
+        {% if cursors.has_next %}
+          <a href="?dir=next&cursor_created_at={{ cursors.next_cursor_created_at|urlencode }}&cursor_id={{ cursors.next_cursor_id }}">Older &raquo;</a>
+        {% endif %}
+      </nav>
+    {% endif %}
+
+  <h2 style="margin-top:0">Your Lists</h2>
+    <ul>
+    {% for lst in lists %}
+      <li>
+        <form method="post" action="/html_no_js/lists/{{ lst.id }}/delete" class="confirm-delete" style="display:inline;margin-right:1rem;">
+          {% if csrf_token %}
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+          {% endif %}
+          <button type="submit" class="list-action-btn" title="Delete list" style="background:none;border:none;color:inherit;padding:0;margin:0;font-size:inherit;cursor:pointer;">🗑</button>
+        </form>
+        <a href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>
+        <button type="button" class="edit-list-btn" data-list-id="{{ lst.id }}" data-list-name="{{ lst.name|e }}" title="Edit list name" style="background:none;border:none;color:inherit;padding:0;margin-left:0.25rem;cursor:pointer;">✏️</button>
+        {% if lst.created_at %}<span class="muted"> cr. {{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</span>{% endif %}
+  <div class="all-tags-inline" data-list-id="{{ lst.id }}" data-list-tags='{{ lst.hashtags | tojson }}' aria-hidden="true" style="display:inline-block;margin-left:0.5rem;"></div>
+      </li>
+    {% endfor %}
+    </ul>
+    <div style="margin-top:1rem;">
+      <label><input type="checkbox" id="show-all-tags-checkbox"> Show all tags</label>
+    </div>
+    <script>
+      // Minimal JS for edit and delete on the plain iOS template
+      (function(){
+        // Edit list name: prompt and POST as form data
+        document.querySelectorAll('.edit-list-btn').forEach(function(btn){
+          btn.addEventListener('click', function(){
+            var id = btn.getAttribute('data-list-id');
+            var current = btn.getAttribute('data-list-name') || '';
+            var name = window.prompt('New list name', current);
+            if (!name || name.trim() === '') return;
+            var fd = new FormData();
+            fd.append('name', name);
+            var csrf = document.querySelector('input[name="_csrf"]');
+            if (csrf && csrf.value) fd.append('_csrf', csrf.value);
+            fetch('/html_no_js/lists/' + encodeURIComponent(id) + '/edit', { method: 'POST', body: fd, credentials: 'same-origin' })
+              .then(function(res){ if (res.ok) location.reload(); else alert('Rename failed'); })
+              .catch(function(){ alert('Rename failed'); });
+          });
+        });
+        // Delete confirmation
+        document.querySelectorAll('.confirm-delete').forEach(function(form){
+          form.addEventListener('submit', function(e){
+            var q = form.getAttribute('data-confirm') || 'Delete?';
+            if (!window.confirm(q)) { e.preventDefault(); }
+          });
+        });
+      })();
+    </script>
+      <script>
+        // Show All Tags for iOS standalone: read server tags from data-list-tags by default,
+        // fetch combined tags only when the checkbox is checked.
+        (function(){
+          function setCookie(name, value, days){
+            var expires = '';
+            if (days){ var d = new Date(); d.setTime(d.getTime() + (days*24*60*60*1000)); expires = '; expires=' + d.toUTCString(); }
+            document.cookie = name + '=' + encodeURIComponent(value) + expires + '; path=/';
+          }
+          function getCookie(name){ var v = document.cookie.match('(?:^|; )' + name + '=([^;]*)'); return v ? decodeURIComponent(v[1]) : null; }
+          var checkbox = document.getElementById('show-all-tags-checkbox'); if (!checkbox) return;
+          checkbox.checked = getCookie('show_all_tags') === '1';
+
+          function renderTagsInto(container, tags){
+            container.innerHTML = '';
+            if (!tags || tags.length === 0){ container.setAttribute('aria-hidden','true'); return; }
+            tags.forEach(function(tag){
+              var a = document.createElement('a');
+              a.style.background = '#012383';
+              a.style.color = '#fff';
+              a.style.borderRadius = '999px';
+              a.style.padding = '0.12rem 0.4rem';
+              a.style.textDecoration='none';
+              a.style.fontSize='0.95em';
+              a.href = '/html_no_js/search?q=' + encodeURIComponent(tag);
+              a.textContent = tag;
+              container.appendChild(a);
+              container.appendChild(document.createTextNode(' '));
+            });
+            container.setAttribute('aria-hidden','false');
+          }
+
+          async function fetchAndRenderAll(listId, container){
+            try{
+              var resp = await fetch('/lists/' + encodeURIComponent(listId) + '/hashtags?include_todo_tags=1&combine=1', { credentials: 'same-origin' });
+              if (!resp.ok) return;
+              var data = await resp.json();
+              var tags = data.hashtags || [];
+              renderTagsInto(container, tags);
+            }catch(e){ /* ignore network errors silently for this tiny template */ }
+          }
+
+          function renderServerProvided(container){
+            var raw = container.getAttribute('data-list-tags');
+            if (!raw) { container.innerHTML=''; container.setAttribute('aria-hidden','true'); return; }
+            try{
+              var tags = JSON.parse(raw || '[]') || [];
+              renderTagsInto(container, tags);
+            }catch(e){ container.innerHTML=''; container.setAttribute('aria-hidden','true'); }
+          }
+
+          function refreshAllTags(){
+            document.querySelectorAll('.all-tags-inline').forEach(function(c){
+              var lid = c.getAttribute('data-list-id');
+              if (checkbox.checked){
+                // when checked, fetch the combined list (includes todo tags)
+                if (lid) fetchAndRenderAll(lid, c);
+              } else {
+                // when unchecked, render server-provided list tags embedded in data-list-tags
+                renderServerProvided(c);
+              }
+            });
+          }
+
+          checkbox.addEventListener('change', function(){ setCookie('show_all_tags', checkbox.checked ? '1' : '0', 365); refreshAllTags(); });
+          // Initialize rendering on load (renders server tags by default if unchecked)
+          refreshAllTags();
+        })();
+      </script>
+  </body>
+</html>

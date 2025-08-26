@@ -1,0 +1,48 @@
+[tooltip-debug] create-todo script loaded
+1646:529 [tooltip-debug] tooltip formatter script loaded
+1646:569 [tooltip-debug] applyAll found 0 nodes
+1646:569 [tooltip-debug] applyAll found 0 nodes
+1646:569 [tooltip-debug] applyAll found 95 nodes
+1646:574 [tooltip-debug] applyAll element attrs {existing: '', data_created_at: '', title: '', data_date: ''}data_created_at: ""data_date: ""existing: ""title: ""[[Prototype]]: Object
+1646:578 [tooltip-debug] applyAll iso value: 
+1646:583 [tooltip-debug] applyAll: no reliable datetime for element, skipping
+1646:574 [tooltip-debug] applyAll element attrs {existing: '', data_created_at: '', title: '', data_date: ''}data_created_at: ""data_date: ""existing: ""title: ""[[Prototype]]: Object
+1646:578 [tooltip-debug] applyAll iso value: 
+1646:583 [tooltip-debug] applyAll: no reliable datetime for element, skipping
+1646:574 [tooltip-debug] applyAll element attrs {existing: '', data_created_at: '', title: '', data_date: ''}
+1646:578 [tooltip-debug] applyAll iso value: 
+1646:583 [tooltip-debug] applyAll: no reliable datetime for element, skipping
+1646:574 [tooltip-debug] applyAll element attrs {existing: '', data_created_at: '', title: '', data_date: ''}
+1646:578 [tooltip-debug] applyAll iso value: 
+1646:583 [tooltip-debug] applyAll: no reliable datetime for element, skipping
+1646:574 [tooltip-debug] applyAll element attrs {existing: '', data_created_at: '', title: '', data_date: ''}
+1646:578 [tooltip-debug] applyAll iso value: 
+1646:583 [tooltip-debug] applyAll: no reliable datetime for element, skipping
+1646:574 [tooltip-debug] applyAll element attrs {existing: '', data_created_at: '', title: '', data_date: ''}
+1646:578 [tooltip-debug] applyAll iso value: 
+1646:583 [tooltip-debug] applyAll: no reliable datetime for element, skipping
+1646:574 [tooltip-debug] applyAll element attrs {existing: '', data_created_at: '', title: '', data_date: ''}
+1646:578 [tooltip-debug] applyAll iso value: 
+1646:583 [tooltip-debug] applyAll: no reliable datetime for element, skipping
+1646:574 [tooltip-debug] applyAll element attrs {existing: '', data_created_at: '', title: '', data_date: ''}
+1646:578 [tooltip-debug] applyAll iso value: 
+1646:583 [tooltip-debug] applyAll: no reliable datetime for element, skipping
+1646:574 [tooltip-debug] applyAll element attrs {existing: '', data_created_at: '', title: '', data_date: ''}
+1646:578 [tooltip-debug] applyAll iso value: 
+1646:583 [tooltip-debug] applyAll: no reliable datetime for element, skipping
+1646:574 [tooltip-debug] applyAll element attrs {existing: '', data_created_at: '', title: '', data_date: ''}
+1646:578 [tooltip-debug] applyAll iso value: 
+1646:583 [tooltip-debug] applyAll: no reliable datetime for element, skipping
+1646:574 [tooltip-debug] applyAll element attrs {existing: '', data_created_at: '', title: '', data_date: ''}
+1646:578 [tooltip-debug] applyAll iso value: 
+1646:583 [tooltip-debug] applyAll: no reliable datetime for element, skipping
+1646:574 [tooltip-debug] applyAll element attrs {existing: '', data_created_at: '', title: '', data_date: ''}
+1646:578 [tooltip-debug] applyAll iso value: 
+1646:583 [tooltip-debug] applyAll: no reliable datetime for element, skipping
+1646:574 [tooltip-debug] applyAll element attrs {existing: '', data_created_at: '', title: '', data_date: ''}
+1646:578 [tooltip-debug] applyAll iso value: 
+1646:583 [tooltip-debug] applyAll: no reliable datetime for element, skipping
+1646:574 [tooltip-debug] applyAll element attrs {existing: '', data_created_at: '', title: '', data_date: ''}
+1646:578 [tooltip-debug] applyAll iso value: 
+1646:583 [tooltip-debug] applyAll: no reliable datetime for element, skipping
+1646:574 [tooltip-debug] applyAll element attrs 

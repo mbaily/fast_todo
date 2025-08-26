@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}Recently visited lists — Fast Todo (no-js){% endblock %}
+{% block content %}
+  <style>
+    /* remove top page margin so the site title sits flush to the top like other pages */
+    body { margin-top: 0 !important; }
+    header { margin-top: 0 !important; }
+    /* slightly space each recent list entry for better readability */
+    ul.lists-list { list-style: none; margin: 0; padding: 0; }
+  /* override base rules that reset margin/padding to 0; use a modest gap */
+  ul.lists-list li.list-item { margin-bottom: 0.75rem !important; padding-bottom: 0.125rem !important; }
+    ul.lists-list li.list-item:last-child { margin-bottom: 0; }
+  </style>
+  <h2>
+    Recently visited lists
+    <a class="small-link" href="/html_no_js/calendar" style="margin-left:1rem; font-size:0.85em; display:inline-flex; align-items:center; gap:0.35rem;">
+      <img src="/static/icons/calendar.svg" alt="Calendar" width="18" height="18" aria-hidden="true" style="display:inline-block; vertical-align:middle;"/>
+      <span>Calendar</span>
+    </a>
+  </h2>
+  {% if recent and recent|length > 0 %}
+    <ul class="lists-list">
+      {% for lst in recent %}
+        <li class="list-item">
+          <div class="list-main">
+            <a class="list-title {% if lst.completed %}done{% endif %}" href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>
+            {% if lst.created_at %}
+              <div class="meta">visited {{ lst.visited_at|server_local_dt }}</div>
+            {% endif %}
+            {% if lst.hashtags and lst.hashtags|length > 0 %}
+              <div class="tags-inline" role="list" aria-label="List tags">
+                {% for tag in (lst.hashtags | sort) %}
+                  <a class="tag-chip" role="listitem" href="/html_no_js/search?q={{ tag|urlencode }}">{{ tag }}</a>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <div class="meta">No recently visited lists yet.</div>
+  {% endif %}
+{% endblock %}

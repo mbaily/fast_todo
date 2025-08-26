@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Fast Todo — Login (PWA)</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin:2rem; background:#0b0f12; color:#e6eef3 }
+      form { display:flex; flex-direction:column; gap:.5rem; max-width:360px }
+      input { padding:.5rem; border-radius:4px; border:1px solid #26343b; background:transparent; color:inherit }
+      button { padding:.5rem; border-radius:4px; border:1px solid #26343b; background:#0f1720; color:inherit }
+      .meta { color:#9aa6b2 }
+      a { color:#58a6ff }
+    </style>
+  </head>
+  <body>
+    <h1>Login</h1>
+    <p class="meta">Sign in to sync your PWA todos.</p>
+    <form method="post" action="/html_pwa/login">
+      <label>Username
+        <input name="username" type="text" required />
+      </label>
+      <label>Password
+        <input name="password" type="password" required />
+      </label>
+      <button type="submit">Sign in</button>
+    </form>
+    <p style="margin-top:1rem" class="meta">If you prefer the classic UI, <a href="/html_no_js/">use the no-JS site</a>.</p>
+  </body>
+</html>

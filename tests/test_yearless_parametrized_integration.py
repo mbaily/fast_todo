@@ -1,0 +1,51 @@
+import pytest
+from datetime import datetime, timezone
+from sqlmodel import select
+from app.db import async_session
+from app.models import Todo, ListState
+
+
+cases = [
+    # (month, day, created_at, expected_single_year)
+    (1, 2, datetime(2025, 12, 20, tzinfo=timezone.utc), 2026),
+    (1, 2, datetime(2025, 1, 2, tzinfo=timezone.utc), 2025),
+    (12, 31, datetime(2025, 12, 31, tzinfo=timezone.utc), 2025),
+    (2, 29, datetime(2025, 6, 1, tzinfo=timezone.utc), 2028),
+    # same-day but created later than event time (midday) -> next year
+    (1, 2, datetime(2025, 1, 2, 12, 0, tzinfo=timezone.utc), 2026),
+    # created on Dec 31 and target Jan 1 -> next year
+    (1, 1, datetime(2025, 12, 31, tzinfo=timezone.utc), 2026),
+    # created after leap day in leap year -> next available leap year
+    (2, 29, datetime(2028, 3, 1, tzinfo=timezone.utc), 2032),
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("month,day,created_at,expected_year", cases)
+async def test_param_integration_calendar_resolution(client, month, day, created_at, expected_year):
+    # create list
+    r = await client.post('/lists', params={'name': f'Param List {month}-{day}'})
+    assert r.status_code == 200
+    lid = r.json().get('id')
+    text = f'ParamEvent {datetime(2000, month, day).strftime("%b %-d")}'
+    r = await client.post('/todos', params={'text': text, 'list_id': lid})
+    assert r.status_code == 200
+    tid = r.json().get('id')
+
+    # override created_at
+    async with async_session() as sess:
+        q = await sess.exec(select(Todo).where(Todo.id == tid))
+        t = q.first()
+        t.created_at = created_at
+        sess.add(t)
+    await sess.commit()
+    await sess.close()
+
+    # query a window covering the expected year
+    start = datetime(expected_year, 1, 1, tzinfo=timezone.utc).isoformat()
+    end = datetime(expected_year, 12, 31, tzinfo=timezone.utc).isoformat()
+    resp = await client.get('/calendar/occurrences', params={'start': start, 'end': end})
+    assert resp.status_code == 200
+    occ = resp.json().get('occurrences', [])
+    found = [o for o in occ if o['item_type'] == 'todo' and o['id'] == tid and o['occurrence_dt'].startswith(str(expected_year))]
+    assert found, f'expected occurrence in {expected_year} for {month}/{day}'

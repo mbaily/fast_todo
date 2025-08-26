@@ -1,0 +1,4 @@
+Edit the name of a list (or item) with a pencil icon on the list it is in.
+You can't edit it from it's own page, due to our desire to focus what is editable for mobile device usage, out and about.
+
+Only the editable items 

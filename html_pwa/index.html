@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Fast Todo (PWA)</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#2b6cb0">
+    <style>
+      :root {
+        --page-side-margin: 2rem;
+        --full-bleed-right-gutter: 4rem;
+        --full-bleed-padding: 0.75rem;
+        --bg: #0b0f12;
+        --surface: #0f1720;
+        --text: #e6eef3;
+        --muted: #9aa6b2;
+        --border: #26343b;
+        --accent: #58a6ff;
+        --danger: #ff6b6b;
+        --success: #6fcf97;
+      }
+      html, body { overflow-x: hidden; }
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial; margin: var(--page-side-margin); background: var(--bg); color: var(--text); }
+      header { margin-bottom: 0.5rem; }
+      a { color: var(--accent); }
+      a.button { background: transparent; border: 1px solid var(--border); color: var(--text); }
+      input, textarea, select, button { background: transparent; color: var(--text); border: 1px solid var(--border); }
+      input::placeholder { color: rgba(230,238,243,0.5); }
+      button { background: var(--surface); color: var(--text); border-radius: 4px; padding: 0.25rem 0.5rem; }
+      button:hover { background: #142029; }
+      .meta { color: var(--muted); }
+      .done { text-decoration: line-through; color: #6b7280; }
+      hr, .divider { border-color: var(--border); }
+      .full-bleed { background: var(--surface); border: 1px solid var(--border); }
+      h1 { margin: 0 0 0.25rem 0; font-size: 1.1rem; }
+      h2 { margin: 0.08rem 0 0.08rem 0; font-size: 1rem; }
+      h3 { margin: 0.06rem 0 0.06rem 0; font-size: 0.95rem; }
+      form { margin: 0.5rem 0; }
+      .todo { padding: 0.12rem 0; display:flex; gap:0.25rem; align-items:center }
+      .meta { color: #888; font-size: 0.9rem }
+      .wrap-text { white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
+      .note-text { white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+      .controls { margin-left: auto }
+      .controls-left { display:flex; flex-direction: row; gap: 0.25rem; margin-right: 0.5rem; align-items: flex-start; width: 2.2rem; flex: 0 0 2.2rem; justify-content: center; }
+      .controls-left form { margin: 0; }
+      .controls-left button { display:inline-block; width: 100%; text-align:center; font-size: 0.95rem; line-height: 1; padding: 0.08rem 0.04rem; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 4px; }
+      .controls-left button:hover { background: #12232b; }
+      .todo { align-items:flex-start; display:flex; gap:0.5rem }
+      .todo-content { flex: 1 1 auto; }
+      .todo-content { display:flex; align-items:center; justify-content:flex-start; gap: 0.75rem; }
+      .todo-content .todo-main { flex: 1 1 auto; min-width: 0; }
+      .todo-content .todo-action-right { flex: 0 0 auto; }
+      @media (max-width: 480px) { .controls-left { gap: 0.35rem; } }
+      .list-header { display: flex; align-items: center; gap: 0.5rem; flex-wrap: nowrap; overflow: hidden; white-space: nowrap; }
+      .list-header > * { min-width: 0; }
+      .list-header .list-action-left { width: 2rem; flex: 0 0 2rem; display:flex; align-items:center; justify-content:center }
+      .list-main { display: flex; align-items: center; gap: 0.5rem; flex: 1 1 0; min-width: 0; flex-wrap: nowrap; }
+      .lists-list .list-main { gap: 2rem; }
+      .lists-list .list-main .list-title { flex: 0 0 auto; overflow: visible; white-space: nowrap; }
+      .lists-list .list-main .meta { margin-left: 0; flex: 0 0 auto; white-space: nowrap; }
+      .list-main .list-title { margin: 0; flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .list-main .meta { margin-left: auto; flex: 0 0 auto; white-space: nowrap; color: var(--muted); }
+      .list-header .list-title { margin: 0; font-size: 1rem; }
+      a.button { padding: 0.25rem 0.5rem; border:1px solid var(--border); border-radius:4px; text-decoration:none; color:var(--text); background: var(--surface); }
+      .full-bleed { box-sizing: border-box; margin-left: 0; padding: var(--full-bleed-padding); width: calc(100% + var(--page-side-margin)); max-width: calc(100vw - var(--full-bleed-right-gutter)); }
+      .line-clamp-2 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+      .todos-list { padding-left: 0.25rem; margin-left: 0; margin-right: 0; padding-right: 0; list-style: none; }
+      .lists-list { padding-left: 0; margin-left: 0; margin-right: 0; padding-right: 0; list-style: none; margin-top: 0.05rem; }
+      .lists-list li { margin: 0; padding: 0; }
+      .lists-list, .lists-list li, .lists-list .list-item { margin: 0 !important; padding: 0 !important; }
+      .lists-list .list-item { gap: 0.05rem !important; margin-bottom: 0 !important; padding: 0 !important; }
+      .lists-list { margin-top: 0 !important; }
+      .list-item { display:flex; align-items:center; gap:0.1rem; margin-bottom: 0.06rem; padding: 0; width: 100%; line-height: 1; }
+      .controls-left-wide { gap: 1.25rem; width: 3.5rem; flex: 0 0 3.5rem; justify-content: flex-start; }
+      .list-item > .list-action-left { margin-left: 0; padding: 0; width: auto; flex: 0 0 auto; display:flex; align-items:center; justify-content:flex-start; }
+      .list-item > .list-main { margin: 0; }
+      .lists-list .list-action-left button { padding: 0; margin: 0; border: none; background: transparent; font-size: 0.95rem; }
+      .list-item .list-action-left { width: 2rem; flex: 0 0 2rem; display:flex; align-items:center; justify-content:center }
+      .list-action-btn { background: #000; color: #fff; border: none; padding: 0.12rem 0.18rem; border-radius: 4px; font-size: 0.9rem }
+      .list-action-btn:hover { background: #111 }
+      @media (max-width: 480px) { :root { --page-side-margin: 1rem; } body { margin: var(--page-side-margin); } .todos-list { padding-left: 0; } .controls { margin-left: 0.5rem; } }
+      /* small, light overrides for the PWA ops list so it remains legible on dark bg */
+      #opsList { border: 1px solid var(--border); padding: .5rem; max-width: 40rem; background: var(--surface); margin-top: .5rem }
+      .op-row { padding: .25rem .5rem; border-bottom: 1px dashed var(--border); display:flex; justify-content:space-between; gap:.5rem; align-items:center }
+      .op-row:last-child { border-bottom: none }
+      .op-meta { color: var(--muted); font-size: .9rem }
+      .op-err { color: var(--danger); font-size: .85rem }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="list-header">
+        <h1><a href="/html_pwa/">Fast Todo (PWA)</a></h1>
+        <!-- PWA sync controls placed inline with the title -->
+        <div style="display:flex; gap:.5rem; align-items:center; margin-left: .5rem;">
+          <button id="syncBtn">Sync Now</button>
+          <button id="forceSyncBtn">Force send all</button>
+        </div>
+      </div>
+      <!-- small status row below the title for network/queue info -->
+      <div style="margin-top:.4rem; display:flex; gap:1rem; align-items:center;">
+        <div class="meta">Network: <span id="onlineStatus">checking...</span></div>
+        <div class="meta">Queued: <span id="queueCount">0</span></div>
+        <div class="meta">Status: <span id="statusText">idle</span></div>
+      </div>
+    </header>
+
+    <main>
+      <section>
+        <form id="createForm">
+          <input id="todoText" placeholder="New todo text" required />
+          <input id="todoNote" placeholder="Note (optional)" />
+          <button>Create (offline-capable)</button>
+        </form>
+        <!-- Optional per-op queue UI for visibility and cancellation -->
+        <section>
+          <h3>Queue</h3>
+          <div id="opsList"></div>
+        </section>
+      </section>
+
+      <section>
+        <h2>Your lists</h2>
+        <form id="createListForm" style="margin-bottom:0.5rem; display:flex; gap:0.5rem; align-items:center;">
+          <input id="listName" placeholder="New list name" required />
+          <button type="submit">Create list</button>
+        </form>
+        <ul id="lists" class="lists-list"></ul>
+      </section>
+
+      <section>
+        <h2>Your todos (local cache)</h2>
+        <ul id="todos" class="todos-list"></ul>
+      </section>
+
+      <section id="todoDetailSection" style="margin-top:1rem; display:none;">
+        <h2>Todo details</h2>
+        <div id="todoDetail" class="full-bleed">
+          <!-- populated by app.js -->
+        </div>
+      </section>
+    </main>
+
+    <script src="/static/pwa/sw-register.js"></script>
+    <script src="/static/pwa/app.js"></script>
+  </body>
+</html>

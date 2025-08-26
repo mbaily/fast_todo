@@ -1,0 +1,272 @@
+{% extends 'base.html' %}
+{% block title %}Lists — Fast Todo (no-js){% endblock %}
+{% block content %}
+  <style>
+    /* index-only: remove top page margin so the site title sits flush to the top */
+    body { margin-top: 0 !important; }
+    header { margin-top: 0 !important; }
+  /* show completed lists as struck-through on the index */
+  .lists-list .list-title.done { text-decoration: line-through; color: #6b7280; }
+  /* pinned list: remove default bullets and left padding */
+  .pinned-todos ul { list-style: none; padding-left: 0; margin-left: 0; }
+  /* ensure completed todos in the pinned section appear struck-through */
+  .pinned-todos .done { text-decoration: line-through; color: #6b7280; }
+    /* mobile tweak: show list meta on its own line under the title for small screens */
+    @media (max-width: 480px) {
+  .list-item { position: relative; padding-right: 0.5rem; }
+      /* make the title, edit button and meta flow inline and wrap naturally
+        Reserve right padding so content doesn't flow under the absolutely
+        positioned delete control; use border-box so padding reduces content
+        width rather than increasing overall element size. */
+      .list-main { display: block; padding-right: calc(var(--page-side-margin) + 1rem); box-sizing: border-box; }
+  .list-title { display: inline; vertical-align: middle; }
+  .list-main .list-title { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; word-break: break-word; min-width: 0; }
+    /* Mobile override: allow list titles to wrap and shrink. Use higher
+       specificity and !important to override desktop ellipsize rules. */
+    .lists-list .list-main .list-title {
+      white-space: normal !important;
+      overflow: visible !important;
+      text-overflow: clip !important;
+      overflow-wrap: anywhere !important;
+      word-break: break-word !important;
+      min-width: 0 !important;
+    }
+  .edit-list-btn { display: inline; margin-left: 0.4rem; vertical-align: middle; }
+  /* move the trash/delete control into the line on the right */
+  /* push the icon further into the page margin so it sits nearer the physical
+    right edge of the viewport. Increase negative offset to move it outward. */
+  /* place the left action visually into the page gutter (same as before). If this creates layout overflow
+    on some devices we can instead place it with transform, but that previously shifted icons.
+    Reverting to the original so icons appear where expected. */
+  /* avoid using a negative `right` value which can expand layout width and
+    cause horizontal overflow on some mobile browsers (triggering inset
+    overlay scrollbars). Use transform to move the control visually into the
+    page gutter; transforms don't affect layout width. This is scoped to
+    the small-screen mobile override above. */
+  .list-action-left { position: absolute; right: 0; top: 0.5rem; width: auto; flex: initial; display: inline-block; transform: translateX(calc(var(--page-side-margin) + 2.5rem)); will-change: transform; }
+  .list-main .meta { display: inline; margin-left: 0.45rem; margin-top: 0; vertical-align: middle; overflow-wrap: anywhere; word-break: break-word; }
+    }
+  </style>
+  <!-- Temporarily disable hashtag suggestion box on index page -->
+  <style>
+    /* makes sure any suggestion UI is hidden on index while we stabilize mobile scrolling */
+    .hashtag-suggest { display: none !important; }
+  </style>
+  <style>
+    /* Mobile: ensure `main` does not create an inner scroll container so iOS shows only one overlay scrollbar.
+       This is targeted and preserves desktop/Chrome behavior. */
+    @media (pointer: coarse) {
+  main { overflow: visible !important; -webkit-overflow-scrolling: touch; min-height: 100vh !important; height: auto !important; }
+  /* also make sure direct list container doesn't clip: allow it to grow */
+  .lists-list { overflow: visible !important; }
+    }
+  </style>
+  <style>
+    /* Make html match the app background so Safari doesn't show the theme-color blue in page margins */
+    html { background: var(--bg); }
+  </style>
+  <!-- Recently visited lists (per-user). Placed above auth actions. -->
+  <section class="recent-lists-link" style="margin-top:0.25rem;">
+    <a href="/html_no_js/recent">Recently visited lists</a>
+  </section>
+
+  <p></p>
+
+  <div class="auth-actions">
+    {% if csrf_token %}
+      <form method="post" action="/html_no_js/logout" style="display:inline">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+        <button type="submit">Logout</button>
+      </form>
+    {% else %}
+      <a href="/html_no_js/login">Login</a>
+    {% endif %}
+  
+  </div>
+
+  <!-- search form: search lists and todos -->
+  <form method="get" action="/html_no_js/search" style="margin:0.5rem 0">
+    <input name="q" placeholder="Search lists and todos" value="{{ request.query_params.get('q','') }}">
+    <button type="submit">Search</button>
+  </form>
+  {% if pinned_todos and pinned_todos|length > 0 %}
+    <section class="pinned-todos">
+      <h3>Pinned</h3>
+      <ul>
+      {% for t in pinned_todos %}
+        <li>
+          <span class="pin-icon {% if t.pinned|default(false) %}pinned{% endif %}">{{ '📌' if t.pinned|default(false) else '📍' }}</span>
+          <a class="{% if t.completed %}done{% endif %}" href="/html_no_js/todos/{{ t.id }}">{{ t.text }}</a>
+           <span class="meta">in <a href="/html_no_js/lists/{{ t.list_id }}">{{ t.list_name or t.list_id }}</a></span>
+       {% if t.tags and t.tags|length > 0 %}
+             <div class="tags-inline">
+         {% for tag in (t.tags | sort) %}
+                 <a class="tag-chip" href="/html_no_js/search?q={{ tag|urlencode }}">{{ tag }}</a>
+               {% endfor %}
+             </div>
+           {% endif %}
+        </li>
+      {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+  <h3>Create list</h3>
+  <form method="post" action="/html_no_js/lists/create">
+  {{ csrf_field() }}
+  <input name="name" placeholder="List name" required>
+    <button type="submit">Create</button>
+  </form>
+
+  <h2>Your Lists</h2>
+  {% if cursors %}
+    <nav class="pagination" aria-label="Pages">
+      {% if cursors.has_prev %}
+        <a href="?dir=prev&cursor_created_at={{ cursors.prev_cursor_created_at|urlencode }}&cursor_id={{ cursors.prev_cursor_id }}">&laquo; Newer</a>
+      {% endif %}
+      {% if cursors.has_next %}
+        <a href="?dir=next&cursor_created_at={{ cursors.next_cursor_created_at|urlencode }}&cursor_id={{ cursors.next_cursor_id }}">Older &raquo;</a>
+      {% endif %}
+    </nav>
+  {% endif %}
+  <ul class="lists-list">
+  {% for lst in lists %}
+    <li class="list-item">
+      <div class="list-action-left">
+        <form method="post" action="/html_no_js/lists/{{ lst.id }}/delete" class="confirm-delete" data-confirm="Delete list '{{ lst.name }}' and all its todos? This cannot be undone.">
+          {{ csrf_field() }}
+          <button type="submit" class="list-action-btn" title="Delete list">🗑</button>
+        </form>
+      </div>
+      <div class="list-main">
+  <a class="list-title {% if lst.completed %}done{% endif %}" href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>
+  <button type="button" class="list-action-btn edit-list-btn" data-list-id="{{ lst.id }}" data-list-name="{{ lst.name|e }}" title="Edit list name">✏️</button>
+        {% if lst.created_at %}
+          <div class="meta">cr. {{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</div>
+        {% endif %}
+  {% if lst.owner_id %} <!-- owner-only list, keep metadata hidden in index --> {% endif %}
+  {# Server-side list tags are now provided to the JS renderer via data-list-tags. #}
+  <div class="all-tags-inline" data-list-id="{{ lst.id }}" data-list-tags='{{ lst.hashtags | tojson }}' aria-hidden="true"></div>
+      </div>
+    </li>
+  {% endfor %}
+  </ul>
+
+<!-- Show all tags control (browser-cookie persisted) -->
+<div id="show-all-tags-control" style="margin-top:1rem;">
+  <label><input type="checkbox" id="show-all-tags-checkbox"> Show all tags</label>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+  // Remove any leftover suggestion box elements on the index page to fully disable it here
+  try {
+    var h1 = document.getElementById('hashtag-suggest'); if (h1) h1.remove();
+    var h2 = document.getElementById('todo-hashtag-suggest'); if (h2) h2.remove();
+  } catch(e) { /* ignore */ }
+</script>
+<!-- overflow-debug script removed -->
+
+<script>
+// Minimal rename using prompt(); posts new name to server endpoint
+(function(){
+  document.querySelectorAll('.edit-list-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var id = btn.getAttribute('data-list-id');
+      var current = btn.getAttribute('data-list-name') || '';
+      var name = window.prompt('New list name', current);
+      if (!name || name.trim() === '' ) return;
+      // POST as form so CSRF macro and server accept it
+      var fd = new FormData();
+      fd.append('name', name);
+      // include csrf from page if present
+      var csrfInput = document.querySelector('input[name="_csrf"]');
+      if (csrfInput && csrfInput.value) fd.append('_csrf', csrfInput.value);
+      fetch('/html_no_js/lists/' + encodeURIComponent(id) + '/edit', { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function(res){ if (res.ok) location.reload(); else alert('Rename failed'); })
+        .catch(function(){ alert('Rename failed'); });
+    });
+  });
+})();
+</script>
+
+<script>
+// Show All Tags control: store state in a cookie and fetch combined tags per list
+(function(){
+  function setCookie(name, value, days){
+    var expires = '';
+    if (days){
+      var d = new Date(); d.setTime(d.getTime() + (days*24*60*60*1000));
+      expires = '; expires=' + d.toUTCString();
+    }
+    document.cookie = name + '=' + encodeURIComponent(value) + expires + '; path=/';
+  }
+  function getCookie(name){
+    var v = document.cookie.match('(?:^|; )' + name + '=([^;]*)');
+    return v ? decodeURIComponent(v[1]) : null;
+  }
+
+  var checkbox = document.getElementById('show-all-tags-checkbox');
+  if (!checkbox) return;
+  // initialize state
+  var state = getCookie('show_all_tags') === '1';
+  checkbox.checked = state;
+
+  function clearAllTagPlaceholders(){
+    document.querySelectorAll('.all-tags-inline').forEach(function(c){ c.innerHTML = ''; c.setAttribute('aria-hidden','true'); });
+  }
+
+  function renderTagsInto(container, tags){
+    container.innerHTML = '';
+    tags.forEach(function(tag){
+      var a = document.createElement('a');
+      a.className = 'tag-chip';
+      a.href = '/html_no_js/search?q=' + encodeURIComponent(tag);
+      a.textContent = tag;
+      container.appendChild(a);
+      container.appendChild(document.createTextNode(' '));
+    });
+    container.setAttribute('aria-hidden','false');
+  }
+
+  async function fetchCombinedTags(listId){
+    try{
+      var resp = await fetch('/lists/' + encodeURIComponent(listId) + '/hashtags?include_todo_tags=1&combine=1', { credentials: 'same-origin' });
+      if (!resp.ok) return [];
+      var data = await resp.json();
+      return data.hashtags || [];
+    }catch(e){ return []; }
+  }
+
+  async function refreshAllTags(){
+    var containers = document.querySelectorAll('.all-tags-inline');
+    containers.forEach(async function(c){
+      var lid = c.getAttribute('data-list-id');
+      var listTagsJson = c.getAttribute('data-list-tags');
+      var listTags = [];
+      try{ listTags = listTagsJson ? JSON.parse(listTagsJson) : []; }catch(e){ listTags = []; }
+      if (!checkbox.checked){
+        // render only the server-provided list tags
+        if (listTags && listTags.length) renderTagsInto(c, listTags);
+        else { c.innerHTML = ''; c.setAttribute('aria-hidden','true'); }
+        return;
+      }
+      // checkbox checked: fetch combined tags and render
+      var combined = await fetchCombinedTags(lid);
+      if (combined && combined.length) renderTagsInto(c, combined);
+      else { c.innerHTML = ''; c.setAttribute('aria-hidden','true'); }
+    });
+  }
+
+  checkbox.addEventListener('change', function(){
+    setCookie('show_all_tags', checkbox.checked ? '1' : '0', 365);
+    refreshAllTags();
+  });
+
+  // initialize rendering on load (renders server-provided list tags when unchecked)
+  refreshAllTags();
+})();
+</script>
+
+{% endblock %}

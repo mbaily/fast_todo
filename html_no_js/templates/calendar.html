@@ -1,0 +1,153 @@
+{% extends 'base.html' %}
+
+{% block title %}Calendar - Fast Todo{% endblock %}
+
+{% block content %}
+<!-- DEBUG_TEMPLATE_ID: 20250825-1 -->
+  <section class="full-bleed">
+    <div style="display:flex; align-items:center; gap:0.5rem;">
+      <h2>Calendar - {{ year }}-{{ '%02d'|format(month) }}</h2>
+      <div style="margin-left:auto">
+        <a class="button" href="/html_no_js/calendar?year={{ prev_year }}&month={{ prev_month }}">◀ Prev</a>
+        <a class="button" href="/html_no_js/calendar?year={{ next_year }}&month={{ next_month }}">Next ▶</a>
+      </div>
+    </div>
+    <div style="margin-top:0.5rem">
+      {% if occurrences_sorted and occurrences_sorted|length > 0 %}
+      <ul class="todos-list full-bleed">
+      {% for ev in occurrences_sorted %}
+        <li class="todo">
+          <div class="controls-left">
+            <input type="checkbox" class="occ-complete" data-hash="{{ ev.occ_hash }}" {% if ev.completed %}checked{% endif %} aria-label="mark occurrence complete">
+            <button type="button" class="occ-ignore-occ" data-occ="{{ ev.occ_hash }}" title="Ignore this occurrence" aria-label="Ignore this occurrence" style="margin-left:0.25rem;padding:0.1rem 0.25rem;font-size:0.9rem;">🔕</button>
+            <button type="button" class="occ-ignore-from" data-todo="{{ ev.id }}" data-occ-dt="{{ ev.occurrence_dt }}" title="Ignore from this date" aria-label="Ignore from this date" style="margin-left:0.25rem;padding:0.1rem 0.25rem;font-size:0.9rem;">⏭️</button>
+          </div>
+          <div class="todo-content">
+            <div class="todo-main wrap-text">
+              <div style="font-weight:700">
+                {% if ev.item_type == 'todo' %}
+                  <a href="/html_no_js/todos/{{ ev.id }}">{{ ev.title }}</a>
+                {% elif ev.item_type == 'list' %}
+                  <a href="/html_no_js/lists/{{ ev.id }}">{{ ev.title }}</a>
+                {% else %}
+                  {{ ev.title }}
+                {% endif %}
+              </div>
+              <div class="meta">{{ ev.occurrence_dt }}</div>
+            </div>
+          </div>
+        </li>
+      {% endfor %}
+      </ul>
+      {% else %}
+      <p class="meta">Loading calendar events...</p>
+      {% endif %}
+    </div>
+  </section>
+  {% block scripts %}{{ super() }}
+
+  <script>
+  console.log('DEBUG: calendar page script loaded');
+  function setCookie(name, value, days) {
+    let expires = '';
+    if (days) { const d = new Date(); d.setTime(d.getTime() + (days*24*60*60*1000)); expires = '; expires=' + d.toUTCString(); }
+    document.cookie = name + '=' + (value || '')  + expires + '; path=/';
+  }
+  function getCookie(name) { const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)'); return v ? v.pop() : ''; }
+
+  // Fetch occurrences for the current calendar window and replace the list
+  async function fetchOccurrencesForCurrentWindow() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const year = parseInt(params.get('year') || '{{ year }}', 10);
+      const month = parseInt(params.get('month') || '{{ month }}', 10);
+      const start = new Date(Date.UTC(year, month-1, 1, 0,0,0));
+      const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+      let end;
+      const includeNext7 = getCookie('include_next7') === '1';
+      if (includeNext7) {
+        end = new Date(Date.UTC(year, month, 7, 23,59,59)).toISOString();
+      } else {
+        end = new Date(Date.UTC(year, month-1, lastDay, 23,59,59)).toISOString();
+      }
+      const startIso = start.toISOString();
+      const res = await fetch(`/calendar/occurrences?start=${encodeURIComponent(startIso)}&end=${encodeURIComponent(end)}`, { credentials: 'same-origin' });
+      const data = await res.json();
+      const container = document.querySelector('.todos-list.full-bleed') || document.querySelector('p.meta');
+      const parent = container && container.parentNode; if (!parent) return;
+      if (data && data.occurrences && data.occurrences.length > 0) {
+        const ul = document.createElement('ul'); ul.className = 'todos-list full-bleed';
+        for (const ev of data.occurrences) {
+          const li = document.createElement('li'); li.className = 'todo';
+          const title = ev.item_type === 'todo' ? `<a href="/html_no_js/todos/${ev.id}">${ev.title}</a>` : ev.item_type === 'list' ? `<a href="/html_no_js/lists/${ev.id}">${ev.title}</a>` : ev.title;
+          // Build a left-controls column so checkboxes and ignore buttons sit to the left of the content
+          // small icon buttons: single-occurrence ignore and ignore-from-date
+          // use data attributes: data-occ for occ_hash, data-todo for the todo/list id
+          const occControls = `<div class="controls-left">
+            <input type="checkbox" class="occ-complete" data-hash="${ev.occ_hash}" ${ev.completed ? 'checked' : ''} aria-label="mark occurrence complete">
+            <button type="button" class="occ-ignore-occ" data-occ="${ev.occ_hash}" title="Ignore this occurrence" aria-label="Ignore this occurrence" style="margin-left:0.25rem;padding:0.1rem 0.25rem;font-size:0.9rem;">🔕</button>
+            <button type="button" class="occ-ignore-from" data-todo="${ev.id}" data-occ-dt="${ev.occurrence_dt}" title="Ignore from this date" aria-label="Ignore from this date" style="margin-left:0.25rem;padding:0.1rem 0.25rem;font-size:0.9rem;">⏭️</button>
+          </div>`;
+          const html = `${occControls}\n  <div class="todo-content">\n    <div class="todo-main wrap-text">\n      <div style="font-weight:700">${title}</div>\n      <div class="meta">${ev.occurrence_dt}</div>\n    </div>\n  </div>\n  `;
+          li.innerHTML = html; ul.appendChild(li);
+        }
+        parent.replaceChild(ul, container);
+      } else {
+        const p = document.createElement('p'); p.className = 'meta'; p.textContent = 'No events found for this month.'; parent.replaceChild(p, container);
+      }
+    } catch (e) { console.error('DEBUG: fetchOccurrences error', e); }
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    const cb = document.getElementById('include_next7');
+    if (cb) {
+      cb.checked = (getCookie('include_next7') === '1');
+      cb.addEventListener('change', function(){ setCookie('include_next7', cb.checked ? '1' : '0', 365); fetchOccurrencesForCurrentWindow(); });
+    }
+    // initial load
+    fetchOccurrencesForCurrentWindow();
+  });
+
+  // ignore and complete handlers
+  document.addEventListener('click', function(e){
+    // single-occurrence ignore button
+    const igOcc = e.target.closest('.occ-ignore-occ');
+    if (igOcc) {
+      const occ = igOcc.getAttribute('data-occ'); if (!occ) return;
+      const csrf = getCookie('csrf_token') || '';
+      const body = `_csrf=${encodeURIComponent(csrf)}&scope_type=occurrence&scope_key=${encodeURIComponent(occ)}`;
+      fetch('/ignore/scope', { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: body, credentials: 'same-origin' })
+        .then(async r => { let j=null; try{ j = await r.json(); }catch(e){ j={error:'invalid-json'};} console.log('DEBUG: ignore_response', {status:r.status, body:j}); const el = igOcc.closest('.todo'); if (el) el.style.display='none'; })
+        .catch(err => console.error('DEBUG: ignore_error', err));
+      return;
+    }
+    // ignore from this date button
+    const igFrom = e.target.closest('.occ-ignore-from');
+    if (igFrom) {
+      const todo = igFrom.getAttribute('data-todo'); const occdt = igFrom.getAttribute('data-occ-dt'); if (!todo || !occdt) return;
+      const csrf = getCookie('csrf_token') || '';
+      // from_dt should be ISO; occdt already provided by server in ISO
+      const body = `_csrf=${encodeURIComponent(csrf)}&scope_type=todo_from&scope_key=${encodeURIComponent(todo)}&from_dt=${encodeURIComponent(occdt)}`;
+      fetch('/ignore/scope', { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: body, credentials: 'same-origin' })
+        .then(async r => { let j=null; try{ j = await r.json(); }catch(e){ j={error:'invalid-json'};} console.log('DEBUG: ignore_from_response', {status:r.status, body:j}); const el = igFrom.closest('.todo'); if (el) el.style.display='none'; })
+        .catch(err => console.error('DEBUG: ignore_from_error', err));
+      return;
+    }
+    // fall through to other handlers
+  });
+
+  document.addEventListener('change', function(e){
+    const cb = e.target.closest('.occ-complete'); if (!cb) return; const hash = cb.getAttribute('data-hash'); if (!hash) return;
+    if (cb.checked) {
+      const csrf = getCookie('csrf_token') || '';
+      const body = `_csrf=${encodeURIComponent(csrf)}&hash=${encodeURIComponent(hash)}`;
+      fetch('/occurrence/complete', { method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded'}, body: body, credentials: 'same-origin' })
+        .then(async r => { let j=null; try{ j = await r.json(); }catch(e){ j={error:'invalid-json'};} console.log('DEBUG: complete_response', {status:r.status, body:j}); })
+        .catch(err => console.error('DEBUG: complete_error', err));
+    }
+  });
+  </script>
+
+  {% endblock %}
+
+{% endblock %}

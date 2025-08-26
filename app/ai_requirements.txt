@@ -1,0 +1,7 @@
+If a list is deleted, all associated todos must also be removed to maintain data integrity. You do not need to delete the hashtags create from the todos from that list. But if the hashtags reference the deleted list or todos, those references should be removed from the list.
+
+
+
+
+
+

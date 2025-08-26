@@ -1,0 +1,17 @@
+# Ignore local sqlite DBs and editor/virtualenv junk
+*.db
+*.sqlite3
+*.swp
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+
+# Local self-signed certs used by scripts/generate_tls.sh / installer
+.tls/
+
+# Generated screenshots from puppeteer
+screenshots/
+
+# ignore runtime debug logs produced by instrumentation
+debug_logs/
