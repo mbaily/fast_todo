@@ -75,8 +75,9 @@
   {% if pinned_todos and pinned_todos|length > 0 %}
     <section class="pinned-todos">
       <h3>Pinned</h3>
-      <ul>
-      {% for t in pinned_todos %}
+  <ul>
+  {# sort pinned_todos by modified_at (newest first). If modified_at is missing, fall back to original order #}
+  {% for t in (pinned_todos | sort(attribute='modified_at') | reverse) %}
         <li>
           <span class="pin-icon {% if t.pinned|default(false) %}pinned{% endif %}">{{ '📌' if t.pinned|default(false) else '📍' }}</span>
           <a class="{% if t.completed %}done{% endif %}" href="/html_no_js/todos/{{ t.id }}">{{ t.text }}</a>

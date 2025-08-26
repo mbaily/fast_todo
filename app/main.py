@@ -2827,7 +2827,17 @@ async def html_index(request: Request):
                 pin_rows = pres.all()
                 # map list ids to names
                 lm = {l.id: l.name for l in vis_lists}
-                pinned_todos = [{'id': t.id, 'text': t.text, 'list_id': t.list_id, 'list_name': lm.get(t.list_id)} for t in pin_rows]
+                # include modification timestamp so templates can explicitly sort by it
+                pinned_todos = [
+                    {
+                        'id': t.id,
+                        'text': t.text,
+                        'list_id': t.list_id,
+                        'list_name': lm.get(t.list_id),
+                        'modified_at': (t.modified_at.isoformat() if getattr(t, 'modified_at', None) else None),
+                    }
+                    for t in pin_rows
+                ]
                 # attach tags for pinned todos
                 pin_ids = [p['id'] for p in pinned_todos]
                 if pin_ids:
