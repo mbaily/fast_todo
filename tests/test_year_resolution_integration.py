@@ -59,7 +59,8 @@ async def test_calendar_window_prefers_window_candidates(client):
         sess.add(t)
         await sess.commit()
 
-    # query window spanning 2026-2027 and expect both occurrences
+    # query window spanning 2026-2027. Under the 1-year cap we only expect
+    # the 2026 occurrence for a todo created 2025-08-01.
     start = datetime(2026, 1, 1, tzinfo=timezone.utc).isoformat()
     end = datetime(2027, 12, 31, tzinfo=timezone.utc).isoformat()
     resp = await client.get('/calendar/occurrences', params={'start': start, 'end': end})
@@ -67,4 +68,4 @@ async def test_calendar_window_prefers_window_candidates(client):
     occ = resp.json().get('occurrences', [])
     days = [o['occurrence_dt'][:10] for o in occ if o['item_type'] == 'todo' and o['id'] == tid]
     assert '2026-01-22' in days
-    assert '2027-01-22' in days
+    assert '2027-01-22' not in days

@@ -18,10 +18,11 @@ async def test_window_expansion_returns_multiple_years(client):
     resp = await client.get('/calendar/occurrences', params={'start': start, 'end': end})
     assert resp.status_code == 200
     occ = resp.json().get('occurrences', [])
-    # Expect both Jan 22 2026 and Jan 22 2027 present
+    # Under the global 1-year cap, only candidates within one year of creation are allowed.
     days = [o['occurrence_dt'][:10] for o in occ if o['title'] and 'Event Jan 22' in o['title']]
     assert '2026-01-22' in days
-    assert '2027-01-22' in days
+    # The 2027 occurrence falls beyond the 1-year cap and should not appear.
+    assert '2027-01-22' not in days
 
 
 @pytest.mark.asyncio
@@ -57,5 +58,6 @@ async def test_feb29_next_leap_year(client):
     resp = await client.get('/calendar/occurrences', params={'start': start, 'end': end})
     assert resp.status_code == 200
     occ = resp.json().get('occurrences', [])
+    # With the 1-year cap, next-leap-year resolution for Feb 29 is disallowed; expect no occurrences
     days = [o['occurrence_dt'][:10] for o in occ if o['title'] and 'LeapParty' in o['title']]
-    assert '2028-02-29' in days
+    assert days == []

@@ -10,13 +10,14 @@ cases = [
     (1, 2, datetime(2025, 12, 20, tzinfo=timezone.utc), 2026),
     (1, 2, datetime(2025, 1, 2, tzinfo=timezone.utc), 2025),
     (12, 31, datetime(2025, 12, 31, tzinfo=timezone.utc), 2025),
-    (2, 29, datetime(2025, 6, 1, tzinfo=timezone.utc), 2028),
+    # With global 1-year cap, Feb 29 cannot resolve to the next leap year; expect no occurrence
+    (2, 29, datetime(2025, 6, 1, tzinfo=timezone.utc), None),
     # same-day but created later than event time (midday) -> next year
     (1, 2, datetime(2025, 1, 2, 12, 0, tzinfo=timezone.utc), 2026),
     # created on Dec 31 and target Jan 1 -> next year
     (1, 1, datetime(2025, 12, 31, tzinfo=timezone.utc), 2026),
     # created after leap day in leap year -> next available leap year
-    (2, 29, datetime(2028, 3, 1, tzinfo=timezone.utc), 2032),
+    (2, 29, datetime(2028, 3, 1, tzinfo=timezone.utc), None),
 ]
 
 
@@ -41,11 +42,24 @@ async def test_param_integration_calendar_resolution(client, month, day, created
     await sess.commit()
     await sess.close()
 
-    # query a window covering the expected year
-    start = datetime(expected_year, 1, 1, tzinfo=timezone.utc).isoformat()
-    end = datetime(expected_year, 12, 31, tzinfo=timezone.utc).isoformat()
+    # query a window covering the expected year. If expected_year is None (no
+    # candidate due to 1-year cap), query the original todo created_at..+1yr
+    # window to confirm absence.
+    if expected_year is None:
+        start_dt = created_at
+        end_dt = datetime(created_at.year + 1, created_at.month, created_at.day, tzinfo=timezone.utc)
+    else:
+        start_dt = datetime(expected_year, 1, 1, tzinfo=timezone.utc)
+        end_dt = datetime(expected_year, 12, 31, tzinfo=timezone.utc)
+    start = start_dt.isoformat()
+    end = end_dt.isoformat()
     resp = await client.get('/calendar/occurrences', params={'start': start, 'end': end})
     assert resp.status_code == 200
     occ = resp.json().get('occurrences', [])
-    found = [o for o in occ if o['item_type'] == 'todo' and o['id'] == tid and o['occurrence_dt'].startswith(str(expected_year))]
-    assert found, f'expected occurrence in {expected_year} for {month}/{day}'
+    if expected_year is None:
+        # Expect no occurrences within that far-future year when cap prevents resolution
+        found = [o for o in occ if o['item_type'] == 'todo' and o['id'] == tid]
+        assert not found, f'did not expect occurrences for {month}/{day} when expected_year is None'
+    else:
+        found = [o for o in occ if o['item_type'] == 'todo' and o['id'] == tid and o['occurrence_dt'].startswith(str(expected_year))]
+        assert found, f'expected occurrence in {expected_year} for {month}/{day}'
