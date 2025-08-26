@@ -1,0 +1,49 @@
+Requirements for changing page layout.
+
+Requirement 1
+
+Top 'Fast Todo (no-js)', 'Recently Visited Lists', 'Back to Lists', 'Back to List', 'Logout' (button), 'Calendar'. These items which are  on index.html, list.html, todo.html, recent.html. These items, where they exist on each of these templates, should be moved to a top horizontal toolbar with large buttons for each, laid out horizontally. Each button has an icon.
+
+AI notes of understanding and anticipated issues
+
+- Where templates live: this repo has two parallel UI families. The no-JS HTML templates are under `html_no_js/templates/` (e.g. `index.html`, `list.html`, `todo.html`, `recent.html`, and `base.html` where the site title currently lives). There is also a PWA set under `html_pwa/` with `index.html` and `login.html`; the PWA uses `static/pwa/` assets and a service worker.
+
+Dev: we are only working on html_no_js. No change or working on html_pwa.
+
+- Current placement: the links and the `Logout` form appear in `html_no_js/templates/base.html` and in the individual templates near the top (examples: `index.html` has a recent link and a logout form; `list.html` and `todo.html` include 'Recently visited lists' and 'Back to lists/back to list'). See `app/main.py` routes that render these templates.
+
+Dev: The 'Logout' appears visually as a button on the website.
+
+- Implementation approach: add a single include/partial (e.g. `_top_toolbar.html`) and render it from `base.html` so the toolbar appears on all no-JS pages. For the PWA pages either reuse the same partial or create a matching toolbar snippet in `html_pwa/` pages. Keep the markup progressive-enhancement friendly: use simple links/forms (POST for logout) and CSS for layout. Icons can be added via SVG sprites or an icon font stored under `static/` to avoid external CDN dependencies.
+
+Dev: The toolbar is variable in the different pages. Only the items that are in each template remain in that template, in the new toolbar. So the toolbar is slightly different for each page. The functions for each page remain exaclty the same as were on that page before, when toolbar is completed. So one one page, the toolbar might only have 2 buttons. On another, 3 buttons.
+
+- Accessibility & semantics: toolbar should be a semantic landmark (e.g. a `nav` with `role="navigation"`) and the buttons should be real `<a>` or `<button>` elements with visible text labels and `aria-label` where needed. The Logout must remain a POST form for safety and CSRF token handling; preserve the existing form action (`/html_no_js/logout`) and CSRF injection.
+
+- Responsive layout: implement horizontal layout on wider viewports and stack/wrap on narrow screens. Keep touch-target sizes >= 44px and provide sufficient spacing. Watch the `index_ios_safari.html` variant which currently has inline styles for mobile — update or mirror styles there.
+
+- Back-to-list semantics: 'Back to List' needs context (the current list id and an anchor to the todo). Keep existing URL forms (e.g. `/html_no_js/lists/{{ todo.list_id }}#todo-{{ todo.id }}`) and ensure the toolbar can accept an optional context variable to render the back button only when appropriate.
+
+Dev: Yes the existing forms can be kept. The function of each thing that we're moving into the toolbar remain exactly the same.
+
+
+- CSRF & auth: logout is a POST and relies on CSRF tokens injected in templates; when moving the form into a shared partial, ensure `csrf_token` remains available in the template context or reference the site-wide context used in `app/main.py` render calls.
+
+
+- Tests and migration: update any tests that assert presence/position of these links (search `tests/` for assertions referencing the old snippets). Smoke test by rendering each page locally (or running existing test suite) to ensure CSRF and links still work.
+
+
+- Edge cases & gotchas:
+	- Multiple UI families: don't accidentally modify `html_pwa/` only while leaving `html_no_js/` inconsistent.
+
+	- Template context: some pages render with different context keys; adjust the partial to tolerate missing optional values (e.g. use Jinja conditional checks before rendering Back-to-List).
+	- Logout UX: ensure the POST form preserves the visual appearance of a toolbar button; use CSS to render the form button inline and accessible.
+	- Icon availability: include fallback text for icon-only buttons to prevent invisible controls if the SVG/font fails to load.
+
+Suggested acceptance criteria
+
+- A shared top toolbar appears on `index.html`, `list.html`, `todo.html`, and `recent.html` for no-JS templates and visually matches the spec (horizontal with large buttons and icons on desktop, stacked on mobile).
+- Logout remains a POST form with CSRF token and continues to log out as before.
+- Back-to-List only shows when a suitable context (list id) is present.
+- No JS pages and PWA pages either use the same partial or visually consistent toolbars.
+- Update docs or a short README note describing the template partial location and how to add icons.
