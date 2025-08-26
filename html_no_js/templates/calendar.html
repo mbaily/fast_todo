@@ -104,8 +104,10 @@
       cb.checked = (getCookie('include_next7') === '1');
       cb.addEventListener('change', function(){ setCookie('include_next7', cb.checked ? '1' : '0', 365); fetchOccurrencesForCurrentWindow(); });
     }
-    // initial load
-    fetchOccurrencesForCurrentWindow();
+  // initial load
+  fetchOccurrencesForCurrentWindow();
+  // emit a Puppeteer-friendly debug event if helper is available
+  try{ if (window.__puppeteerDebug && typeof window.__puppeteerDebug.event === 'function') window.__puppeteerDebug.event('calendar-page-init', {year: {{ year }}, month: {{ month }}}); }catch(e){ console.debug('PUPPETEER_DEBUG_RENDER_ISSUE', String(e)); }
   });
 
   // ignore and complete handlers

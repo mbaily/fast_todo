@@ -10,9 +10,29 @@ set -euo pipefail
 #   scripts/run_server_debian.sh --dev   # run with reload for development
 
 RELOAD=1    # New default as this script only used for dev
-if [ "${1-}" = "--dev" ]; then
-  RELOAD=1
-fi
+DEBUGPY=0
+DEBUGPY_WAIT=0
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --dev)
+      RELOAD=1
+      shift
+      ;;
+    --debug)
+      DEBUGPY=1
+      shift
+      ;;
+    --debug-wait)
+      DEBUGPY=1
+      DEBUGPY_WAIT=1
+      shift
+      ;;
+    *)
+      # unknown arg: ignore (preserve backwards compat)
+      shift
+      ;;
+  esac
+done
 
 PY=python3
 VENV_DIR=".venv"
@@ -121,6 +141,14 @@ fi
 
 if [ "$RELOAD" -eq 1 ]; then
   echo "[run_server] Starting uvicorn in dev mode (reload) on https://${HOST}:${PORT} (log_level=${UVICORN_LOG_LEVEL} access_log=${UVICORN_ACCESS_LOG})"
+  if [ "$DEBUGPY" -eq 1 ]; then
+    echo "[run_server] Enabling debugpy (wait=${DEBUGPY_WAIT})"
+    export ENABLE_DEBUGPY=1
+    export DEBUGPY_PORT=${DEBUGPY_PORT-5678}
+    if [ "$DEBUGPY_WAIT" -eq 1 ]; then
+      export DEBUGPY_WAIT=1
+    fi
+  fi
   UVICORN_CMD=(uvicorn "$APP_MODULE" --host "$HOST" --port "$PORT" --reload --ssl-keyfile "$CERT_KEY" --ssl-certfile "$CERT_PUB" --log-level "$UVICORN_LOG_LEVEL")
   if [ "$UVICORN_ACCESS_LOG" != "true" ]; then
     UVICORN_CMD+=(--access-log "false")

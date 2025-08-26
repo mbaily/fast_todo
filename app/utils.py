@@ -590,59 +590,64 @@ def extract_dates_meta(text: str | None) -> list[dict]:
             # phrases while marking the match as yearless so callers can
             # expand across years.
             try:
-                dm_match = re.search(r"\b(\d{1,2})[./-](\d{1,2})\b", text)
-                if dm_match:
-                    a = int(dm_match.group(1))
-                    b = int(dm_match.group(2))
-                    # Interpret ambiguous numeric patterns as day/month (Australian-style)
-                    if a > 12 and 1 <= b <= 12 and 1 <= a <= 31:
-                        day, mon = a, b
-                    elif b > 12 and 1 <= a <= 12 and 1 <= b <= 31:
-                        day, mon = b, a
-                    else:
-                        # default to day/month (e.g., '5/9' -> 5 Sep)
-                        day, mon = a, b
-                    if 1 <= mon <= 12 and 1 <= day <= 31:
-                        # Try to construct a datetime for the current year; if invalid
-                        # (e.g., Feb 29 on non-leap year) try the next few years.
-                        cy = now_utc().year
-                        from datetime import datetime as _dt
-                        found_dt = None
-                        for y in range(cy, cy + 5):
-                            try:
-                                cand = _dt(y, mon, day, tzinfo=timezone.utc)
-                                found_dt = cand
-                                break
-                            except Exception:
-                                continue
-                        if found_dt:
-                            match_text = dm_match.group(0)
-                            out.append({'year_explicit': False, 'match_text': match_text, 'dt': found_dt, 'month': found_dt.month, 'day': found_dt.day})
-                            return out
+                # Find all numeric month/day tokens like 5/8, 05-09, etc.
+                dm_matches = list(re.finditer(r"\b(\d{1,2})[./-](\d{1,2})\b", text))
+                if dm_matches:
+                    cy = now_utc().year
+                    from datetime import datetime as _dt
+                    for dm_match in dm_matches:
+                        a = int(dm_match.group(1))
+                        b = int(dm_match.group(2))
+                        # Interpret ambiguous numeric patterns as day/month (Australian-style)
+                        if a > 12 and 1 <= b <= 12 and 1 <= a <= 31:
+                            day, mon = a, b
+                        elif b > 12 and 1 <= a <= 12 and 1 <= b <= 31:
+                            day, mon = b, a
+                        else:
+                            # default to day/month (e.g., '5/9' -> 5 Sep)
+                            day, mon = a, b
+                        if 1 <= mon <= 12 and 1 <= day <= 31:
+                            # Try to construct a datetime for the current year; if invalid
+                            # (e.g., Feb 29 on non-leap year) try the next few years.
+                            found_dt = None
+                            for y in range(cy, cy + 5):
+                                try:
+                                    cand = _dt(y, mon, day, tzinfo=timezone.utc)
+                                    found_dt = cand
+                                    break
+                                except Exception:
+                                    continue
+                            if found_dt:
+                                match_text = dm_match.group(0)
+                                out.append({'year_explicit': False, 'match_text': match_text, 'dt': found_dt, 'month': found_dt.month, 'day': found_dt.day})
+                    if out:
+                        return out
                 # Also handle month-name + day patterns like 'Jan 22' or 'January 22'
                 # so phrases like 'Event Jan 22' are recognized as yearless matches.
                 month_names = {m[:3].lower(): i+1 for i, m in enumerate(MONTHS_EN)}
-                md_match = re.search(r"\b([A-Za-z]{3,9})\s+(\d{1,2})\b", text)
-                if md_match:
-                    mon_name = md_match.group(1).lower()[:3]
-                    day = int(md_match.group(2))
-                    mon = month_names.get(mon_name)
-                    if mon and 1 <= day <= 31:
-                        # find a valid year to construct a real datetime (handle Feb 29)
-                        cy = now_utc().year
-                        found_dt = None
-                        for y in range(cy, cy + 5):
-                            try:
-                                from datetime import datetime as _dt
-                                cand = _dt(y, mon, day, tzinfo=timezone.utc)
-                                found_dt = cand
-                                break
-                            except Exception:
-                                continue
-                        if found_dt:
-                            match_text = md_match.group(0)
-                            out.append({'year_explicit': False, 'match_text': match_text, 'dt': found_dt, 'month': found_dt.month, 'day': found_dt.day})
-                            return out
+                # Find all month-name + day patterns (e.g., 'May 8', 'May 8th')
+                md_matches = list(re.finditer(r"\b([A-Za-z]{3,9})\s+(\d{1,2})\b", text))
+                if md_matches:
+                    cy = now_utc().year
+                    from datetime import datetime as _dt
+                    for md_match in md_matches:
+                        mon_name = md_match.group(1).lower()[:3]
+                        day = int(md_match.group(2))
+                        mon = month_names.get(mon_name)
+                        if mon and 1 <= day <= 31:
+                            found_dt = None
+                            for y in range(cy, cy + 5):
+                                try:
+                                    cand = _dt(y, mon, day, tzinfo=timezone.utc)
+                                    found_dt = cand
+                                    break
+                                except Exception:
+                                    continue
+                            if found_dt:
+                                match_text = md_match.group(0)
+                                out.append({'year_explicit': False, 'match_text': match_text, 'dt': found_dt, 'month': found_dt.month, 'day': found_dt.day})
+                    if out:
+                        return out
             except Exception:
                 pass
             return []
@@ -703,7 +708,16 @@ def resolve_yearless_date(month: int, day: int, created_at: datetime, window_sta
         except Exception:
             return None
 
-    # If a window is provided, return all candidates within it
+    # Compute absolute cap: created_at + 1 year (no leap-year exception)
+    try:
+        cap_year = created_at.year + 1
+        cap_dt = _dt(cap_year, created_at.month, created_at.day, tzinfo=timezone.utc)
+    except Exception:
+        # fallback: simple year increment at midnight UTC
+        cap_dt = _dt(created_at.year + 1, 1, 1, tzinfo=timezone.utc)
+
+    # If a window is provided, return all candidates within it but also
+    # cap to at most 1 year after creation (created_at..cap_dt).
     if window_start is not None and window_end is not None:
         try:
             if window_start.tzinfo is None:
@@ -716,30 +730,30 @@ def resolve_yearless_date(month: int, day: int, created_at: datetime, window_sta
                 window_end = window_end.astimezone(timezone.utc)
         except Exception:
             return []
-        yrs = range(window_start.year, window_end.year + 1)
+        # Intersect the requested window with the allowed creation-bound window
+        allowed_start = max(window_start, created_at)
+        allowed_end = min(window_end, cap_dt)
+        if allowed_end < allowed_start:
+            return []
+        yrs = range(allowed_start.year, allowed_end.year + 1)
         out = []
         for y in yrs:
             cand = _make_candidate(y)
             if cand is None:
                 continue
-            if cand >= window_start and cand <= window_end:
+            if cand >= allowed_start and cand <= allowed_end:
                 out.append(cand)
         return out
 
-    # No window: pick earliest candidate >= created_at within next 12 years
-    for y in range(created_at.year, created_at.year + 13):
+    # No window: pick earliest candidate >= created_at but no later than cap_dt
+    for y in range(created_at.year, cap_dt.year + 1):
         cand = _make_candidate(y)
         if cand is None:
             continue
-        if cand >= created_at:
+        if cand >= created_at and cand <= cap_dt:
             return cand
 
-    # Fallback: return the next available candidate after the search window
-    for y in range(created_at.year + 13, created_at.year + 25):
-        cand = _make_candidate(y)
-        if cand is not None:
-            return cand
-
+    # If none found inside the 1-year cap, return None (no leap-year exception)
     return None
 
 

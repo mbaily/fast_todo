@@ -5,6 +5,7 @@
   "private": true,
   "dependencies": {
     "minimist": "^1.2.8",
-    "puppeteer": "^22.0.0"
+  "puppeteer": "^22.0.0",
+  "undici": "^5.21.0"
   }
 }

@@ -9,6 +9,7 @@ pytest-asyncio
 python-dotenv
 python-jose[cryptography]
 python-multipart
+requests
 SQLAlchemy
 sqlmodel
 tzdata

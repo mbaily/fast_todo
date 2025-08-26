@@ -25,9 +25,9 @@ def test_resolve_feb29_picks_next_leap_year():
     # created in 2025, next Feb 29 is 2028
     created = datetime(2025, 6, 1, tzinfo=timezone.utc)
     res = resolve_yearless_date(2, 29, created)
-    assert isinstance(res, datetime)
-    assert res.year == 2028
-    assert res.month == 2 and res.day == 29
+    # With a strict 1-year cap and no leap-year exception, there is no
+    # valid Feb 29 inside the allowed window (2025-06-01 .. 2026-06-01).
+    assert res is None
 
 
 def test_window_returns_multiple_candidates():
@@ -38,4 +38,7 @@ def test_window_returns_multiple_candidates():
     res = resolve_yearless_date(1, 22, created, window_start, window_end)
     assert isinstance(res, list)
     years = [d.year for d in res]
-    assert 2026 in years and 2027 in years
+    # With a global 1-year cap (created 2025-08-01 -> cap 2026-08-01), only
+    # the 2026 candidate falls inside the allowed range; 2027 should be
+    # excluded.
+    assert 2026 in years and 2027 not in years

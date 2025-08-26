@@ -6375,3 +6375,7 @@ INFO:     Waiting for application shutdown.
 INFO:     Application shutdown complete.
 INFO:     Finished server process [863413]
 INFO:     Stopping reloader process [853066]
+INFO:     Will watch for changes in these directories: ['/home/mbaily/other_git/gpt5_fast_todo']
+INFO:     Uvicorn running on https://0.0.0.0:10443 (Press CTRL+C to quit)
+INFO:     Started reloader process [1034753] using WatchFiles
+2025-08-26 16:33:30,786 INFO:app.main: debugpy listening on 0.0.0.0:5678 (wait=True)

@@ -312,6 +312,32 @@
       if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', attach); else attach();
     })();
     </script>
+    <script>
+    // Puppeteer-friendly debug helper: emits structured messages via console.debug
+    // and exposes a simple global so test scripts can call `window.__puppeteerDebug.log(obj)`.
+    (function(){
+      if (typeof window === 'undefined') return;
+      window.__puppeteerDebug = {
+        log: function(obj){
+          try{
+            const payload = {type: 'puppeteer-debug', ts: new Date().toISOString(), payload: obj};
+            // stringify to ensure console message is captured as a single entry
+            console.debug('PUPPETEER_DEBUG:' + JSON.stringify(payload));
+          }catch(e){
+            console.debug('PUPPETEER_DEBUG:' + JSON.stringify({type:'puppeteer-debug-error', ts:new Date().toISOString(), error:String(e)}));
+          }
+        },
+        event: function(name, data){
+          try{
+            const payload = {type: 'puppeteer-event', ts: new Date().toISOString(), name: name, data: data};
+            console.debug('PUPPETEER_DEBUG:' + JSON.stringify(payload));
+          }catch(e){
+            console.debug('PUPPETEER_DEBUG:' + JSON.stringify({type:'puppeteer-debug-error', ts:new Date().toISOString(), error:String(e)}));
+          }
+        }
+      };
+    })();
+    </script>
   {% endblock %}
   </body>
 </html>

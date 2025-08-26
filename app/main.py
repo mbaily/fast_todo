@@ -13,14 +13,16 @@ from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
 import json
 import asyncio
+from asyncio import Queue
 import os
+from contextvars import ContextVar
 from sqlmodel import select
 from .models import Hashtag, TodoHashtag, ListHashtag, ServerState, CompletionType, SyncOperation, Tombstone
 from .models import RecentListVisit
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import text
 from fastapi import Request, Form
-from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from .utils import format_server_local, format_in_timezone
@@ -46,6 +48,104 @@ if not logger.handlers:
     logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
+# Optional debugpy attach for live debugging. Enabled by setting ENABLE_DEBUGPY=1
+# DEBUGPY_PORT defaults to 5678. If DEBUGPY_WAIT=1 the server will pause until a
+# debugger attaches (useful during development).
+try:
+    if os.getenv('ENABLE_DEBUGPY', '0') in ('1', 'true', 'yes'):
+        try:
+            import debugpy
+            debug_port = int(os.getenv('DEBUGPY_PORT', '5678'))
+            debug_wait = os.getenv('DEBUGPY_WAIT', '0') in ('1', 'true', 'yes')
+            # Listen on all interfaces so remote debuggers can attach if needed.
+            debugpy.listen(('0.0.0.0', debug_port))
+            logger.info('debugpy listening on 0.0.0.0:%d (wait=%s)', debug_port, debug_wait)
+            if debug_wait:
+                # Blocks until a debugger attaches.
+                debugpy.wait_for_client()
+        except Exception:
+            logger.exception('failed to start debugpy; continuing without debugger')
+except Exception:
+    # keep startup robust in case os.getenv or logging behaves unexpectedly
+    pass
+
+# In-memory log store for lightweight debugging access via HTTP.
+# Uses a deque with a configurable max length so memory usage stays bounded.
+from collections import deque
+try:
+    LOG_STORE_MAX = int(os.getenv('INMEM_LOG_MAX', '10000'))
+except Exception:
+    LOG_STORE_MAX = 10000
+
+# store items as dicts: {ts, level, logger, message}
+_inmemory_log = deque(maxlen=LOG_STORE_MAX)
+
+# Global list of asyncio Queues used by SSE log stream (always defined)
+_sse_queues: list[Queue] = []
+
+# contextvar to annotate whether current execution is handling an HTTP request
+# value will be a short string like 'http_request:/path' or None for background tasks
+_sse_origin: ContextVar[str | None] = ContextVar('_sse_origin', default=None)
+
+
+class InMemoryHandler(logging.Handler):
+    def emit(self, record):
+        try:
+            # Format using the handler's formatter if present, else basic message
+            msg = self.format(record) if self.formatter else record.getMessage()
+            # timestamp in UTC ISO
+            ts = datetime.utcnow().replace(tzinfo=timezone.utc).isoformat()
+            _inmemory_log.append({
+                'ts': ts,
+                'level': record.levelname,
+                'logger': record.name,
+                'message': msg,
+            })
+        except Exception:
+            # ensure logging never raises
+            pass
+
+
+# Attach in-memory handler to root logger so all module logs are captured
+try:
+    _inmem_handler = InMemoryHandler()
+    _inmem_handler.setLevel(logging.DEBUG)
+    _inmem_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s:%(name)s: %(message)s'))
+    logging.getLogger().addHandler(_inmem_handler)
+except Exception:
+    logger.exception('failed to attach in-memory log handler')
+
+    # Simple Server-Sent Events (SSE) broadcaster for live log streaming.
+    # Simple Server-Sent Events (SSE) broadcaster for live log streaming.
+    from asyncio import Queue
+
+    def _broadcast_log(record: dict):
+        # push record into all active queues (non-blocking)
+        for q in list(_sse_queues):
+            try:
+                # do not await here; put_nowait is fine for in-memory small queues
+                q.put_nowait(record)
+            except Exception:
+                try:
+                    _sse_queues.remove(q)
+                except Exception:
+                    pass
+
+    # augment the InMemoryHandler to also broadcast
+    orig_emit = InMemoryHandler.emit
+    def _emit_and_broadcast(self, record):
+        try:
+            orig_emit(self, record)
+            # prepare the dict similarly
+            msg = self.format(record) if self.formatter else record.getMessage()
+            ts = datetime.utcnow().replace(tzinfo=timezone.utc).isoformat()
+            rec = {'ts': ts, 'level': record.levelname, 'logger': record.name, 'message': msg}
+            _broadcast_log(rec)
+        except Exception:
+            pass
+
+    InMemoryHandler.emit = _emit_and_broadcast
+
 # templating for no-JS HTML client
 TEMPLATES = Jinja2Templates(directory="html_no_js/templates")
 # In development prefer templates to auto-reload so edits show up without
@@ -65,6 +165,8 @@ def linkify(text: str | None) -> Markup:
     """
     if not text:
         return Markup("")
+
+
     # escape first to avoid HTML injection
     esc = escape(text)
     url_re = re.compile(r"(https?://[^\s<]+)")
@@ -78,6 +180,33 @@ def linkify(text: str | None) -> Markup:
 
 
 TEMPLATES.env.filters['linkify'] = linkify
+
+
+# Helper to broadcast lightweight debug events to SSE queues when available.
+def _sse_debug(event: str, payload: dict):
+    try:
+        # include optional source annotation when available from contextvar
+        origin = None
+        try:
+            origin = _sse_origin.get()
+        except Exception:
+            origin = None
+        debug_payload = {'event': event, 'payload': payload}
+        if origin:
+            # don't mutate original payload; annotate separately
+            debug_payload['source'] = origin
+        rec = {'ts': datetime.utcnow().replace(tzinfo=timezone.utc).isoformat(), 'level': 'DEBUG', 'logger': 'sse.debug', 'message': json.dumps(debug_payload)}
+        for q in list(_sse_queues):
+            try:
+                q.put_nowait(rec)
+            except Exception:
+                try:
+                    _sse_queues.remove(q)
+                except Exception:
+                    pass
+    except Exception:
+        # never let debug broadcasting break application logic
+        pass
 
 
 def is_ios_safari(request: Request) -> bool:
@@ -289,6 +418,99 @@ app = FastAPI(lifespan=lifespan)
 
 # serve static assets (manifest, service-worker, icons, pwa helper JS, etc.)
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+# Simple ASGI middleware: set `_sse_origin` contextvar for the scope of each
+# HTTP request handler so debug events can be annotated with their request
+# origin (path). Background tasks or other contexts will leave the origin as None.
+@app.middleware('http')
+async def _sse_origin_middleware(request: Request, call_next):
+    token = None
+    try:
+        # set the contextvar to a concise string we can surface in SSE
+        token = _sse_origin.set(f'http_request:{request.url.path}')
+    except Exception:
+        token = None
+    try:
+        resp = await call_next(request)
+        return resp
+    finally:
+        try:
+            if token is not None:
+                _sse_origin.reset(token)
+        except Exception:
+            pass
+
+
+def _is_local_request(request: Request) -> bool:
+    """Return True if request originates from localhost addresses."""
+    try:
+        host = request.client.host if getattr(request, 'client', None) else None
+        return host in (None, '127.0.0.1', '::1', 'localhost')
+    except Exception:
+        return False
+
+
+def _log_endpoint_allowed(request: Request) -> bool:
+    # Allow when explicitly enabled via env var or when request is local
+    if os.getenv('ENABLE_LOG_ENDPOINT', '0') in ('1', 'true', 'yes'):
+        return True
+    return _is_local_request(request)
+
+
+@app.get('/server/logs')
+async def get_server_logs(request: Request, limit: int = 200, level: str | None = None):
+    """Return recent in-memory log messages.
+
+    By default returns up to `limit` messages (most recent first). If `level`
+    is provided, filter by log level (e.g., DEBUG, INFO, WARNING, ERROR).
+    Access is restricted to local requests unless ENABLE_LOG_ENDPOINT=1.
+    """
+    if not _log_endpoint_allowed(request):
+        raise HTTPException(status_code=403, detail='forbidden')
+    # clamp limit
+    try:
+        limit = min(max(int(limit), 1), LOG_STORE_MAX)
+    except Exception:
+        limit = 200
+    items = list(_inmemory_log)
+    if level:
+        lvl = level.upper()
+        items = [i for i in items if i.get('level') == lvl]
+    # return most recent first
+    return {'count': len(items), 'logs': list(reversed(items))[:limit]}
+
+
+class LogPost(BaseModel):
+    level: str = 'INFO'
+    message: str
+
+
+@app.post('/server/logs')
+async def post_server_log(request: Request, payload: LogPost):
+    """Append a synthetic log record to the in-memory store for debugging.
+
+    This is intended for quick diagnostic notes. Access restricted to local
+    requests unless ENABLE_LOG_ENDPOINT=1.
+    """
+    if not _log_endpoint_allowed(request):
+        raise HTTPException(status_code=403, detail='forbidden')
+    # create a log record via the root logger so formatting is consistent
+    lvl = payload.level.upper() if payload.level else 'INFO'
+    try:
+        getattr(logging.getLogger(), lvl.lower())(payload.message)
+    except Exception:
+        logging.getLogger().info(payload.message)
+    return {'ok': True}
+
+
+@app.delete('/server/logs')
+async def clear_server_logs(request: Request):
+    """Clear the in-memory logs (local-only or enabled by env var)."""
+    if not _log_endpoint_allowed(request):
+        raise HTTPException(status_code=403, detail='forbidden')
+    _inmemory_log.clear()
+    return {'ok': True}
 
 
 @app.middleware("http")
@@ -590,6 +812,21 @@ async def calendar_occurrences(request: Request,
         # if only start provided, set end to start + 90 days
         end_dt = start_dt + _td(days=90)
 
+    # helper to ensure datetimes are timezone-aware UTC before comparing
+    def _ensure_aware(d: datetime) -> datetime:
+        if d is None:
+            return now_utc()
+        try:
+            if d.tzinfo is None:
+                return d.replace(tzinfo=timezone.utc)
+            return d.astimezone(timezone.utc)
+        except Exception:
+            return now_utc()
+
+    # normalize start/end for internal comparisons
+    start_dt = _ensure_aware(start_dt)
+    end_dt = _ensure_aware(end_dt)
+
     occurrences: list[dict] = []
     truncated = False
     # support disabling recurring detection via config (useful for testing clients)
@@ -602,10 +839,32 @@ async def calendar_occurrences(request: Request,
     except Exception:
         recurring_enabled = True
     logger.info('calendar_occurrences called owner_id=%s start=%s end=%s expand=%s', owner_id, start_dt.isoformat() if start_dt else None, end_dt.isoformat() if end_dt else None, expand)
+    # Emit SSE debug event for handler entry
+    _sse_debug('calendar_occurrences.entry', {'owner_id': owner_id, 'start': start_dt.isoformat() if start_dt else None, 'end': end_dt.isoformat() if end_dt else None, 'expand': expand})
+    # Development-only conditional breakpoint. Set ENABLE_CALENDAR_BREAKPOINT=1
+    # in the environment to trigger a debugger break at the start of this
+    # handler. Attempts debugpy.breakpoint() first, falls back to pdb.set_trace().
+    try:
+        if os.getenv('ENABLE_CALENDAR_BREAKPOINT', '0') in ('1', 'true', 'yes'):
+            try:
+                import debugpy
+                # If a debugpy client is attached this will pause execution.
+                debugpy.breakpoint()
+                logger.info('debugpy.breakpoint() invoked for calendar_occurrences')
+            except Exception:
+                try:
+                    import pdb
+                    pdb.set_trace()
+                except Exception:
+                    logger.exception('failed to invoke debug breakpoint for calendar_occurrences')
+    except Exception:
+        # keep handler robust if environment inspection or imports fail
+        logger.exception('error evaluating ENABLE_CALENDAR_BREAKPOINT')
     async with async_session() as sess:
         # fetch lists for this owner
         qlists = await sess.exec(select(ListState).where(ListState.owner_id == owner_id))
         lists = qlists.all()
+        _sse_debug('calendar_occurrences.lists_fetched', {'count': len(lists) if lists else 0})
         if lists:
             list_ids = [l.id for l in lists if l.id is not None]
         else:
@@ -615,10 +874,16 @@ async def calendar_occurrences(request: Request,
         if list_ids:
             qtodos = await sess.exec(select(Todo).where(Todo.list_id.in_(list_ids)))
             todos = qtodos.all()
+        _sse_debug('calendar_occurrences.todos_fetched', {'count': len(todos)})
 
-        def add_occ(item_type: str, item_id: int, list_id: int | None, title: str, occ_dt, dtstart, is_rec, rrule_str, rec_meta):
+        def add_occ(item_type: str, item_id: int, list_id: int | None, title: str, occ_dt, dtstart, is_rec, rrule_str, rec_meta, source: str | None = None):
             nonlocal occurrences, truncated
             if len(occurrences) >= max_total:
+                # global truncation reached
+                try:
+                    _sse_debug('calendar_occurrences.truncated', {'when': 'max_total', 'item_type': item_type, 'item_id': item_id, 'current_total': len(occurrences)})
+                except Exception:
+                    pass
                 truncated = True
                 return
             # compute occurrence hash for client/server idempotency
@@ -636,6 +901,19 @@ async def calendar_occurrences(request: Request,
                 'recurrence_meta': rec_meta,
                 'occ_hash': occ_hash,
             })
+            # Emit an SSE debug event so callers can see which occurrences were added
+            try:
+                pay = {'item_type': item_type, 'item_id': item_id, 'occurrence_dt': occ_dt.isoformat(), 'title': title or '', 'rrule': rrule_str or '', 'is_recurring': bool(is_rec)}
+                if source:
+                    pay['source'] = source
+                _sse_debug('calendar_occurrences.added', pay)
+                # Also emit an INFO log so appended occurrences are visible in server stdout and in /server/logs
+                try:
+                    logger.info('calendar_occurrences.added owner_id=%s item_type=%s item_id=%s occurrence=%s rrule=%s recurring=%s source=%s', owner_id, item_type, item_id, occ_dt.isoformat(), rrule_str or '', bool(is_rec), source)
+                except Exception:
+                    pass
+            except Exception:
+                pass
 
         # scan lists
         from dateutil.rrule import rrulestr
@@ -653,14 +931,30 @@ async def calendar_occurrences(request: Request,
             rec_dtstart = getattr(l, 'recurrence_dtstart', None)
             if expand and rec_rrule and recurring_enabled:
                 try:
+                    _sse_debug('calendar_occurrences.list_expand_start', {'list_id': l.id, 'rrule': rec_rrule})
+                    # mark branch choice for this list
+                    try:
+                        _sse_debug('calendar_occurrences.branch_choice', {'list_id': l.id, 'chosen_branch': 'list-rrule'})
+                    except Exception:
+                        pass
                     if rec_dtstart and rec_dtstart.tzinfo is None:
                         rec_dtstart = rec_dtstart.replace(tzinfo=timezone.utc)
                     r = rrulestr(rec_rrule, dtstart=rec_dtstart)
                     occs = list(r.between(start_dt, end_dt, inc=True))[:max_per_item]
+                    # signal when per-item limit reached
+                    try:
+                        if len(occs) >= max_per_item:
+                            _sse_debug('calendar_occurrences.per_item_limit', {'when': 'list-rrule', 'list_id': l.id, 'limit': max_per_item})
+                    except Exception:
+                        pass
                     for od in occs:
-                        add_occ('list', l.id, None, l.name, od, rec_dtstart, True, rec_rrule, getattr(l, 'recurrence_meta', None))
+                        add_occ('list', l.id, None, l.name, od, rec_dtstart, True, rec_rrule, getattr(l, 'recurrence_meta', None), source='list-rrule')
                     continue
-                except Exception:
+                except Exception as e:
+                    try:
+                        _sse_debug('calendar_occurrences.rrule_expand_failed', {'list_id': l.id, 'error': str(e)})
+                    except Exception:
+                        pass
                     # fall back to extract_dates below
                     pass
 
@@ -672,11 +966,29 @@ async def calendar_occurrences(request: Request,
                 if m.get('year_explicit'):
                     d = m.get('dt')
                     if d >= start_dt and d <= end_dt:
-                        add_occ('list', l.id, None, l.name, d, None, False, '', None)
+                        add_occ('list', l.id, None, l.name, d, None, False, '', None, source='list-explicit')
             # handle yearless matches: generate candidates for each year in window
             yearless = [m for m in meta if not m.get('year_explicit')]
             if yearless:
-                ys = range(start_dt.year, end_dt.year + 1)
+                # cap expansion to at most 1 year after the list's creation
+                try:
+                    item_created = getattr(l, 'created_at', None) or start_dt
+                    # normalize to UTC-aware
+                    if item_created.tzinfo is None:
+                        item_created = item_created.replace(tzinfo=timezone.utc)
+                    else:
+                        item_created = item_created.astimezone(timezone.utc)
+                    from datetime import datetime as _dt
+                    cap_dt = _dt(item_created.year + 1, item_created.month, item_created.day, tzinfo=timezone.utc)
+                except Exception:
+                    item_created = start_dt
+                    cap_dt = start_dt
+                allowed_start = max(start_dt, item_created)
+                allowed_end = min(end_dt, cap_dt)
+                if allowed_end < allowed_start:
+                    ys = []
+                else:
+                    ys = range(allowed_start.year, allowed_end.year + 1)
                 for m in yearless:
                     mon = int(m.get('month'))
                     day = int(m.get('day'))
@@ -685,9 +997,11 @@ async def calendar_occurrences(request: Request,
                             from datetime import datetime as _dt
                             cand = _dt(y, mon, day, tzinfo=timezone.utc)
                         except Exception:
+                            # invalid date (e.g., Feb 29 on non-leap year)
                             continue
-                        if cand >= start_dt and cand <= end_dt:
-                            add_occ('list', l.id, None, l.name, cand, None, False, '', None)
+                        # only add candidate if it falls inside the allowed window
+                        if cand >= allowed_start and cand <= allowed_end:
+                            add_occ('list', l.id, None, l.name, cand, None, False, '', None, source='list-yearless')
 
         # scan todos
         for t in todos:
@@ -705,7 +1019,7 @@ async def calendar_occurrences(request: Request,
                     r = rrulestr(rec_rrule, dtstart=rec_dtstart)
                     occs = list(r.between(start_dt, end_dt, inc=True))[:max_per_item]
                     for od in occs:
-                        add_occ('todo', t.id, t.list_id, t.text, od, rec_dtstart, True, rec_rrule, getattr(t, 'recurrence_meta', None))
+                        add_occ('todo', t.id, t.list_id, t.text, od, rec_dtstart, True, rec_rrule, getattr(t, 'recurrence_meta', None), source='todo-rrule')
                     continue
                 except Exception:
                     pass
@@ -717,19 +1031,43 @@ async def calendar_occurrences(request: Request,
                     from .utils import parse_text_to_rrule, parse_text_to_rrule_string
                     r_obj, dtstart = parse_text_to_rrule(combined)
                     if r_obj is not None and dtstart is not None:
+                        try:
+                            _sse_debug('calendar_occurrences.branch_choice', {'todo_id': t.id, 'chosen_branch': 'todo-inline-rrule'})
+                        except Exception:
+                            pass
                         if dtstart.tzinfo is None:
                             dtstart = dtstart.replace(tzinfo=timezone.utc)
                         # build rrule string for reporting
                         _dt, rrule_str_local = parse_text_to_rrule_string(combined)
                         occs = list(r_obj.between(start_dt, end_dt, inc=True))[:max_per_item]
+                        try:
+                            if len(occs) >= max_per_item:
+                                _sse_debug('calendar_occurrences.per_item_limit', {'when': 'todo-inline-rrule', 'todo_id': t.id, 'limit': max_per_item})
+                        except Exception:
+                            pass
                         for od in occs:
-                            add_occ('todo', t.id, t.list_id, t.text, od, dtstart, True, rrule_str_local, None)
+                            add_occ('todo', t.id, t.list_id, t.text, od, dtstart, True, rrule_str_local, None, source='todo-inline-rrule')
                         continue
-                except Exception:
+                except Exception as e:
                     logger.exception('inline recurrence expansion failed')
+                    try:
+                        _sse_debug('calendar_occurrences.inline_rrule_parse_failed', {'todo_id': t.id, 'error': str(e)})
+                    except Exception:
+                        pass
 
             # fallback: extract explicit dates from text
             meta = extract_dates_meta(combined)
+            # collect explicit dates for this todo
+            dates: list[datetime] = []
+            try:
+                # prepare JSON-friendly summary of meta
+                meta_summary = []
+                for m in meta:
+                    dd = m.get('dt')
+                    meta_summary.append({'year_explicit': bool(m.get('year_explicit')), 'match_text': m.get('match_text'), 'month': m.get('month'), 'day': m.get('day'), 'dt': (dd.isoformat() if isinstance(dd, datetime) else str(dd))})
+                _sse_debug('calendar_occurrences.todo.meta', {'todo_id': t.id, 'meta': meta_summary})
+            except Exception:
+                pass
             # include explicit deferred_until if present
             if getattr(t, 'deferred_until', None):
                 try:
@@ -745,7 +1083,11 @@ async def calendar_occurrences(request: Request,
             for m in explicit:
                 d = m.get('dt')
                 if d >= start_dt and d <= end_dt:
-                    add_occ('todo', t.id, t.list_id, t.text, d, None, False, '', None)
+                    try:
+                        _sse_debug('calendar_occurrences.branch_choice', {'todo_id': t.id, 'chosen_branch': 'todo-explicit'})
+                    except Exception:
+                        pass
+                    add_occ('todo', t.id, t.list_id, t.text, d, None, False, '', None, source='todo-explicit')
             # include deferred_until as explicit
             if getattr(t, 'deferred_until', None):
                 try:
@@ -754,7 +1096,11 @@ async def calendar_occurrences(request: Request,
                         du = du.replace(tzinfo=timezone.utc)
                     du = du.astimezone(timezone.utc)
                     if du >= start_dt and du <= end_dt:
-                        add_occ('todo', t.id, t.list_id, t.text, du, None, False, '', None)
+                        try:
+                            _sse_debug('calendar_occurrences.branch_choice', {'todo_id': t.id, 'chosen_branch': 'todo-deferred'})
+                        except Exception:
+                            pass
+                        add_occ('todo', t.id, t.list_id, t.text, du, None, False, '', None, source='todo-deferred')
                 except Exception:
                     pass
             # handle yearless matches: prefer the todo's creation time so that a
@@ -775,48 +1121,108 @@ async def calendar_occurrences(request: Request,
                     # defensive fallback
                     ref_dt = now_utc()
 
-                # only emit the earliest candidate on or after ref_dt (and within
-                # the requested window). This keeps yearless todos from expanding
-                # into multiple future years in normal usage.
-                for m in yearless:
-                    mon = int(m.get('month'))
-                    day = int(m.get('day'))
-                    # Find the single earliest candidate on/after the todo's
-                    # creation date. If that candidate falls within the
-                    # requested window, include it. This prevents emitting the
-                    # same plain date for many future years.
-                    earliest_cand = None
-                    for y in range(ref_dt.year, end_dt.year + 1):
+                # If multiple yearless tokens are present, expand each across the
+                # full requested window and add every candidate inside the window.
+                if len(yearless) > 1:
+                    for m in yearless:
+                        mon = int(m.get('month'))
+                        day = int(m.get('day'))
+                        _sse_debug('calendar_occurrences.todo.yearless_match', {'todo_id': t.id, 'match_text': m.get('match_text'), 'month': mon, 'day': day, 'ref_dt': ref_dt.isoformat() if isinstance(ref_dt, datetime) else str(ref_dt)})
+                        # cap expansion to 1 year after the todo's creation
                         try:
-                            cand = datetime(y, mon, day, tzinfo=timezone.utc)
+                            item_created = getattr(t, 'created_at', None) or ref_dt
+                            # normalize to UTC-aware
+                            if item_created.tzinfo is None:
+                                item_created = item_created.replace(tzinfo=timezone.utc)
+                            else:
+                                item_created = item_created.astimezone(timezone.utc)
+                            from datetime import datetime as _dt
+                            cap_dt = _dt(item_created.year + 1, item_created.month, item_created.day, tzinfo=timezone.utc)
                         except Exception:
+                            item_created = ref_dt
+                            cap_dt = end_dt
+                        allowed_start = max(start_dt, item_created)
+                        allowed_end = min(end_dt, cap_dt)
+                        if allowed_end < allowed_start:
                             continue
-                        if cand >= ref_dt:
-                            earliest_cand = cand
-                            break
-
-                    if earliest_cand:
-                        if earliest_cand >= start_dt and earliest_cand <= end_dt:
-                            add_occ('todo', t.id, t.list_id, t.text, earliest_cand, None, False, '', None)
-                        # if earliest candidate is outside window, do not add
-                        # subsequent years for yearless todos (avoid multi-year
-                        # expansion).
-                        continue
-
-                    # fallback: if there is no candidate on/after creation (eg
-                    # created after end of window), include any candidate
-                    # within the window to preserve previous behavior.
-                    for y in range(start_dt.year, end_dt.year + 1):
+                        for y in range(allowed_start.year, allowed_end.year + 1):
+                            try:
+                                cand = datetime(y, mon, day, tzinfo=timezone.utc)
+                            except Exception:
+                                continue
+                            if cand >= allowed_start and cand <= allowed_end:
+                                try:
+                                    _sse_debug('calendar_occurrences.branch_choice', {'todo_id': t.id, 'chosen_branch': 'todo-yearless'})
+                                except Exception:
+                                    pass
+                                add_occ('todo', t.id, t.list_id, t.text, cand, None, False, '', None, source='todo-yearless')
+                else:
+                    # Single token: preserve original semantics (earliest >= created_at)
+                    for m in yearless:
+                        mon = int(m.get('month'))
+                        day = int(m.get('day'))
+                        _sse_debug('calendar_occurrences.todo.yearless_match', {'todo_id': t.id, 'match_text': m.get('match_text'), 'month': mon, 'day': day, 'ref_dt': ref_dt.isoformat() if isinstance(ref_dt, datetime) else str(ref_dt)})
+                        earliest_cand = None
+                        # search only up to created_at + 1 year
                         try:
-                            cand = datetime(y, mon, day, tzinfo=timezone.utc)
+                            item_created = getattr(t, 'created_at', None) or ref_dt
+                            # normalize to UTC-aware
+                            if item_created.tzinfo is None:
+                                item_created = item_created.replace(tzinfo=timezone.utc)
+                            else:
+                                item_created = item_created.astimezone(timezone.utc)
+                            from datetime import datetime as _dt
+                            cap_dt = _dt(item_created.year + 1, item_created.month, item_created.day, tzinfo=timezone.utc)
                         except Exception:
+                            item_created = ref_dt
+                            cap_dt = end_dt
+                        max_year = min(end_dt.year, cap_dt.year)
+                        for y in range(ref_dt.year, max_year + 1):
+                            try:
+                                cand = datetime(y, mon, day, tzinfo=timezone.utc)
+                            except Exception:
+                                continue
+                            if cand >= ref_dt:
+                                earliest_cand = cand
+                                break
+
+                        if earliest_cand:
+                            _sse_debug('calendar_occurrences.todo.earliest_candidate', {'todo_id': t.id, 'match_text': m.get('match_text'), 'earliest': earliest_cand.isoformat()})
+                            if earliest_cand >= start_dt and earliest_cand <= end_dt:
+                                    try:
+                                        _sse_debug('calendar_occurrences.branch_choice', {'todo_id': t.id, 'chosen_branch': 'todo-yearless-earliest'})
+                                    except Exception:
+                                        pass
+                                    add_occ('todo', t.id, t.list_id, t.text, earliest_cand, None, False, '', None, source='todo-yearless-earliest')
+                                    _sse_debug('calendar_occurrences.todo.added', {'todo_id': t.id, 'occurrence': earliest_cand.isoformat()})
                             continue
-                        if cand >= start_dt and cand <= end_dt:
-                            add_occ('todo', t.id, t.list_id, t.text, cand, None, False, '', None)
-                            break
+
+                        # fallback: if no candidate >= created_at, include any candidate within window
+                        # but still respect the 1-year cap
+                        allowed_start = max(start_dt, item_created)
+                        allowed_end = min(end_dt, cap_dt)
+                        if allowed_end < allowed_start:
+                            continue
+                        for y in range(allowed_start.year, allowed_end.year + 1):
+                            try:
+                                cand = datetime(y, mon, day, tzinfo=timezone.utc)
+                            except Exception:
+                                continue
+                            if cand >= allowed_start and cand <= allowed_end:
+                                try:
+                                    _sse_debug('calendar_occurrences.branch_choice', {'todo_id': t.id, 'chosen_branch': 'todo-yearless-fallback'})
+                                except Exception:
+                                    pass
+                                add_occ('todo', t.id, t.list_id, t.text, cand, None, False, '', None, source='todo-yearless-fallback')
+                                break
 
     # sort occurrences by datetime ascending
     occurrences.sort(key=lambda x: x.get('occurrence_dt'))
+    # Emit a compact SSE summary so tools can observe which occurrences were computed
+    try:
+        _sse_debug('calendar_occurrences.summary', {'count': len(occurrences), 'items': [{'id': o.get('id'), 'title': o.get('title'), 'occurrence_dt': o.get('occurrence_dt')} for o in occurrences]})
+    except Exception:
+        pass
     logger.info('calendar_occurrences computed %d occurrences before user filters (truncated=%s)', len(occurrences), truncated)
 
     # filter out occurrences ignored by the current user and mark completed
@@ -832,9 +1238,20 @@ async def calendar_occurrences(request: Request,
         # apply filters: remove occurrences whose occ_hash is in ign_set
         filtered = []
         for o in occurrences:
+            # suppressed by user's ignore scopes
             if o.get('occ_hash') in ign_set:
+                try:
+                    _sse_debug('calendar_occurrences.filtered_out', {'occ_hash': o.get('occ_hash'), 'reason': 'ignored', 'item_id': o.get('id'), 'item_type': o.get('item_type')})
+                except Exception:
+                    pass
                 continue
+            # mark completed occurrences and emit a debug event when marked
             o['completed'] = (o.get('occ_hash') in done_set)
+            if o.get('completed'):
+                try:
+                    _sse_debug('calendar_occurrences.marked_completed', {'occ_hash': o.get('occ_hash'), 'item_id': o.get('id'), 'item_type': o.get('item_type')})
+                except Exception:
+                    pass
             filtered.append(o)
         occurrences = filtered
         logger.info('calendar_occurrences returning %d occurrences after filters (ignored=%d, completed=%d)', len(occurrences), len(ign_set), len(done_set))
@@ -986,6 +1403,45 @@ async def login_for_access_token(req: TokenRequest):
         raise HTTPException(status_code=401, detail='Incorrect username or password')
     access_token = create_access_token(data={'sub': user.username})
     return {'access_token': access_token, 'token_type': 'bearer'}
+
+
+@app.get('/server/logs/stream')
+async def stream_server_logs(request: Request):
+    """SSE endpoint that streams in-memory log events as JSON lines.
+
+    Clients should set `Accept: text/event-stream`. The stream will yield
+    events named 'log' with JSON-encoded payloads.
+    Access is restricted to localhost by default unless ENABLE_LOG_ENDPOINT=1.
+    """
+    if not _log_endpoint_allowed(request):
+        raise HTTPException(status_code=403, detail='forbidden')
+
+    async def event_generator():
+        q: Queue = Queue()
+        _sse_queues.append(q)
+        try:
+            # on connect, send a small warm-up batch of recent logs
+            recent = list(_inmemory_log)
+            for r in recent[-50:]:
+                yield f"event: log\ndata: {json.dumps(r)}\n\n"
+            while True:
+                # if client disconnects, stop
+                if await request.is_disconnected():
+                    break
+                try:
+                    rec = await q.get()
+                    yield f"event: log\ndata: {json.dumps(rec)}\n\n"
+                except asyncio.CancelledError:
+                    break
+                except Exception:
+                    continue
+        finally:
+            try:
+                _sse_queues.remove(q)
+            except Exception:
+                pass
+
+    return StreamingResponse(event_generator(), media_type='text/event-stream')
 
 
 @app.post("/server/default_list/{list_id}")
