@@ -127,7 +127,7 @@
           {% for lst in cat_lists %}
             {% set created_iso = lst.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') %}
             {% set modified_iso = lst.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') if lst.modified_at else None %}
-            <li class="list-item"{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %}>
+            <li class="list-item"{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %} data-priority="{{ lst.priority if lst.priority is not none else '' }}">
               <div class="list-action-left">
                 <form method="post" action="/html_no_js/lists/{{ lst.id }}/delete" class="confirm-delete" data-confirm="Delete list '{{ lst.name }}' and all its todos? This cannot be undone.">
                   {{ csrf_field() }}
@@ -138,6 +138,9 @@
               <div class="list-main">
                 <a class="list-title {% if lst.completed %}done{% endif %}" href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>
                 <button type="button" class="list-action-btn edit-list-btn" data-list-id="{{ lst.id }}" data-list-name="{{ lst.name|e }}" title="Edit list name">✏️</button>
+                {% if lst.priority %}
+                  <span class="meta">pr. {{ lst.priority }}</span>
+                {% endif %}
                 {% if lst.created_at %}
                   <div class="meta">cr. {{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</div>
                 {% endif %}
@@ -163,7 +166,7 @@
         {% for lst in uncats %}
           {% set created_iso = lst.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') %}
           {% set modified_iso = lst.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') if lst.modified_at else None %}
-          <li class="list-item"{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %}>
+          <li class="list-item"{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %} data-priority="{{ lst.priority if lst.priority is not none else '' }}">
             <div class="list-action-left">
               <form method="post" action="/html_no_js/lists/{{ lst.id }}/delete" class="confirm-delete" data-confirm="Delete list '{{ lst.name }}' and all its todos? This cannot be undone.">
                 {{ csrf_field() }}
@@ -219,9 +222,16 @@
   sel.value = (cur === 'modified') ? 'modified' : 'created';
 
   function parseISO(v){ try { return v ? new Date(v).getTime() : 0; } catch(_) { return 0; } }
+  function parsePri(el){ var v = el.getAttribute('data-priority'); if (v==null || v==='') return null; var n = parseInt(v,10); return isNaN(n) ? null : n; }
   function sortUl(ul){
     var lis = Array.from(ul.querySelectorAll(':scope > li.list-item'));
     lis.sort(function(a,b){
+      var pa = parsePri(a), pb = parsePri(b);
+      var aHas = (pa !== null), bHas = (pb !== null);
+      if (aHas && !bHas) return -1; // priority first
+      if (!aHas && bHas) return 1;
+      if (aHas && bHas && pa !== pb) return pa - pb; // lower number first
+      // tie-breaker: selected date newest first
       var ad = 0, bd = 0;
       if (sel.value === 'modified') {
         ad = parseISO(a.getAttribute('data-modified-at')) || parseISO(a.getAttribute('data-created-at'));

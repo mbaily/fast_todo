@@ -163,6 +163,13 @@ def _ensure_sqlite_minimal_migrations(url: str | None) -> None:
                         conn.commit()
                     except Exception:
                         pass
+                # Add priority column if missing
+                if 'priority' not in cols:
+                    try:
+                        cur.execute("ALTER TABLE liststate ADD COLUMN priority INTEGER")
+                        conn.commit()
+                    except Exception:
+                        pass
                 try:
                     cur.execute("CREATE INDEX IF NOT EXISTS ix_liststate_parent_todo_id ON liststate(parent_todo_id)")
                     conn.commit()
@@ -180,6 +187,11 @@ def _ensure_sqlite_minimal_migrations(url: str | None) -> None:
                     pass
                 try:
                     cur.execute("CREATE INDEX IF NOT EXISTS ix_liststate_parent_list_pos ON liststate(parent_list_id, parent_list_position)")
+                    conn.commit()
+                except Exception:
+                    pass
+                try:
+                    cur.execute("CREATE INDEX IF NOT EXISTS ix_liststate_priority ON liststate(priority)")
                     conn.commit()
                 except Exception:
                     pass

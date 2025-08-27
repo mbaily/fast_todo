@@ -3355,13 +3355,17 @@ async def html_index(request: Request):
                 "created_at": l.created_at,
                 "modified_at": getattr(l, 'modified_at', None),
                 "category_id": l.category_id,
+                "priority": getattr(l, 'priority', None),
                 "hashtags": tag_map.get(l.id, []),
             })
         # group lists by category for easier template rendering
         lists_by_category: dict[int, list[dict]] = {}
+        # Within each category, sort lists by priority (if set) ascending, then by created_at desc
         for row in list_rows:
             cid = row.get('category_id') or 0
             lists_by_category.setdefault(cid, []).append(row)
+        for cid, rows in lists_by_category.items():
+            rows.sort(key=lambda r: (0 if r.get('priority') is not None else 1, r.get('priority') or 0, -(r.get('created_at').timestamp() if r.get('created_at') else 0)))
         # fetch categories ordered by position
         categories = []
         try:
@@ -4456,6 +4460,7 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
             # persist UI preference so templates can render checkbox state
             "hide_icons": getattr(lst, 'hide_icons', False),
             "category_id": getattr(lst, 'category_id', None),
+            "priority": getattr(lst, 'priority', None),
             # expose parent todo owner for sublist toolbar/navigation
             "parent_todo_id": getattr(lst, 'parent_todo_id', None),
             # expose parent list owner for nested list navigation (not yet used in UI)
@@ -4562,6 +4567,41 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
     # timezone for template rendering
     client_tz = await get_session_timezone(request)
     return TEMPLATES.TemplateResponse(request, "list.html", {"request": request, "list": list_row, "todos": todo_rows, "csrf_token": csrf_token, "client_tz": client_tz, "completion_types": completion_types, "all_hashtags": all_hashtags, "categories": categories, "sublists": sublists})
+
+
+@app.post('/html_no_js/lists/{list_id}/priority')
+async def html_update_list_priority(request: Request, list_id: int, priority: str = Form(None), current_user: User = Depends(require_login)):
+    """Update the optional priority for a list. Accepts values 'none' or '' to clear, or '1'..'10'."""
+    # CSRF check
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    # normalize input
+    val: int | None = None
+    if priority is not None and str(priority).strip() != '' and str(priority).lower() != 'none':
+        try:
+            n = int(priority)
+            if n < 1 or n > 10:
+                raise ValueError('priority out of range')
+            val = n
+        except Exception:
+            # treat invalid input as clearing priority
+            val = None
+    async with async_session() as sess:
+        lst = await sess.get(ListState, list_id)
+        if not lst:
+            raise HTTPException(status_code=404, detail='list not found')
+        if lst.owner_id not in (None, current_user.id):
+            raise HTTPException(status_code=403, detail='forbidden')
+        lst.priority = val
+        lst.modified_at = now_utc()
+        sess.add(lst)
+        await sess.commit()
+    # redirect back to the list page
+    ref = request.headers.get('Referer', f'/html_no_js/lists/{list_id}')
+    return RedirectResponse(url=ref, status_code=303)
 
 
 @app.post('/html_no_js/lists/{list_id}/complete')

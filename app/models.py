@@ -51,6 +51,8 @@ class ListState(SQLModel, table=True):
     # ordering will fall back to created_at. Positions are normalized to
     # contiguous 0..N-1 per parent_list_id when reordering via UI.
     parent_list_position: Optional[int] = Field(default=None, index=True)
+    # Optional per-list priority: 1 (lowest) .. 10 (highest). Null means no priority.
+    priority: Optional[int] = Field(default=None, index=True)
 
     todos: List["Todo"] = Relationship(
         back_populates="list",
