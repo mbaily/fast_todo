@@ -1,0 +1,139 @@
+{% extends 'base.html' %}
+{% block title %}Categories — Fast Todo (no-js){% endblock %}
+{% block content %}
+  <h2>Categories</h2>
+  <form method="post" action="/html_no_js/categories/create">
+    {{ csrf_field() }}
+    <input name="name" placeholder="New category name" required>
+    <button type="submit">Create</button>
+  </form>
+
+  <div id="categories-status" style="margin-top:0.5rem; color:#666; font-size:0.9em;"></div>
+  <div style="margin-top:0.5rem; display:flex; gap:0.5rem; align-items:center;">
+    <span>Click a category to select it:</span>
+    <button id="btn-up" type="button">↑</button>
+    <button id="btn-down" type="button">↓</button>
+  </div>
+  <div id="categories-root" style="margin-top:0.5rem;"></div>
+
+  <script>
+  (function(){
+  const root = document.getElementById('categories-root');
+  const statusEl = document.getElementById('categories-status');
+  const btnUp = document.getElementById('btn-up');
+  const btnDown = document.getElementById('btn-down');
+  let selectedId = null;
+    const csrf = '{{ csrf_token }}';
+  console.log('[categories] script loaded');
+
+  async function fetchCategories(){
+      try{
+        const resp = await fetch('/api/categories?ts=' + Date.now(), {
+          credentials: 'same-origin',
+          cache: 'no-store'
+        });
+        if(!resp.ok) throw new Error('fetch failed');
+        const data = await resp.json();
+  const items = data.categories || [];
+    console.log('[categories] fetched', items.map(c=>`${c.id}:${c.position}`));
+  renderList(items);
+  updateControls(items);
+  if (statusEl) statusEl.textContent = `Loaded ${items.length} categories`;
+      }catch(e){
+    console.error('[categories] fetch failed', e);
+        root.innerHTML = '<p>Failed to load categories.</p>';
+      }
+    }
+
+    function renderList(items){
+      if(!items || items.length === 0){
+        root.innerHTML = '<p>No categories.</p>';
+        return;
+      }
+      const ul = document.createElement('ul');
+      ul.style.listStyle = 'none'; ul.style.paddingLeft = '0';
+      items.forEach(c => {
+        const li = document.createElement('li');
+        li.style.marginBottom = '0.5rem';
+        li.dataset.catId = c.id;
+        li.textContent = `${c.name} (pos ${c.position})`;
+        if (selectedId === c.id) {
+          li.style.background = '#eef';
+          li.style.borderLeft = '4px solid #36f';
+          li.style.paddingLeft = '4px';
+        } else {
+          li.style.background = '';
+          li.style.borderLeft = '';
+          li.style.paddingLeft = '';
+        }
+        li.addEventListener('click', () => {
+          selectedId = c.id;
+          if (statusEl) statusEl.textContent = `Selected #${selectedId}`;
+          // re-render list to update highlight and controls
+          renderList(items);
+          updateControls(items);
+        });
+        ul.appendChild(li);
+      });
+      root.innerHTML = '';
+      root.appendChild(ul);
+    }
+
+    function updateControls(items){
+      const val = selectedId;
+      const idx = items.findIndex(c => c.id === val);
+      const atTop = idx <= 0;
+      const atBottom = idx === items.length - 1;
+      btnUp.disabled = (val == null) || atTop;
+      btnDown.disabled = (val == null) || atBottom;
+    }
+
+    async function moveCat(catId, direction){
+      try{
+  console.log('[categories] move start', direction, catId);
+        const payload = {direction: direction, _csrf: csrf};
+        const resp = await fetch('/api/categories/' + catId + '/move', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload)
+        });
+        if(!resp.ok) throw new Error('move failed: ' + resp.status);
+        const data = await resp.json();
+    const arr = (data.categories||[]).map(c=>`${c.id}:${c.position}`);
+    const before = (data.before||[]).map(c=>`${c.id}:${c.position}`);
+    const after = (data.after||[]).map(c=>`${c.id}:${c.position}`);
+    console.log('[categories] move ok', direction, catId, 'resp:', arr, 'before:', before, 'after:', after);
+  if (statusEl) statusEl.textContent = `Moved ${direction} #${catId}`;
+  const items = data.categories || [];
+  // keep selection id
+  renderList(items);
+  updateControls(items);
+  // Re-fetch to ensure order reflects any concurrent changes and server-normalized positions
+        await fetchCategories();
+      }catch(e){
+  console.error('[categories] move failed', e);
+  if (statusEl) statusEl.textContent = `Move failed: ${e}`;
+        await fetchCategories();
+      }
+    }
+
+    btnUp.addEventListener('click', async () => {
+  const val = selectedId;
+  if (val == null) return;
+  if (statusEl) statusEl.textContent = `Moving up #${val}...`;
+  await moveCat(val, 'up');
+    });
+    btnDown.addEventListener('click', async () => {
+  const val = selectedId;
+  if (val == null) return;
+  if (statusEl) statusEl.textContent = `Moving down #${val}...`;
+  await moveCat(val, 'down');
+    });
+
+    fetchCategories();
+  })();
+  </script>
+
+{% endblock %}
+ 
