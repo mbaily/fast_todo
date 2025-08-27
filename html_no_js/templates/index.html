@@ -194,6 +194,14 @@
   <a href="/html_no_js/categories" class="btn" style="font-weight:bold;">→ Categories</a>
 </div>
 
+<!-- Hide Completed control (browser-cookie persisted) -->
+<div id="hide-completed-control" style="margin:0.5rem 0;">
+  <label><input type="checkbox" id="hide-completed-checkbox"> Hide Completed</label>
+  <span class="meta" style="margin-left:0.5rem; color: var(--muted, #6b7280);"></span>
+  <!-- meta reserved for future counts or hints -->
+  
+</div>
+
 <!-- Show all tags control (browser-cookie persisted) -->
 <div id="sort-and-tags" style="margin-top:1rem; display:flex; gap:1rem; align-items:center; flex-wrap:wrap;">
   <label style="margin-right:0.5rem;"><input type="checkbox" id="show-all-tags-checkbox"> Show all tags</label>
@@ -256,6 +264,26 @@
     var h1 = document.getElementById('hashtag-suggest'); if (h1) h1.remove();
     var h2 = document.getElementById('todo-hashtag-suggest'); if (h2) h2.remove();
   } catch(e) { /* ignore */ }
+</script>
+<script>
+// Hide Completed lists (persisted via cookie); hides li.list-item whose title has class 'done'
+(function(){
+  function setCookie(name, value, days){ var expires=''; if(days){ var d=new Date(); d.setTime(d.getTime() + (days*24*60*60*1000)); expires='; expires='+d.toUTCString(); } document.cookie = name + '=' + encodeURIComponent(value) + expires + '; path=/'; }
+  function getCookie(name){ var m = document.cookie.match('(?:^|; )' + name + '=([^;]*)'); return m ? decodeURIComponent(m[1]) : null; }
+  var cb = document.getElementById('hide-completed-checkbox'); if (!cb) return;
+  var cookieName = 'index_hide_completed_lists';
+  cb.checked = getCookie(cookieName) === '1';
+  function apply(){
+    var hide = cb.checked;
+    document.querySelectorAll('ul.category-lists > li.list-item').forEach(function(li){
+      var isDone = !!li.querySelector('.list-title.done');
+      li.style.display = (hide && isDone) ? 'none' : '';
+    });
+  }
+  cb.addEventListener('change', function(){ setCookie(cookieName, cb.checked ? '1' : '0', 365); apply(); });
+  // initial
+  apply();
+})();
 </script>
 <!-- overflow-debug script removed -->
 
