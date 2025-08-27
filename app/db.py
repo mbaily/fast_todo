@@ -102,6 +102,65 @@ except Exception:
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./test.db")
 
+# Best-effort import-time safeguard: if using a local SQLite file and the
+# database already exists with an older schema, add new lightweight columns
+# needed by recent features so tests that don't call init_db() still work.
+def _sqlite_path_from_url(url: str | None) -> str | None:
+    try:
+        if not url:
+            return None
+        if url.startswith('sqlite+aiosqlite:///'):
+            path = url.replace('sqlite+aiosqlite:///', '', 1)
+        elif url.startswith('sqlite:///'):
+            path = url.replace('sqlite:///', '', 1)
+        else:
+            return None
+        # normalize leading ./
+        if path.startswith('./'):
+            path = path[2:]
+        return os.path.abspath(path)
+    except Exception:
+        return None
+
+def _ensure_sqlite_minimal_migrations(url: str | None) -> None:
+    try:
+        db_path = _sqlite_path_from_url(url)
+        if not db_path:
+            return
+        if not os.path.exists(db_path):
+            # nothing to migrate yet
+            return
+        import sqlite3
+        conn = sqlite3.connect(db_path)
+        try:
+            cur = conn.cursor()
+            # If liststate exists but lacks parent_todo_id, add it.
+            cur.execute("PRAGMA table_info('liststate')")
+            cols = [row[1] for row in cur.fetchall()]
+            if cols:
+                if 'parent_todo_id' not in cols:
+                    try:
+                        cur.execute("ALTER TABLE liststate ADD COLUMN parent_todo_id INTEGER")
+                        conn.commit()
+                    except Exception:
+                        # swallow; may fail on some drivers or when already exists
+                        pass
+                try:
+                    cur.execute("CREATE INDEX IF NOT EXISTS ix_liststate_parent_todo_id ON liststate(parent_todo_id)")
+                    conn.commit()
+                except Exception:
+                    pass
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+    except Exception:
+        # best-effort; do not raise during import
+        pass
+
+_ensure_sqlite_minimal_migrations(DATABASE_URL)
+
 # Use NullPool to avoid connection-pool objects being bound to a specific
 # event loop (which can cause 'bound to a different event loop' errors
 # during heavy concurrency in tests).
@@ -489,6 +548,23 @@ async def init_db():
         except Exception:
             # Best-effort only; do not fail init_db if PRAGMA isn't supported
             logger.exception('failed to ensure recurrence columns in init_db')
+        # Ensure new recursive-lists column exists on liststate for older DBs.
+        # This keeps tests and dev DBs working without requiring a manual migration.
+        try:
+            res = await conn.execute(text("PRAGMA table_info('liststate')"))
+            cols = [r[1] for r in res.fetchall()]
+            if 'parent_todo_id' not in cols:
+                try:
+                    await conn.execute(text("ALTER TABLE liststate ADD COLUMN parent_todo_id INTEGER"))
+                except Exception:
+                    logger.exception('failed to add parent_todo_id to liststate during init_db')
+            # Ensure index exists (SQLite supports IF NOT EXISTS)
+            try:
+                await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_liststate_parent_todo_id ON liststate(parent_todo_id)"))
+            except Exception:
+                logger.exception('failed to create ix_liststate_parent_todo_id during init_db')
+        except Exception:
+            logger.exception('failed to ensure parent_todo_id on liststate in init_db')
         # defensive dedupe: if earlier test runs created duplicate rows
         # (possible before unique indexes were present), remove duplicates
         # keeping the first row for each unique key, then create the

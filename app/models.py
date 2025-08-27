@@ -35,10 +35,28 @@ class ListState(SQLModel, table=True):
     completed: bool = Field(default=False)
     # Optional category membership
     category_id: Optional[int] = Field(default=None, foreign_key="category.id", index=True)
+    # Optional parent todo owner for recursive lists (sublists). When set, this
+    # list is considered a child of the given Todo and should be hidden from
+    # the root index views.
+    parent_todo_id: Optional[int] = Field(default=None, foreign_key="todo.id", index=True)
 
-    todos: List["Todo"] = Relationship(back_populates="list")
+    todos: List["Todo"] = Relationship(
+        back_populates="list",
+        sa_relationship_kwargs={
+            "primaryjoin": "ListState.id==Todo.list_id",
+            "foreign_keys": "Todo.list_id",
+        },
+    )
     hashtags: List["Hashtag"] = Relationship(back_populates="lists", link_model=ListHashtag)
     completion_types: List["CompletionType"] = Relationship(back_populates="list")
+    # Relationship to owning parent todo (if any)
+    parent_todo: Optional["Todo"] = Relationship(
+        back_populates="child_lists",
+        sa_relationship_kwargs={
+            "primaryjoin": "ListState.parent_todo_id==Todo.id",
+            "foreign_keys": "ListState.parent_todo_id",
+        },
+    )
 
 
 class Category(SQLModel, table=True):
@@ -84,9 +102,23 @@ class Todo(SQLModel, table=True):
     list_id: int = Field(foreign_key="liststate.id")
 
     # Relationship should reflect that a todo always has a parent list.
-    list: ListState = Relationship(back_populates="todos")
+    list: ListState = Relationship(
+        back_populates="todos",
+        sa_relationship_kwargs={
+            "primaryjoin": "Todo.list_id==ListState.id",
+            "foreign_keys": "Todo.list_id",
+        },
+    )
     hashtags: List[Hashtag] = Relationship(back_populates="todos", link_model=TodoHashtag)
     completions: List["TodoCompletion"] = Relationship(back_populates="todo")
+    # Sublists that are owned by this todo (recursive lists feature)
+    child_lists: List[ListState] = Relationship(
+        back_populates="parent_todo",
+        sa_relationship_kwargs={
+            "primaryjoin": "Todo.id==ListState.parent_todo_id",
+            "foreign_keys": "ListState.parent_todo_id",
+        },
+    )
 
 
 class TodoCompletion(SQLModel, table=True):

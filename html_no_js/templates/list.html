@@ -106,6 +106,14 @@
     </div>
   </div>
 
+  {# Sublist toolbar: show only if this list is owned by a todo #}
+  {% if list.parent_todo_id %}
+  <nav class="page-toolbar" role="toolbar" aria-label="Sublist actions" style="display:flex;gap:0.5rem;align-items:center;margin:0.4rem 0 0.6rem 0;">
+    <a class="button" href="/html_no_js/todos/{{ list.parent_todo_id }}" title="Back to owning todo">← Back to {{ list.parent_todo_text or 'todo' }}</a>
+    <div style="flex:1 1 auto"></div>
+  </nav>
+  {% endif %}
+
   {% if completion_types is not none %}
   {% endif %}
 

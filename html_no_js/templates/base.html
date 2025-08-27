@@ -240,7 +240,7 @@
   .lists-list, .lists-list li { margin: 0; padding: 0; }
 
   /* left-aligned tiny action icon for lists on the index page */
-  .list-item { display:flex; align-items:center; gap:0.1rem; margin-bottom: 0.06rem; padding: 0; width: 100%; line-height: 1; }
+  .list-item { display:flex; align-items:center; gap:0.04rem; margin-bottom: 0; padding: 0; width: 100%; line-height: 1; }
   /* wider controls column used on list pages to allow extra space after checkbox */
   .controls-left-wide { gap: 0.25rem; width: auto; flex: 0 0 auto; justify-content: flex-start; }
   /* remove fixed-width override so controls can size naturally */
@@ -262,7 +262,7 @@
         .controls { margin-left: 0.5rem; }
       /* increase space between delete icon and list name on small screens
         Add !important to override the global collapse rule set earlier. */
-      .lists-list .list-item { gap: 2rem !important; }
+  .lists-list .list-item { gap: 0.6rem !important; }
       /* precise spacing for the left action column (icon) */
       .lists-list .list-item > .list-action-left { margin-right: 3rem !important; }
       /* enlarge checkbox-like buttons (first action in controls columns)

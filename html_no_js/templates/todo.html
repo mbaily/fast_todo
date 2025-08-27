@@ -9,6 +9,8 @@
     /* page-specific: remove top page margin so the site title sits flush to the top */
     body { margin-top: 0 !important; }
     header { margin-top: 0 !important; }
+  /* ensure completed sublists are struck-through (match index) */
+  .lists-list .list-title.done { text-decoration: line-through; color: #6b7280; }
   </style>
   
   {# Page toolbar (placed just below the main navigation toolbar) #}
@@ -76,6 +78,43 @@
   {# Save button moved to page toolbar above; keep a hidden submit for progressive enhancement if needed #}
   <button type="submit" style="display:none">Save</button>
   </form>
+
+  {% if sublists is defined %}
+  <section aria-label="Sublists" style="margin-top:1rem">
+    <h3 style="margin:0 0 .4rem 0">Sublists</h3>
+    {# Inline create control (replaces the previous 'No sublists yet' message) #}
+    <form method="post" action="/html_no_js/todos/{{ todo.id }}/sublists/create" style="margin:0 0 .4rem 0" autocomplete="off">
+      {{ csrf_field() }}
+      <label>New sublist<br>
+        <input type="text" name="name" required placeholder="Sublist name" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+      </label>
+      <button type="submit">Create</button>
+    </form>
+    {% if sublists|length > 0 %}
+      <ul class="lists-list">
+        {% for sl in sublists %}
+          {% set created_iso = sl.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') %}
+          {% set modified_iso = sl.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') if sl.modified_at else None %}
+          <li class="list-item"{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %}>
+            <div class="list-action-left">
+              <form method="post" action="/html_no_js/lists/{{ sl.id }}/delete" class="confirm-delete" data-confirm="Delete list '{{ sl.name }}' and all its todos? This cannot be undone.">
+                {{ csrf_field() }}
+                <button type="submit" class="list-action-btn" title="Delete list">🗑</button>
+              </form>
+            </div>
+            <div class="list-main">
+              <a class="list-title {% if sl.completed %}done{% endif %}" href="/html_no_js/lists/{{ sl.id }}">{{ sl.name }}</a>
+              <button type="button" class="list-action-btn edit-list-btn" data-list-id="{{ sl.id }}" data-list-name="{{ sl.name|e }}" title="Edit list name">✏️</button>
+              {% if sl.created_at %}
+                <div class="meta">cr. {{ sl.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</div>
+              {% endif %}
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </section>
+  {% endif %}
 
   {# Actions (heading removed to reduce visual clutter) #}
   {# Use an anchor link for mark/unmark so no-JS clients can click it. The GET handler will perform the toggle and redirect back. #}
@@ -354,5 +393,25 @@
   } catch(e) { /* ignore */ }
 })();
 
+</script>
+<script>
+// Minimal rename for sublists (same behavior as index): prompt and POST
+(function(){
+  document.querySelectorAll('.edit-list-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var id = btn.getAttribute('data-list-id');
+      var current = btn.getAttribute('data-list-name') || '';
+      var name = window.prompt('New list name', current);
+      if (!name || name.trim() === '') return;
+      var fd = new FormData();
+      fd.append('name', name);
+      var csrfInput = document.querySelector('input[name="_csrf"]');
+      if (csrfInput && csrfInput.value) fd.append('_csrf', csrfInput.value);
+      fetch('/html_no_js/lists/' + encodeURIComponent(id) + '/edit', { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function(res){ if(res.ok) location.reload(); else alert('Rename failed'); })
+        .catch(function(){ alert('Rename failed'); });
+    });
+  });
+})();
 </script>
 {% endblock %}

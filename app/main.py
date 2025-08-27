@@ -2318,7 +2318,7 @@ async def get_recent_lists(limit: int = 25, current_user: User = Depends(require
         results: list[dict] = []
         # load ListState for top rows preserving order
         if top_ids:
-            qlists = select(ListState).where(ListState.id.in_(top_ids))
+            qlists = select(ListState).where(ListState.id.in_(top_ids)).where(ListState.parent_todo_id == None)
             lres = await sess.exec(qlists)
             lmap = {l.id: l for l in lres.all()}
             for r in top_rows:
@@ -2334,7 +2334,7 @@ async def get_recent_lists(limit: int = 25, current_user: User = Depends(require
         # If we still need more, fetch others ordered by visited_at desc excluding top_ids
         remaining = max(0, limit - len(results))
         if remaining > 0:
-            q = select(ListState).join(RecentListVisit, RecentListVisit.list_id == ListState.id).where(RecentListVisit.user_id == current_user.id)
+            q = select(ListState).join(RecentListVisit, RecentListVisit.list_id == ListState.id).where(RecentListVisit.user_id == current_user.id).where(ListState.parent_todo_id == None)
             if top_ids:
                 q = q.where(RecentListVisit.list_id.notin_(top_ids))
             q = q.order_by(RecentListVisit.visited_at.desc()).limit(remaining)
@@ -2540,6 +2540,12 @@ async def delete_todo(todo_id: int, current_user: Optional[User] = Depends(get_c
             else:
                 if lst.owner_id not in (None, current_user.id):
                     raise HTTPException(status_code=403, detail="forbidden")
+    # Detach any sublists owned by this todo so they don't dangle
+    try:
+        await sess.exec(sqlalchemy_update(ListState).where(ListState.parent_todo_id == todo_id).values(parent_todo_id=None))
+        await sess.commit()
+    except Exception:
+        await sess.rollback()
     # delete dependent link/completion rows at the DB level first to avoid
     # SQLAlchemy trying to null-out PK columns on dependent rows during flush
     await sess.exec(sqlalchemy_delete(TodoCompletion).where(TodoCompletion.todo_id == todo_id))
@@ -2991,7 +2997,7 @@ async def html_index(request: Request):
     async with async_session() as sess:
         owner_id = current_user.id
         # base ordered query (newest first)
-        q = select(ListState).where(ListState.owner_id == owner_id)
+        q = select(ListState).where(ListState.owner_id == owner_id).where(ListState.parent_todo_id == None)
         # apply cursor condition if present
         if cursor_dt is not None and cursor_id is not None:
             if dir_param == 'prev':
@@ -3020,14 +3026,14 @@ async def html_index(request: Request):
             prev_cursor_created_at, prev_cursor_id = first.created_at, first.id
             next_cursor_created_at, next_cursor_id = last.created_at, last.id
             # is there anything newer than first?
-            q_prev_exists = select(ListState.id).where(ListState.owner_id == owner_id).where(
+            q_prev_exists = select(ListState.id).where(ListState.owner_id == owner_id).where(ListState.parent_todo_id == None).where(
                 or_(ListState.created_at > first.created_at,
                     and_(ListState.created_at == first.created_at, ListState.id > first.id))
             ).limit(1)
             r_prev = await sess.exec(q_prev_exists)
             has_prev = r_prev.first() is not None
             # is there anything older than last?
-            q_next_exists = select(ListState.id).where(ListState.owner_id == owner_id).where(
+            q_next_exists = select(ListState.id).where(ListState.owner_id == owner_id).where(ListState.parent_todo_id == None).where(
                 or_(ListState.created_at < last.created_at,
                     and_(ListState.created_at == last.created_at, ListState.id < last.id))
             ).limit(1)
@@ -3070,7 +3076,7 @@ async def html_index(request: Request):
         pinned_todos = []
         try:
             # visible lists: owned by user or public (owner_id is NULL)
-            qvis = select(ListState).where((ListState.owner_id == owner_id) | (ListState.owner_id == None))
+            qvis = select(ListState).where(((ListState.owner_id == owner_id) | (ListState.owner_id == None))).where(ListState.parent_todo_id == None)
             rvis = await sess.exec(qvis)
             vis_lists = rvis.all()
             vis_ids = [l.id for l in vis_lists]
@@ -4152,7 +4158,19 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
             # persist UI preference so templates can render checkbox state
             "hide_icons": getattr(lst, 'hide_icons', False),
             "category_id": getattr(lst, 'category_id', None),
+            # expose parent todo owner for sublist toolbar/navigation
+            "parent_todo_id": getattr(lst, 'parent_todo_id', None),
         }
+        # If this list is owned by a todo, fetch the todo text for UI label
+        if getattr(lst, 'parent_todo_id', None):
+            try:
+                qpt = await sess.exec(select(Todo.text).where(Todo.id == lst.parent_todo_id))
+                row = qpt.first()
+                todo_text = row[0] if isinstance(row, (tuple, list)) else row
+                if isinstance(todo_text, str):
+                    list_row["parent_todo_text"] = todo_text
+            except Exception:
+                list_row["parent_todo_text"] = None
         # also pass completion types for management UI
         completion_types = [{'id': c.id, 'name': c.name} for c in ctypes]
         # fetch this user's hashtags for completion suggestions (from lists and todos they own)
@@ -4268,7 +4286,7 @@ async def html_recent_lists(request: Request, current_user: User = Depends(requi
         # If we still need more, fetch others ordered by visited_at desc excluding top_ids
         remaining = max(0, 25 - len(results))
         if remaining > 0:
-            q = select(ListState, RecentListVisit.visited_at).join(RecentListVisit, RecentListVisit.list_id == ListState.id).where(RecentListVisit.user_id == current_user.id)
+            q = select(ListState, RecentListVisit.visited_at).join(RecentListVisit, RecentListVisit.list_id == ListState.id).where(RecentListVisit.user_id == current_user.id).where(ListState.parent_todo_id == None)
             if top_ids:
                 q = q.where(RecentListVisit.list_id.notin_(top_ids))
             q = q.order_by(RecentListVisit.visited_at.desc()).limit(remaining)
@@ -4560,12 +4578,60 @@ async def html_view_todo(request: Request, todo_id: int, current_user: User = De
         list_row = None
         if lst:
             list_row = {"id": lst.id, "name": lst.name, "completed": lst.completed}
+        # Fetch sublists owned by this todo (ordered newest first)
+        sublists = []
+        try:
+            qsubs = select(ListState).where(ListState.parent_todo_id == todo_id).order_by(ListState.created_at.desc())
+            rsubs = await sess.exec(qsubs)
+            for l in rsubs.all():
+                sublists.append({
+                    'id': l.id,
+                    'name': l.name,
+                    'completed': getattr(l, 'completed', False),
+                })
+        except Exception:
+            sublists = []
     csrf_token = None
     from .auth import create_csrf_token
     csrf_token = create_csrf_token(current_user.username)
     client_tz = await get_session_timezone(request)
     # pass plain dicts (with datetime objects preserved) to avoid lazy DB loads
-    return TEMPLATES.TemplateResponse(request, 'todo.html', {"request": request, "todo": todo_row, "completed": completed, "list": list_row, "csrf_token": csrf_token, "client_tz": client_tz, "tags": todo_tags, "all_hashtags": all_hashtags})
+    return TEMPLATES.TemplateResponse(request, 'todo.html', {"request": request, "todo": todo_row, "completed": completed, "list": list_row, "csrf_token": csrf_token, "client_tz": client_tz, "tags": todo_tags, "all_hashtags": all_hashtags, 'sublists': sublists})
+
+
+@app.post('/html_no_js/todos/{todo_id}/sublists/create')
+async def html_create_sublist(request: Request, todo_id: int, name: str = Form(...), current_user: User = Depends(require_login)):
+    # require CSRF and validate ownership via parent list
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    async with async_session() as sess:
+        todo = await sess.get(Todo, todo_id)
+        if not todo:
+            raise HTTPException(status_code=404, detail='todo not found')
+        # check ownership via parent list
+        ql = await sess.exec(select(ListState).where(ListState.id == todo.list_id))
+        lst = ql.first()
+        if not lst or lst.owner_id != current_user.id:
+            raise HTTPException(status_code=403, detail='forbidden')
+        # normalize name: strip leading ws and remove inline hashtags
+        norm_name = remove_hashtags_from_text((name or '').lstrip())
+        if not norm_name:
+            raise HTTPException(status_code=400, detail='name is required')
+        sub = ListState(name=norm_name, owner_id=current_user.id, parent_todo_id=todo_id)
+        sess.add(sub)
+        await sess.commit()
+        await sess.refresh(sub)
+        # default completion type for the new sublist
+        try:
+            dc = CompletionType(name='default', list_id=sub.id)
+            sess.add(dc)
+            await sess.commit()
+        except Exception:
+            await sess.rollback()
+    return RedirectResponse(url=f'/html_no_js/todos/{todo_id}', status_code=303)
 
 
 @app.post('/html_no_js/todos/{todo_id}/edit')
