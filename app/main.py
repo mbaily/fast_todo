@@ -93,8 +93,8 @@ class InMemoryHandler(logging.Handler):
         try:
             # Format using the handler's formatter if present, else basic message
             msg = self.format(record) if self.formatter else record.getMessage()
-            # timestamp in UTC ISO
-            ts = datetime.utcnow().replace(tzinfo=timezone.utc).isoformat()
+            # timestamp in UTC ISO (use timezone-aware now)
+            ts = datetime.now(timezone.utc).isoformat()
             _inmemory_log.append({
                 'ts': ts,
                 'level': record.levelname,
@@ -138,7 +138,7 @@ except Exception:
             orig_emit(self, record)
             # prepare the dict similarly
             msg = self.format(record) if self.formatter else record.getMessage()
-            ts = datetime.utcnow().replace(tzinfo=timezone.utc).isoformat()
+            ts = datetime.now(timezone.utc).isoformat()
             rec = {'ts': ts, 'level': record.levelname, 'logger': record.name, 'message': msg}
             _broadcast_log(rec)
         except Exception:
@@ -206,7 +206,7 @@ def _sse_debug(event: str, payload: dict):
         if origin:
             # don't mutate original payload; annotate separately
             debug_payload['source'] = origin
-        rec = {'ts': datetime.utcnow().replace(tzinfo=timezone.utc).isoformat(), 'level': 'DEBUG', 'logger': 'sse.debug', 'message': json.dumps(debug_payload)}
+        rec = {'ts': datetime.now(timezone.utc).isoformat(), 'level': 'DEBUG', 'logger': 'sse.debug', 'message': json.dumps(debug_payload)}
         for q in list(_sse_queues):
             try:
                 q.put_nowait(rec)
@@ -1610,14 +1610,32 @@ async def api_parse_text_to_rrule(request: Request, text: str = Form(None), curr
 
 
 @app.get("/server/default_list")
-async def get_default_list():
+async def get_default_list(current_user: User = Depends(require_login)):
+    """Return the server default list only if it's visible to the caller (owned or public).
+
+    Previously this endpoint was unauthenticated and could leak private list
+    metadata. Now it requires login and enforces visibility.
+    """
     async with async_session() as sess:
         qs = await sess.exec(select(ServerState))
         ss = qs.first()
         if not ss or not ss.default_list_id:
             raise HTTPException(status_code=404, detail="default list not set")
         q = await sess.exec(select(ListState).where(ListState.id == ss.default_list_id))
-        return q.first()
+        lst = q.first()
+        if not lst:
+            raise HTTPException(status_code=404, detail="list not found")
+        # Enforce visibility: allow if public (owner_id is NULL) or owned by caller
+        if lst.owner_id not in (None, current_user.id):
+            raise HTTPException(status_code=403, detail="forbidden")
+        return lst
+
+
+# Register the exact route for '/lists/recent' BEFORE the variable '/lists/{list_id}' route
+# to avoid Starlette matching '/lists/recent' against '{list_id}' and returning 422.
+@app.get('/lists/recent')
+async def get_recent_lists(limit: int = 25, current_user: User = Depends(require_login)):
+    return await _get_recent_lists_impl(limit, current_user)
 
 
 @app.get('/lists/{list_id}')
@@ -1697,13 +1715,20 @@ async def stream_server_logs(request: Request):
 
 
 @app.post("/server/default_list/{list_id}")
-async def set_default_list(list_id: int):
+async def set_default_list(list_id: int, current_user: User = Depends(require_login)):
+    """Set the server default list.
+
+    Only allow setting to a list visible to the caller (owned by them or public).
+    This avoids unauthenticated callers hijacking the default pointer.
+    """
     async with async_session() as sess:
         q = await sess.exec(select(ListState).where(ListState.id == list_id))
         lst = q.first()
         if not lst:
             raise HTTPException(status_code=404, detail="list not found")
-    # allow any list to be set as default; no special-name protection
+        # Restrict: user may only select a list they own or a public list
+        if lst.owner_id not in (None, current_user.id):
+            raise HTTPException(status_code=403, detail="forbidden")
         qs = await sess.exec(select(ServerState))
         ss = qs.first()
         ss.default_list_id = list_id
@@ -2324,8 +2349,7 @@ async def record_list_visit(list_id: int, current_user: User = Depends(require_l
         return {"list_id": list_id, "visited_at": now}
 
 
-@app.get('/lists/recent')
-async def get_recent_lists(limit: int = 25, current_user: User = Depends(require_login)):
+async def _get_recent_lists_impl(limit: int, current_user: User):
     """Return the recent lists visited by the current user ordered by preserved top-N then recent views."""
     try:
         top_n = int(os.getenv('RECENT_LISTS_TOP_N', '10'))
@@ -2333,7 +2357,13 @@ async def get_recent_lists(limit: int = 25, current_user: User = Depends(require
         top_n = 10
     async with async_session() as sess:
         # First fetch top-N positioned rows ordered by position ASC
-        top_q = select(RecentListVisit).where(RecentListVisit.user_id == current_user.id).where(RecentListVisit.position != None).order_by(RecentListVisit.position.asc()).limit(top_n)
+        top_q = (
+            select(RecentListVisit)
+            .where(RecentListVisit.user_id == current_user.id)
+            .where(RecentListVisit.position != None)
+            .order_by(RecentListVisit.position.asc())
+            .limit(top_n)
+        )
         top_res = await sess.exec(top_q)
         top_rows = top_res.all()
         top_ids = [r.list_id for r in top_rows]
@@ -2341,7 +2371,12 @@ async def get_recent_lists(limit: int = 25, current_user: User = Depends(require
         results: list[dict] = []
         # load ListState for top rows preserving order
         if top_ids:
-            qlists = select(ListState).where(ListState.id.in_(top_ids)).where(ListState.parent_todo_id == None).where(ListState.parent_list_id == None)
+            qlists = (
+                select(ListState)
+                .where(ListState.id.in_(top_ids))
+                .where(ListState.parent_todo_id == None)
+                .where(ListState.parent_list_id == None)
+            )
             lres = await sess.exec(qlists)
             lmap = {l.id: l for l in lres.all()}
             for r in top_rows:
@@ -2357,7 +2392,13 @@ async def get_recent_lists(limit: int = 25, current_user: User = Depends(require
         # If we still need more, fetch others ordered by visited_at desc excluding top_ids
         remaining = max(0, limit - len(results))
         if remaining > 0:
-            q = select(ListState).join(RecentListVisit, RecentListVisit.list_id == ListState.id).where(RecentListVisit.user_id == current_user.id).where(ListState.parent_todo_id == None).where(ListState.parent_list_id == None)
+            q = (
+                select(ListState)
+                .join(RecentListVisit, RecentListVisit.list_id == ListState.id)
+                .where(RecentListVisit.user_id == current_user.id)
+                .where(ListState.parent_todo_id == None)
+                .where(ListState.parent_list_id == None)
+            )
             if top_ids:
                 q = q.where(RecentListVisit.list_id.notin_(top_ids))
             q = q.order_by(RecentListVisit.visited_at.desc()).limit(remaining)
@@ -2914,11 +2955,16 @@ async def html_move_clear_parent(request: Request, item_type: str = Form(...), i
 
 
 @app.post("/todos/{todo_id}/defer")
-async def defer_todo(todo_id: int, hours: int):
+async def defer_todo(todo_id: int, hours: int, current_user: User = Depends(require_login)):
     async with async_session() as sess:
         todo = await sess.get(Todo, todo_id)
         if not todo:
             raise HTTPException(status_code=404, detail="todo not found")
+        # enforce visibility via parent list (owner or public)
+        ql = await sess.exec(select(ListState).where(ListState.id == todo.list_id))
+        lst = ql.first()
+        if lst and lst.owner_id not in (None, current_user.id):
+            raise HTTPException(status_code=403, detail='forbidden')
         todo.deferred_until = now_utc() + timedelta(hours=hours)
         todo.modified_at = now_utc()
         sess.add(todo)
@@ -2934,13 +2980,18 @@ async def defer_todo(todo_id: int, hours: int):
 
 
 @app.post("/todos/{todo_id}/complete")
-async def complete_todo(todo_id: int, completion_type: str = "default", done: bool = True):
+async def complete_todo(todo_id: int, completion_type: str = "default", done: bool = True, current_user: User = Depends(require_login)):
     async with async_session() as sess:
         q = select(Todo).where(Todo.id == todo_id)
         res = await sess.exec(q)
         todo = res.first()
         if not todo:
             raise HTTPException(status_code=404, detail="todo not found")
+        # enforce ownership/visibility via parent list: allow owner or public list
+        ql = await sess.exec(select(ListState).where(ListState.id == todo.list_id))
+        lst = ql.first()
+        if lst and lst.owner_id not in (None, current_user.id):
+            raise HTTPException(status_code=403, detail='forbidden')
         # find or create completion type for the list
         qc = select(CompletionType).where(CompletionType.list_id == todo.list_id).where(CompletionType.name == completion_type)
         cres = await sess.exec(qc)
@@ -2970,7 +3021,17 @@ async def complete_todo(todo_id: int, completion_type: str = "default", done: bo
 
 
 @app.post("/admin/undefer")
-async def undefer_due():
+async def undefer_due(current_user: User = Depends(require_login)):
+    # Allow any authenticated user by default to trigger undefer to retain
+    # backward compatibility with tests. If the environment variable
+    # REQUIRE_ADMIN_FOR_UNDEFER is set (to any truthy value), then restrict
+    # this endpoint to admins only.
+    if os.getenv('REQUIRE_ADMIN_FOR_UNDEFER'):
+        try:
+            if not getattr(current_user, 'is_admin', False):
+                raise HTTPException(status_code=403, detail='forbidden')
+        except Exception:
+            raise HTTPException(status_code=403, detail='forbidden')
     async with async_session() as sess:
         now = now_utc()
         q = select(Todo).where(Todo.deferred_until != None).where(Todo.deferred_until <= now)
@@ -4344,7 +4405,13 @@ async def sync_post(req: SyncRequest, current_user: User = Depends(require_login
 
 
 @app.get('/__debug_setcookie')
-def __debug_setcookie():
+def __debug_setcookie(request: Request):
+    """Debug helper to set a test cookie. Restricted to local requests.
+
+    Avoid exposing cookie-setting behavior to the public internet.
+    """
+    if not _is_local_request(request):
+        raise HTTPException(status_code=403, detail='forbidden')
     from fastapi.responses import Response
     r = Response(content='r', media_type='text/plain')
     r.set_cookie('session_token', 'abc', httponly=True, samesite='lax')
@@ -4814,12 +4881,19 @@ async def html_toggle_complete(request: Request, todo_id: int, done: str = Form(
 
 
 @app.get("/html_no_js/todos/{todo_id}/complete")
-async def html_toggle_complete_get(request: Request, todo_id: int, done: str):
+async def html_toggle_complete_get(request: Request, todo_id: int, done: str, current_user: User = Depends(require_login)):
     # Accept 'done' as query param string and perform the same toggle as the POST handler.
     val = True if str(done).lower() in ("1", "true", "yes") else False
     async with async_session() as sess:
         q = await sess.exec(select(Todo).where(Todo.id == todo_id))
         todo = q.first()
+        if not todo:
+            raise HTTPException(status_code=404, detail='todo not found')
+        # enforce ownership via parent list before toggling completion
+        ql = await sess.exec(select(ListState).where(ListState.id == todo.list_id))
+        lst = ql.first()
+        if lst and lst.owner_id not in (None, current_user.id):
+            raise HTTPException(status_code=403, detail='forbidden')
     await complete_todo(todo_id=todo_id, done=val)
     # optional anchor param to include as fragment when redirecting
     anchor = request.query_params.get('anchor')
