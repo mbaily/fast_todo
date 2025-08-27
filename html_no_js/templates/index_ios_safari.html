@@ -135,14 +135,14 @@
     {% endif %}
     </ul>
     <div style="margin-top:1rem; display:flex; gap:1rem; align-items:center; flex-wrap:wrap;">
+      <label style="margin-right:0.5rem;"><input type="checkbox" id="show-all-tags-checkbox"> Show all tags</label>
+      <span style="flex:1 1 auto"></span>
       <label>Sort lists:
         <select id="list-sort-order">
           <option value="created">by creation date</option>
           <option value="modified">by modification date</option>
         </select>
       </label>
-      <span style="flex:1 1 auto"></span>
-      <label><input type="checkbox" id="show-all-tags-checkbox"> Show all tags</label>
     </div>
     <script>
       // Sort within categories (created vs modified), persisted in cookie
