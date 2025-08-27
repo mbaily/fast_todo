@@ -9,6 +9,8 @@
   .lists-list .list-title.done { text-decoration: line-through; color: #6b7280; }
   /* pinned list: remove default bullets and left padding */
   .pinned-todos ul { list-style: none; padding-left: 0; margin-left: 0; }
+  /* category lists: align flush under headers (no indent/bullets) */
+  .category-lists { list-style: none; padding-left: 0; margin-left: 0; }
   /* ensure completed todos in the pinned section appear struck-through */
   .pinned-todos .done { text-decoration: line-through; color: #6b7280; }
     /* mobile tweak: show list meta on its own line under the title for small screens */
@@ -111,27 +113,73 @@
     </nav>
   {% endif %}
   <ul class="lists-list">
-  {% for lst in lists %}
-    <li class="list-item">
-      <div class="list-action-left">
-        <form method="post" action="/html_no_js/lists/{{ lst.id }}/delete" class="confirm-delete" data-confirm="Delete list '{{ lst.name }}' and all its todos? This cannot be undone.">
-          {{ csrf_field() }}
-          <button type="submit" class="list-action-btn" title="Delete list">🗑</button>
-        </form>
-      </div>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-      <div class="list-main">
-  <a class="list-title {% if lst.completed %}done{% endif %}" href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>
-  <button type="button" class="list-action-btn edit-list-btn" data-list-id="{{ lst.id }}" data-list-name="{{ lst.name|e }}" title="Edit list name">✏️</button>
-        {% if lst.created_at %}
-          <div class="meta">cr. {{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</div>
-        {% endif %}
-  {% if lst.owner_id %} <!-- owner-only list, keep metadata hidden in index --> {% endif %}
-  {# Server-side list tags are now provided to the JS renderer via data-list-tags. #}
-  <div class="all-tags-inline" data-list-id="{{ lst.id }}" data-list-tags='{{ lst.hashtags | tojson }}' aria-hidden="true"></div>
-      </div>
-    </li>
+  {# Render each category section in category.position order #}
+  {% for cat in categories %}
+  {% set cat_lists = lists_by_category.get(cat.id, []) %}
+    {% if cat_lists and cat_lists|length > 0 %}
+      <li class="category-section" data-category-id="{{ cat.id }}">
+        <h3 class="category-header" data-target="cat-{{ cat.id }}" style="cursor:pointer; user-select:none;">
+          <span class="twisty" aria-hidden="true">▾</span>
+          <span class="category-name">{{ cat.name }}</span>
+          <span class="count muted"> ({{ cat_lists|length }})</span>
+        </h3>
+        <ul id="cat-{{ cat.id }}" class="category-lists">
+          {% for lst in cat_lists %}
+            <li class="list-item">
+              <div class="list-action-left">
+                <form method="post" action="/html_no_js/lists/{{ lst.id }}/delete" class="confirm-delete" data-confirm="Delete list '{{ lst.name }}' and all its todos? This cannot be undone.">
+                  {{ csrf_field() }}
+                  <button type="submit" class="list-action-btn" title="Delete list">🗑</button>
+                </form>
+              </div>
+              &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+              <div class="list-main">
+                <a class="list-title {% if lst.completed %}done{% endif %}" href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>
+                <button type="button" class="list-action-btn edit-list-btn" data-list-id="{{ lst.id }}" data-list-name="{{ lst.name|e }}" title="Edit list name">✏️</button>
+                {% if lst.created_at %}
+                  <div class="meta">cr. {{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</div>
+                {% endif %}
+                <div class="all-tags-inline" data-list-id="{{ lst.id }}" data-list-tags='{{ lst.hashtags | tojson }}' aria-hidden="true"></div>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      </li>
+    {% endif %}
   {% endfor %}
+
+  {# Uncategorized (no category) #}
+  {% set uncats = lists_by_category.get(0, []) %}
+  {% if uncats and uncats|length > 0 %}
+    <li class="category-section" data-category-id="uncategorized">
+      <h3 class="category-header" data-target="cat-uncat" style="cursor:pointer; user-select:none;">
+        <span class="twisty" aria-hidden="true">▾</span>
+        <span class="category-name">Uncategorized</span>
+        <span class="count muted"> ({{ uncats|length }})</span>
+      </h3>
+      <ul id="cat-uncat" class="category-lists">
+        {% for lst in uncats %}
+          <li class="list-item">
+            <div class="list-action-left">
+              <form method="post" action="/html_no_js/lists/{{ lst.id }}/delete" class="confirm-delete" data-confirm="Delete list '{{ lst.name }}' and all its todos? This cannot be undone.">
+                {{ csrf_field() }}
+                <button type="submit" class="list-action-btn" title="Delete list">🗑</button>
+              </form>
+            </div>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+            <div class="list-main">
+              <a class="list-title {% if lst.completed %}done{% endif %}" href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>
+              <button type="button" class="list-action-btn edit-list-btn" data-list-id="{{ lst.id }}" data-list-name="{{ lst.name|e }}" title="Edit list name">✏️</button>
+              {% if lst.created_at %}
+                <div class="meta">cr. {{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</div>
+              {% endif %}
+              <div class="all-tags-inline" data-list-id="{{ lst.id }}" data-list-tags='{{ lst.hashtags | tojson }}' aria-hidden="true"></div>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    </li>
+  {% endif %}
   </ul>
 
 <!-- Show all tags control (browser-cookie persisted) -->
@@ -169,6 +217,34 @@
       fetch('/html_no_js/lists/' + encodeURIComponent(id) + '/edit', { method: 'POST', body: fd, credentials: 'same-origin' })
         .then(function(res){ if (res.ok) location.reload(); else alert('Rename failed'); })
         .catch(function(){ alert('Rename failed'); });
+    });
+  });
+})();
+</script>
+
+<script>
+// Collapsible category sections with localStorage persistence
+(function(){
+  function storageKey(id){ return 'cat-collapsed-' + id; }
+  function isCollapsed(id){ try { return localStorage.getItem(storageKey(id)) === '1'; } catch(e){ return false; } }
+  function setCollapsed(id, v){ try { localStorage.setItem(storageKey(id), v ? '1' : '0'); } catch(e){} }
+  function applyState(header){
+    var targetId = header.getAttribute('data-target');
+    var ul = document.getElementById(targetId);
+    if (!ul) return;
+    var id = header.parentElement && header.parentElement.getAttribute('data-category-id') || targetId;
+    var collapsed = isCollapsed(id);
+    ul.style.display = collapsed ? 'none' : '';
+    var twisty = header.querySelector('.twisty');
+    if (twisty) twisty.textContent = collapsed ? '▸' : '▾';
+  }
+  document.querySelectorAll('.category-header').forEach(function(h){
+    applyState(h);
+    h.addEventListener('click', function(){
+      var id = h.parentElement && h.parentElement.getAttribute('data-category-id') || h.getAttribute('data-target');
+      var now = !isCollapsed(id);
+      setCollapsed(id, now);
+      applyState(h);
     });
   });
 })();

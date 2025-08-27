@@ -17,7 +17,7 @@ from asyncio import Queue
 import os
 from contextvars import ContextVar
 from sqlmodel import select
-from .models import Hashtag, TodoHashtag, ListHashtag, ServerState, CompletionType, SyncOperation, Tombstone
+from .models import Hashtag, TodoHashtag, ListHashtag, ServerState, CompletionType, SyncOperation, Tombstone, Category
 from .models import RecentListVisit
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import text
@@ -1372,6 +1372,25 @@ async def mark_occurrence_completed(request: Request, hash: str = Form(...), cur
         row = CompletedOccurrence(user_id=current_user.id, occ_hash=hash)
         sess.add(row)
         await sess.commit()
+        # Ensure positions are unique and sequential. If previous data had
+        # duplicate positions (can happen with older imports or a bug),
+        # normalize positions so order becomes deterministic and contiguous.
+        try:
+            cres = await sess.exec(select(Category).order_by(Category.position.asc(), Category.id.asc()))
+            cats_all = cres.all()
+            need_fix = False
+            for idx, c in enumerate(cats_all):
+                if c.position != idx:
+                    need_fix = True
+                    break
+            if need_fix:
+                logger.info('move_category: normalizing %d category positions', len(cats_all))
+                for idx, c in enumerate(cats_all):
+                    await sess.exec(sqlalchemy_update(Category).where(Category.id == c.id).values(position=idx))
+                await sess.commit()
+                logger.info('move_category: normalization complete')
+        except Exception:
+            logger.exception('move_category: failed to normalize category positions')
     return {'ok': True, 'created': True}
 
 
@@ -2795,7 +2814,7 @@ async def html_index(request: Request):
             ).limit(1)
             r_next = await sess.exec(q_next_exists)
             has_next = r_next.first() is not None
-        # convert ORM ListState objects to plain dicts to avoid lazy-loading
+    # convert ORM ListState objects to plain dicts to avoid lazy-loading
         list_rows = []
         list_ids = [l.id for l in lists]
         tag_map: dict[int, list[str]] = {}
@@ -2811,8 +2830,22 @@ async def html_index(request: Request):
                 "completed": l.completed,
                 "owner_id": l.owner_id,
                 "created_at": l.created_at,
+                "category_id": l.category_id,
                 "hashtags": tag_map.get(l.id, []),
             })
+        # group lists by category for easier template rendering
+        lists_by_category: dict[int, list[dict]] = {}
+        for row in list_rows:
+            cid = row.get('category_id') or 0
+            lists_by_category.setdefault(cid, []).append(row)
+        # fetch categories ordered by position
+        categories = []
+        try:
+            qcat = select(Category).order_by(Category.position.asc())
+            cres = await sess.exec(qcat)
+            categories = [{'id': c.id, 'name': c.name, 'position': c.position} for c in cres.all()]
+        except Exception:
+            categories = []
         # Also fetch pinned todos from lists visible to this user (owned or public)
         pinned_todos = []
         try:
@@ -2880,15 +2913,216 @@ async def html_index(request: Request):
     try:
         if force_ios:
             logger.info('html_index: rendering index_ios_safari (forced) ua=%s', ua[:200])
-            return TEMPLATES.TemplateResponse(request, "index_ios_safari.html", {"request": request, "lists": list_rows, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "cursors": cursors})
+            return TEMPLATES.TemplateResponse(request, "index_ios_safari.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "cursors": cursors, "categories": categories})
         if is_ios_safari(request):
             logger.info('html_index: rendering index_ios_safari (ua-detected) ua=%s', ua[:200])
-            return TEMPLATES.TemplateResponse(request, "index_ios_safari.html", {"request": request, "lists": list_rows, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "cursors": cursors})
+            return TEMPLATES.TemplateResponse(request, "index_ios_safari.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "cursors": cursors, "categories": categories})
         logger.info('html_index: rendering index.html (default) ua=%s', ua[:200])
-        return TEMPLATES.TemplateResponse(request, "index.html", {"request": request, "lists": list_rows, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "cursors": cursors})
+        return TEMPLATES.TemplateResponse(request, "index.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "cursors": cursors, "categories": categories})
     except Exception:
         # Ensure we always return something even if logging fails
-        return TEMPLATES.TemplateResponse(request, "index.html", {"request": request, "lists": list_rows, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "cursors": cursors})
+        return TEMPLATES.TemplateResponse(request, "index.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "cursors": cursors, "categories": categories})
+
+
+@app.get('/html_no_js/categories', response_class=HTMLResponse)
+async def html_categories(request: Request):
+    from .auth import get_current_user as _gcu
+    try:
+        current_user = await _gcu(token=None, request=request)
+    except HTTPException:
+        current_user = None
+    if not current_user:
+        return RedirectResponse(url='/html_no_js/login', status_code=303)
+    # Serve a JS-driven page; the client will fetch categories via API.
+    csrf_token = None
+    from .auth import create_csrf_token
+    csrf_token = create_csrf_token(current_user.username)
+    return TEMPLATES.TemplateResponse(request, 'categories.html', { 'request': request, 'csrf_token': csrf_token })
+
+
+@app.get('/api/categories')
+async def api_get_categories(request: Request, current_user: User = Depends(require_login)):
+    """Return JSON list of categories ordered by position."""
+    async with async_session() as sess:
+        try:
+            cres = await sess.exec(select(Category).order_by(Category.position.asc(), Category.id.asc()))
+            cats = cres.all()
+            return {'categories': [{'id': c.id, 'name': c.name, 'position': c.position} for c in cats]}
+        except Exception:
+            return {'categories': []}
+
+
+class MoveCatRequest(BaseModel):
+    direction: str
+
+
+async def _normalize_category_positions(sess) -> list[Category]:
+    """Ensure Category.position values are contiguous (0..N-1) and unique.
+    Returns categories ordered by position after normalization."""
+    cres = await sess.exec(select(Category).order_by(Category.position.asc(), Category.id.asc()))
+    cats = cres.all()
+    changed = False
+    for idx, c in enumerate(cats):
+        try:
+            if c.position != idx:
+                await sess.exec(sqlalchemy_update(Category).where(Category.id == c.id).values(position=idx))
+                changed = True
+        except Exception:
+            # fallback: still attempt to continue normalizing others
+            logger.exception('normalize positions failed for cat_id=%s', getattr(c, 'id', None))
+    if changed:
+        try:
+            await sess.commit()
+        except Exception:
+            logger.exception('commit failed during category position normalization')
+    # re-read in normalized order
+    cres2 = await sess.exec(select(Category).order_by(Category.position.asc(), Category.id.asc()))
+    return cres2.all()
+
+
+@app.post('/api/categories/{cat_id}/move')
+async def api_move_category(request: Request, cat_id: int, payload: MoveCatRequest, current_user: User = Depends(require_login)):
+    """Move category up or down. Accepts JSON {direction: 'up'|'down'}."""
+    # Allow bearer-token API clients (Authorization header) without CSRF.
+    auth_hdr = request.headers.get('authorization')
+    if not auth_hdr:
+        # require CSRF for cookie-auth browser clients
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        token = body.get('_csrf') or request.cookies.get('csrf_token')
+        from .auth import verify_csrf_token
+        if not token or not verify_csrf_token(token, current_user.username):
+            raise HTTPException(status_code=403, detail='invalid csrf token')
+
+    direction = payload.direction if payload and getattr(payload, 'direction', None) else None
+    if direction not in ('up', 'down'):
+        raise HTTPException(status_code=400, detail='invalid direction')
+
+    async with async_session() as sess:
+        # capture order before
+        bres = await sess.exec(select(Category).order_by(Category.position.asc(), Category.id.asc()))
+        before = [{'id': c.id, 'name': c.name, 'position': c.position} for c in bres.all()]
+        q = await sess.exec(select(Category).where(Category.id == cat_id))
+        cur = q.first()
+        if not cur:
+            raise HTTPException(status_code=404, detail='category not found')
+        if direction == 'up':
+            qprev = await sess.exec(select(Category).where(Category.position < cur.position).order_by(Category.position.desc()).limit(1))
+            prev = qprev.first()
+            if prev:
+                cur_pos = cur.position
+                prev_pos = prev.position
+                logger.info('api_move_category: swapping up cat_id=%s cur_pos=%s prev_id=%s prev_pos=%s', cur.id, cur_pos, prev.id, prev_pos)
+                await sess.exec(sqlalchemy_update(Category).where(Category.id == prev.id).values(position=cur_pos))
+                await sess.exec(sqlalchemy_update(Category).where(Category.id == cur.id).values(position=prev_pos))
+                logger.info('api_move_category: swap executed for cat_id=%s', cur.id)
+        else:
+            qnext = await sess.exec(select(Category).where(Category.position > cur.position).order_by(Category.position.asc()).limit(1))
+            nxt = qnext.first()
+            if nxt:
+                cur_pos = cur.position
+                next_pos = nxt.position
+                logger.info('api_move_category: swapping down cat_id=%s cur_pos=%s next_id=%s next_pos=%s', cur.id, cur_pos, nxt.id, next_pos)
+                await sess.exec(sqlalchemy_update(Category).where(Category.id == nxt.id).values(position=cur_pos))
+                await sess.exec(sqlalchemy_update(Category).where(Category.id == cur.id).values(position=next_pos))
+                logger.info('api_move_category: swap executed for cat_id=%s', cur.id)
+        await sess.commit()
+        # Normalize positions to avoid duplicates or gaps, then return list
+        cats2 = await _normalize_category_positions(sess)
+        after = [{'id': c.id, 'name': c.name, 'position': c.position} for c in cats2]
+        try:
+            logger.info('api_move_category: before=%s after=%s',
+                        [(x['id'], x['position']) for x in before],
+                        [(x['id'], x['position']) for x in after])
+        except Exception:
+            pass
+        return {'categories': after, 'before': before, 'after': after}
+
+
+@app.post('/html_no_js/categories/create')
+async def create_category(request: Request, name: str = Form(...)):
+    from .auth import get_current_user as _gcu
+    try:
+        current_user = await _gcu(token=None, request=request)
+    except HTTPException:
+        return RedirectResponse(url='/html_no_js/login', status_code=303)
+    async with async_session() as sess:
+        # determine max position and append
+        qmax = await sess.exec(select(Category).order_by(Category.position.desc()).limit(1))
+        maxc = qmax.first()
+        pos = (maxc.position + 1) if maxc else 0
+        nc = Category(name=name.strip()[:200], position=pos)
+        sess.add(nc)
+        await sess.commit()
+    return RedirectResponse(url='/html_no_js/categories', status_code=303)
+
+
+@app.post('/html_no_js/categories/{cat_id}/rename')
+async def rename_category(request: Request, cat_id: int, name: str = Form(...)):
+    from .auth import get_current_user as _gcu
+    try:
+        current_user = await _gcu(token=None, request=request)
+    except HTTPException:
+        return RedirectResponse(url='/html_no_js/login', status_code=303)
+    async with async_session() as sess:
+        await sess.exec(sqlalchemy_update(Category).where(Category.id == cat_id).values(name=name.strip()[:200]))
+        await sess.commit()
+    return RedirectResponse(url='/html_no_js/categories', status_code=303)
+
+
+@app.post('/html_no_js/categories/{cat_id}/delete')
+async def delete_category(request: Request, cat_id: int):
+    from .auth import get_current_user as _gcu
+    try:
+        current_user = await _gcu(token=None, request=request)
+    except HTTPException:
+        return RedirectResponse(url='/html_no_js/login', status_code=303)
+    async with async_session() as sess:
+        # remove category association from lists, then delete
+        await sess.exec(sqlalchemy_update(ListState).where(ListState.category_id == cat_id).values(category_id=None))
+        await sess.exec(sqlalchemy_delete(Category).where(Category.id == cat_id))
+        await sess.commit()
+    return RedirectResponse(url='/html_no_js/categories', status_code=303)
+
+
+@app.post('/html_no_js/categories/{cat_id}/move')
+async def move_category(request: Request, cat_id: int, direction: str = Form(...)):
+    # direction: 'up' or 'down'
+    from .auth import get_current_user as _gcu
+    try:
+        current_user = await _gcu(token=None, request=request)
+    except HTTPException:
+        return RedirectResponse(url='/html_no_js/login', status_code=303)
+    async with async_session() as sess:
+        q = await sess.exec(select(Category).where(Category.id == cat_id))
+        cur = q.first()
+        if not cur:
+            return RedirectResponse(url='/html_no_js/categories', status_code=303)
+        if direction == 'up':
+            # find previous (lower position) item
+            qprev = await sess.exec(select(Category).where(Category.position < cur.position).order_by(Category.position.desc()).limit(1))
+            prev = qprev.first()
+            if prev:
+                cur_pos = cur.position
+                prev_pos = prev.position
+                logger.info('move_category: swapping up cat_id=%s cur_pos=%s prev_id=%s prev_pos=%s', cur.id, cur_pos, prev.id, prev_pos)
+                await sess.exec(sqlalchemy_update(Category).where(Category.id == prev.id).values(position=cur_pos))
+                await sess.exec(sqlalchemy_update(Category).where(Category.id == cur.id).values(position=prev_pos))
+                logger.info('move_category: swap executed for cat_id=%s', cur.id)
+        elif direction == 'down':
+            qnext = await sess.exec(select(Category).where(Category.position > cur.position).order_by(Category.position.asc()).limit(1))
+            nxt = qnext.first()
+            if nxt:
+                cur_pos = cur.position
+                next_pos = nxt.position
+                logger.info('move_category: swapping down cat_id=%s cur_pos=%s next_id=%s next_pos=%s', cur.id, cur_pos, nxt.id, next_pos)
+                await sess.exec(sqlalchemy_update(Category).where(Category.id == nxt.id).values(position=cur_pos))
+                await sess.exec(sqlalchemy_update(Category).where(Category.id == cur.id).values(position=next_pos))
+                logger.info('move_category: swap executed for cat_id=%s', cur.id)
+        await sess.commit()
+    return RedirectResponse(url='/html_no_js/categories', status_code=303)
 
 
 @app.get('/html_no_js/search', response_class=HTMLResponse)
@@ -3259,6 +3493,46 @@ async def html_set_list_icons(request: Request, list_id: int, hide_icons: str = 
             sess.add(lst)
             await sess.commit()
             await sess.refresh(lst)
+    ref = request.headers.get('Referer', f'/html_no_js/lists/{list_id}')
+    return RedirectResponse(url=ref, status_code=303)
+
+
+@app.post('/html_no_js/lists/{list_id}/category')
+async def html_set_list_category(request: Request, list_id: int, category_id: Optional[int] = Form(None), current_user: User = Depends(require_login)):
+    """Assign or clear a list's category.
+    Pass category_id as a form field. Empty string or -1 clears the category.
+    """
+    # CSRF and ownership
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    # Normalize category_id
+    raw = form.get('category_id')
+    cid: Optional[int]
+    if raw is None or str(raw).strip() == '' or str(raw).strip() == '-1':
+        cid = None
+    else:
+        try:
+            cid = int(str(raw))
+        except Exception:
+            cid = None
+    async with async_session() as sess:
+        lst = await sess.get(ListState, list_id)
+        if not lst:
+            raise HTTPException(status_code=404, detail='list not found')
+        if lst.owner_id != current_user.id:
+            raise HTTPException(status_code=403, detail='forbidden')
+        # If setting to a real category, ensure it exists
+        if cid is not None:
+            cat = await sess.get(Category, cid)
+            if not cat:
+                raise HTTPException(status_code=400, detail='category not found')
+        lst.category_id = cid
+        lst.modified_at = now_utc()
+        sess.add(lst)
+        await sess.commit()
     ref = request.headers.get('Referer', f'/html_no_js/lists/{list_id}')
     return RedirectResponse(url=ref, status_code=303)
 
@@ -3634,6 +3908,7 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
             "hashtags": list_tags,
             # persist UI preference so templates can render checkbox state
             "hide_icons": getattr(lst, 'hide_icons', False),
+            "category_id": getattr(lst, 'category_id', None),
         }
         # also pass completion types for management UI
         completion_types = [{'id': c.id, 'name': c.name} for c in ctypes]
@@ -3664,6 +3939,13 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
             val = row[0] if isinstance(row, (tuple, list)) else row
             if isinstance(val, str) and val and val not in all_hashtags:
                 all_hashtags.append(val)
+        # fetch categories for assignment UI (ordered by position)
+        try:
+            qcat = select(Category).order_by(Category.position.asc())
+            cres = await sess.exec(qcat)
+            categories = [{'id': c.id, 'name': c.name, 'position': c.position} for c in cres.all()]
+        except Exception:
+            categories = []
     from .auth import create_csrf_token
     csrf_token = create_csrf_token(current_user.username)
     # Best-effort: record that the current user visited this list so the
@@ -3676,7 +3958,7 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
     except Exception:
         logger.exception('failed to record list visit for list %s', list_id)
     client_tz = await get_session_timezone(request)
-    return TEMPLATES.TemplateResponse(request, "list.html", {"request": request, "list": list_row, "todos": todo_rows, "csrf_token": csrf_token, "client_tz": client_tz, "completion_types": completion_types, "all_hashtags": all_hashtags})
+    return TEMPLATES.TemplateResponse(request, "list.html", {"request": request, "list": list_row, "todos": todo_rows, "csrf_token": csrf_token, "client_tz": client_tz, "completion_types": completion_types, "all_hashtags": all_hashtags, "categories": categories})
 
 
 @app.post('/html_no_js/lists/{list_id}/complete')

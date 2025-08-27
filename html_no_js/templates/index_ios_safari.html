@@ -17,6 +17,8 @@
       button { cursor: pointer; }
       nav a { color: #9ae6ff; margin-right: 0.5rem; }
       .muted { color: #9ca3af; }
+  /* category lists: align flush under headers (no indent/bullets) */
+  .category-lists { list-style: none; padding-left: 0; margin-left: 0; }
     </style>
   </head>
   <body>
@@ -69,21 +71,64 @@
     {% endif %}
 
     <ul>
-    {% for lst in lists %}
-      <li>
-        <form method="post" action="/html_no_js/lists/{{ lst.id }}/delete" class="confirm-delete" style="display:inline;margin-right:1rem;">
-          {% if csrf_token %}
-            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-          {% endif %}
-          <button type="submit" class="list-action-btn" title="Delete list" style="background:none;border:none;color:inherit;padding:0;margin:0;font-size:inherit;cursor:pointer;">🗑</button>
-        </form>
-        &nbsp;&nbsp;
-        <a href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>
-        <button type="button" class="edit-list-btn" data-list-id="{{ lst.id }}" data-list-name="{{ lst.name|e }}" title="Edit list name" style="background:none;border:none;color:inherit;padding:0;margin-left:0.25rem;cursor:pointer;">✏️</button>
-        {% if lst.created_at %}<span class="muted"> cr. {{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</span>{% endif %}
-  <div class="all-tags-inline" data-list-id="{{ lst.id }}" data-list-tags='{{ lst.hashtags | tojson }}' aria-hidden="true" style="display:inline-block;margin-left:0.5rem;"></div>
-      </li>
+    {# Group by categories with collapsible sections #}
+    {% for cat in categories %}
+  {% set cat_lists = lists_by_category.get(cat.id, []) %}
+      {% if cat_lists and cat_lists|length > 0 %}
+        <li class="category-section" data-category-id="{{ cat.id }}">
+          <h3 class="category-header" data-target="ios-cat-{{ cat.id }}" style="cursor:pointer; user-select:none;">
+            <span class="twisty" aria-hidden="true">▾</span>
+            <span class="category-name">{{ cat.name }}</span>
+            <span class="count muted"> ({{ cat_lists|length }})</span>
+          </h3>
+          <ul id="ios-cat-{{ cat.id }}" class="category-lists">
+            {% for lst in cat_lists %}
+              <li>
+                <form method="post" action="/html_no_js/lists/{{ lst.id }}/delete" class="confirm-delete" style="display:inline;margin-right:1rem;">
+                  {% if csrf_token %}
+                    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                  {% endif %}
+                  <button type="submit" class="list-action-btn" title="Delete list" style="background:none;border:none;color:inherit;padding:0;margin:0;font-size:inherit;cursor:pointer;">🗑</button>
+                </form>
+                &nbsp;&nbsp;
+                <a href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>
+                <button type="button" class="edit-list-btn" data-list-id="{{ lst.id }}" data-list-name="{{ lst.name|e }}" title="Edit list name" style="background:none;border:none;color:inherit;padding:0;margin-left:0.25rem;cursor:pointer;">✏️</button>
+                {% if lst.created_at %}<span class="muted"> cr. {{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</span>{% endif %}
+                <div class="all-tags-inline" data-list-id="{{ lst.id }}" data-list-tags='{{ lst.hashtags | tojson }}' aria-hidden="true" style="display:inline-block;margin-left:0.5rem;"></div>
+              </li>
+            {% endfor %}
+          </ul>
+        </li>
+      {% endif %}
     {% endfor %}
+
+  {% set uncats = lists_by_category.get(0, []) %}
+    {% if uncats and uncats|length > 0 %}
+      <li class="category-section" data-category-id="uncategorized">
+        <h3 class="category-header" data-target="ios-cat-uncat" style="cursor:pointer; user-select:none;">
+          <span class="twisty" aria-hidden="true">▾</span>
+          <span class="category-name">Uncategorized</span>
+          <span class="count muted"> ({{ uncats|length }})</span>
+        </h3>
+        <ul id="ios-cat-uncat" class="category-lists">
+          {% for lst in uncats %}
+            <li>
+              <form method="post" action="/html_no_js/lists/{{ lst.id }}/delete" class="confirm-delete" style="display:inline;margin-right:1rem;">
+                {% if csrf_token %}
+                  <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                {% endif %}
+                <button type="submit" class="list-action-btn" title="Delete list" style="background:none;border:none;color:inherit;padding:0;margin:0;font-size:inherit;cursor:pointer;">🗑</button>
+              </form>
+              &nbsp;&nbsp;
+              <a href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>
+              <button type="button" class="edit-list-btn" data-list-id="{{ lst.id }}" data-list-name="{{ lst.name|e }}" title="Edit list name" style="background:none;border:none;color:inherit;padding:0;margin-left:0.25rem;cursor:pointer;">✏️</button>
+              {% if lst.created_at %}<span class="muted"> cr. {{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</span>{% endif %}
+              <div class="all-tags-inline" data-list-id="{{ lst.id }}" data-list-tags='{{ lst.hashtags | tojson }}' aria-hidden="true" style="display:inline-block;margin-left:0.5rem;"></div>
+            </li>
+          {% endfor %}
+        </ul>
+      </li>
+    {% endif %}
     </ul>
     <div style="margin-top:1rem;">
       <label><input type="checkbox" id="show-all-tags-checkbox"> Show all tags</label>
@@ -112,6 +157,33 @@
           form.addEventListener('submit', function(e){
             var q = form.getAttribute('data-confirm') || 'Delete?';
             if (!window.confirm(q)) { e.preventDefault(); }
+          });
+        });
+      })();
+    </script>
+    <script>
+      // Collapsible category sections with localStorage persistence (iOS template)
+      (function(){
+        function storageKey(id){ return 'ios-cat-collapsed-' + id; }
+        function isCollapsed(id){ try { return localStorage.getItem(storageKey(id)) === '1'; } catch(e){ return false; } }
+        function setCollapsed(id, v){ try { localStorage.setItem(storageKey(id), v ? '1' : '0'); } catch(e){} }
+        function applyState(header){
+          var targetId = header.getAttribute('data-target');
+          var ul = document.getElementById(targetId);
+          if (!ul) return;
+          var id = header.parentElement && header.parentElement.getAttribute('data-category-id') || targetId;
+          var collapsed = isCollapsed(id);
+          ul.style.display = collapsed ? 'none' : '';
+          var twisty = header.querySelector('.twisty');
+          if (twisty) twisty.textContent = collapsed ? '▸' : '▾';
+        }
+        document.querySelectorAll('.category-header').forEach(function(h){
+          applyState(h);
+          h.addEventListener('click', function(){
+            var id = h.parentElement && h.parentElement.getAttribute('data-category-id') || h.getAttribute('data-target');
+            var now = !isCollapsed(id);
+            setCollapsed(id, now);
+            applyState(h);
           });
         });
       })();

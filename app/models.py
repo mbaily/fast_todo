@@ -33,10 +33,20 @@ class ListState(SQLModel, table=True):
     # If true, hide UI action icons (completion checkbox, pin, delete) for this list
     hide_icons: bool = Field(default=False)
     completed: bool = Field(default=False)
+    # Optional category membership
+    category_id: Optional[int] = Field(default=None, foreign_key="category.id", index=True)
 
     todos: List["Todo"] = Relationship(back_populates="list")
     hashtags: List["Hashtag"] = Relationship(back_populates="lists", link_model=ListHashtag)
     completion_types: List["CompletionType"] = Relationship(back_populates="list")
+
+
+class Category(SQLModel, table=True):
+    """Category grouping for lists. Position is an integer controlling order on index."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    position: int = Field(default=0, index=True)
+
 
 
 class Hashtag(SQLModel, table=True):
