@@ -63,6 +63,14 @@
   .wrap-text[data-date]:not([data-date=""]) { position: relative; display: inline-block; }
   /* ensure parent containers don't clip the tooltip */
   .todos-list .todo-content, .todos-list .todo-main { overflow: visible; }
+    /* Sublists layout (mirror todo.html fix): keep action buttons from overlapping titles */
+    .lists-list .list-item { display: flex; align-items: flex-start; }
+    .lists-list .list-item > .list-action-left { width: 5.5rem; flex: 0 0 5.5rem; gap: 0.25rem; align-items: center; justify-content: flex-start; }
+    .lists-list .list-item > .list-main { min-width: 0; flex: 1 1 auto; }
+    .lists-list .list-action-btn { padding: 0.14rem 0.22rem; font-size: 0.95rem; }
+    @media (max-width: 480px) {
+      .lists-list .list-item > .list-action-left { width: 6.5rem; flex-basis: 6.5rem; }
+    }
   .wrap-text[data-date]:not([data-date=""]):hover::after {
     content: attr(data-date);
     position: absolute;
@@ -116,6 +124,28 @@
 
   {% if completion_types is not none %}
   {% endif %}
+  <script>
+  // Minimal rename for sublists: prompt and POST to list edit endpoint
+  (function(){
+    try {
+      document.querySelectorAll('.edit-list-btn').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          var id = btn.getAttribute('data-list-id');
+          var current = btn.getAttribute('data-list-name') || '';
+          var name = window.prompt('New list name', current);
+          if (!name || name.trim() === '') return;
+          var fd = new FormData();
+          fd.append('name', name);
+          var csrfInput = document.querySelector('input[name="_csrf"]');
+          if (csrfInput && csrfInput.value) fd.append('_csrf', csrfInput.value);
+          fetch('/html_no_js/lists/' + encodeURIComponent(id) + '/edit', { method: 'POST', body: fd, credentials: 'same-origin' })
+            .then(function(res){ if(res.ok) location.reload(); else alert('Rename failed'); })
+            .catch(function(){ alert('Rename failed'); });
+        });
+      });
+    } catch(e) {}
+  })();
+  </script>
 
   <form id="create-todo-form" method="post" action="/html_no_js/todos/create" autocomplete="off">
   {{ csrf_field() }}
@@ -690,5 +720,61 @@
     </form>
     <div style="flex:1 1 auto"></div>
   </nav>
+  
+  {# Sublists section moved here, below the delete icon toolbar #}
+  {% if sublists is defined %}
+  <section aria-label="Sublists" style="margin-top:1rem">
+    <h3 style="margin:0 0 .4rem 0">Sublists</h3>
+    <form method="post" action="/html_no_js/lists/{{ list.id }}/sublists/create" style="margin:0 0 .4rem 0" autocomplete="off">
+      {{ csrf_field() }}
+      <label>New sublist<br>
+        <input type="text" name="name" required placeholder="Sublist name" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+      </label>
+      <button type="submit">Create</button>
+    </form>
+    {% if sublists|length > 0 %}
+      <ul class="lists-list">
+        {% for sl in sublists %}
+          {% set created_iso = sl.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') %}
+          {% set modified_iso = sl.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') if sl.modified_at else None %}
+          <li class="list-item"{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %}>
+            <div class="list-action-left" style="display:flex;gap:0.25rem;align-items:center;">
+              <form method="post" action="/html_no_js/lists/{{ sl.id }}/delete" class="confirm-delete" data-confirm="Delete list '{{ sl.name }}' and all its todos? This cannot be undone." style="display:inline">
+                {{ csrf_field() }}
+                <button type="submit" class="list-action-btn" title="Delete list">🗑</button>
+              </form>
+              <form method="post" action="/html_no_js/lists/{{ list.id }}/sublists/{{ sl.id }}/move" style="display:inline">
+                {{ csrf_field() }}
+                <input type="hidden" name="direction" value="up">
+                <button type="submit" class="list-action-btn" title="Move up">⬆️</button>
+              </form>
+              <form method="post" action="/html_no_js/lists/{{ list.id }}/sublists/{{ sl.id }}/move" style="display:inline">
+                {{ csrf_field() }}
+                <input type="hidden" name="direction" value="down">
+                <button type="submit" class="list-action-btn" title="Move down">⬇️</button>
+              </form>
+            </div>
+            <div class="list-main">
+              <a class="list-title {% if sl.completed %}done{% endif %}" href="/html_no_js/lists/{{ sl.id }}">{{ sl.name }}</a>
+              <button type="button" class="list-action-btn edit-list-btn" data-list-id="{{ sl.id }}" data-list-name="{{ sl.name|e }}" title="Edit list name">✏️</button>
+              {% if sl.created_at %}
+                <div class="meta">cr. {{ sl.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</div>
+              {% endif %}
+              {% if sl.hashtags and sl.hashtags|length > 0 %}
+                <div class="tags" role="list" aria-label="List tags">
+                  {% for tag in (sl.hashtags | sort) %}
+                    <div role="listitem" style="display:inline-block;margin-right:0.35rem">
+                      <a class="tag-chip" href="/html_no_js/search?q={{ tag|urlencode }}" role="link">{{ tag }}</a>
+                    </div>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </section>
+  {% endif %}
     
 {% endblock %}

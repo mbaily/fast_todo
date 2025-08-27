@@ -709,7 +709,7 @@ async def calendar_events(request: Request, start: Optional[str] = None, end: Op
     events: list[Dict[str, Any]] = []
     async with async_session() as sess:
         # fetch lists for this owner
-        qlists = await sess.exec(select(ListState).where(ListState.owner_id == owner_id))
+        qlists = await sess.exec(select(ListState).where(ListState.owner_id == owner_id).where(ListState.parent_todo_id == None).where(ListState.parent_list_id == None))
         lists = qlists.all()
         # fetch todos that belong to these lists
         if lists:
@@ -892,7 +892,7 @@ async def calendar_occurrences(request: Request,
         logger.exception('error evaluating ENABLE_CALENDAR_BREAKPOINT')
     async with async_session() as sess:
         # fetch lists for this owner
-        qlists = await sess.exec(select(ListState).where(ListState.owner_id == owner_id))
+        qlists = await sess.exec(select(ListState).where(ListState.owner_id == owner_id).where(ListState.parent_todo_id == None).where(ListState.parent_list_id == None))
         lists = qlists.all()
         _sse_debug('calendar_occurrences.lists_fetched', {'count': len(lists) if lists else 0})
         if lists:
@@ -1724,6 +1724,12 @@ async def delete_list(list_id: int, current_user: Optional[User] = Depends(get_c
         qtodos = await sess.exec(select(Todo.id).where(Todo.list_id == list_id))
         todo_ids = [t for t in qtodos.all()]
 
+        # detach any child sublists owned by this list so they don't dangle
+        try:
+            await sess.exec(sqlalchemy_update(ListState).where(ListState.parent_list_id == list_id).values(parent_list_id=None, parent_list_position=None))
+            await sess.commit()
+        except Exception:
+            await sess.rollback()
         # remove any list-level artifacts (completion types, list hashtags)
         await sess.exec(sqlalchemy_delete(CompletionType).where(CompletionType.list_id == list_id))
         await sess.exec(sqlalchemy_delete(ListHashtag).where(ListHashtag.list_id == list_id))
@@ -2320,7 +2326,7 @@ async def get_recent_lists(limit: int = 25, current_user: User = Depends(require
         results: list[dict] = []
         # load ListState for top rows preserving order
         if top_ids:
-            qlists = select(ListState).where(ListState.id.in_(top_ids)).where(ListState.parent_todo_id == None)
+            qlists = select(ListState).where(ListState.id.in_(top_ids)).where(ListState.parent_todo_id == None).where(ListState.parent_list_id == None)
             lres = await sess.exec(qlists)
             lmap = {l.id: l for l in lres.all()}
             for r in top_rows:
@@ -2336,7 +2342,7 @@ async def get_recent_lists(limit: int = 25, current_user: User = Depends(require
         # If we still need more, fetch others ordered by visited_at desc excluding top_ids
         remaining = max(0, limit - len(results))
         if remaining > 0:
-            q = select(ListState).join(RecentListVisit, RecentListVisit.list_id == ListState.id).where(RecentListVisit.user_id == current_user.id).where(ListState.parent_todo_id == None)
+            q = select(ListState).join(RecentListVisit, RecentListVisit.list_id == ListState.id).where(RecentListVisit.user_id == current_user.id).where(ListState.parent_todo_id == None).where(ListState.parent_list_id == None)
             if top_ids:
                 q = q.where(RecentListVisit.list_id.notin_(top_ids))
             q = q.order_by(RecentListVisit.visited_at.desc()).limit(remaining)
@@ -2999,7 +3005,7 @@ async def html_index(request: Request):
     async with async_session() as sess:
         owner_id = current_user.id
         # base ordered query (newest first)
-        q = select(ListState).where(ListState.owner_id == owner_id).where(ListState.parent_todo_id == None)
+        q = select(ListState).where(ListState.owner_id == owner_id).where(ListState.parent_todo_id == None).where(ListState.parent_list_id == None)
         # apply cursor condition if present
         if cursor_dt is not None and cursor_id is not None:
             if dir_param == 'prev':
@@ -3028,14 +3034,14 @@ async def html_index(request: Request):
             prev_cursor_created_at, prev_cursor_id = first.created_at, first.id
             next_cursor_created_at, next_cursor_id = last.created_at, last.id
             # is there anything newer than first?
-            q_prev_exists = select(ListState.id).where(ListState.owner_id == owner_id).where(ListState.parent_todo_id == None).where(
+            q_prev_exists = select(ListState.id).where(ListState.owner_id == owner_id).where(ListState.parent_todo_id == None).where(ListState.parent_list_id == None).where(
                 or_(ListState.created_at > first.created_at,
                     and_(ListState.created_at == first.created_at, ListState.id > first.id))
             ).limit(1)
             r_prev = await sess.exec(q_prev_exists)
             has_prev = r_prev.first() is not None
             # is there anything older than last?
-            q_next_exists = select(ListState.id).where(ListState.owner_id == owner_id).where(ListState.parent_todo_id == None).where(
+            q_next_exists = select(ListState.id).where(ListState.owner_id == owner_id).where(ListState.parent_todo_id == None).where(ListState.parent_list_id == None).where(
                 or_(ListState.created_at < last.created_at,
                     and_(ListState.created_at == last.created_at, ListState.id < last.id))
             ).limit(1)
@@ -3078,7 +3084,7 @@ async def html_index(request: Request):
         pinned_todos = []
         try:
             # visible lists: owned by user or public (owner_id is NULL)
-            qvis = select(ListState).where(((ListState.owner_id == owner_id) | (ListState.owner_id == None))).where(ListState.parent_todo_id == None)
+            qvis = select(ListState).where(((ListState.owner_id == owner_id) | (ListState.owner_id == None))).where(ListState.parent_todo_id == None).where(ListState.parent_list_id == None)
             rvis = await sess.exec(qvis)
             vis_lists = rvis.all()
             vis_ids = [l.id for l in vis_lists]
@@ -4162,6 +4168,8 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
             "category_id": getattr(lst, 'category_id', None),
             # expose parent todo owner for sublist toolbar/navigation
             "parent_todo_id": getattr(lst, 'parent_todo_id', None),
+            # expose parent list owner for nested list navigation (not yet used in UI)
+            "parent_list_id": getattr(lst, 'parent_list_id', None),
         }
         # If this list is owned by a todo, fetch the todo text for UI label
         if getattr(lst, 'parent_todo_id', None):
@@ -4209,6 +4217,37 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
             categories = [{'id': c.id, 'name': c.name, 'position': c.position} for c in cres.all()]
         except Exception:
             categories = []
+        # Fetch sublists owned by this list (list->list nesting). Use explicit sibling position when set,
+        # else fall back to created_at ASC. Enrich with hashtags for display.
+        sublists = []
+        try:
+            qsubs = select(ListState).where(ListState.parent_list_id == list_id)
+            rsubs = await sess.exec(qsubs)
+            rows = rsubs.all()
+            def _sort_key(l):
+                pos = getattr(l, 'parent_list_position', None)
+                created = getattr(l, 'created_at', None)
+                return (0 if pos is not None else 1, pos if pos is not None else 0, created or now_utc())
+            rows.sort(key=_sort_key)
+            sub_ids = [l.id for l in rows if l.id is not None]
+            tag_map: dict[int, list[str]] = {}
+            if sub_ids:
+                qlh = select(ListHashtag.list_id, Hashtag.tag).join(Hashtag, Hashtag.id == ListHashtag.hashtag_id).where(ListHashtag.list_id.in_(sub_ids))
+                rlh = await sess.exec(qlh)
+                for lid, tag in rlh.all():
+                    tag_map.setdefault(lid, []).append(tag)
+            for l in rows:
+                sublists.append({
+                    'id': l.id,
+                    'name': l.name,
+                    'completed': getattr(l, 'completed', False),
+                    'created_at': getattr(l, 'created_at', None),
+                    'modified_at': getattr(l, 'modified_at', None),
+                    'hashtags': tag_map.get(l.id, []),
+                    'parent_list_position': getattr(l, 'parent_list_position', None),
+                })
+        except Exception:
+            sublists = []
     from .auth import create_csrf_token
     csrf_token = create_csrf_token(current_user.username)
     # Best-effort: record that the current user visited this list so the
@@ -4220,8 +4259,9 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
         await record_list_visit(list_id=list_id, current_user=current_user)
     except Exception:
         logger.exception('failed to record list visit for list %s', list_id)
+    # timezone for template rendering
     client_tz = await get_session_timezone(request)
-    return TEMPLATES.TemplateResponse(request, "list.html", {"request": request, "list": list_row, "todos": todo_rows, "csrf_token": csrf_token, "client_tz": client_tz, "completion_types": completion_types, "all_hashtags": all_hashtags, "categories": categories})
+    return TEMPLATES.TemplateResponse(request, "list.html", {"request": request, "list": list_row, "todos": todo_rows, "csrf_token": csrf_token, "client_tz": client_tz, "completion_types": completion_types, "all_hashtags": all_hashtags, "categories": categories, "sublists": sublists})
 
 
 @app.post('/html_no_js/lists/{list_id}/complete')
@@ -4795,6 +4835,132 @@ async def html_move_sublist(request: Request, todo_id: int, list_id: int, direct
     async with async_session() as sess:
         await _move_sublist_core(sess, current_user=current_user, todo_id=todo_id, list_id=list_id, direction=direction)
     return RedirectResponse(url=f'/html_no_js/todos/{todo_id}', status_code=303)
+
+
+# ===== List -> List sublists (nested lists) =====
+async def _normalize_list_sublists_positions(sess, parent_list_id: int):
+    q = await sess.exec(select(ListState).where(ListState.parent_list_id == parent_list_id))
+    rows = q.all()
+    def _key(l):
+        pos = getattr(l, 'parent_list_position', None)
+        cr = getattr(l, 'created_at', None) or now_utc()
+        return (0 if pos is not None else 1, pos if pos is not None else 0, cr)
+    rows.sort(key=_key)
+    changed = False
+    for idx, l in enumerate(rows):
+        if getattr(l, 'parent_list_position', None) != idx:
+            l.parent_list_position = idx
+            sess.add(l)
+            changed = True
+    if changed:
+        try:
+            await sess.commit()
+        except Exception:
+            await sess.rollback()
+
+
+@app.post('/html_no_js/lists/{list_id}/sublists/create')
+async def html_create_list_sublist(request: Request, list_id: int, name: str = Form(...), current_user: User = Depends(require_login)):
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    async with async_session() as sess:
+        lst = await sess.get(ListState, list_id)
+        if not lst:
+            raise HTTPException(status_code=404, detail='list not found')
+        if lst.owner_id != current_user.id:
+            raise HTTPException(status_code=403, detail='forbidden')
+        norm_name = remove_hashtags_from_text((name or '').lstrip())
+        if not norm_name:
+            raise HTTPException(status_code=400, detail='name is required')
+        try:
+            qmax = await sess.exec(select(ListState.parent_list_position).where(ListState.parent_list_id == list_id))
+            positions = [p[0] if isinstance(p, (tuple, list)) else p for p in qmax.fetchall()]
+            next_pos = (max([pp for pp in positions if pp is not None]) + 1) if positions else 0
+        except Exception:
+            next_pos = 0
+        sub = ListState(name=norm_name, owner_id=current_user.id, parent_list_id=list_id, parent_list_position=next_pos)
+        sess.add(sub)
+        await sess.commit()
+        await sess.refresh(sub)
+        try:
+            dc = CompletionType(name='default', list_id=sub.id)
+            sess.add(dc)
+            await sess.commit()
+        except Exception:
+            await sess.rollback()
+    return RedirectResponse(url=f'/html_no_js/lists/{list_id}', status_code=303)
+
+
+class MoveListSublistRequest(BaseModel):
+    direction: str
+
+
+async def _move_list_sublist_core(sess, *, current_user: User, list_id: int, sub_id: int, direction: str) -> dict:
+    if direction not in ('up', 'down'):
+        raise HTTPException(status_code=400, detail='invalid direction')
+    lst = await sess.get(ListState, list_id)
+    if not lst:
+        raise HTTPException(status_code=404, detail='list not found')
+    if lst.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail='forbidden')
+    sub = await sess.get(ListState, sub_id)
+    if not sub or getattr(sub, 'parent_list_id', None) != list_id:
+        raise HTTPException(status_code=404, detail='sublist not found')
+    q = await sess.exec(select(ListState).where(ListState.parent_list_id == list_id))
+    sibs = q.all()
+    await _normalize_list_sublists_positions(sess, list_id)
+    await sess.refresh(sub)
+    cur_pos = getattr(sub, 'parent_list_position', None)
+    if cur_pos is None:
+        try:
+            maxp = max([getattr(s, 'parent_list_position', -1) or -1 for s in sibs])
+        except Exception:
+            maxp = -1
+        sub.parent_list_position = maxp + 1
+        sess.add(sub)
+        await sess.commit()
+        cur_pos = sub.parent_list_position
+    if direction == 'up' and cur_pos > 0:
+        target_pos = cur_pos - 1
+    elif direction == 'down':
+        try:
+            maxp = max([getattr(s, 'parent_list_position', -1) or -1 for s in sibs])
+        except Exception:
+            maxp = -1
+        target_pos = cur_pos + 1 if cur_pos < maxp else None
+    else:
+        target_pos = None
+    if target_pos is None:
+        await _normalize_list_sublists_positions(sess, list_id)
+        return {'ok': True, 'moved': False}
+    other = None
+    for s in sibs:
+        if getattr(s, 'parent_list_position', None) == target_pos:
+            other = s
+            break
+    sub.parent_list_position, target_pos_val = target_pos, cur_pos
+    sess.add(sub)
+    if other:
+        other.parent_list_position = target_pos_val
+        sess.add(other)
+    await sess.commit()
+    await _normalize_list_sublists_positions(sess, list_id)
+    return {'ok': True, 'moved': True}
+
+
+@app.post('/html_no_js/lists/{list_id}/sublists/{sub_id}/move')
+async def html_move_list_sublist(request: Request, list_id: int, sub_id: int, direction: str = Form(...), current_user: User = Depends(require_login)):
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    async with async_session() as sess:
+        await _move_list_sublist_core(sess, current_user=current_user, list_id=list_id, sub_id=sub_id, direction=direction)
+    return RedirectResponse(url=f'/html_no_js/lists/{list_id}', status_code=303)
 
 
 @app.post('/html_no_js/todos/{todo_id}/edit')
