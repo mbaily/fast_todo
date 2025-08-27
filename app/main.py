@@ -1620,6 +1620,21 @@ async def get_default_list():
         return q.first()
 
 
+@app.get('/lists/{list_id}')
+async def get_list(list_id: int, current_user: User = Depends(require_login)):
+    """Return a JSON representation of a list the user owns (or public).
+
+    Used by client-side move page to display names for marked ids.
+    """
+    async with async_session() as sess:
+        lst = await sess.get(ListState, list_id)
+        if not lst:
+            raise HTTPException(status_code=404, detail='list not found')
+        if lst.owner_id not in (None, current_user.id):
+            raise HTTPException(status_code=403, detail='forbidden')
+        return _serialize_list(lst)
+
+
 class TokenRequest(BaseModel):
     username: str
     password: str
@@ -2621,6 +2636,281 @@ async def html_pin_todo(request: Request, todo_id: int, pinned: str = Form(...),
             return RedirectResponse(url=f'/html_no_js/lists/{todo.list_id}#todo-{todo_id}', status_code=303)
     # fallback: redirect to the todo page if we couldn't determine the list
     return RedirectResponse(url=f'/html_no_js/todos/{todo_id}', status_code=303)
+
+
+# ===== Move UI (mark+move) =====
+@app.get('/html_no_js/move', response_class=HTMLResponse)
+async def html_move_ui(request: Request, current_user: User = Depends(require_login)):
+    """Render the move UI page (client-side JS reads marked items from localStorage)."""
+    from .auth import create_csrf_token
+    csrf_token = create_csrf_token(current_user.username)
+    client_tz = await get_session_timezone(request)
+    return TEMPLATES.TemplateResponse(request, 'move.html', {"request": request, "csrf_token": csrf_token, "client_tz": client_tz})
+
+
+def _ensure_owner_list(lst: ListState | None, user: User):
+    if not lst:
+        raise HTTPException(status_code=404, detail='list not found')
+    if lst.owner_id not in (None, user.id):
+        raise HTTPException(status_code=403, detail='forbidden')
+
+
+def _ensure_owner_todo_parent_list(todo: Todo | None, lst: ListState | None, user: User):
+    if not todo:
+        raise HTTPException(status_code=404, detail='todo not found')
+    # todo must have a parent list and that list must be owned by the current user (or public)
+    if not lst:
+        raise HTTPException(status_code=404, detail='parent list not found')
+    if lst.owner_id not in (None, user.id):
+        raise HTTPException(status_code=403, detail='forbidden')
+
+
+async def _next_position_for_parent(sess, *, parent_todo_id: int | None = None, parent_list_id: int | None = None) -> int:
+    if parent_todo_id is not None:
+        q = await sess.exec(select(ListState.parent_todo_position).where(ListState.parent_todo_id == parent_todo_id))
+        positions = [p[0] if isinstance(p, (tuple, list)) else p for p in q.fetchall()]
+        try:
+            return (max([pp for pp in positions if pp is not None]) + 1) if positions else 0
+        except Exception:
+            return 0
+    if parent_list_id is not None:
+        q = await sess.exec(select(ListState.parent_list_position).where(ListState.parent_list_id == parent_list_id))
+        positions = [p[0] if isinstance(p, (tuple, list)) else p for p in q.fetchall()]
+        try:
+            return (max([pp for pp in positions if pp is not None]) + 1) if positions else 0
+        except Exception:
+            return 0
+    return 0
+
+
+@app.post('/html_no_js/move/list_to_todo')
+async def html_move_list_to_todo(request: Request, source_list_id: int = Form(...), target_todo_id: int = Form(...), current_user: User = Depends(require_login)):
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    async with async_session() as sess:
+        src = await sess.get(ListState, source_list_id)
+        _ensure_owner_list(src, current_user)
+        todo = await sess.get(Todo, target_todo_id)
+        if not todo:
+            raise HTTPException(status_code=404, detail='todo not found')
+        # ensure user owns the todo via its parent list
+        tl = await sess.get(ListState, todo.list_id)
+        _ensure_owner_todo_parent_list(todo, tl, current_user)
+        # Guard: prevent creating a cycle by placing a list under a todo that belongs to the same list subtree.
+        # Immediate self-cycle: todo currently belongs to the source list.
+        try:
+            if todo.list_id is not None and int(todo.list_id) == int(source_list_id):
+                return RedirectResponse(url=f'/html_no_js/lists/{source_list_id}', status_code=303)
+        except Exception:
+            pass
+        # Ascend from the todo's current list through parent_list/parent_todo chain; if we encounter source_list_id, this move would create a cycle.
+        try:
+            seen = 0
+            cur_list_id = int(todo.list_id) if getattr(todo, 'list_id', None) is not None else None
+            while cur_list_id is not None and seen < 200:
+                if int(cur_list_id) == int(source_list_id):
+                    # would create a cycle
+                    return RedirectResponse(url=f'/html_no_js/lists/{source_list_id}', status_code=303)
+                cur_list = await sess.get(ListState, cur_list_id)
+                if not cur_list:
+                    break
+                if getattr(cur_list, 'parent_list_id', None) is not None:
+                    cur_list_id = int(cur_list.parent_list_id)
+                    seen += 1
+                    continue
+                ptid = getattr(cur_list, 'parent_todo_id', None)
+                if ptid is not None:
+                    pt = await sess.get(Todo, int(ptid))
+                    if not pt:
+                        break
+                    cur_list_id = int(pt.list_id) if getattr(pt, 'list_id', None) is not None else None
+                    seen += 1
+                    continue
+                break
+        except Exception:
+            # If traversal fails, proceed (better UX than throwing) – server still safe from obvious self-cycle.
+            pass
+        # reparent list under the todo
+        src.parent_list_id = None
+        src.parent_list_position = None
+        src.parent_todo_id = target_todo_id
+        src.parent_todo_position = await _next_position_for_parent(sess, parent_todo_id=target_todo_id)
+        src.modified_at = now_utc()
+        sess.add(src)
+        # touch involved lists
+        try:
+            await _touch_list_modified(sess, todo.list_id)
+        except Exception:
+            pass
+        await sess.commit()
+    return RedirectResponse(url=f'/html_no_js/todos/{target_todo_id}', status_code=303)
+
+
+@app.post('/html_no_js/move/list_to_list')
+async def html_move_list_to_list(request: Request, source_list_id: int = Form(...), target_list_id: int = Form(...), current_user: User = Depends(require_login)):
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    async with async_session() as sess:
+        src = await sess.get(ListState, source_list_id)
+        _ensure_owner_list(src, current_user)
+        dst = await sess.get(ListState, target_list_id)
+        _ensure_owner_list(dst, current_user)
+        # Prevent moving a list into itself
+        if int(source_list_id) == int(target_list_id):
+            # no-op; redirect back to the list page
+            return RedirectResponse(url=f'/html_no_js/lists/{source_list_id}', status_code=303)
+        # Prevent cycles: if target is a descendant of source, moving source under target would create a cycle.
+        try:
+            seen = 0
+            cur = dst
+            while cur is not None and getattr(cur, 'parent_list_id', None) is not None and seen < 100:
+                if int(cur.parent_list_id) == int(source_list_id):
+                    # would create a cycle; reject politely
+                    return RedirectResponse(url=f'/html_no_js/lists/{source_list_id}', status_code=303)
+                seen += 1
+                try:
+                    cur = await sess.get(ListState, cur.parent_list_id)
+                except Exception:
+                    break
+        except Exception:
+            # on any error, fall through; better to proceed than break UX
+            pass
+        # reparent list under list
+        src.parent_todo_id = None
+        src.parent_todo_position = None
+        src.parent_list_id = target_list_id
+        src.parent_list_position = await _next_position_for_parent(sess, parent_list_id=target_list_id)
+        src.modified_at = now_utc()
+        sess.add(src)
+        # touch destination list
+        try:
+            await _touch_list_modified(sess, target_list_id)
+        except Exception:
+            pass
+        await sess.commit()
+    return RedirectResponse(url=f'/html_no_js/lists/{target_list_id}', status_code=303)
+
+
+@app.post('/html_no_js/move/todo_to_list')
+async def html_move_todo_to_list(request: Request, source_todo_id: int = Form(...), target_list_id: int = Form(...), current_user: User = Depends(require_login)):
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    async with async_session() as sess:
+        todo = await sess.get(Todo, source_todo_id)
+        if not todo:
+            raise HTTPException(status_code=404, detail='todo not found')
+        # check ownership via current parent list
+        cur_parent = await sess.get(ListState, todo.list_id)
+        _ensure_owner_todo_parent_list(todo, cur_parent, current_user)
+        # ensure destination list is owned by user/public
+        dst = await sess.get(ListState, target_list_id)
+        _ensure_owner_list(dst, current_user)
+        # No-op guard: moving into the same list
+        try:
+            if todo.list_id is not None and int(todo.list_id) == int(target_list_id):
+                return RedirectResponse(url=f'/html_no_js/lists/{target_list_id}#todo-{source_todo_id}', status_code=303)
+        except Exception:
+            pass
+        # Cycle guard: prevent moving a todo into a list that is inside this todo's own subtree (descendant).
+        # Ascend from the target list via (parent_list_id) or (parent_todo_id -> that todo's list_id) until root; if we hit this todo id, reject.
+        try:
+            seen = 0
+            cur_list_id = int(target_list_id)
+            while cur_list_id is not None and seen < 200:
+                lst = await sess.get(ListState, cur_list_id)
+                if not lst:
+                    break
+                ptid = getattr(lst, 'parent_todo_id', None)
+                if ptid is not None and int(ptid) == int(source_todo_id):
+                    # target is within the subtree of the source todo -> cycle
+                    return RedirectResponse(url=f'/html_no_js/lists/{todo.list_id}#todo-{source_todo_id}', status_code=303)
+                # climb up
+                if getattr(lst, 'parent_list_id', None) is not None:
+                    cur_list_id = int(lst.parent_list_id)
+                    seen += 1
+                    continue
+                if ptid is not None:
+                    pt = await sess.get(Todo, int(ptid))
+                    if not pt:
+                        break
+                    cur_list_id = int(pt.list_id) if getattr(pt, 'list_id', None) is not None else None
+                    seen += 1
+                    continue
+                break
+        except Exception:
+            # On traversal error, continue; the most problematic self-cases are already handled by no-op guard.
+            pass
+        old_list_id = int(todo.list_id)
+        todo.list_id = target_list_id
+        todo.modified_at = now_utc()
+        sess.add(todo)
+        try:
+            await _touch_list_modified(sess, target_list_id)
+            if old_list_id != target_list_id:
+                await _touch_list_modified(sess, old_list_id)
+        except Exception:
+            pass
+        await sess.commit()
+        tid = int(todo.id)
+    return RedirectResponse(url=f'/html_no_js/lists/{target_list_id}#todo-{tid}', status_code=303)
+
+
+@app.post('/html_no_js/move/clear')
+async def html_move_clear_parent(request: Request, item_type: str = Form(...), item_id: int = Form(...), current_user: User = Depends(require_login)):
+    """Clear ownership: for lists, detach from any parent; for todos, move to server default list if available."""
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    async with async_session() as sess:
+        if item_type == 'list':
+            lst = await sess.get(ListState, item_id)
+            _ensure_owner_list(lst, current_user)
+            lst.parent_todo_id = None
+            lst.parent_todo_position = None
+            lst.parent_list_id = None
+            lst.parent_list_position = None
+            lst.modified_at = now_utc()
+            sess.add(lst)
+            await sess.commit()
+            return RedirectResponse(url=f'/html_no_js/lists/{item_id}', status_code=303)
+        elif item_type == 'todo':
+            todo = await sess.get(Todo, item_id)
+            if not todo:
+                raise HTTPException(status_code=404, detail='todo not found')
+            cur_parent = await sess.get(ListState, todo.list_id)
+            _ensure_owner_todo_parent_list(todo, cur_parent, current_user)
+            # find default list
+            qs = await sess.exec(select(ServerState))
+            ss = qs.first()
+            if not ss or not ss.default_list_id:
+                raise HTTPException(status_code=400, detail='no default list configured')
+            dst = await sess.get(ListState, ss.default_list_id)
+            _ensure_owner_list(dst, current_user)
+            old_list_id = int(todo.list_id)
+            todo.list_id = int(dst.id)
+            todo.modified_at = now_utc()
+            sess.add(todo)
+            try:
+                await _touch_list_modified(sess, todo.list_id)
+                if old_list_id != todo.list_id:
+                    await _touch_list_modified(sess, old_list_id)
+            except Exception:
+                pass
+            await sess.commit()
+            return RedirectResponse(url=f'/html_no_js/lists/{dst.id}#todo-{todo.id}', status_code=303)
+        else:
+            raise HTTPException(status_code=400, detail='invalid item_type')
 
 
 @app.post("/todos/{todo_id}/defer")

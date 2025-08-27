@@ -89,7 +89,7 @@
 
   {% if sublists is defined %}
   <section aria-label="Sublists" style="margin-top:1rem">
-    <h3 style="margin:0 0 .4rem 0">Sublists</h3>
+    <h3 style="margin:0 0 .4rem 0">Sublists <button type="button" id="mark-list-hdr" data-todo-id="{{ todo.id }}" title="Mark this todo for move" style="border:none;background:transparent;cursor:pointer;font-size:1rem;">🔖</button> <a href="/html_no_js/move" id="move-hdr" title="Open move page" style="text-decoration:none; font-size:1rem;">↔️</a></h3>
     {# Inline create control (replaces the previous 'No sublists yet' message) #}
     <form method="post" action="/html_no_js/todos/{{ todo.id }}/sublists/create" style="margin:0 0 .4rem 0" autocomplete="off">
       {{ csrf_field() }}
@@ -154,6 +154,18 @@
 {% endblock %}
 
 {% block scripts %}
+<script>
+// Simple mark-storage helper used by mark icon
+(function(){
+  const KEY='ft_marks_v1'; const TTL=5*60*1000; // 5 minutes
+  function load(){ try { return JSON.parse(localStorage.getItem(KEY)||'{}')||{}; } catch(_){ return {}; } }
+  function save(o){ try { localStorage.setItem(KEY, JSON.stringify(o||{})); } catch(_){ } }
+  function prune(o){ const t=Date.now(); const out={todos:{},lists:{}}; if(o.todos) for(const[k,v] of Object.entries(o.todos)) if((t-v)<TTL) out.todos[k]=v; if(o.lists) for(const[k,v] of Object.entries(o.lists)) if((t-v)<TTL) out.lists[k]=v; return out; }
+  function mark(kind, id){ let o=prune(load()); if(!o[kind]) o[kind]={}; o[kind][String(id)]=Date.now(); save(o); }
+  const btn = document.getElementById('mark-list-hdr');
+  if (btn){ btn.addEventListener('click', function(){ var tid = Number(btn.getAttribute('data-todo-id')); if (tid) { mark('todos', tid); btn.textContent='✔️'; setTimeout(function(){ btn.textContent='🔖'; }, 1200); } }); }
+})();
+</script>
 <script>
 // Styles for hashtag suggestion box shared with list page
 (function(){

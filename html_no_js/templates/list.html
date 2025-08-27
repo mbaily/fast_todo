@@ -523,7 +523,7 @@
                   {% if list.hide_icons %}
                     <span class="wrap-text"{% if dt_iso %} data-created-at="{{ dt_iso }}"{% endif %}{% if dt_fmt %} data-date="{{ dt_fmt }}"{% endif %}>{{ t.text }} <a href="/html_no_js/todos/{{ t.id }}" class="todo-open-link" aria-label="View todo {{ t.id }}" style="margin-left:0.25rem; text-decoration:none;">🔎</a></span>
                   {% else %}
-                    <a class="wrap-text"{% if dt_iso %} data-created-at="{{ dt_iso }}"{% endif %} href="/html_no_js/todos/{{ t.id }}"{% if dt_fmt %} data-date="{{ dt_fmt }}"{% endif %}>{{ t.text }}</a>
+                    <a class="wrap-text" href="/html_no_js/todos/{{ t.id }}"{% if dt_iso %} data-created-at="{{ dt_iso }}"{% endif %}{% if dt_fmt %} data-date="{{ dt_fmt }}"{% endif %}>{{ t.text }}</a>
                   {% endif %}
               </div>
               {% if t.note %}
@@ -724,7 +724,7 @@
   {# Sublists section moved here, below the delete icon toolbar #}
   {% if sublists is defined %}
   <section aria-label="Sublists" style="margin-top:1rem">
-    <h3 style="margin:0 0 .4rem 0">Sublists</h3>
+    <h3 style="margin:0 0 .4rem 0">Sublists <button type="button" id="mark-list-hdr" data-list-id="{{ list.id }}" title="Mark this list for move" style="border:none;background:transparent;cursor:pointer;font-size:1rem;">🔖</button> <a href="/html_no_js/move" id="move-hdr" title="Open move page" style="text-decoration:none; font-size:1rem;">↔️</a></h3>
     <form method="post" action="/html_no_js/lists/{{ list.id }}/sublists/create" style="margin:0 0 .4rem 0" autocomplete="off">
       {{ csrf_field() }}
       <label>New sublist<br>
@@ -777,4 +777,19 @@
   </section>
   {% endif %}
     
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Simple mark-storage helper used by mark icon on list page
+(function(){
+  const KEY='ft_marks_v1'; const TTL=5*60*1000; // 5 minutes
+  function load(){ try { return JSON.parse(localStorage.getItem(KEY)||'{}')||{}; } catch(_){ return {}; } }
+  function save(o){ try { localStorage.setItem(KEY, JSON.stringify(o||{})); } catch(_){ } }
+  function prune(o){ const t=Date.now(); const out={todos:{},lists:{}}; if(o.todos) for(const[k,v] of Object.entries(o.todos)) if((t-v)<TTL) out.todos[k]=v; if(o.lists) for(const[k,v] of Object.entries(o.lists)) if((t-v)<TTL) out.lists[k]=v; return out; }
+  function mark(kind, id){ let o=prune(load()); if(!o[kind]) o[kind]={}; o[kind][String(id)]=Date.now(); save(o); }
+  var btn = document.getElementById('mark-list-hdr');
+  if (btn){ btn.addEventListener('click', function(){ var lid = Number(btn.getAttribute('data-list-id')); if (lid) { mark('lists', lid); btn.textContent='✔️'; setTimeout(function(){ btn.textContent='🔖'; }, 1200); } }); }
+})();
+</script>
 {% endblock %}
