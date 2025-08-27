@@ -1,0 +1,166 @@
+{% extends 'base.html' %}
+{% block title %}Move — Fast Todo (no-js){% endblock %}
+{% block content %}
+  <style>
+    .move-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .card { border: 1px solid var(--border); padding: 0.75rem; border-radius: 6px; background: var(--surface); }
+    .list { list-style: none; padding-left: 0; margin: 0.25rem 0 0 0; }
+    .list li { padding: 0.15rem 0; }
+    .dim { color: var(--muted); }
+  </style>
+  <h2>Move</h2>
+  <p class="meta">Pick a source and a target from your marked items below. Mark items from list/todo pages. Marks expire after a few minutes.</p>
+
+  <div class="move-grid">
+    <div class="card">
+      <h3>Marked todos</h3>
+      <ul id="marked-todos" class="list dim"><li>Loading…</li></ul>
+    </div>
+    <div class="card">
+      <h3>Marked lists</h3>
+      <ul id="marked-lists" class="list dim"><li>Loading…</li></ul>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:1rem;">
+    <h3>Actions</h3>
+    <form id="move-form" method="post" action="#">
+      {{ csrf_field() }}
+      <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
+        <label>Source
+          <select id="source-select"></select>
+        </label>
+        <span>→</span>
+        <label>Target
+          <select id="target-select"></select>
+        </label>
+        <button type="submit">Move</button>
+        <button type="button" id="clear-btn">Clear ownership</button>
+      </div>
+    </form>
+    <p class="meta" id="hint"></p>
+  </div>
+
+  <div class="card" style="margin-top:1rem;">
+    <h3>Manage marks</h3>
+    <button type="button" id="clear-marks">Clear all marks</button>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function(){
+  const TTL_MS = 5 * 60 * 1000; // 5 minutes
+  const KEY = 'ft_marks_v1';
+  function now(){ return Date.now(); }
+  function load(){
+    try{ const o = JSON.parse(localStorage.getItem(KEY)||'{}'); return o && typeof o==='object'?o:{}; }catch(_){ return {}; }
+  }
+  function save(o){ try{ localStorage.setItem(KEY, JSON.stringify(o||{})); }catch(_){ } }
+  function prune(o){
+    const t = now(); const out = { todos:{}, lists:{} };
+    if (o && o.todos) { for (const [id, ts] of Object.entries(o.todos)) if ((t - ts) < TTL_MS) out.todos[id]=ts; }
+    if (o && o.lists) { for (const [id, ts] of Object.entries(o.lists)) if ((t - ts) < TTL_MS) out.lists[id]=ts; }
+    return out;
+  }
+  function apiGetJSON(url){ return fetch(url, { credentials:'same-origin' }).then(r=>r.json()); }
+  function el(tag, props){ const e=document.createElement(tag); if (props) Object.assign(e, props); return e; }
+
+  const todosUL = document.getElementById('marked-todos');
+  const listsUL = document.getElementById('marked-lists');
+  const srcSel = document.getElementById('source-select');
+  const tgtSel = document.getElementById('target-select');
+  const hint = document.getElementById('hint');
+  const clearBtn = document.getElementById('clear-btn');
+  const clearMarksBtn = document.getElementById('clear-marks');
+  const form = document.getElementById('move-form');
+
+  let marks = prune(load()); save(marks);
+
+  function option(label, value){ const o = document.createElement('option'); o.textContent = label; o.value = value; return o; }
+  function labelFor(kind, obj){
+    if (kind==='todo') return `todo #${obj.id}: ${obj.text}`;
+    if (kind==='list') return `list #${obj.id}: ${obj.name}`;
+    return String(obj.id);
+  }
+
+  async function populate(){
+    // lists
+    listsUL.innerHTML='';
+    const listIds = Object.keys(marks.lists||{});
+    if (listIds.length===0){ listsUL.innerHTML='<li class="dim">None marked</li>'; }
+    for (const id of listIds){
+      try{
+        const d = await apiGetJSON(`/lists/${encodeURIComponent(id)}`);
+        const li = el('li'); li.textContent = labelFor('list', d); listsUL.appendChild(li);
+      }catch(_){ /* ignore */ }
+    }
+    // todos
+    todosUL.innerHTML='';
+    const todoIds = Object.keys(marks.todos||{});
+    if (todoIds.length===0){ todosUL.innerHTML='<li class="dim">None marked</li>'; }
+    for (const id of todoIds){
+      try{
+        const d = await apiGetJSON(`/todos/${encodeURIComponent(id)}`);
+        const li = el('li'); li.textContent = labelFor('todo', d); todosUL.appendChild(li);
+      }catch(_){ /* ignore */ }
+    }
+
+    // source/target selects
+    srcSel.innerHTML=''; tgtSel.innerHTML='';
+    // sources can be list or todo
+    listIds.forEach(id=> srcSel.appendChild(option(`[list] ${id}`, `list:${id}`)));
+    todoIds.forEach(id=> srcSel.appendChild(option(`[todo] ${id}`, `todo:${id}`)));
+    // targets can be list or todo (by spec)
+    listIds.forEach(id=> tgtSel.appendChild(option(`[list] ${id}`, `list:${id}`)));
+    todoIds.forEach(id=> tgtSel.appendChild(option(`[todo] ${id}`, `todo:${id}`)));
+
+    hint.textContent = 'Move: list→todo makes list a sublist of todo; list→list makes nested sublist; todo→list moves todo between lists.';
+  }
+
+  form.addEventListener('submit', function(ev){
+    ev.preventDefault();
+    const s = srcSel.value; const t = tgtSel.value;
+    if (!s || !t) return;
+    const [sk, sid] = s.split(':');
+    const [tk, tid] = t.split(':');
+    function setHidden(name, value){
+      let inp = form.querySelector('input[name="'+name+'"]');
+      if (!inp){ inp = document.createElement('input'); inp.type='hidden'; inp.name=name; form.appendChild(inp); }
+      inp.value = value;
+    }
+    const csrf = (document.querySelector('input[name="_csrf"]')||{}).value;
+    if (csrf) setHidden('_csrf', csrf);
+    if (sk==='list' && tk==='todo'){
+      setHidden('source_list_id', sid); setHidden('target_todo_id', tid);
+      form.action = '/html_no_js/move/list_to_todo'; form.method='post'; form.submit(); return;
+    }
+    if (sk==='list' && tk==='list'){
+  if (sid === tid) { alert('Cannot move a list into itself.'); return; }
+      setHidden('source_list_id', sid); setHidden('target_list_id', tid);
+      form.action = '/html_no_js/move/list_to_list'; form.method='post'; form.submit(); return;
+    }
+    if (sk==='todo' && tk==='list'){
+      setHidden('source_todo_id', sid); setHidden('target_list_id', tid);
+      form.action = '/html_no_js/move/todo_to_list'; form.method='post'; form.submit(); return;
+    }
+    alert('Unsupported move. You can: list→todo, list→list, todo→list.');
+  });
+
+  clearBtn.addEventListener('click', function(){
+    const s = srcSel.value; if (!s) return;
+    const [sk, sid] = s.split(':');
+    if (sk!=='list' && sk!=='todo') return;
+    const csrf = (document.querySelector('input[name="_csrf"]')||{}).value;
+    const fd = new FormData(); fd.append('_csrf', csrf); fd.append('item_type', sk); fd.append('item_id', sid);
+    fetch('/html_no_js/move/clear', { method: 'POST', body: fd, credentials:'same-origin' })
+      .then(r=>{ if (r.redirected) location.href=r.url; })
+      .catch(()=>{});
+  });
+
+  clearMarksBtn.addEventListener('click', function(){ save({todos:{}, lists:{}}); marks = prune(load()); populate(); });
+
+  populate();
+})();
+</script>
+{% endblock %}
