@@ -158,7 +158,7 @@
             var aHas = (pa !== null), bHas = (pb !== null);
             if (aHas && !bHas) return -1; // priority first
             if (!aHas && bHas) return 1;
-            if (aHas && bHas && pa !== pb) return pa - pb; // lower number first
+            if (aHas && bHas && pa !== pb) return pb - pa; // higher number first
             var ad = 0, bd = 0;
             if (sel.value === 'modified') {
               ad = parseISO(a.getAttribute('data-modified-at')) || parseISO(a.getAttribute('data-created-at'));
