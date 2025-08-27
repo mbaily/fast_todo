@@ -1040,8 +1040,16 @@ async def calendar_occurrences(request: Request,
                         except Exception:
                             # invalid date (e.g., Feb 29 on non-leap year)
                             continue
-                        # only add candidate if it falls inside the allowed window
-                        if cand >= allowed_start and cand <= allowed_end:
+                        # include candidate if it falls inside the allowed window
+                        # or if it is on the same calendar date as the list's
+                        # creation date (handle lists created later the same day)
+                        same_calendar_date_as_created = False
+                        try:
+                            if item_created and cand.date() == item_created.date():
+                                same_calendar_date_as_created = True
+                        except Exception:
+                            pass
+                        if (cand >= allowed_start and cand <= allowed_end) or (same_calendar_date_as_created and cand >= start_dt and cand <= allowed_end):
                             add_occ('list', l.id, None, l.name, cand, None, False, '', None, source='list-yearless')
 
         # scan todos
