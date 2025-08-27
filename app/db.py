@@ -145,8 +145,19 @@ def _ensure_sqlite_minimal_migrations(url: str | None) -> None:
                     except Exception:
                         # swallow; may fail on some drivers or when already exists
                         pass
+                if 'parent_todo_position' not in cols:
+                    try:
+                        cur.execute("ALTER TABLE liststate ADD COLUMN parent_todo_position INTEGER")
+                        conn.commit()
+                    except Exception:
+                        pass
                 try:
                     cur.execute("CREATE INDEX IF NOT EXISTS ix_liststate_parent_todo_id ON liststate(parent_todo_id)")
+                    conn.commit()
+                except Exception:
+                    pass
+                try:
+                    cur.execute("CREATE INDEX IF NOT EXISTS ix_liststate_parent_todo_pos ON liststate(parent_todo_id, parent_todo_position)")
                     conn.commit()
                 except Exception:
                     pass
@@ -558,11 +569,20 @@ async def init_db():
                     await conn.execute(text("ALTER TABLE liststate ADD COLUMN parent_todo_id INTEGER"))
                 except Exception:
                     logger.exception('failed to add parent_todo_id to liststate during init_db')
+            if 'parent_todo_position' not in cols:
+                try:
+                    await conn.execute(text("ALTER TABLE liststate ADD COLUMN parent_todo_position INTEGER"))
+                except Exception:
+                    logger.exception('failed to add parent_todo_position to liststate during init_db')
             # Ensure index exists (SQLite supports IF NOT EXISTS)
             try:
                 await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_liststate_parent_todo_id ON liststate(parent_todo_id)"))
             except Exception:
                 logger.exception('failed to create ix_liststate_parent_todo_id during init_db')
+            try:
+                await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_liststate_parent_todo_pos ON liststate(parent_todo_id, parent_todo_position)"))
+            except Exception:
+                logger.exception('failed to create ix_liststate_parent_todo_pos during init_db')
         except Exception:
             logger.exception('failed to ensure parent_todo_id on liststate in init_db')
         # defensive dedupe: if earlier test runs created duplicate rows

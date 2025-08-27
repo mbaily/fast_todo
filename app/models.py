@@ -39,6 +39,10 @@ class ListState(SQLModel, table=True):
     # list is considered a child of the given Todo and should be hidden from
     # the root index views.
     parent_todo_id: Optional[int] = Field(default=None, foreign_key="todo.id", index=True)
+    # Position among siblings when this list is a sublist of a Todo. When NULL,
+    # ordering will fall back to created_at. Positions are normalized to
+    # contiguous 0..N-1 per parent_todo_id when reordering via API/UI.
+    parent_todo_position: Optional[int] = Field(default=None, index=True)
 
     todos: List["Todo"] = Relationship(
         back_populates="list",

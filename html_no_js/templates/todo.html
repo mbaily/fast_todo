@@ -11,6 +11,14 @@
     header { margin-top: 0 !important; }
   /* ensure completed sublists are struck-through (match index) */
   .lists-list .list-title.done { text-decoration: line-through; color: #6b7280; }
+  /* sublists action column: ensure sufficient width and no overlap */
+  .lists-list .list-item { align-items: flex-start; }
+  .lists-list .list-item > .list-action-left { width: 5.5rem; flex: 0 0 5.5rem; gap: 0.25rem; align-items: center; justify-content: flex-start; }
+  .lists-list .list-item > .list-main { min-width: 0; }
+  .lists-list .list-action-btn { padding: 0.14rem 0.22rem; font-size: 0.95rem; }
+  @media (max-width: 480px) {
+    .lists-list .list-item > .list-action-left { width: 6.5rem; flex-basis: 6.5rem; }
+  }
   </style>
   
   {# Page toolbar (placed just below the main navigation toolbar) #}
@@ -96,10 +104,21 @@
           {% set created_iso = sl.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') %}
           {% set modified_iso = sl.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') if sl.modified_at else None %}
           <li class="list-item"{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %}>
-            <div class="list-action-left">
-              <form method="post" action="/html_no_js/lists/{{ sl.id }}/delete" class="confirm-delete" data-confirm="Delete list '{{ sl.name }}' and all its todos? This cannot be undone.">
+            <div class="list-action-left" style="display:flex;gap:0.25rem;align-items:center;">
+              <form method="post" action="/html_no_js/lists/{{ sl.id }}/delete" class="confirm-delete" data-confirm="Delete list '{{ sl.name }}' and all its todos? This cannot be undone." style="display:inline">
                 {{ csrf_field() }}
                 <button type="submit" class="list-action-btn" title="Delete list">🗑</button>
+              </form>
+              {# Move up/down within parent todo #}
+              <form method="post" action="/html_no_js/todos/{{ todo.id }}/sublists/{{ sl.id }}/move" style="display:inline">
+                {{ csrf_field() }}
+                <input type="hidden" name="direction" value="up">
+                <button type="submit" class="list-action-btn" title="Move up">⬆️</button>
+              </form>
+              <form method="post" action="/html_no_js/todos/{{ todo.id }}/sublists/{{ sl.id }}/move" style="display:inline">
+                {{ csrf_field() }}
+                <input type="hidden" name="direction" value="down">
+                <button type="submit" class="list-action-btn" title="Move down">⬇️</button>
               </form>
             </div>
             <div class="list-main">
@@ -107,6 +126,16 @@
               <button type="button" class="list-action-btn edit-list-btn" data-list-id="{{ sl.id }}" data-list-name="{{ sl.name|e }}" title="Edit list name">✏️</button>
               {% if sl.created_at %}
                 <div class="meta">cr. {{ sl.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</div>
+              {% endif %}
+              {# list-level tags #}
+              {% if sl.hashtags and sl.hashtags|length > 0 %}
+                <div class="tags" role="list" aria-label="List tags">
+                  {% for tag in (sl.hashtags | sort) %}
+                    <div role="listitem" style="display:inline-block;margin-right:0.35rem">
+                      <a class="tag-chip" href="/html_no_js/search?q={{ tag|urlencode }}" role="link">{{ tag }}</a>
+                    </div>
+                  {% endfor %}
+                </div>
               {% endif %}
             </div>
           </li>

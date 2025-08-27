@@ -4578,16 +4578,38 @@ async def html_view_todo(request: Request, todo_id: int, current_user: User = De
         list_row = None
         if lst:
             list_row = {"id": lst.id, "name": lst.name, "completed": lst.completed}
-        # Fetch sublists owned by this todo (ordered newest first)
+        # Fetch sublists owned by this todo. Use explicit sibling position when set,
+        # else fall back to created_at ASC (older first). We'll also enrich with hashtags.
         sublists = []
         try:
-            qsubs = select(ListState).where(ListState.parent_todo_id == todo_id).order_by(ListState.created_at.desc())
+            # First select all sublists for this todo
+            qsubs = select(ListState).where(ListState.parent_todo_id == todo_id)
             rsubs = await sess.exec(qsubs)
-            for l in rsubs.all():
+            rows = rsubs.all()
+            # sort in-memory: by (position is not None, position) then created_at
+            def _sort_key(l):
+                pos = getattr(l, 'parent_todo_position', None)
+                created = getattr(l, 'created_at', None)
+                # Place items with a valid position before those with None
+                return (0 if pos is not None else 1, pos if pos is not None else 0, created or now_utc())
+            rows.sort(key=_sort_key)
+            # collect ids for a hashtag join
+            sub_ids = [l.id for l in rows if l.id is not None]
+            tag_map: dict[int, list[str]] = {}
+            if sub_ids:
+                qlh = select(ListHashtag.list_id, Hashtag.tag).join(Hashtag, Hashtag.id == ListHashtag.hashtag_id).where(ListHashtag.list_id.in_(sub_ids))
+                rlh = await sess.exec(qlh)
+                for lid, tag in rlh.all():
+                    tag_map.setdefault(lid, []).append(tag)
+            for l in rows:
                 sublists.append({
                     'id': l.id,
                     'name': l.name,
                     'completed': getattr(l, 'completed', False),
+                    'created_at': getattr(l, 'created_at', None),
+                    'modified_at': getattr(l, 'modified_at', None),
+                    'hashtags': tag_map.get(l.id, []),
+                    'parent_todo_position': getattr(l, 'parent_todo_position', None),
                 })
         except Exception:
             sublists = []
@@ -4620,7 +4642,14 @@ async def html_create_sublist(request: Request, todo_id: int, name: str = Form(.
         norm_name = remove_hashtags_from_text((name or '').lstrip())
         if not norm_name:
             raise HTTPException(status_code=400, detail='name is required')
-        sub = ListState(name=norm_name, owner_id=current_user.id, parent_todo_id=todo_id)
+        # Determine next position among siblings (append to end)
+        try:
+            qmax = await sess.exec(select(ListState.parent_todo_position).where(ListState.parent_todo_id == todo_id))
+            positions = [p[0] if isinstance(p, (tuple, list)) else p for p in qmax.fetchall()]
+            next_pos = (max([pp for pp in positions if pp is not None]) + 1) if positions else 0
+        except Exception:
+            next_pos = 0
+        sub = ListState(name=norm_name, owner_id=current_user.id, parent_todo_id=todo_id, parent_todo_position=next_pos)
         sess.add(sub)
         await sess.commit()
         await sess.refresh(sub)
@@ -4631,6 +4660,138 @@ async def html_create_sublist(request: Request, todo_id: int, name: str = Form(.
             await sess.commit()
         except Exception:
             await sess.rollback()
+    return RedirectResponse(url=f'/html_no_js/todos/{todo_id}', status_code=303)
+
+
+async def _normalize_sublist_positions(sess, parent_todo_id: int):
+    """Ensure sibling positions are contiguous starting at 0 for a parent's sublists."""
+    q = await sess.exec(select(ListState).where(ListState.parent_todo_id == parent_todo_id))
+    rows = q.all()
+    # order by current position (None last), then created_at
+    def _key(l):
+        pos = getattr(l, 'parent_todo_position', None)
+        cr = getattr(l, 'created_at', None) or now_utc()
+        return (0 if pos is not None else 1, pos if pos is not None else 0, cr)
+    rows.sort(key=_key)
+    changed = False
+    for idx, l in enumerate(rows):
+        if getattr(l, 'parent_todo_position', None) != idx:
+            l.parent_todo_position = idx
+            sess.add(l)
+            changed = True
+    if changed:
+        try:
+            await sess.commit()
+        except Exception:
+            await sess.rollback()
+
+
+class MoveSublistRequest(BaseModel):
+    direction: str
+
+
+async def _move_sublist_core(sess, *, current_user: User, todo_id: int, list_id: int, direction: str) -> dict:
+    """Core logic to move a sublist up or down within its parent's ordering.
+    Requires ownership via the parent todo's list.
+    Returns {ok: bool, moved: bool}.
+    """
+    if direction not in ('up', 'down'):
+        raise HTTPException(status_code=400, detail='invalid direction')
+    # validate parent todo and ownership via its list
+    todo = await sess.get(Todo, todo_id)
+    if not todo:
+        raise HTTPException(status_code=404, detail='todo not found')
+    ql = await sess.exec(select(ListState).where(ListState.id == todo.list_id))
+    lst = ql.first()
+    if not lst or lst.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail='forbidden')
+    # validate sublist
+    sub = await sess.get(ListState, list_id)
+    if not sub or getattr(sub, 'parent_todo_id', None) != todo_id:
+        raise HTTPException(status_code=404, detail='sublist not found')
+    # get siblings and positions
+    q = await sess.exec(select(ListState).where(ListState.parent_todo_id == todo_id))
+    sibs = q.all()
+    # ensure positions are normalized first
+    await _normalize_sublist_positions(sess, todo_id)
+    await sess.refresh(sub)
+    # find neighbor to swap with
+    cur_pos = getattr(sub, 'parent_todo_position', None)
+    if cur_pos is None:
+        # assign to end
+        try:
+            maxp = max([getattr(s, 'parent_todo_position', -1) or -1 for s in sibs])
+        except Exception:
+            maxp = -1
+        sub.parent_todo_position = maxp + 1
+        sess.add(sub)
+        await sess.commit()
+        cur_pos = sub.parent_todo_position
+    if direction == 'up' and cur_pos > 0:
+        target_pos = cur_pos - 1
+    elif direction == 'down':
+        try:
+            maxp = max([getattr(s, 'parent_todo_position', -1) or -1 for s in sibs])
+        except Exception:
+            maxp = -1
+        if cur_pos < maxp:
+            target_pos = cur_pos + 1
+        else:
+            target_pos = None
+    else:
+        target_pos = None
+    if target_pos is None:
+        await _normalize_sublist_positions(sess, todo_id)
+        return {'ok': True, 'moved': False}
+    # find sibling currently at target_pos
+    other = None
+    for s in sibs:
+        if getattr(s, 'parent_todo_position', None) == target_pos:
+            other = s
+            break
+    # swap positions
+    sub.parent_todo_position, target_pos_val = target_pos, cur_pos
+    sess.add(sub)
+    if other:
+        other.parent_todo_position = target_pos_val
+        sess.add(other)
+    await sess.commit()
+    await _normalize_sublist_positions(sess, todo_id)
+    return {'ok': True, 'moved': True}
+
+
+@app.post('/api/todos/{todo_id}/sublists/{list_id}/move')
+async def api_move_sublist(request: Request, todo_id: int, list_id: int, payload: MoveSublistRequest, current_user: User = Depends(require_login)):
+    """Move a sublist up or down within its parent's ordering.
+    Accepts JSON {direction: 'up'|'down'}. Requires ownership.
+    """
+    # Allow bearer-token API without CSRF; require CSRF for cookie browser
+    auth_hdr = request.headers.get('authorization')
+    if not auth_hdr:
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        token = body.get('_csrf') or request.cookies.get('csrf_token')
+        from .auth import verify_csrf_token
+        if not token or not verify_csrf_token(token, current_user.username):
+            raise HTTPException(status_code=403, detail='invalid csrf token')
+    direction = payload.direction if payload and getattr(payload, 'direction', None) else None
+    async with async_session() as sess:
+        return await _move_sublist_core(sess, current_user=current_user, todo_id=todo_id, list_id=list_id, direction=direction)
+
+
+@app.post('/html_no_js/todos/{todo_id}/sublists/{list_id}/move')
+async def html_move_sublist(request: Request, todo_id: int, list_id: int, direction: str = Form(...), current_user: User = Depends(require_login)):
+    # CSRF + ownership; reuse API logic
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    # Perform move directly to avoid double-reading the request body/CSRF checks
+    async with async_session() as sess:
+        await _move_sublist_core(sess, current_user=current_user, todo_id=todo_id, list_id=list_id, direction=direction)
     return RedirectResponse(url=f'/html_no_js/todos/{todo_id}', status_code=303)
 
 
