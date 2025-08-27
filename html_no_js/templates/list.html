@@ -772,10 +772,6 @@
           {% set modified_iso = sl.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') if sl.modified_at else None %}
           <li class="list-item"{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %}>
             <div class="list-action-left" style="display:flex;gap:0.25rem;align-items:center;">
-              <form method="post" action="/html_no_js/lists/{{ sl.id }}/delete" class="confirm-delete" data-confirm="Delete list '{{ sl.name }}' and all its todos? This cannot be undone." style="display:inline">
-                {{ csrf_field() }}
-                <button type="submit" class="list-action-btn" title="Delete list">🗑</button>
-              </form>
               <form method="post" action="/html_no_js/lists/{{ list.id }}/sublists/{{ sl.id }}/move" style="display:inline">
                 {{ csrf_field() }}
                 <input type="hidden" name="direction" value="up">
@@ -809,6 +805,14 @@
     {% endif %}
   </section>
   {% endif %}
+  
+  <!-- Bottom delete control: provide a clear delete action at end of page -->
+  <div style="margin-top:1rem;">
+    <form method="post" action="/html_no_js/lists/{{ list.id }}/delete" class="confirm-delete" data-confirm="Delete list '{{ list.name }}' and all its todos? This cannot be undone." style="display:inline">
+      {{ csrf_field() }}
+      <button type="submit" class="tb-item" aria-label="Delete list" title="Delete list">🗑 <span class="sr-only">Delete list</span></button>
+    </form>
+  </div>
     
 {% endblock %}
 
