@@ -4471,6 +4471,16 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
                     list_row["parent_todo_text"] = todo_text
             except Exception:
                 list_row["parent_todo_text"] = None
+        # If this list is owned by another list, fetch the parent list name for UI label
+        if getattr(lst, 'parent_list_id', None):
+            try:
+                qpl = await sess.exec(select(ListState.name).where(ListState.id == lst.parent_list_id))
+                row = qpl.first()
+                parent_list_name = row[0] if isinstance(row, (tuple, list)) else row
+                if isinstance(parent_list_name, str):
+                    list_row["parent_list_name"] = parent_list_name
+            except Exception:
+                list_row["parent_list_name"] = None
         # also pass completion types for management UI
         completion_types = [{'id': c.id, 'name': c.name} for c in ctypes]
         # fetch this user's hashtags for completion suggestions (from lists and todos they own)

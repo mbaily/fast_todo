@@ -114,10 +114,15 @@
     </div>
   </div>
 
-  {# Sublist toolbar: show only if this list is owned by a todo #}
-  {% if list.parent_todo_id %}
-  <nav class="page-toolbar" role="toolbar" aria-label="Sublist actions" style="display:flex;gap:0.5rem;align-items:center;margin:0.4rem 0 0.6rem 0;">
-    <a class="button" href="/html_no_js/todos/{{ list.parent_todo_id }}" title="Back to owning todo">← Back to {{ list.parent_todo_text or 'todo' }}</a>
+  {# Sublist toolbar: show if this list is owned by a todo and/or another list #}
+  {% if list.parent_todo_id or list.parent_list_id %}
+  <nav class="page-toolbar" role="toolbar" aria-label="Sublist actions" style="display:flex;gap:0.5rem;align-items:center;margin:0.4rem 0 0.6rem 0;flex-wrap:wrap;">
+    {% if list.parent_todo_id %}
+      <a class="button" href="/html_no_js/todos/{{ list.parent_todo_id }}" title="Back to owning todo">← Back to {{ list.parent_todo_text or 'todo' }}</a>
+    {% endif %}
+    {% if list.parent_list_id %}
+      <a class="button" href="/html_no_js/lists/{{ list.parent_list_id }}" title="Back to owning list">← Back to {{ list.parent_list_name or 'list' }}</a>
+    {% endif %}
     <div style="flex:1 1 auto"></div>
   </nav>
   {% endif %}
