@@ -808,6 +808,7 @@ async def calendar_occurrences(request: Request,
                                expand: bool = True,
                                max_per_item: int = 100,
                                max_total: int = 10000,
+                               include_ignored: bool = False,
                                current_user: User = Depends(require_login)):
     """Return a flattened, sorted list of occurrences (including expanded recurrences).
 
@@ -867,9 +868,9 @@ async def calendar_occurrences(request: Request,
         recurring_enabled = bool(config.ENABLE_RECURRING_DETECTION)
     except Exception:
         recurring_enabled = True
-    logger.info('calendar_occurrences called owner_id=%s start=%s end=%s expand=%s', owner_id, start_dt.isoformat() if start_dt else None, end_dt.isoformat() if end_dt else None, expand)
+    logger.info('calendar_occurrences called owner_id=%s start=%s end=%s expand=%s include_ignored=%s', owner_id, start_dt.isoformat() if start_dt else None, end_dt.isoformat() if end_dt else None, expand, include_ignored)
     # Emit SSE debug event for handler entry
-    _sse_debug('calendar_occurrences.entry', {'owner_id': owner_id, 'start': start_dt.isoformat() if start_dt else None, 'end': end_dt.isoformat() if end_dt else None, 'expand': expand})
+    _sse_debug('calendar_occurrences.entry', {'owner_id': owner_id, 'start': start_dt.isoformat() if start_dt else None, 'end': end_dt.isoformat() if end_dt else None, 'expand': expand, 'include_ignored': include_ignored})
     # Development-only conditional breakpoint. Set ENABLE_CALENDAR_BREAKPOINT=1
     # in the environment to trigger a debugger break at the start of this
     # handler. Attempts debugpy.breakpoint() first, falls back to pdb.set_trace().
@@ -1310,27 +1311,69 @@ async def calendar_occurrences(request: Request,
         done_set = set(r.occ_hash for r in done_rows)
         qi = await sess.exec(select(IgnoredScope).where(IgnoredScope.user_id == owner_id).where(IgnoredScope.active == True))
         ign_rows = qi.all()
-        ign_set = set(r.scope_hash for r in ign_rows if r.scope_hash)
-        # apply filters: remove occurrences whose occ_hash is in ign_set
+        # partition ignore scopes by type for matching
+        occ_ignore_hashes = set(r.scope_hash for r in ign_rows if getattr(r, 'scope_type', '') == 'occurrence' and r.scope_hash)
+        list_ignore_ids = set(str(r.scope_key) for r in ign_rows if getattr(r, 'scope_type', '') == 'list')
+        todo_from_scopes = []
+        for r in ign_rows:
+            if getattr(r, 'scope_type', '') == 'todo_from':
+                todo_from_scopes.append(r)
         filtered = []
+        # helper to parse ISO8601 possibly with Z
+        def _parse_iso_z(s):
+            try:
+                if isinstance(s, datetime):
+                    d = s
+                else:
+                    ss = (s or '').replace('Z', '+00:00')
+                    d = datetime.fromisoformat(ss)
+                if d.tzinfo is None:
+                    d = d.replace(tzinfo=timezone.utc)
+                return d.astimezone(timezone.utc)
+            except Exception:
+                return None
         for o in occurrences:
-            # suppressed by user's ignore scopes
-            if o.get('occ_hash') in ign_set:
+            ignored_scopes: list[str] = []
+            # occurrence-level ignore (direct hash match)
+            if o.get('occ_hash') in occ_ignore_hashes:
+                ignored_scopes.append('occurrence')
+            # list-level ignore applies to list item occurrences
+            try:
+                if o.get('item_type') == 'list' and str(o.get('id')) in list_ignore_ids:
+                    ignored_scopes.append('list')
+            except Exception:
+                pass
+            # todo_from ignore applies to any item id (todo or list) from given date forward
+            if todo_from_scopes:
+                occ_dt = _parse_iso_z(o.get('occurrence_dt'))
+                for r in todo_from_scopes:
+                    try:
+                        if str(o.get('id')) != str(getattr(r, 'scope_key', '')):
+                            continue
+                        r_from = getattr(r, 'from_dt', None)
+                        r_from_dt = _parse_iso_z(r_from)
+                        # if no from_dt, treat as ignore-all for that id
+                        if r_from_dt is None or (occ_dt and occ_dt >= r_from_dt):
+                            ignored_scopes.append('todo_from')
+                            break
+                    except Exception:
+                        continue
+            is_ignored = bool(ignored_scopes)
+            # mark completed occurrences
+            o['completed'] = (o.get('occ_hash') in done_set)
+            if include_ignored:
+                o['ignored'] = is_ignored
+                if is_ignored:
+                    o['ignored_scopes'] = ignored_scopes
+            if not include_ignored and is_ignored:
                 try:
                     _sse_debug('calendar_occurrences.filtered_out', {'occ_hash': o.get('occ_hash'), 'reason': 'ignored', 'item_id': o.get('id'), 'item_type': o.get('item_type')})
                 except Exception:
                     pass
                 continue
-            # mark completed occurrences and emit a debug event when marked
-            o['completed'] = (o.get('occ_hash') in done_set)
-            if o.get('completed'):
-                try:
-                    _sse_debug('calendar_occurrences.marked_completed', {'occ_hash': o.get('occ_hash'), 'item_id': o.get('id'), 'item_type': o.get('item_type')})
-                except Exception:
-                    pass
             filtered.append(o)
         occurrences = filtered
-        logger.info('calendar_occurrences returning %d occurrences after filters (ignored=%d, completed=%d)', len(occurrences), len(ign_set), len(done_set))
+        logger.info('calendar_occurrences returning %d occurrences after filters (ignored_scopes=%d, completed=%d, include_ignored=%s)', len(occurrences), len(ign_rows), len(done_set), include_ignored)
         try:
             logger.info('calendar_occurrences.returning_items %s', [(o.get('item_type'), o.get('id'), (o.get('title') or '')[:40], o.get('occurrence_dt')) for o in occurrences])
         except Exception:
@@ -1394,6 +1437,38 @@ async def mark_occurrence_completed(request: Request, hash: str = Form(...), cur
     return {'ok': True, 'created': True}
 
 
+@app.post('/occurrence/uncomplete')
+async def unmark_occurrence_completed(request: Request, hash: str = Form(...), current_user: User = Depends(require_login)):
+    """Unmark a single occurrence hash as completed for the current user.
+
+    Mirrors /occurrence/complete but removes any CompletedOccurrence rows for
+    (user_id, occ_hash). Cookie-authenticated browsers must provide CSRF; bearer
+    token API clients can omit CSRF.
+    """
+    # Require CSRF for cookie-authenticated browser requests. Allow bearer
+    # token clients to call without CSRF.
+    auth_hdr = request.headers.get('authorization')
+    if not auth_hdr:
+        form = await request.form()
+        token = form.get('_csrf') or request.cookies.get('csrf_token')
+        from .auth import verify_csrf_token
+        if not token or not verify_csrf_token(token, current_user.username):
+            raise HTTPException(status_code=403, detail='invalid csrf token')
+
+    from .models import CompletedOccurrence
+    async with async_session() as sess:
+        # delete all rows matching this user+hash (should be at most one)
+        q = await sess.exec(select(CompletedOccurrence).where(CompletedOccurrence.user_id == current_user.id).where(CompletedOccurrence.occ_hash == hash))
+        rows = q.all()
+        deleted = 0
+        for r in rows:
+            await sess.delete(r)
+            deleted += 1
+        if deleted:
+            await sess.commit()
+        return {'ok': True, 'deleted': deleted}
+
+
 @app.post('/ignore/scope')
 async def create_ignore_scope(request: Request, scope_type: str = Form(...), scope_key: str = Form(...), from_dt: str | None = Form(None), current_user: User = Depends(require_login)):
     """Create an ignore scope for the user.
@@ -1435,6 +1510,59 @@ async def create_ignore_scope(request: Request, scope_type: str = Form(...), sco
         await sess.commit()
         await sess.refresh(rec)
     return {'ok': True, 'scope_hash': scope_hash, 'id': rec.id}
+
+
+@app.post('/ignore/unscope')
+async def deactivate_ignore_scope(request: Request,
+                                  scope_type: str = Form(...),
+                                  scope_key: str = Form(...),
+                                  from_dt: str | None = Form(None),
+                                  current_user: User = Depends(require_login)):
+    """Deactivate an existing ignore scope for the user (unignore).
+
+    Accepts the same shape as /ignore/scope. For 'occurrence', scope_key is the
+    occ_hash. For 'list', scope_key is the list id. For 'todo_from', scope_key is
+    the todo/list id and from_dt optionally refines the match; if from_dt is
+    omitted, any todo_from scope for that id will be deactivated.
+    """
+    # Require CSRF for cookie-authenticated browser requests. Allow bearer
+    # token clients to call without CSRF.
+    auth_hdr = request.headers.get('authorization')
+    if not auth_hdr:
+        form = await request.form()
+        token = form.get('_csrf') or request.cookies.get('csrf_token')
+        from .auth import verify_csrf_token
+        if not token or not verify_csrf_token(token, current_user.username):
+            raise HTTPException(status_code=403, detail='invalid csrf token')
+
+    from .models import IgnoredScope
+    from .utils import ignore_list_hash, ignore_todo_from_hash
+    async with async_session() as sess:
+        if scope_type == 'list':
+            scope_hash = ignore_list_hash(scope_key, owner_id=current_user.id)
+            q = await sess.exec(select(IgnoredScope).where(IgnoredScope.user_id == current_user.id).where(IgnoredScope.scope_hash == scope_hash).where(IgnoredScope.active == True))
+        elif scope_type == 'occurrence':
+            scope_hash = str(scope_key)
+            q = await sess.exec(select(IgnoredScope).where(IgnoredScope.user_id == current_user.id).where(IgnoredScope.scope_hash == scope_hash).where(IgnoredScope.active == True))
+        elif scope_type == 'todo_from':
+            # If from_dt is provided, target the exact hash; otherwise, deactivate any
+            # todo_from scopes for this scope_key (id) regardless of from_dt.
+            if from_dt:
+                scope_hash = ignore_todo_from_hash(scope_key, from_dt)
+                q = await sess.exec(select(IgnoredScope).where(IgnoredScope.user_id == current_user.id).where(IgnoredScope.scope_hash == scope_hash).where(IgnoredScope.active == True))
+            else:
+                q = await sess.exec(select(IgnoredScope).where(IgnoredScope.user_id == current_user.id).where(IgnoredScope.scope_type == 'todo_from').where(IgnoredScope.scope_key == str(scope_key)).where(IgnoredScope.active == True))
+        else:
+            raise HTTPException(status_code=400, detail='invalid scope_type')
+
+        rows = q.all()
+        if not rows:
+            return {'ok': True, 'updated': 0}
+        for r in rows:
+            r.active = False
+            sess.add(r)
+        await sess.commit()
+        return {'ok': True, 'updated': len(rows)}
 
 
 @app.post('/parse_text_to_rrule')

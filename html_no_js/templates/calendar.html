@@ -18,6 +18,9 @@
       </div>
     </div>
     <div style="margin-top:0.5rem">
+      <label style="display:inline-flex; align-items:center; gap:0.35rem; margin-bottom:0.5rem;">
+        <input type="checkbox" id="show_ignored"> Show ignored
+      </label>
       {% if occurrences_sorted and occurrences_sorted|length > 0 %}
       <ul class="todos-list full-bleed">
       {% for ev in occurrences_sorted %}
@@ -76,7 +79,8 @@
         end = new Date(Date.UTC(year, month-1, lastDay, 23,59,59)).toISOString();
       }
       const startIso = start.toISOString();
-      const res = await fetch(`/calendar/occurrences?start=${encodeURIComponent(startIso)}&end=${encodeURIComponent(end)}`, { credentials: 'same-origin' });
+      const showIgnored = getCookie('show_ignored') === '1';
+      const res = await fetch(`/calendar/occurrences?start=${encodeURIComponent(startIso)}&end=${encodeURIComponent(end)}&include_ignored=${showIgnored ? '1' : '0'}`, { credentials: 'same-origin' });
       const data = await res.json();
       const container = document.querySelector('.todos-list.full-bleed') || document.querySelector('p.meta');
       const parent = container && container.parentNode; if (!parent) return;
@@ -88,12 +92,17 @@
           // Build a left-controls column so checkboxes and ignore buttons sit to the left of the content
           // small icon buttons: single-occurrence ignore and ignore-from-date
           // use data attributes: data-occ for occ_hash, data-todo for the todo/list id
-          const occControls = `<div class="controls-left">
+          let occControls = `<div class="controls-left">
             <input type="checkbox" class="occ-complete" data-hash="${ev.occ_hash}" ${ev.completed ? 'checked' : ''} aria-label="mark occurrence complete">
             <button type="button" class="occ-ignore-occ" data-occ="${ev.occ_hash}" title="Ignore this occurrence" aria-label="Ignore this occurrence" style="margin-left:0.25rem;padding:0.1rem 0.25rem;font-size:0.9rem;">🔕</button>
-            <button type="button" class="occ-ignore-from" data-todo="${ev.id}" data-occ-dt="${ev.occurrence_dt}" title="Ignore from this date" aria-label="Ignore from this date" style="margin-left:0.25rem;padding:0.1rem 0.25rem;font-size:0.9rem;">⏭️</button>
-          </div>`;
-          const html = `${occControls}\n  <div class="todo-content">\n    <div class="todo-main wrap-text">\n      <div style="font-weight:700">${title}</div>\n      <div class="meta">${ev.occurrence_dt}</div>\n    </div>\n  </div>\n  `;
+            <button type="button" class="occ-ignore-from" data-todo="${ev.id}" data-occ-dt="${ev.occurrence_dt}" title="Ignore from this date" aria-label="Ignore from this date" style="margin-left:0.25rem;padding:0.1rem 0.25rem;font-size:0.9rem;">⏭️</button>`;
+          if (showIgnored && ev.ignored) {
+            // show an unignore control (checkbox or button) when item is ignored
+            occControls += ` <button type="button" class="occ-unignore" data-occ="${ev.occ_hash}" data-item-id="${ev.id}" title="Unignore" aria-label="Unignore" style="margin-left:0.25rem;padding:0.1rem 0.25rem;font-size:0.9rem;">↩️</button>`;
+          }
+          occControls += `</div>`;
+          const ignoredStyle = (showIgnored && ev.ignored) ? ' style="opacity:0.6;"' : '';
+          const html = `${occControls}\n  <div class="todo-content"${ignoredStyle}>\n    <div class="todo-main wrap-text">\n      <div style="font-weight:700">${title}${(showIgnored && ev.ignored) ? ' <span class="meta" style="margin-left:0.35rem;">(ignored)</span>' : ''}</div>\n      <div class="meta">${ev.occurrence_dt}</div>\n    </div>\n  </div>\n  `;
           li.innerHTML = html; ul.appendChild(li);
         }
         parent.replaceChild(ul, container);
@@ -109,10 +118,15 @@
       cb.checked = (getCookie('include_next7') === '1');
       cb.addEventListener('change', function(){ setCookie('include_next7', cb.checked ? '1' : '0', 365); fetchOccurrencesForCurrentWindow(); });
     }
+    const showIg = document.getElementById('show_ignored');
+    if (showIg) {
+      showIg.checked = (getCookie('show_ignored') === '1');
+      showIg.addEventListener('change', function(){ setCookie('show_ignored', showIg.checked ? '1' : '0', 365); fetchOccurrencesForCurrentWindow(); });
+    }
   // initial load
   fetchOccurrencesForCurrentWindow();
   // emit a Puppeteer-friendly debug event if helper is available
-  try{ if (window.__puppeteerDebug && typeof window.__puppeteerDebug.event === 'function') window.__puppeteerDebug.event('calendar-page-init', {year: {{ year }}, month: {{ month }}}); }catch(e){ console.debug('PUPPETEER_DEBUG_RENDER_ISSUE', String(e)); }
+  try{ if (window.__puppeteerDebug && typeof window.__puppeteerDebug.event === 'function') window.__puppeteerDebug.event('calendar-page-init'); }catch(e){ console.debug('PUPPETEER_DEBUG_RENDER_ISSUE', String(e)); }
   });
 
   // ignore and complete handlers
@@ -140,6 +154,25 @@
         .catch(err => console.error('DEBUG: ignore_from_error', err));
       return;
     }
+    // unignore button
+    const unIg = e.target.closest('.occ-unignore');
+    if (unIg) {
+      const occ = unIg.getAttribute('data-occ');
+      const itemId = unIg.getAttribute('data-item-id');
+      const csrf = getCookie('csrf_token') || '';
+      if (occ) {
+        const body = `_csrf=${encodeURIComponent(csrf)}&scope_type=occurrence&scope_key=${encodeURIComponent(occ)}`;
+        fetch('/ignore/unscope', { method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded'}, body: body, credentials: 'same-origin' })
+          .then(async r => { try{ await r.json(); }catch(e){} fetchOccurrencesForCurrentWindow(); })
+          .catch(err => console.error('DEBUG: unignore_occ_error', err));
+      } else if (itemId) {
+        const body = `_csrf=${encodeURIComponent(csrf)}&scope_type=todo_from&scope_key=${encodeURIComponent(itemId)}`;
+        fetch('/ignore/unscope', { method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded'}, body: body, credentials: 'same-origin' })
+          .then(async r => { try{ await r.json(); }catch(e){} fetchOccurrencesForCurrentWindow(); })
+          .catch(err => console.error('DEBUG: unignore_todo_from_error', err));
+      }
+      return;
+    }
     // fall through to other handlers
   });
 
@@ -149,8 +182,14 @@
       const csrf = getCookie('csrf_token') || '';
       const body = `_csrf=${encodeURIComponent(csrf)}&hash=${encodeURIComponent(hash)}`;
       fetch('/occurrence/complete', { method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded'}, body: body, credentials: 'same-origin' })
-        .then(async r => { let j=null; try{ j = await r.json(); }catch(e){ j={error:'invalid-json'};} console.log('DEBUG: complete_response', {status:r.status, body:j}); })
+        .then(async r => { let j=null; try{ j = await r.json(); }catch(e){ j={error:'invalid-json'};} console.log('DEBUG: complete_response', {status:r.status, body:j}); /* optional: refresh */ /* fetchOccurrencesForCurrentWindow(); */ })
         .catch(err => console.error('DEBUG: complete_error', err));
+    } else {
+      const csrf = getCookie('csrf_token') || '';
+      const body = `_csrf=${encodeURIComponent(csrf)}&hash=${encodeURIComponent(hash)}`;
+      fetch('/occurrence/uncomplete', { method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded'}, body: body, credentials: 'same-origin' })
+        .then(async r => { let j=null; try{ j = await r.json(); }catch(e){ j={error:'invalid-json'};} console.log('DEBUG: uncomplete_response', {status:r.status, body:j}); /* optional: refresh */ /* fetchOccurrencesForCurrentWindow(); */ })
+        .catch(err => console.error('DEBUG: uncomplete_error', err));
     }
   });
   </script>
