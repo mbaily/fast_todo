@@ -182,11 +182,18 @@
   {% endif %}
   </ul>
 
+<!-- Quick link to categories page -->
+<div style="margin-bottom:0.75rem;">
+  <a href="/html_no_js/categories" class="btn" style="font-weight:bold;">→ Categories</a>
+</div>
+
 <!-- Show all tags control (browser-cookie persisted) -->
 <div id="show-all-tags-control" style="margin-top:1rem;">
   <label><input type="checkbox" id="show-all-tags-checkbox"> Show all tags</label>
 </div>
 {% endblock %}
+
+
 
 {% block scripts %}
 {{ super() }}
