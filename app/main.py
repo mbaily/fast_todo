@@ -2303,6 +2303,8 @@ async def update_todo(todo_id: int, text: Optional[str] = None, note: Optional[s
         todo = await sess.get(Todo, todo_id)
         if not todo:
             raise HTTPException(status_code=404, detail="todo not found")
+        # capture original parent list for potential move
+        old_list_id = int(todo.list_id) if getattr(todo, 'list_id', None) is not None else None
         if text is not None:
             # Strip inline hashtags from saved text; tags will be managed separately
             try:
@@ -2373,9 +2375,11 @@ async def update_todo(todo_id: int, text: Optional[str] = None, note: Optional[s
                 if t not in merged:
                     merged.append(t)
             await _sync_todo_hashtags(sess, todo.id, merged)
-        # Touch parent list modified_at and persist
+        # Touch parent list modified_at and persist (and the old list if the todo moved)
         try:
             await _touch_list_modified(sess, parent_list_id)
+            if old_list_id is not None and old_list_id != parent_list_id:
+                await _touch_list_modified(sess, old_list_id)
             await sess.commit()
         except Exception:
             await sess.rollback()
@@ -2439,6 +2443,12 @@ async def pin_todo(todo_id: int, pinned: bool = Form(...), current_user: User = 
         sess.add(todo)
         await sess.commit()
         await sess.refresh(todo)
+        # also touch the parent list modified_at
+        try:
+            await _touch_list_modified(sess, getattr(todo, 'list_id', None))
+            await sess.commit()
+        except Exception:
+            await sess.rollback()
     return {'id': todo.id, 'pinned': todo.pinned}
 
 
@@ -2474,6 +2484,12 @@ async def defer_todo(todo_id: int, hours: int):
         sess.add(todo)
         await sess.commit()
         await sess.refresh(todo)
+        # touch parent list modified_at
+        try:
+            await _touch_list_modified(sess, getattr(todo, 'list_id', None))
+            await sess.commit()
+        except Exception:
+            await sess.rollback()
         return {"id": todo.id, "deferred_until": todo.deferred_until.isoformat()}
 
 
@@ -2504,6 +2520,12 @@ async def complete_todo(todo_id: int, completion_type: str = "default", done: bo
             comp.done = done
         sess.add(comp)
         await sess.commit()
+        # touch parent list modified_at
+        try:
+            await _touch_list_modified(sess, getattr(todo, 'list_id', None))
+            await sess.commit()
+        except Exception:
+            await sess.rollback()
         return {"todo_id": todo_id, "completion_type": completion_type, "done": done}
 
 
@@ -2514,11 +2536,24 @@ async def undefer_due():
         q = select(Todo).where(Todo.deferred_until != None).where(Todo.deferred_until <= now)
         res = await sess.exec(q)
         due = res.all()
+        affected_lists: set[int] = set()
         for t in due:
             t.deferred_until = None
             t.modified_at = now_utc()
             sess.add(t)
+            if getattr(t, 'list_id', None) is not None:
+                try:
+                    affected_lists.add(int(t.list_id))
+                except Exception:
+                    pass
         await sess.commit()
+        # touch lists that had todos changed
+        try:
+            for lid in affected_lists:
+                await _touch_list_modified(sess, lid)
+            await sess.commit()
+        except Exception:
+            await sess.rollback()
         return {"undeferred": len(due)}
 
 
@@ -3752,6 +3787,12 @@ async def sync_post(req: SyncRequest, current_user: User = Depends(require_login
                             sess.add(todo)
                             await sess.commit()
                             await sess.refresh(todo)
+                            # touch parent list modified_at
+                            try:
+                                await _touch_list_modified(sess, int(todo.list_id) if getattr(todo, 'list_id', None) is not None else None)
+                                await sess.commit()
+                            except Exception:
+                                await sess.rollback()
                             out = {'op': name, 'status': 'ok', 'id': todo.id}
                             if client_id is not None:
                                 out['client_id'] = client_id
@@ -3774,6 +3815,7 @@ async def sync_post(req: SyncRequest, current_user: User = Depends(require_login
                         if lst and lst.owner_id not in (None, current_user.id):
                             results.append({'op': name, 'status': 'forbidden', 'id': tid})
                         else:
+                            old_list_id = int(todo.list_id) if getattr(todo, 'list_id', None) is not None else None
                             # apply provided fields
                             if 'text' in payload:
                                     todo.text = payload.get('text')
@@ -3795,6 +3837,15 @@ async def sync_post(req: SyncRequest, current_user: User = Depends(require_login
                             sess.add(todo)
                             await sess.commit()
                             await sess.refresh(todo)
+                            # touch parent list modified_at (and old list if moved)
+                            try:
+                                new_list_id_int = int(todo.list_id) if getattr(todo, 'list_id', None) is not None else None
+                                await _touch_list_modified(sess, new_list_id_int)
+                                if old_list_id is not None and old_list_id != new_list_id_int:
+                                    await _touch_list_modified(sess, old_list_id)
+                                await sess.commit()
+                            except Exception:
+                                await sess.rollback()
                             out = {'op': name, 'status': 'ok', 'id': todo.id}
                             results.append(out)
                             if op_id:
@@ -3818,11 +3869,18 @@ async def sync_post(req: SyncRequest, current_user: User = Depends(require_login
                         if lst and lst.owner_id not in (None, current_user.id):
                             results.append({'op': name, 'status': 'forbidden', 'id': tid})
                         else:
+                            parent_list_id = int(todo.list_id) if getattr(todo, 'list_id', None) is not None else None
                             # delete dependent rows first, then the todo
                             await sess.exec(sqlalchemy_delete(TodoCompletion).where(TodoCompletion.todo_id == tid))
                             await sess.exec(sqlalchemy_delete(TodoHashtag).where(TodoHashtag.todo_id == tid))
                             await sess.exec(sqlalchemy_delete(Todo).where(Todo.id == tid))
                             await sess.commit()
+                            # touch parent list modified_at
+                            try:
+                                await _touch_list_modified(sess, parent_list_id)
+                                await sess.commit()
+                            except Exception:
+                                await sess.rollback()
                             out = {'op': name, 'status': 'ok', 'id': tid}
                             results.append(out)
                             if op_id:
