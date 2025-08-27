@@ -16,12 +16,17 @@
   </div>
   <div id="categories-root" style="margin-top:0.5rem;"></div>
 
+  <div style="margin-top:0.75rem;">
+    <button id="btn-delete" type="button" style="color:#900;">Delete</button>
+  </div>
+
   <script>
   (function(){
   const root = document.getElementById('categories-root');
   const statusEl = document.getElementById('categories-status');
   const btnUp = document.getElementById('btn-up');
   const btnDown = document.getElementById('btn-down');
+  const btnDelete = document.getElementById('btn-delete');
   let selectedId = null;
     const csrf = '{{ csrf_token }}';
   console.log('[categories] script loaded');
@@ -58,9 +63,10 @@
         li.dataset.catId = c.id;
         li.textContent = `${c.name} (pos ${c.position})`;
         if (selectedId === c.id) {
-          li.style.background = '#eef';
+          // show only a blue left rectangle for selection
+          li.style.background = 'transparent';
           li.style.borderLeft = '4px solid #36f';
-          li.style.paddingLeft = '4px';
+          li.style.paddingLeft = '';
         } else {
           li.style.background = '';
           li.style.borderLeft = '';
@@ -86,6 +92,7 @@
       const atBottom = idx === items.length - 1;
       btnUp.disabled = (val == null) || atTop;
       btnDown.disabled = (val == null) || atBottom;
+  if (btnDelete) btnDelete.disabled = (val == null);
     }
 
     async function moveCat(catId, direction){
@@ -130,6 +137,32 @@
   if (statusEl) statusEl.textContent = `Moving down #${val}...`;
   await moveCat(val, 'down');
     });
+
+    if (btnDelete) {
+      btnDelete.addEventListener('click', async () => {
+        const val = selectedId;
+        if (val == null) return;
+        const ok = window.confirm('Delete category and move its lists to Uncategorized? This cannot be undone.');
+        if (!ok) return;
+        if (statusEl) statusEl.textContent = `Deleting #${val}...`;
+        try {
+          const resp = await fetch('/html_no_js/categories/' + val + '/delete', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: `_csrf=${encodeURIComponent(csrf)}`
+          });
+          if (!resp.ok) throw new Error('delete failed: ' + resp.status);
+          if (statusEl) statusEl.textContent = `Deleted #${val}`;
+          selectedId = null;
+          await fetchCategories();
+        } catch (e) {
+          console.error('[categories] delete failed', e);
+          if (statusEl) statusEl.textContent = `Delete failed: ${e}`;
+          await fetchCategories();
+        }
+      });
+    }
 
     fetchCategories();
   })();
