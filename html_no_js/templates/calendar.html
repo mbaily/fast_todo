@@ -41,7 +41,7 @@
                   {{ ev.title }}
                 {% endif %}
               </div>
-              <div class="meta">{{ ev.occurrence_dt }}</div>
+              <div class="meta">Occurrence on {{ ev.occurrence_date or ev.occurrence_dt }}</div>
             </div>
           </div>
         </li>
@@ -92,17 +92,19 @@
           // Build a left-controls column so checkboxes and ignore buttons sit to the left of the content
           // small icon buttons: single-occurrence ignore and ignore-from-date
           // use data attributes: data-occ for occ_hash, data-todo for the todo/list id
-          let occControls = `<div class="controls-left">
+            // prefer server-supplied date-only string when available
+            const occDate = 'Occurrence on ' + (ev.occurrence_date || ev.occurrence_dt);
+            let occControls = `<div class="controls-left">
             <input type="checkbox" class="occ-complete" data-hash="${ev.occ_hash}" ${ev.completed ? 'checked' : ''} aria-label="mark occurrence complete">
             <button type="button" class="occ-ignore-occ" data-occ="${ev.occ_hash}" title="Ignore this occurrence" aria-label="Ignore this occurrence" style="margin-left:0.25rem;padding:0.1rem 0.25rem;font-size:0.9rem;">🔕</button>
-            <button type="button" class="occ-ignore-from" data-todo="${ev.id}" data-occ-dt="${ev.occurrence_dt}" title="Ignore from this date" aria-label="Ignore from this date" style="margin-left:0.25rem;padding:0.1rem 0.25rem;font-size:0.9rem;">⏭️</button>`;
+            <button type="button" class="occ-ignore-from" data-todo="${ev.id}" data-occ-dt="${occDate}" title="Ignore from this date" aria-label="Ignore from this date" style="margin-left:0.25rem;padding:0.1rem 0.25rem;font-size:0.9rem;">⏭️</button>`;
           if (showIgnored && ev.ignored) {
             // show an unignore control (checkbox or button) when item is ignored
             occControls += ` <button type="button" class="occ-unignore" data-occ="${ev.occ_hash}" data-item-id="${ev.id}" title="Unignore" aria-label="Unignore" style="margin-left:0.25rem;padding:0.1rem 0.25rem;font-size:0.9rem;">↩️</button>`;
           }
           occControls += `</div>`;
           const ignoredStyle = (showIgnored && ev.ignored) ? ' style="opacity:0.6;"' : '';
-          const html = `${occControls}\n  <div class="todo-content"${ignoredStyle}>\n    <div class="todo-main wrap-text">\n      <div style="font-weight:700">${title}${(showIgnored && ev.ignored) ? ' <span class="meta" style="margin-left:0.35rem;">(ignored)</span>' : ''}</div>\n      <div class="meta">${ev.occurrence_dt}</div>\n    </div>\n  </div>\n  `;
+      const html = `${occControls}\n  <div class="todo-content"${ignoredStyle}>\n    <div class="todo-main wrap-text">\n      <div style="font-weight:700">${title}${(showIgnored && ev.ignored) ? ' <span class="meta" style="margin-left:0.35rem;">(ignored)</span>' : ''}</div>\n      <div class="meta">${occDate}</div>\n    </div>\n  </div>\n  `;
           li.innerHTML = html; ul.appendChild(li);
         }
         parent.replaceChild(ul, container);

@@ -925,6 +925,8 @@ async def calendar_occurrences(request: Request,
             occ_hash = occurrence_hash(item_type, item_id, occ_dt, rrule_str or '', title)
             occurrences.append({
                 'occurrence_dt': occ_dt.isoformat(),
+                # date-only string for UI (YYYY-MM-DD)
+                'occurrence_date': (occ_dt.date().isoformat() if hasattr(occ_dt, 'date') else (occ_dt.isoformat().split('T')[0] if isinstance(occ_dt, str) else None)),
                 'item_type': item_type,
                 'id': item_id,
                 'list_id': list_id,
