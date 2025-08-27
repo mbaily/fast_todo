@@ -83,7 +83,9 @@
           </h3>
           <ul id="ios-cat-{{ cat.id }}" class="category-lists">
             {% for lst in cat_lists %}
-              <li>
+              {% set created_iso = lst.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') %}
+              {% set modified_iso = lst.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') if lst.modified_at else None %}
+              <li{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %}>
                 <form method="post" action="/html_no_js/lists/{{ lst.id }}/delete" class="confirm-delete" style="display:inline;margin-right:1rem;">
                   {% if csrf_token %}
                     <input type="hidden" name="_csrf" value="{{ csrf_token }}">
@@ -112,7 +114,9 @@
         </h3>
         <ul id="ios-cat-uncat" class="category-lists">
           {% for lst in uncats %}
-            <li>
+            {% set created_iso = lst.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') %}
+            {% set modified_iso = lst.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') if lst.modified_at else None %}
+            <li{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %}>
               <form method="post" action="/html_no_js/lists/{{ lst.id }}/delete" class="confirm-delete" style="display:inline;margin-right:1rem;">
                 {% if csrf_token %}
                   <input type="hidden" name="_csrf" value="{{ csrf_token }}">
@@ -130,10 +134,45 @@
       </li>
     {% endif %}
     </ul>
-    <div style="margin-top:1rem;">
+    <div style="margin-top:1rem; display:flex; gap:1rem; align-items:center; flex-wrap:wrap;">
+      <label>Sort lists:
+        <select id="list-sort-order">
+          <option value="created">by creation date</option>
+          <option value="modified">by modification date</option>
+        </select>
+      </label>
+      <span style="flex:1 1 auto"></span>
       <label><input type="checkbox" id="show-all-tags-checkbox"> Show all tags</label>
     </div>
     <script>
+      // Sort within categories (created vs modified), persisted in cookie
+      (function(){
+        function setCookie(name, value, days){ var expires=''; if(days){ var d=new Date(); d.setTime(d.getTime() + (days*24*60*60*1000)); expires='; expires='+d.toUTCString(); } document.cookie = name + '=' + encodeURIComponent(value) + expires + '; path=/'; }
+        function getCookie(name){ var m = document.cookie.match('(?:^|; )' + name + '=([^;]*)'); return m ? decodeURIComponent(m[1]) : null; }
+        var sel = document.getElementById('list-sort-order'); if (!sel) return;
+        var cookieName = 'index_list_sort_order';
+        var cur = getCookie(cookieName) || 'created';
+        sel.value = (cur === 'modified') ? 'modified' : 'created';
+        function parseISO(v){ try { return v ? new Date(v).getTime() : 0; } catch(_) { return 0; } }
+        function sortUl(ul){
+          var lis = Array.from(ul.querySelectorAll(':scope > li'));
+          lis.sort(function(a,b){
+            var ad = 0, bd = 0;
+            if (sel.value === 'modified') {
+              ad = parseISO(a.getAttribute('data-modified-at')) || parseISO(a.getAttribute('data-created-at'));
+              bd = parseISO(b.getAttribute('data-modified-at')) || parseISO(b.getAttribute('data-created-at'));
+            } else {
+              ad = parseISO(a.getAttribute('data-created-at'));
+              bd = parseISO(b.getAttribute('data-created-at'));
+            }
+            return bd - ad;
+          });
+          lis.forEach(function(li){ ul.appendChild(li); });
+        }
+        function applySort(){ document.querySelectorAll('ul.category-lists').forEach(sortUl); }
+        sel.addEventListener('change', function(){ setCookie(cookieName, sel.value, 365); applySort(); });
+        applySort();
+      })();
       // Minimal JS for edit and delete on the plain iOS template
       (function(){
         // Edit list name: prompt and POST as form data

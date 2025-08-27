@@ -1989,6 +1989,12 @@ async def add_todo_hashtag(todo_id: int, tag: str, current_user: _Optional[User]
             await sess.commit()
         except IntegrityError:
             await sess.rollback()
+        # Touch parent list modified_at and persist
+        try:
+            await _touch_list_modified(sess, todo.list_id if todo else None)
+            await sess.commit()
+        except Exception:
+            await sess.rollback()
         return {"todo_id": todo_id, "tag": tag}
 
 
@@ -2018,6 +2024,12 @@ async def _remove_todo_hashtag_core(sess, todo_id: int, tag: str, current_user: 
         raise HTTPException(status_code=404, detail="link not found")
     await sess.delete(link)
     await sess.commit()
+    # Touch parent list modified_at and persist
+    try:
+        await _touch_list_modified(sess, getattr(todo, 'list_id', None))
+        await sess.commit()
+    except Exception:
+        await sess.rollback()
     return {"removed": tag}
 
 
@@ -2236,6 +2248,12 @@ async def create_todo(text: str, note: Optional[str] = None, list_id: int = None
         sess.add(todo)
         await sess.commit()
         await sess.refresh(todo)
+        # Touch parent list modified_at and persist
+        try:
+            await _touch_list_modified(sess, list_id)
+            await sess.commit()
+        except Exception:
+            await sess.rollback()
         # Precompute response while session is active to avoid lazy loads later
         todo_resp = _serialize_todo(todo, [])
     # Capture id before leaving session to guarantee no lazy access later
@@ -2321,6 +2339,8 @@ async def update_todo(todo_id: int, text: Optional[str] = None, note: Optional[s
         sess.add(todo)
         await sess.commit()
         await sess.refresh(todo)
+        # Capture list id after potential move
+        parent_list_id = int(todo.list_id) if todo.list_id is not None else None
         # fetch completions for serialization
         qc = select(TodoCompletion).where(TodoCompletion.todo_id == todo_id)
         cres = await sess.exec(qc)
@@ -2353,6 +2373,12 @@ async def update_todo(todo_id: int, text: Optional[str] = None, note: Optional[s
                 if t not in merged:
                     merged.append(t)
             await _sync_todo_hashtags(sess, todo.id, merged)
+        # Touch parent list modified_at and persist
+        try:
+            await _touch_list_modified(sess, parent_list_id)
+            await sess.commit()
+        except Exception:
+            await sess.rollback()
         return todo_resp
 
 
@@ -2383,6 +2409,11 @@ async def delete_todo(todo_id: int, current_user: Optional[User] = Depends(get_c
     ts = Tombstone(item_type='todo', item_id=todo_id)
     sess.add(ts)
     await sess.delete(todo)
+    # Touch parent list modified_at and persist
+    try:
+        await _touch_list_modified(sess, getattr(todo, 'list_id', None))
+    except Exception:
+        pass
     await sess.commit()
     return {"ok": True}
 
@@ -2555,6 +2586,23 @@ def _serialize_list(lst: ListState) -> dict:
         "expanded": getattr(lst, 'expanded', None),
         "hide_done": getattr(lst, 'hide_done', None),
     }
+
+
+async def _touch_list_modified(sess, list_id: Optional[int]):
+    """Set the parent list's modified_at to now. Caller is responsible for commit.
+
+    Safe to call with None list_id.
+    """
+    if list_id is None:
+        return
+    try:
+        lst = await sess.get(ListState, list_id)
+        if lst:
+            lst.modified_at = now_utc()
+            sess.add(lst)
+    except Exception:
+        # non-fatal; do not block todo ops on list timestamp failures
+        logger.debug('failed to touch list modified_at for list_id=%s', list_id)
 
 
 async def _sync_todo_hashtags(sess, todo_id: int, tags: list[str]):
@@ -2830,6 +2878,7 @@ async def html_index(request: Request):
                 "completed": l.completed,
                 "owner_id": l.owner_id,
                 "created_at": l.created_at,
+                "modified_at": getattr(l, 'modified_at', None),
                 "category_id": l.category_id,
                 "hashtags": tag_map.get(l.id, []),
             })

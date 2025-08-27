@@ -125,7 +125,9 @@
         </h3>
         <ul id="cat-{{ cat.id }}" class="category-lists">
           {% for lst in cat_lists %}
-            <li class="list-item">
+            {% set created_iso = lst.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') %}
+            {% set modified_iso = lst.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') if lst.modified_at else None %}
+            <li class="list-item"{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %}>
               <div class="list-action-left">
                 <form method="post" action="/html_no_js/lists/{{ lst.id }}/delete" class="confirm-delete" data-confirm="Delete list '{{ lst.name }}' and all its todos? This cannot be undone.">
                   {{ csrf_field() }}
@@ -159,7 +161,9 @@
       </h3>
       <ul id="cat-uncat" class="category-lists">
         {% for lst in uncats %}
-          <li class="list-item">
+          {% set created_iso = lst.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') %}
+          {% set modified_iso = lst.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') if lst.modified_at else None %}
+          <li class="list-item"{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %}>
             <div class="list-action-left">
               <form method="post" action="/html_no_js/lists/{{ lst.id }}/delete" class="confirm-delete" data-confirm="Delete list '{{ lst.name }}' and all its todos? This cannot be undone.">
                 {{ csrf_field() }}
@@ -188,8 +192,15 @@
 </div>
 
 <!-- Show all tags control (browser-cookie persisted) -->
-<div id="show-all-tags-control" style="margin-top:1rem;">
-  <label><input type="checkbox" id="show-all-tags-checkbox"> Show all tags</label>
+<div id="sort-and-tags" style="margin-top:1rem; display:flex; gap:1rem; align-items:center; flex-wrap:wrap;">
+  <label style="margin-right:0.5rem;"><input type="checkbox" id="show-all-tags-checkbox"> Show all tags</label>
+  <span style="flex:1 1 auto"></span>
+  <label>Sort lists: 
+    <select id="list-sort-order">
+      <option value="created">by creation date</option>
+      <option value="modified">by modification date</option>
+    </select>
+  </label>
 </div>
 {% endblock %}
 
@@ -198,6 +209,38 @@
 {% block scripts %}
 {{ super() }}
 <script>
+// Sorting within categories by created_at or modified_at; persisted in a cookie
+(function(){
+  function setCookie(name, value, days){ var expires=''; if(days){ var d=new Date(); d.setTime(d.getTime() + (days*24*60*60*1000)); expires='; expires='+d.toUTCString(); } document.cookie = name + '=' + encodeURIComponent(value) + expires + '; path=/'; }
+  function getCookie(name){ var m = document.cookie.match('(?:^|; )' + name + '=([^;]*)'); return m ? decodeURIComponent(m[1]) : null; }
+  var sel = document.getElementById('list-sort-order'); if (!sel) return;
+  var cookieName = 'index_list_sort_order';
+  var cur = getCookie(cookieName) || 'created';
+  sel.value = (cur === 'modified') ? 'modified' : 'created';
+
+  function parseISO(v){ try { return v ? new Date(v).getTime() : 0; } catch(_) { return 0; } }
+  function sortUl(ul){
+    var lis = Array.from(ul.querySelectorAll(':scope > li.list-item'));
+    lis.sort(function(a,b){
+      var ad = 0, bd = 0;
+      if (sel.value === 'modified') {
+        ad = parseISO(a.getAttribute('data-modified-at')) || parseISO(a.getAttribute('data-created-at'));
+        bd = parseISO(b.getAttribute('data-modified-at')) || parseISO(b.getAttribute('data-created-at'));
+      } else {
+        ad = parseISO(a.getAttribute('data-created-at'));
+        bd = parseISO(b.getAttribute('data-created-at'));
+      }
+      return bd - ad; // newest first
+    });
+    lis.forEach(function(li){ ul.appendChild(li); });
+  }
+  function applySort(){
+    document.querySelectorAll('ul.category-lists').forEach(function(ul){ sortUl(ul); });
+  }
+  sel.addEventListener('change', function(){ setCookie(cookieName, sel.value, 365); applySort(); });
+  // initial
+  applySort();
+})();
   // Remove any leftover suggestion box elements on the index page to fully disable it here
   try {
     var h1 = document.getElementById('hashtag-suggest'); if (h1) h1.remove();
