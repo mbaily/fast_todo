@@ -280,7 +280,15 @@
     </style>
   </head>
   <body>
-  <header></header>
+  <header>
+    <nav style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;">
+      <div style="font-weight:bold;">Fast Todo</div>
+      <div style="display:flex;gap:0.5rem;align-items:center;">
+        <a href="/html_no_js/priorities" class="button" title="Priority summary">Priorities</a>
+        <a href="/html_no_js/" class="button">Lists</a>
+      </div>
+    </nav>
+  </header>
   {# compute a back_to_list_url when appropriate: prefer an explicit value, then build one for todo pages only.
     Do NOT set a back_to_list_url for list pages (avoid showing 'Back to List' when already on a list). #}
   {% set back_to_list_url = back_to_list_url if back_to_list_url is defined else (('/html_no_js/lists/' ~ todo.list_id ~ '#todo-' ~ todo.id) if (todo is defined and todo and todo.list_id) else None) %}

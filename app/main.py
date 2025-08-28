@@ -716,6 +716,40 @@ async def list_lists(current_user: User = Depends(require_login)):
         return res.all()
 
 
+@app.get('/html_no_js/priorities')
+async def html_priorities(request: Request, current_user: User = Depends(require_login)):
+    async with async_session() as sess:
+        # lists with priority
+        ql = await sess.exec(select(ListState).where(ListState.owner_id == current_user.id).where(ListState.priority != None))
+        lists = ql.all()
+        # include todos that either have their own priority or belong to a prioritized list
+        prioritized_list_ids = [l.id for l in lists if l.id is not None]
+        qt = await sess.exec(select(Todo).where((Todo.priority != None) | (Todo.list_id.in_(prioritized_list_ids))))
+        todos_all = qt.all()
+        # filter by visibility (todo's parent list must be visible to the user) and attach list
+        todos: list[tuple[Todo, ListState]] = []
+        for t in todos_all:
+            ql2 = await sess.exec(select(ListState).where(ListState.id == t.list_id))
+            lst = ql2.first()
+            if not lst:
+                continue
+            if lst.owner_id is None or lst.owner_id == current_user.id or lst.id in prioritized_list_ids:
+                todos.append((t, lst))
+        # sort lists and todos by priority descending
+        lists_sorted = sorted(lists, key=lambda l: (l.priority if l.priority is not None else -999), reverse=True)
+        # sort todos by their own priority descending; if none, fall back to their list's priority so prioritized lists surface their todos
+        def todo_sort_key(tl: tuple[Todo, ListState]):
+            todo, lst = tl
+            if todo.priority is not None:
+                return todo.priority
+            if lst.priority is not None:
+                return lst.priority - 0.1  # slightly lower than a todo with same numeric priority
+            return -999
+
+        todos_sorted = sorted(todos, key=todo_sort_key, reverse=True)
+    return TEMPLATES.TemplateResponse(request, 'priorities.html', {'request': request, 'lists': lists_sorted, 'todos': todos_sorted, 'client_tz': await get_session_timezone(request)})
+
+
 def _parse_iso_to_utc(s: Optional[str]) -> Optional[datetime]:
     if not s:
         return None
