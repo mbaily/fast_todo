@@ -200,6 +200,12 @@
   <a href="/html_no_js/categories" class="btn" style="font-weight:bold;">→ Categories</a>
 </div>
 
+<script>
+  // expose categories metadata from server to client-side scripts
+  // categories should serialize to a JSON array; default to [] if missing
+  window.categories = {{ categories | default([]) | tojson | safe }};
+</script>
+
 {% if calendar_occurrences and calendar_occurrences|length > 0 %}
   <section class="calendar-summary" style="margin-top:1rem;">
     <h3>Calendar</h3>
@@ -254,12 +260,27 @@
   function parsePri(el){ var v = el.getAttribute('data-priority'); if (v==null || v==='') return null; var n = parseInt(v,10); return isNaN(n) ? null : n; }
   function sortUl(ul){
     var lis = Array.from(ul.querySelectorAll(':scope > li.list-item'));
+    // determine category id for this ul by traversing up to .category-section
+    var catSection = ul.closest('.category-section');
+    var catId = null;
+    try { catId = catSection ? catSection.getAttribute('data-category-id') : null; } catch(e) { catId = null; }
     lis.sort(function(a,b){
       var pa = parsePri(a), pb = parsePri(b);
       var aHas = (pa !== null), bHas = (pb !== null);
       if (aHas && !bHas) return -1; // priority first
       if (!aHas && bHas) return 1;
   if (aHas && bHas && pa !== pb) return pb - pa; // higher number first
+      // If this category requests alphanumeric sorting, sort by visible list title
+      try {
+        if (catId && categorySortMap && categorySortMap[catId]) {
+          var an = (a.querySelector && a.querySelector('.list-title')) ? (a.querySelector('.list-title').textContent || '') : (a.textContent || '');
+          var bn = (b.querySelector && b.querySelector('.list-title')) ? (b.querySelector('.list-title').textContent || '') : (b.textContent || '');
+          // localeCompare for alphanumeric-ish ordering
+          return an.localeCompare(bn, undefined, {numeric: true, sensitivity: 'base'});
+        }
+      } catch(e) {
+        // fall back to date-based sorting on error
+      }
       // tie-breaker: selected date newest first
       var ad = 0, bd = 0;
       if (sel.value === 'modified') {
@@ -274,12 +295,40 @@
     lis.forEach(function(li){ ul.appendChild(li); });
   }
   function applySort(){
-    document.querySelectorAll('ul.category-lists').forEach(function(ul){ sortUl(ul); });
+  document.querySelectorAll('ul.category-lists').forEach(function(ul){ sortUl(ul); });
   }
   sel.addEventListener('change', function(){ setCookie(cookieName, sel.value, 365); applySort(); });
   // initial
+  // Build a map of category id -> sort_alphanumeric from server-rendered `categories` var
+  var categorySortMap = {};
+  try {
+    if (typeof window !== 'undefined' && window.categories && Array.isArray(window.categories)) {
+      window.categories.forEach(function(c){ categorySortMap[String(c.id)] = !!c.sort_alphanumeric; });
+    } else {
+      // try to read categories from a global JSON embedded by server (Jinja will set `categories` var)
+      if (typeof categories !== 'undefined' && Array.isArray(categories)) {
+        categories.forEach(function(c){ categorySortMap[String(c.id)] = !!c.sort_alphanumeric; });
+      }
+    }
+  } catch(e) { /* ignore */ }
   applySort();
 })();
+// react to category sort changes coming from other tabs/pages
+window.addEventListener && window.addEventListener('storage', function(ev){
+  if (!ev || !ev.key) return;
+  try {
+    if (ev.key === 'category_sort_changed'){
+      var obj = JSON.parse(ev.newValue || '{}');
+      if (obj && obj.id != null){
+        categorySortMap[String(obj.id)] = !!obj.sort;
+        // reapply sorting across category lists
+        document.querySelectorAll('ul.category-lists').forEach(function(ul){ try{ ul && ul.dispatchEvent(new CustomEvent('reapply-sort')); }catch(e){} });
+        // also directly call applySort if available
+        try { if (typeof applySort === 'function') applySort(); } catch(e){}
+      }
+    }
+  } catch(e) {}
+});
   // Remove any leftover suggestion box elements on the index page to fully disable it here
   try {
     var h1 = document.getElementById('hashtag-suggest'); if (h1) h1.remove();

@@ -3644,9 +3644,9 @@ async def html_index(request: Request):
         # fetch categories ordered by position
         categories = []
         try:
-            qcat = select(Category).order_by(Category.position.asc())
-            cres = await sess.exec(qcat)
-            categories = [{'id': c.id, 'name': c.name, 'position': c.position} for c in cres.all()]
+                qcat = select(Category).order_by(Category.position.asc())
+                cres = await sess.exec(qcat)
+                categories = [{'id': c.id, 'name': c.name, 'position': c.position, 'sort_alphanumeric': getattr(c, 'sort_alphanumeric', False)} for c in cres.all()]
         except Exception:
             categories = []
         # Also fetch pinned todos from lists visible to this user (owned or public)
@@ -3959,9 +3959,83 @@ async def api_get_categories(request: Request, current_user: User = Depends(requ
         try:
             cres = await sess.exec(select(Category).order_by(Category.position.asc(), Category.id.asc()))
             cats = cres.all()
-            return {'categories': [{'id': c.id, 'name': c.name, 'position': c.position} for c in cats]}
+            return {'categories': [{'id': c.id, 'name': c.name, 'position': c.position, 'sort_alphanumeric': getattr(c, 'sort_alphanumeric', False)} for c in cats]}
         except Exception:
             return {'categories': []}
+
+
+
+class CreateCategoryRequest(BaseModel):
+    name: str
+    position: Optional[int] = None
+
+
+@app.post('/api/categories')
+async def api_create_category(request: Request, payload: CreateCategoryRequest, current_user: User = Depends(require_login)):
+    """Create a category via JSON API. Accepts {name, position?}."""
+    # Allow bearer-token API clients (Authorization header) without CSRF.
+    auth_hdr = request.headers.get('authorization')
+    if not auth_hdr:
+        # require CSRF for cookie-auth browser clients
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        token = body.get('_csrf') or request.cookies.get('csrf_token')
+        from .auth import verify_csrf_token
+        if not token or not verify_csrf_token(token, current_user.username):
+            raise HTTPException(status_code=403, detail='invalid csrf token')
+
+    name = (payload.name or '').strip()[:200]
+    if not name:
+        raise HTTPException(status_code=400, detail='name required')
+    async with async_session() as sess:
+        # determine position: if provided use it, else append to end
+        pos = payload.position
+        if pos is None:
+            qmax = await sess.exec(select(Category).order_by(Category.position.desc()).limit(1))
+            maxc = qmax.first()
+            pos = (maxc.position + 1) if maxc else 0
+        nc = Category(name=name, position=pos)
+        sess.add(nc)
+        await sess.commit()
+        await sess.refresh(nc)
+    return {'id': nc.id, 'name': nc.name, 'position': nc.position, 'sort_alphanumeric': getattr(nc, 'sort_alphanumeric', False)}
+
+
+class SetCategorySortRequest(BaseModel):
+    sort: bool
+
+
+@app.post('/api/categories/{cat_id}/sort')
+async def api_set_category_sort(request: Request, cat_id: int, payload: SetCategorySortRequest, current_user: User = Depends(require_login)):
+    """Set per-category sort_alphanumeric flag via API. Accepts {sort: true|false}."""
+    # Allow bearer-token API clients (Authorization header) without CSRF.
+    auth_hdr = request.headers.get('authorization')
+    if not auth_hdr:
+        # require CSRF for cookie-auth browser clients
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        token = body.get('_csrf') or request.cookies.get('csrf_token')
+        from .auth import verify_csrf_token
+        if not token or not verify_csrf_token(token, current_user.username):
+            raise HTTPException(status_code=403, detail='invalid csrf token')
+
+    val = bool(getattr(payload, 'sort', False))
+    async with async_session() as sess:
+        q = await sess.exec(select(Category).where(Category.id == cat_id))
+        cur = q.first()
+        if not cur:
+            raise HTTPException(status_code=404, detail='category not found')
+        try:
+            await sess.exec(sqlalchemy_update(Category).where(Category.id == cat_id).values(sort_alphanumeric=val))
+            await sess.commit()
+        except Exception:
+            logger.exception('failed to set sort_alphanumeric for cat_id=%s', cat_id)
+            raise HTTPException(status_code=500, detail='update failed')
+        return {'ok': True, 'sort_alphanumeric': val}
 
 
 class MoveCatRequest(BaseModel):

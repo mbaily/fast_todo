@@ -57,11 +57,55 @@
       }
       const ul = document.createElement('ul');
       ul.style.listStyle = 'none'; ul.style.paddingLeft = '0';
-      items.forEach(c => {
+    items.forEach(c => {
         const li = document.createElement('li');
         li.style.marginBottom = '0.5rem';
         li.dataset.catId = c.id;
-        li.textContent = `${c.name} (pos ${c.position})`;
+        // show name and position
+        const span = document.createElement('span');
+        span.textContent = `${c.name} (pos ${c.position})`;
+        li.appendChild(span);
+        li.appendChild(document.createTextNode(' '));
+        // add sort checkbox
+        const sortLabel = document.createElement('label');
+        sortLabel.style.marginLeft = '0.5rem';
+        sortLabel.style.fontSize = '0.9em';
+        const sortCb = document.createElement('input');
+        sortCb.type = 'checkbox';
+        sortCb.checked = !!c.sort_alphanumeric;
+        sortCb.style.marginRight = '0.25rem';
+  // Prevent parent li click from stealing focus/causing re-render before change
+  sortCb.addEventListener('click', function(ev){ ev.stopPropagation(); });
+  sortCb.addEventListener('change', async function(ev){
+          // POST to API to set sort flag
+          statusEl.textContent = 'Updating sort...';
+          try{
+            const payload = { sort: sortCb.checked, _csrf: csrf };
+            const resp = await fetch('/api/categories/' + encodeURIComponent(c.id) + '/sort', {
+              method: 'POST',
+              credentials: 'same-origin',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify(payload)
+            });
+            if (!resp.ok) throw new Error('update failed');
+            const data = await resp.json();
+            if (statusEl) statusEl.textContent = `Updated sort for ${c.name}`;
+            // update local representation
+            c.sort_alphanumeric = !!data.sort_alphanumeric;
+            try {
+              // notify other pages (index) about the change so they can re-sort immediately
+              localStorage.setItem('category_sort_changed', JSON.stringify({id: c.id, sort: c.sort_alphanumeric, ts: Date.now()}));
+            } catch(e) { /* ignore storage errors */ }
+          }catch(e){
+            console.error('failed to update sort flag', e);
+            if (statusEl) statusEl.textContent = 'Update failed';
+            // revert checkbox
+            sortCb.checked = !sortCb.checked;
+          }
+        });
+        sortLabel.appendChild(sortCb);
+        sortLabel.appendChild(document.createTextNode('A-Z'));
+        li.appendChild(sortLabel);
         if (selectedId === c.id) {
           // show only a blue left rectangle for selection
           li.style.background = 'transparent';

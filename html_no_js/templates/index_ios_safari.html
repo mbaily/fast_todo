@@ -166,6 +166,10 @@
       </label>
     </div>
     <script>
+      // expose categories metadata to client scripts
+      window.categories = {{ categories | default([]) | tojson | safe }};
+    </script>
+    <script>
       // Sort within categories (created vs modified), persisted in cookie
       (function(){
         function setCookie(name, value, days){ var expires=''; if(days){ var d=new Date(); d.setTime(d.getTime() + (days*24*60*60*1000)); expires='; expires='+d.toUTCString(); } document.cookie = name + '=' + encodeURIComponent(value) + expires + '; path=/'; }
@@ -177,27 +181,46 @@
         function parseISO(v){ try { return v ? new Date(v).getTime() : 0; } catch(_) { return 0; } }
         function parsePri(el){ var v = el.getAttribute('data-priority'); if (v==null || v==='') return null; var n = parseInt(v,10); return isNaN(n) ? null : n; }
         function sortUl(ul){
-          var lis = Array.from(ul.querySelectorAll(':scope > li'));
+            var lis = Array.from(ul.querySelectorAll(':scope > li'));
+            // determine category id for this ul
+            var catSection = ul.closest('.category-section');
+            var catId = null;
+            try { catId = catSection ? catSection.getAttribute('data-category-id') : null; } catch(e) { catId = null; }
           lis.sort(function(a,b){
             var pa = parsePri(a), pb = parsePri(b);
             var aHas = (pa !== null), bHas = (pb !== null);
             if (aHas && !bHas) return -1; // priority first
             if (!aHas && bHas) return 1;
             if (aHas && bHas && pa !== pb) return pb - pa; // higher number first
-            var ad = 0, bd = 0;
-            if (sel.value === 'modified') {
-              ad = parseISO(a.getAttribute('data-modified-at')) || parseISO(a.getAttribute('data-created-at'));
-              bd = parseISO(b.getAttribute('data-modified-at')) || parseISO(b.getAttribute('data-created-at'));
-            } else {
-              ad = parseISO(a.getAttribute('data-created-at'));
-              bd = parseISO(b.getAttribute('data-created-at'));
-            }
-            return bd - ad;
+              // If this category requests alphanumeric sorting, sort by visible text
+              try {
+                if (catId && categorySortMap && categorySortMap[catId]) {
+                  var an = (a.querySelector && a.querySelector('a')) ? (a.querySelector('a').textContent || '') : (a.textContent || '');
+                  var bn = (b.querySelector && b.querySelector('a')) ? (b.querySelector('a').textContent || '') : (b.textContent || '');
+                  return an.localeCompare(bn, undefined, {numeric: true, sensitivity: 'base'});
+                }
+              } catch(e) {}
+              var ad = 0, bd = 0;
+              if (sel.value === 'modified') {
+                ad = parseISO(a.getAttribute('data-modified-at')) || parseISO(a.getAttribute('data-created-at'));
+                bd = parseISO(b.getAttribute('data-modified-at')) || parseISO(b.getAttribute('data-created-at'));
+              } else {
+                ad = parseISO(a.getAttribute('data-created-at'));
+                bd = parseISO(b.getAttribute('data-created-at'));
+              }
+              return bd - ad;
           });
           lis.forEach(function(li){ ul.appendChild(li); });
         }
         function applySort(){ document.querySelectorAll('ul.category-lists').forEach(sortUl); }
         sel.addEventListener('change', function(){ setCookie(cookieName, sel.value, 365); applySort(); });
+        // Build categorySortMap from server-rendered `categories`
+        var categorySortMap = {};
+        try {
+          if (typeof categories !== 'undefined' && Array.isArray(categories)) {
+            categories.forEach(function(c){ categorySortMap[String(c.id)] = !!c.sort_alphanumeric; });
+          }
+        } catch(e) {}
         applySort();
       })();
       // Minimal JS for edit and delete on the plain iOS template
@@ -322,6 +345,19 @@
           // Initialize rendering on load (renders server tags by default if unchecked)
           refreshAllTags();
         })();
+          // Listen for category sort changes from other pages/tabs
+          window.addEventListener && window.addEventListener('storage', function(ev){
+            if (!ev || !ev.key) return;
+            try {
+              if (ev.key === 'category_sort_changed'){
+                var obj = JSON.parse(ev.newValue || '{}');
+                if (obj && obj.id != null){
+                  categorySortMap[String(obj.id)] = !!obj.sort;
+                  try { if (typeof applySort === 'function') applySort(); } catch(e){}
+                }
+              }
+            } catch(e) {}
+          });
       </script>
           <div style="margin-top:0.5rem;">
       <a href="/html_no_js/categories">Manage categories</a>

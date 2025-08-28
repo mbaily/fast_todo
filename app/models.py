@@ -78,6 +78,8 @@ class Category(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
     position: int = Field(default=0, index=True)
+    # When true, lists under this category should be sorted alphanumerically by name
+    sort_alphanumeric: bool = Field(default=False, index=True)
 
 
 
