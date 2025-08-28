@@ -435,6 +435,17 @@
             if (btn) {
               var was = btn.textContent && btn.textContent.indexOf('☑') !== -1;
               btn.textContent = was ? '☐' : '☑';
+              // Keep the hidden 'done' input in sync so subsequent submits toggle correctly
+              try {
+                var doneInput = form.querySelector('input[name="done"]');
+                if (doneInput) {
+                  // After successful toggle, the next request should send the opposite action.
+                  // If the button previously showed '☑' (was === true), it is now unchecked and
+                  // we want the next submit to send 'true' to mark it again. If previously unchecked,
+                  // it is now checked and next submit should send 'false'. So set to String(was).
+                  doneInput.value = was ? 'true' : 'false';
+                }
+              } catch(e) { /* ignore done input sync errors */ }
             }
             // Optionally update autosave/status if server returned a message
             var status = document.getElementById('autosave-status'); if (status && body && body.message) status.textContent = body.message; else if (status) status.textContent = '';
