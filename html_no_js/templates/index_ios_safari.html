@@ -44,7 +44,6 @@
       {% endfor %}
   </ul>
     {% endif %}
-
     <form method="post" action="/html_no_js/lists/create">
       {% if csrf_token %}
         <input type="hidden" name="_csrf" value="{{ csrf_token }}">
@@ -52,6 +51,20 @@
       <input name="name" placeholder="List name" required>
       <button type="submit">Create</button>
     </form>
+
+    {# Moved Calendar summary to appear directly under pinned todos #}
+    {% if calendar_occurrences and calendar_occurrences|length > 0 %}
+      <h3 style="margin-top:1rem">Calendar</h3>
+      <ul style="padding-left:0; list-style:none; margin:0 0 1rem 0;">
+        {% for ev in calendar_occurrences %}
+          <li>
+            <strong>{{ ev.occurrence_date or ev.occurrence_dt[:10] }}</strong>
+            &nbsp; <a href="{% if ev.item_type == 'todo' %}/html_no_js/todos/{{ ev.id }}{% else %}/html_no_js/lists/{{ ev.id }}{% endif %}">{{ ev.title or (ev.rrule or '')[:60] }}</a>
+            {% if ev.is_recurring %}<span class="muted"> (recurring)</span>{% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
 
     <form method="get" action="/html_no_js/search" style="margin:0.6rem 0;">
       {% if csrf_token %}
@@ -130,6 +143,18 @@
       </li>
     {% endif %}
     </ul>
+    {% if calendar_occurrences and calendar_occurrences|length > 0 %}
+      <h3 style="margin-top:1rem">Calendar</h3>
+      <ul style="padding-left:0; list-style:none; margin:0 0 1rem 0;">
+        {% for ev in calendar_occurrences %}
+          <li>
+            <strong>{{ ev.occurrence_date or ev.occurrence_dt[:10] }}</strong>
+            &nbsp; <a href="{% if ev.item_type == 'todo' %}/html_no_js/todos/{{ ev.id }}{% else %}/html_no_js/lists/{{ ev.id }}{% endif %}">{{ ev.title or (ev.rrule or '')[:60] }}</a>
+            {% if ev.is_recurring %}<span class="muted"> (recurring)</span>{% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
     <div style="margin-top:1rem; display:flex; gap:1rem; align-items:center; flex-wrap:wrap;">
       <label style="margin-right:0.5rem;"><input type="checkbox" id="show-all-tags-checkbox"> Show all tags</label>
       <span style="flex:1 1 auto"></span>

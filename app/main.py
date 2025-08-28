@@ -3687,6 +3687,169 @@ async def html_index(request: Request):
         except Exception:
             # if DB lacks the pinned column or some error occurs, show no pinned todos
             pinned_todos = []
+        # compute a small, near-term calendar summary for the index page
+        calendar_occurrences = []
+        try:
+            from datetime import timedelta as _td
+            from .models import CompletedOccurrence, IgnoredScope
+            from . import models
+            from .utils import occurrence_hash, extract_dates_meta
+            from .utils import now_utc
+            from dateutil.rrule import rrulestr
+
+            now = now_utc()
+            cal_start = now - _td(days=1)
+            cal_end = now + _td(days=1)
+
+            # fetch user's completed occ_hashes and active ignore scopes once
+            qc = await sess.exec(select(CompletedOccurrence).where(CompletedOccurrence.user_id == owner_id))
+            done_rows = qc.all()
+            done_set = set(r.occ_hash for r in done_rows)
+            qi = await sess.exec(select(IgnoredScope).where(IgnoredScope.user_id == owner_id).where(IgnoredScope.active == True))
+            ign_rows = qi.all()
+            occ_ignore_hashes = set(r.scope_hash for r in ign_rows if getattr(r, 'scope_type', '') == 'occurrence' and r.scope_hash)
+            list_ignore_ids = set(str(r.scope_key) for r in ign_rows if getattr(r, 'scope_type', '') == 'list')
+            todo_from_scopes = [r for r in ign_rows if getattr(r, 'scope_type', '') == 'todo_from']
+
+            # visible lists/todos for this user (owned or public)
+            try:
+                qvis = select(models.ListState).where(((models.ListState.owner_id == owner_id) | (models.ListState.owner_id == None))).where(models.ListState.parent_todo_id == None).where(models.ListState.parent_list_id == None)
+                rvis = await sess.exec(qvis)
+                vis_lists = rvis.all()
+            except Exception:
+                vis_lists = []
+            vis_ids = [l.id for l in vis_lists if l.id is not None]
+            vis_todos = []
+            if vis_ids:
+                # Prefer filtering out fully-completed todos at the DB level
+                # when the schema exposes a 'completed' column on Todo. If the
+                # attribute/column is missing (older schemas), fall back to a
+                # plain select; the per-occurrence completed exclusion will
+                # still be enforced by checking persisted CompletedOccurrence
+                # rows.
+                try:
+                    if hasattr(models.Todo, 'completed'):
+                        qtt = await sess.exec(select(models.Todo).where(models.Todo.list_id.in_(vis_ids)).where(models.Todo.completed == False))
+                    else:
+                        qtt = await sess.exec(select(models.Todo).where(models.Todo.list_id.in_(vis_ids)))
+                    vis_todos = qtt.all()
+                except Exception:
+                    vis_todos = []
+
+            # helper to add occurrence while applying completed/ignored filters
+            def _occ_allowed(item_type, item_id, occ_dt, rrule_str, title=None, list_id=None):
+                try:
+                    if occ_dt.tzinfo is None:
+                        occ_dt = occ_dt.replace(tzinfo=timezone.utc)
+                    # Use the same title normalization as the calendar page when
+                    # computing the occurrence hash so completed marks (which
+                    # include title) match across views.
+                    occ_hash = occurrence_hash(item_type, item_id, occ_dt, rrule_str or '', title)
+                    # completed
+                    if occ_hash in done_set:
+                        return None
+                    # occurrence-level ignore
+                    if occ_hash in occ_ignore_hashes:
+                        return None
+                    # list-level ignore
+                    if item_type == 'list' and str(item_id) in list_ignore_ids:
+                        return None
+                    # todo_from scopes
+                    for r in todo_from_scopes:
+                        try:
+                            if str(item_id) != str(getattr(r, 'scope_key', '')):
+                                continue
+                            r_from = getattr(r, 'from_dt', None)
+                            if r_from is None:
+                                return None
+                            if r_from.tzinfo is None:
+                                r_from = r_from.replace(tzinfo=timezone.utc)
+                            if occ_dt >= r_from:
+                                return None
+                        except Exception:
+                            continue
+                    return occ_hash
+                except Exception:
+                    return None
+
+            # expand list recurrences and explicit list dates
+            for l in vis_lists:
+                rec_rrule = getattr(l, 'recurrence_rrule', None)
+                rec_dtstart = getattr(l, 'recurrence_dtstart', None)
+                if rec_rrule:
+                    try:
+                        if rec_dtstart and rec_dtstart.tzinfo is None:
+                            rec_dtstart = rec_dtstart.replace(tzinfo=timezone.utc)
+                        r = rrulestr(rec_rrule, dtstart=rec_dtstart)
+                        occs = list(r.between(cal_start, cal_end, inc=True))[:3]
+                        for od in occs:
+                            oh = _occ_allowed('list', l.id, od, rec_rrule, title=(l.name or ''), list_id=None)
+                            if oh:
+                                calendar_occurrences.append({'occurrence_dt': od.isoformat(), 'item_type': 'list', 'id': l.id, 'list_id': None, 'title': l.name, 'occ_hash': oh, 'is_recurring': True, 'rrule': rec_rrule})
+                    except Exception:
+                        pass
+                # explicit year-explicit dates from list name
+                try:
+                    meta = extract_dates_meta(l.name or '')
+                    for m in meta:
+                        d = m.get('dt')
+                        if d and d >= cal_start and d <= cal_end:
+                            oh = _occ_allowed('list', l.id, d, '', title=(l.name or ''), list_id=None)
+                            if oh:
+                                calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'list', 'id': l.id, 'list_id': None, 'title': l.name, 'occ_hash': oh, 'is_recurring': False, 'rrule': ''})
+                except Exception:
+                    pass
+
+            # expand todos: persisted rrule, inline rrule, explicit dates
+            for t in vis_todos:
+                rec_rrule = getattr(t, 'recurrence_rrule', None)
+                rec_dtstart = getattr(t, 'recurrence_dtstart', None)
+                if rec_rrule:
+                    try:
+                        if rec_dtstart and rec_dtstart.tzinfo is None:
+                            rec_dtstart = rec_dtstart.replace(tzinfo=timezone.utc)
+                        r = rrulestr(rec_rrule, dtstart=rec_dtstart)
+                        occs = list(r.between(cal_start, cal_end, inc=True))[:3]
+                        for od in occs:
+                            oh = _occ_allowed('todo', t.id, od, rec_rrule, title=(t.text or ''), list_id=t.list_id)
+                            if oh:
+                                calendar_occurrences.append({'occurrence_dt': od.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': True, 'rrule': rec_rrule})
+                    except Exception:
+                        pass
+                else:
+                    # inline parse
+                    try:
+                        from .utils import parse_text_to_rrule, parse_text_to_rrule_string
+                        r_obj, dtstart = parse_text_to_rrule(t.text + '\n' + (t.note or ''))
+                        if r_obj is not None:
+                            if dtstart and dtstart.tzinfo is None:
+                                dtstart = dtstart.replace(tzinfo=timezone.utc)
+                            occs = list(r_obj.between(cal_start, cal_end, inc=True))[:3]
+                            _dt, rrule_str_local = parse_text_to_rrule_string(t.text + '\n' + (t.note or ''))
+                            for od in occs:
+                                oh = _occ_allowed('todo', t.id, od, rrule_str_local, title=(t.text or ''), list_id=t.list_id)
+                                if oh:
+                                    calendar_occurrences.append({'occurrence_dt': od.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': True, 'rrule': rrule_str_local})
+                    except Exception:
+                        pass
+                # explicit dates from text/note
+                try:
+                    meta = extract_dates_meta(t.text + '\n' + (t.note or ''))
+                    for m in meta:
+                        d = m.get('dt')
+                        if d and d >= cal_start and d <= cal_end:
+                            oh = _occ_allowed('todo', t.id, d, '', title=(t.text or ''), list_id=t.list_id)
+                            if oh:
+                                calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': False, 'rrule': ''})
+                except Exception:
+                    pass
+
+            # sort and cap
+            calendar_occurrences.sort(key=lambda x: x.get('occurrence_dt'))
+            calendar_occurrences = calendar_occurrences[:20]
+        except Exception:
+            calendar_occurrences = []
+
         # prepare cursors for template (ISO strings)
         def _iso(dt):
             try:
@@ -3716,15 +3879,15 @@ async def html_index(request: Request):
     try:
         if force_ios:
             logger.info('html_index: rendering index_ios_safari (forced) ua=%s', ua[:200])
-            return TEMPLATES.TemplateResponse(request, "index_ios_safari.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "cursors": cursors, "categories": categories})
+            return TEMPLATES.TemplateResponse(request, "index_ios_safari.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences})
         if is_ios_safari(request):
             logger.info('html_index: rendering index_ios_safari (ua-detected) ua=%s', ua[:200])
-            return TEMPLATES.TemplateResponse(request, "index_ios_safari.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "cursors": cursors, "categories": categories})
+            return TEMPLATES.TemplateResponse(request, "index_ios_safari.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences})
         logger.info('html_index: rendering index.html (default) ua=%s', ua[:200])
-        return TEMPLATES.TemplateResponse(request, "index.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "cursors": cursors, "categories": categories})
+        return TEMPLATES.TemplateResponse(request, "index.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences})
     except Exception:
         # Ensure we always return something even if logging fails
-        return TEMPLATES.TemplateResponse(request, "index.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "cursors": cursors, "categories": categories})
+        return TEMPLATES.TemplateResponse(request, "index.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences})
 
 
 @app.get('/html_no_js/categories', response_class=HTMLResponse)
