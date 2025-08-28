@@ -3693,7 +3693,7 @@ async def html_index(request: Request):
             from datetime import timedelta as _td
             from .models import CompletedOccurrence, IgnoredScope
             from . import models
-            from .utils import occurrence_hash, extract_dates_meta
+            from .utils import occurrence_hash, extract_dates_meta, resolve_yearless_date
             from .utils import now_utc
             from dateutil.rrule import rrulestr
 
@@ -3788,15 +3788,38 @@ async def html_index(request: Request):
                                 calendar_occurrences.append({'occurrence_dt': od.isoformat(), 'item_type': 'list', 'id': l.id, 'list_id': None, 'title': l.name, 'occ_hash': oh, 'is_recurring': True, 'rrule': rec_rrule})
                     except Exception:
                         pass
-                # explicit year-explicit dates from list name
+                # explicit dates from list name (handle year-explicit and yearless)
                 try:
                     meta = extract_dates_meta(l.name or '')
                     for m in meta:
-                        d = m.get('dt')
-                        if d and d >= cal_start and d <= cal_end:
-                            oh = _occ_allowed('list', l.id, d, '', title=(l.name or ''), list_id=None)
-                            if oh:
-                                calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'list', 'id': l.id, 'list_id': None, 'title': l.name, 'occ_hash': oh, 'is_recurring': False, 'rrule': ''})
+                        try:
+                            if m.get('year_explicit'):
+                                d = m.get('dt')
+                                if d and d >= cal_start and d <= cal_end:
+                                    oh = _occ_allowed('list', l.id, d, '', title=(l.name or ''), list_id=None)
+                                    if oh:
+                                        calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'list', 'id': l.id, 'list_id': None, 'title': l.name, 'occ_hash': oh, 'is_recurring': False, 'rrule': ''})
+                            else:
+                                # yearless: resolve candidates using same policy as calendar_occurrences
+                                try:
+                                    created = getattr(l, 'created_at', None) or now
+                                    candidates = resolve_yearless_date(int(m.get('month')), int(m.get('day')), created, window_start=cal_start, window_end=cal_end)
+                                    if isinstance(candidates, list):
+                                        for d in candidates:
+                                            if d and d >= cal_start and d <= cal_end:
+                                                oh = _occ_allowed('list', l.id, d, '', title=(l.name or ''), list_id=None)
+                                                if oh:
+                                                    calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'list', 'id': l.id, 'list_id': None, 'title': l.name, 'occ_hash': oh, 'is_recurring': False, 'rrule': ''})
+                                    else:
+                                        d = candidates
+                                        if d and d >= cal_start and d <= cal_end:
+                                            oh = _occ_allowed('list', l.id, d, '', title=(l.name or ''), list_id=None)
+                                            if oh:
+                                                calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'list', 'id': l.id, 'list_id': None, 'title': l.name, 'occ_hash': oh, 'is_recurring': False, 'rrule': ''})
+                                except Exception:
+                                    pass
+                        except Exception:
+                            continue
                 except Exception:
                     pass
 
@@ -3832,15 +3855,38 @@ async def html_index(request: Request):
                                     calendar_occurrences.append({'occurrence_dt': od.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': True, 'rrule': rrule_str_local})
                     except Exception:
                         pass
-                # explicit dates from text/note
+                # explicit dates from text/note (handle year-explicit and yearless)
                 try:
                     meta = extract_dates_meta(t.text + '\n' + (t.note or ''))
                     for m in meta:
-                        d = m.get('dt')
-                        if d and d >= cal_start and d <= cal_end:
-                            oh = _occ_allowed('todo', t.id, d, '', title=(t.text or ''), list_id=t.list_id)
-                            if oh:
-                                calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': False, 'rrule': ''})
+                        try:
+                            if m.get('year_explicit'):
+                                d = m.get('dt')
+                                if d and d >= cal_start and d <= cal_end:
+                                    oh = _occ_allowed('todo', t.id, d, '', title=(t.text or ''), list_id=t.list_id)
+                                    if oh:
+                                        calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': False, 'rrule': ''})
+                            else:
+                                # yearless: resolve the candidate(s) using todo created_at
+                                try:
+                                    created = getattr(t, 'created_at', None) or now
+                                    candidates = resolve_yearless_date(int(m.get('month')), int(m.get('day')), created, window_start=cal_start, window_end=cal_end)
+                                    if isinstance(candidates, list):
+                                        for d in candidates:
+                                            if d and d >= cal_start and d <= cal_end:
+                                                oh = _occ_allowed('todo', t.id, d, '', title=(t.text or ''), list_id=t.list_id)
+                                                if oh:
+                                                    calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': False, 'rrule': ''})
+                                    else:
+                                        d = candidates
+                                        if d and d >= cal_start and d <= cal_end:
+                                            oh = _occ_allowed('todo', t.id, d, '', title=(t.text or ''), list_id=t.list_id)
+                                            if oh:
+                                                calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': False, 'rrule': ''})
+                                except Exception:
+                                    pass
+                        except Exception:
+                            continue
                 except Exception:
                     pass
 
