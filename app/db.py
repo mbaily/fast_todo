@@ -195,6 +195,19 @@ def _ensure_sqlite_minimal_migrations(url: str | None) -> None:
                     conn.commit()
                 except Exception:
                     pass
+            # Ensure category table has sort_alphanumeric column for older DBs
+            try:
+                cur.execute("PRAGMA table_info('category')")
+                cat_cols = [row[1] for row in cur.fetchall()]
+                if cat_cols and 'sort_alphanumeric' not in cat_cols:
+                    try:
+                        cur.execute("ALTER TABLE category ADD COLUMN sort_alphanumeric INTEGER DEFAULT 0 NOT NULL")
+                        conn.commit()
+                    except Exception:
+                        # swallow; may fail on some drivers or when already exists
+                        pass
+            except Exception:
+                pass
         finally:
             try:
                 conn.close()
