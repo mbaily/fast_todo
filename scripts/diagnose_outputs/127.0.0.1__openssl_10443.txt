@@ -1,0 +1,55 @@
+=== CMD: /usr/bin/openssl s_client -connect 127.0.0.1:10443 -servername 127.0.0.1
+
+CONNECTED(00000003)
+---
+Certificate chain
+ 0 s:CN=localhost
+   i:CN=localhost
+   a:PKEY: RSA, 2048 (bit); sigalg: sha256WithRSAEncryption
+   v:NotBefore: Aug 21 07:50:29 2025 GMT; NotAfter: Aug 21 07:50:29 2026 GMT
+---
+Server certificate
+-----BEGIN CERTIFICATE-----
+MIIDCTCCAfGgAwIBAgIUMpdiVGVQZMLx2CknsFFG3Xogjs4wDQYJKoZIhvcNAQEL
+BQAwFDESMBAGA1UEAwwJbG9jYWxob3N0MB4XDTI1MDgyMTA3NTAyOVoXDTI2MDgy
+MTA3NTAyOVowFDESMBAGA1UEAwwJbG9jYWxob3N0MIIBIjANBgkqhkiG9w0BAQEF
+AAOCAQ8AMIIBCgKCAQEApART0ewJGK9eOCz1Ku1/A27KospCJPpUFD+HtbJbqjPQ
+XQINwtDLf1/IrSbUf0w7uWOUqwORTwwu30Tfu8s005T1AQ3BoJKQ+xf3GXxmudd6
+OrBQMFsHJeWM43ljZDWvnu3tb7h8vJAMy+DWjEItMTE2HbeUfJV8OU3BNKtU1kia
+tzU4Q0i+oycrO6xd18yJASUKutxsvSVg77PM7OHH5QosvlfNdvGMu2SXuAKa3J3Q
+3RjQma9N8V98Elhp7ir3vmvw0N32qUgRBNqan//nyvlhzK+LENXDvJ27R7B9Aln7
+/p4Lp6ylvh1qNjj5mZMc+viyKBv4f4rJC4FUWMlNewIDAQABo1MwUTAdBgNVHQ4E
+FgQURdbDPrY7phtmX+NaXv9+ZjoHTQ0wHwYDVR0jBBgwFoAURdbDPrY7phtmX+Na
+Xv9+ZjoHTQ0wDwYDVR0TAQH/BAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAQEAl2Wn
+BUvDQI4acaRG8eNkiRskaZ3KbzhUk1Z5q0vRA0DUGAOnMoFVwXVAFvk5yCqvTC9c
+NM2tegxjb6fh/cl5KHR4o0OWJBSFSviYeYW+9UyApkq6HGX97OcT3XXdwItdJxN4
+UimzFp6bxN46w9bixykolxaonLkdnTZq5kQvIMkQ9Vy/S88qgpoNunEffdEK2Zfl
+0QZDH4+va7Lww17BxT2fg5XoMRBuV84iELm9PXnnhG3wE3rY2jeGCHYGQQzccjRK
+DzUY7gUongnqhx5e80BGrDaVo/jqOkQW2z50a/qxqCx5CdNEDdblWSRGQlcLz3LH
+M8RHl0oTxu5JrM15qg==
+-----END CERTIFICATE-----
+subject=CN=localhost
+issuer=CN=localhost
+---
+No client certificate CA names sent
+Peer signing digest: SHA256
+Peer signature type: rsa_pss_rsae_sha256
+Negotiated TLS1.3 group: X25519MLKEM768
+---
+SSL handshake has read 2425 bytes and written 1631 bytes
+Verification error: self-signed certificate
+---
+New, TLSv1.3, Cipher is TLS_AES_256_GCM_SHA384
+Protocol: TLSv1.3
+Server public key is 2048 bit
+This TLS version forbids renegotiation.
+Compression: NONE
+Expansion: NONE
+No ALPN negotiated
+Early data was not sent
+Verify return code: 18 (self-signed certificate)
+---
+
+
+STDERR:
+TIMEOUT after 2s

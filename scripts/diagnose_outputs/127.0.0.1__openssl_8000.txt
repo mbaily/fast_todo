@@ -1,0 +1,8 @@
+=== CMD: /usr/bin/openssl s_client -connect 127.0.0.1:8000 -servername 127.0.0.1
+
+
+
+STDERR:
+4087875F357F0000:error:8000006F:system library:BIO_connect:Connection refused:../crypto/bio/bio_sock2.c:178:calling connect()
+4087875F357F0000:error:10000067:BIO routines:BIO_connect:connect error:../crypto/bio/bio_sock2.c:180:
+connect:errno=111

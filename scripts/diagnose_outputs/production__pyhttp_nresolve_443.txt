@@ -1,0 +1,5 @@
+{
+  "returncode": 1,
+  "error": "send_recv_failed",
+  "exception": "[SSL: TLSV13_ALERT_CERTIFICATE_REQUIRED] tlsv13 alert certificate required (_ssl.c:2638)"
+}

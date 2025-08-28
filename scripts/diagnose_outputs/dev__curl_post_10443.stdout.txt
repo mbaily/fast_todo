@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Login — Fast Todo (no-js)</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#2b6cb0">
+    <style>
+      :root {
+        --page-side-margin: 2rem; /* keep in sync with body margin */
+        --full-bleed-right-gutter: 4rem; /* space to the right of full-bleed elements */
+        --full-bleed-padding: 0.75rem; /* comfortable padding inside full-bleed elements */
+        /* dark theme colors */
+        --bg: #0b0f12;
+        --surface: #0f1720;
+        --text: #e6eef3;
+        --muted: #9aa6b2;
+        --border: #26343b;
+        --accent: #58a6ff;
+        --danger: #ff6b6b;
+        --success: #6fcf97;
+      }
+  /* prevent any horizontal scrolling in the no-JS client */
+  html, body { overflow-x: hidden; }
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial; margin: var(--page-side-margin); background: var(--bg); color: var(--text); }
+  header { margin-bottom: 0.5rem; }
+  a { color: var(--accent); }
+  a.button { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  /* form controls */
+  input, textarea, select, button { background: transparent; color: var(--text); border: 1px solid var(--border); }
+  input::placeholder { color: rgba(230,238,243,0.5); }
+  button { background: var(--surface); color: var(--text); border-radius: 4px; padding: 0.25rem 0.5rem; }
+  button:hover { background: #142029; }
+  /* meta and muted text */
+  .meta { color: var(--muted); }
+  /* done todos (scope to todo rows so list titles aren't affected) */
+  .todo .done { text-decoration: line-through; color: #6b7280; }
+  /* borders and separators */
+  hr, .divider { border-color: var(--border); }
+  /* full-bleed uses surface background */
+  .full-bleed { background: var(--surface); border: 1px solid var(--border); }
+  /* tighter heading spacing for compact mobile layout */
+  h1 { margin: 0 0 0.25rem 0; font-size: 1.1rem; }
+  /* reduce h2/h3 spacing to tighten the index layout */
+  h2 { margin: 0.08rem 0 0.08rem 0; font-size: 1rem; }
+  h3 { margin: 0.06rem 0 0.06rem 0; font-size: 0.95rem; }
+      form { margin: 0.5rem 0; }
+  .todo { padding: 0.12rem 0; display:flex; gap:0.25rem; align-items:flex-start; position: relative; }
+  .todo .done { text-decoration: line-through; color: #666 }
+      .meta { color: #888; font-size: 0.9rem }
+      /* generic wrapping utility for long text to avoid horizontal overflow */
+      .wrap-text {
+        white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
+      /* ensure long note text preserves user line breaks but still wraps */
+      .note-text {
+        white-space: pre-wrap; /* preserve line breaks and wrap */
+        overflow-wrap: anywhere; /* allow breaks within long words if necessary */
+        word-break: break-word;
+      }
+      .controls { margin-left: auto }
+      /* left-side icon controls for each todo: horizontal by default */
+      /* fixed-width left controls column so todo content lines up
+         regardless of which icon/glyph is used */
+  .controls-left { display:flex; flex-direction: row; gap: 0.3rem; margin-right: 0.35rem; align-items: center; width: auto; flex: 0 0 auto; justify-content: flex-start; flex-shrink: 0; overflow: visible; }
+  .controls-left form { margin: 0; width: auto; max-width: none; }
+      .controls-left button, .controls-left input[type="checkbox"] {
+                display:inline-flex; width: auto; text-align:center;
+                font-size: 0.9rem;
+                line-height: 1;
+                padding: 0.06rem 0.08rem;
+                border: 1px solid var(--border);
+                background: var(--surface);
+                color: var(--text);
+                border-radius: 4px;
+                box-sizing: border-box;
+                min-height: 1.6rem;
+                height: 1.6rem;
+                align-items: center;
+              }
+      .controls-left input[type="checkbox"] { padding: 0.06rem; border: none; background: transparent; }
+          .controls-left button:hover { background: #12232b; }
+          .controls-left button { white-space: nowrap; }
+          /* pinned state: make the pin button stand out with orange color */
+          .controls-left button.pinned { border-color: #ff8a3d; background: rgba(255,138,61,0.06); color: #ffb68a; }
+          .controls-left button.pinned:hover { background: rgba(255,138,61,0.12); }
+          /* non-interactive pin icon used in index pinned list */
+          .pin-icon { display: inline-block; width: 1.2rem; text-align: center; margin-right: 0.35rem; }
+          .pin-icon.pinned { color: #ffb68a; }
+  .todo { align-items:flex-start; display:flex; gap:0.35rem; flex-wrap: nowrap; }
+      .todo-content { flex: 1 1 auto; min-width: 0; }
+  /* Layout for todo rows: use natural flow next to the left controls (no fixed grid offset) */
+  .todo-content { flex: 1 1 auto; display:block; margin-left: 0; }
+  .todo-content .todo-main { flex: 1 1 auto; min-width: 8rem; }
+  .todo-content .todo-action-right { flex: 0 0 auto; }
+      @media (max-width: 480px) {
+        .controls-left { gap: 0.2rem; }
+      }
+  /* list header: show title and small meta inline */
+  /* Keep the entire header on a single line. Title will ellipsize when space is tight. */
+  .list-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: nowrap; /* don't allow wrapping */
+    overflow: hidden; /* clip overflowing children when viewport is narrow */
+    white-space: nowrap; /* strong no-wrap fallback */
+  }
+  /* chip styles (hashtags + completion types) */
+  .tag-chip {
+    display:inline-flex;
+    align-items:center;
+    gap:0.35rem;
+    /* darker blue with ~60% transparency for dark mode */
+    background: rgba(30, 64, 175, 0.4); /* #1e40af @ 40% opacity (60% transparent) */
+    border: 1px solid rgba(96, 165, 250, 0.7); /* light blue border for contrast */
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    color: #fff; /* white text for contrast */
+    text-decoration: none;
+    margin: 0.12rem 0.35rem 0.12rem 0;
+    transition: transform 120ms ease, box-shadow 120ms ease, background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+    cursor: pointer;
+  }
+  .tag-chip:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+    background: rgba(37, 99, 235, 0.55); /* slightly brighter + less transparent on hover */
+    border-color: rgba(147, 197, 253, 0.9);
+    color: #fff;
+  }
+  .tag-chip:focus { outline: none; }
+  .tag-chip:focus-visible { box-shadow: 0 0 0 3px rgba(88,166,255,0.45); }
+  .tag-chip .label { font-weight: 600; font-size: 0.9rem; }
+  /* completion type chips: match the same darker semi-transparent blue */
+  .ctype-chip {
+    /* distinct hue from tag chips: darker purple with ~60% transparency */
+    background: rgba(109, 40, 217, 0.4); /* purple-700 @ 40% opacity */
+    border-color: rgba(167, 139, 250, 0.7); /* light purple border for contrast */
+    color: #fff;
+  }
+  .ctype-chip:hover {
+    background: rgba(139, 92, 246, 0.55); /* brighter purple on hover */
+    border-color: rgba(196, 181, 253, 0.9);
+  }
+  .ctype-chip:focus-visible { box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.45); }
+  /* visually hidden helper for screen readers */
+  .sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0,0,0,0) !important; white-space: nowrap !important; border: 0 !important; }
+  .tag-remove { display:inline-flex; align-items:center; justify-content:center; background: transparent; border: none; color: var(--muted); margin-left: 0.2rem; padding: 0 0.15rem; font-size: 0.9rem; cursor: pointer }
+  .tag-remove:focus, .tag-remove:hover { color: var(--danger); outline: none; box-shadow: 0 0 0 3px rgba(255,107,107,0.12); border-radius: 4px }
+  .tags { margin: 0.45rem 0; display:flex; gap:0.4rem; flex-wrap:wrap; align-items:center }
+  .tags-inline { display:inline-flex; gap:0.35rem; align-items:center; margin-left: 0.25rem; }
+  .tags { margin: 0.4rem 0; }
+  .tags-inline { display:inline-block; margin-left: 0.5rem; }
+  /* Ensure direct children can shrink below their content width when necessary */
+  .list-header > * { min-width: 0; }
+  /* left action (delete) for the list header: fixed width so it doesn't push the title/meta to a new line */
+  .list-header .list-action-left { width: 2rem; flex: 0 0 2rem; display:flex; align-items:center; justify-content:center }
+  /* inner container to keep list title and meta on the same line */
+  /* main header row that contains the title and right-aligned meta; keep everything on one line */
+  .list-main {
+    display: flex;
+    align-items: center; /* align baseline can push; center yields steadier vertical alignment */
+    gap: 0.5rem;
+    flex: 1 1 0; /* allow the title to shrink; basis 0 helps ellipsis behavior */
+    min-width: 0; /* allow children to shrink below their content width */
+    flex-wrap: nowrap; /* prevent wrapping to the next line */
+  }
+  /* On the index page we want the title, edit icon, date and tags to flow inline
+    like normal text that wraps to the next line when needed. Make the inner
+    container inline and render its children as inline elements so they participate
+    in normal inline wrapping (no ellipsis). */
+  .lists-list .list-main { display: inline; vertical-align: middle; gap: 0; }
+  .lists-list .list-main > * { display: inline; vertical-align: middle; margin-right: 0.5rem; }
+  /* Title should behave like inline text and wrap naturally. */
+  .lists-list .list-main .list-title { display: inline; overflow: visible; white-space: normal; min-width: 0; margin-right: 0.25rem; }
+  .lists-list .list-main .meta { display: inline; margin-left: 0; white-space: nowrap; }
+  /* allow the title to shrink and show ellipsis when space is tight */
+  /* Allow list titles to wrap so long names don't get truncated on desktop
+     (behave like mobile). Keep min-width:0 so flex children can shrink. */
+  .list-main .list-title {
+    margin: 0;
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  /* keep meta on the right and prevent it from wrapping */
+  .list-main .meta { margin-left: auto; flex: 0 0 auto; white-space: nowrap; color: var(--muted); }
+  .list-header .list-title { margin: 0; font-size: 1rem; }
+  a.button { padding: 0.25rem 0.5rem; border:1px solid var(--border); border-radius:4px; text-decoration:none; color:var(--text); background: var(--surface); }
+      /* utility to allow an element to extend toward the viewport edge while keeping its left edge
+         aligned with the page content container. Uses CSS variables for easy tuning. */
+      .full-bleed {
+        box-sizing: border-box;
+        margin-left: 0; /* align with container left */
+        padding: var(--full-bleed-padding);
+        /* extend to the right by the page side margin so left edge lines up with other content */
+        width: calc(100% + var(--page-side-margin));
+        /* keep a configurable right gutter so the element doesn't touch the viewport edge */
+        max-width: calc(100vw - var(--full-bleed-right-gutter));
+      }
+      /* small helper to visually clamp text to a few lines (fallback will just show full text)
+         Uses -webkit-line-clamp which works in most mobile browsers; still safe if not supported. */
+      .line-clamp-1 {
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 1;
+        line-clamp: 1;
+        overflow: hidden;
+      }
+      .line-clamp-2 {
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        line-clamp: 2;
+        overflow: hidden;
+      }
+      /* tidy up list layout on mobile: remove extra right indent and reduce left padding */
+      .todos-list { padding-left: 0.25rem; margin-left: 0; margin-right: 0; padding-right: 0; list-style: none; }
+
+  /* list of lists on index: compact, no indent */
+  /* make the lists on the index page flush with the left page content */
+  .lists-list { padding-left: 0; margin-left: 0; margin-right: 0; padding-right: 0; list-style: none; margin-top: 0.05rem; }
+  /* ensure list rows don't get extra gap from default ul/li styles */
+  .lists-list li { margin: 0; padding: 0; }
+  /* Forcefully collapse vertical spacing on the index list to be as compact as possible */
+  .lists-list, .lists-list li, .lists-list .list-item { margin: 0 !important; padding: 0 !important; }
+  .lists-list .list-item { gap: 0.05rem !important; margin-bottom: 0 !important; }
+  .lists-list { margin-top: 0 !important; }
+  /* tighten the heading above lists on the index page */
+  .lists-list + h2, h2 { margin-top: 0.02rem !important; margin-bottom: 0.02rem !important; }
+  /* further reset any default ul/li offsets so the action icon is flush with the content edge */
+  .lists-list, .lists-list li { margin: 0; padding: 0; }
+
+  /* left-aligned tiny action icon for lists on the index page */
+  .list-item { display:flex; align-items:center; gap:0.04rem; margin-bottom: 0; padding: 0; width: 100%; line-height: 1; }
+  /* wider controls column used on list pages to allow extra space after checkbox */
+  .controls-left-wide { gap: 0.25rem; width: auto; flex: 0 0 auto; justify-content: flex-start; }
+  /* remove fixed-width override so controls can size naturally */
+  .list-item > .controls-left.controls-left-wide { width: auto !important; flex: 0 0 auto !important; justify-content: flex-start !important; }
+  /* make the action column auto width so the icon sits flush with the content edge */
+  .list-item > .list-action-left { margin-left: 0; padding: 0; width: auto; flex: 0 0 auto; display:flex; align-items:center; justify-content:flex-start; }
+  .list-item > .list-main { margin: 0; }
+  /* remove extra button padding so the glyph is visually aligned with the page content */
+  .lists-list .list-action-left button { padding: 0; margin: 0; border: none; background: transparent; font-size: 0.95rem; }
+  .list-item .list-action-left { width: 2rem; flex: 0 0 2rem; display:flex; align-items:center; justify-content:center }
+  .list-action-btn { background: #000; color: #fff; border: none; padding: 0.12rem 0.18rem; border-radius: 4px; font-size: 0.9rem }
+  .list-action-btn:hover { background: #111 }
+
+      /* responsive tweaks for small screens */
+      @media (max-width: 480px) {
+        :root { --page-side-margin: 1rem; }
+        body { margin: var(--page-side-margin); }
+        .todos-list { padding-left: 0; }
+        .controls { margin-left: 0.5rem; }
+      /* increase space between delete icon and list name on small screens
+        Add !important to override the global collapse rule set earlier. */
+  .lists-list .list-item { gap: 0.6rem !important; }
+      /* precise spacing for the left action column (icon) */
+      .lists-list .list-item > .list-action-left { margin-right: 3rem !important; }
+      /* enlarge checkbox-like buttons (first action in controls columns)
+         to ~1.5x size for better touch targets on mobile */
+      .controls-left > form:first-child button,
+      .list-action-left > form:first-child button {
+        font-size: 1.4rem;
+        padding: 0.18rem 0.2rem;
+        min-height: 2.2rem;
+        line-height: 1;
+      }
+      }
+  /* allow todo titles and notes to wrap naturally; no truncation */
+  .todo-title-inline { white-space: normal; overflow: visible; text-overflow: clip; }
+    </style>
+  </head>
+  <body>
+  <header></header>
+  
+  
+  
+
+
+  <nav class="top-toolbar" role="navigation" aria-label="Top toolbar">
+    <style>
+      /* minimal toolbar styles for login-only view */
+      .top-toolbar { display:flex; gap:0.5rem; align-items:center; margin-bottom:0.5rem; }
+      .top-toolbar .tb-item { display:inline-flex; align-items:center; gap:0.4rem; padding:0.35rem 0.6rem; border-radius:6px; background:var(--surface); border:1px solid var(--border); color:var(--text); text-decoration:none; }
+      .top-toolbar .tb-item svg { width:1.05rem; height:1.05rem; }
+      .top-toolbar .tb-item .label { font-size:0.95rem; }
+    </style>
+
+    
+    
+      <a class="tb-item" href="/html_no_js/login">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M6 2h6v2H6V2zm6 8v2a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1h8a1 1 0 011 1v2h-1V3H3v10h8v-2h1zM9 7l2-2 1 1-3 3-3-3 1-1 2 2z"/></svg>
+        <span class="label">Login</span>
+      </a>
+    
+
+  </nav>
+
+    <main>
+      
+      
+  <style>
+    /* remove top gap so toolbar sits flush to the top on login page */
+    body { margin-top: 0 !important; }
+    header { margin-top: 0 !important; }
+  </style>
+  <h2>Login</h2>
+  
+    <div class="error" role="alert" style="color:#b91c1c; margin-bottom:0.5rem;">Invalid credentials</div>
+  
+  <form method="post" action="/html_no_js/login">
+  
+        
+      
+    <label>Username <input name="username" required></label>
+    <br>
+    <label>Password <input name="password" type="password" required></label>
+    <br>
+    <button type="submit">Log in</button>
+  </form>
+  <script>
+    // Set a tz cookie with the browser timezone before submitting the login form
+    (function(){
+      try{
+        var form = document.querySelector('form[action="/html_no_js/login"]');
+        if (!form) return;
+        form.addEventListener('submit', function(){
+          try{
+            var tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+            if (tz){
+              // set cookie for path / so server sees it on login POST
+              document.cookie = 'tz=' + encodeURIComponent(tz) + '; path=/';
+            }
+          }catch(e){}
+        });
+      }catch(e){}
+    })();
+  </script>
+
+    </main>
+    
+    <script>
+    // Attach a native browser confirm dialog to forms with .confirm-delete
+    (function(){
+      if (!document) return;
+      function attach(){
+        document.querySelectorAll('form.confirm-delete').forEach(function(f){
+          if (f._confirmAttached) return; f._confirmAttached = true;
+          f.addEventListener('submit', function(ev){
+            var msg = f.getAttribute('data-confirm') || 'Are you sure?';
+            if (!window.confirm(msg)){
+              ev.preventDefault();
+              return false;
+            }
+            return true;
+          });
+        });
+      }
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', attach); else attach();
+    })();
+    </script>
+    <script>
+    // Puppeteer-friendly debug helper: emits structured messages via console.debug
+    // and exposes a simple global so test scripts can call `window.__puppeteerDebug.log(obj)`.
+    (function(){
+      if (typeof window === 'undefined') return;
+      window.__puppeteerDebug = {
+        log: function(obj){
+          try{
+            const payload = {type: 'puppeteer-debug', ts: new Date().toISOString(), payload: obj};
+            // stringify to ensure console message is captured as a single entry
+            console.debug('PUPPETEER_DEBUG:' + JSON.stringify(payload));
+          }catch(e){
+            console.debug('PUPPETEER_DEBUG:' + JSON.stringify({type:'puppeteer-debug-error', ts:new Date().toISOString(), error:String(e)}));
+          }
+        },
+        event: function(name, data){
+          try{
+            const payload = {type: 'puppeteer-event', ts: new Date().toISOString(), name: name, data: data};
+            console.debug('PUPPETEER_DEBUG:' + JSON.stringify(payload));
+          }catch(e){
+            console.debug('PUPPETEER_DEBUG:' + JSON.stringify({type:'puppeteer-debug-error', ts:new Date().toISOString(), error:String(e)}));
+          }
+        }
+      };
+    })();
+    </script>
+  
+  </body>
+</html>

@@ -1,0 +1,115 @@
+nohup: ignoring input
+[run_server] Using Python: Python 3.13.1
+[run_server] Installing from requirements.txt
+Requirement already satisfied: aiosqlite in ./.venv/lib/python3.13/site-packages (from -r requirements.txt (line 1)) (0.21.0)
+Requirement already satisfied: alembic in ./.venv/lib/python3.13/site-packages (from -r requirements.txt (line 2)) (1.16.4)
+Requirement already satisfied: dateparser in ./.venv/lib/python3.13/site-packages (from -r requirements.txt (line 3)) (1.2.2)
+Requirement already satisfied: fastapi in ./.venv/lib/python3.13/site-packages (from -r requirements.txt (line 4)) (0.116.1)
+Requirement already satisfied: httpx in ./.venv/lib/python3.13/site-packages (from -r requirements.txt (line 5)) (0.28.1)
+Requirement already satisfied: pytest in ./.venv/lib/python3.13/site-packages (from -r requirements.txt (line 7)) (8.4.1)
+Requirement already satisfied: pytest-asyncio in ./.venv/lib/python3.13/site-packages (from -r requirements.txt (line 8)) (1.1.0)
+Requirement already satisfied: python-dotenv in ./.venv/lib/python3.13/site-packages (from -r requirements.txt (line 9)) (1.1.1)
+Requirement already satisfied: python-multipart in ./.venv/lib/python3.13/site-packages (from -r requirements.txt (line 11)) (0.0.20)
+Requirement already satisfied: requests in ./.venv/lib/python3.13/site-packages (from -r requirements.txt (line 12)) (2.32.5)
+Requirement already satisfied: SQLAlchemy in ./.venv/lib/python3.13/site-packages (from -r requirements.txt (line 13)) (2.0.43)
+Requirement already satisfied: sqlmodel in ./.venv/lib/python3.13/site-packages (from -r requirements.txt (line 14)) (0.0.24)
+Requirement already satisfied: tzdata in ./.venv/lib/python3.13/site-packages (from -r requirements.txt (line 15)) (2025.2)
+Requirement already satisfied: jinja2 in ./.venv/lib/python3.13/site-packages (from -r requirements.txt (line 31)) (3.1.6)
+Requirement already satisfied: passlib[bcrypt] in ./.venv/lib/python3.13/site-packages (from -r requirements.txt (line 6)) (1.7.4)
+Requirement already satisfied: python-jose[cryptography] in ./.venv/lib/python3.13/site-packages (from -r requirements.txt (line 10)) (3.5.0)
+Requirement already satisfied: uvicorn[standard] in ./.venv/lib/python3.13/site-packages (from -r requirements.txt (line 16)) (0.35.0)
+Requirement already satisfied: typing_extensions>=4.0 in ./.venv/lib/python3.13/site-packages (from aiosqlite->-r requirements.txt (line 1)) (4.15.0)
+Requirement already satisfied: Mako in ./.venv/lib/python3.13/site-packages (from alembic->-r requirements.txt (line 2)) (1.3.10)
+Requirement already satisfied: python-dateutil>=2.7.0 in ./.venv/lib/python3.13/site-packages (from dateparser->-r requirements.txt (line 3)) (2.9.0.post0)
+Requirement already satisfied: pytz>=2024.2 in ./.venv/lib/python3.13/site-packages (from dateparser->-r requirements.txt (line 3)) (2025.2)
+Requirement already satisfied: regex>=2024.9.11 in ./.venv/lib/python3.13/site-packages (from dateparser->-r requirements.txt (line 3)) (2025.7.34)
+Requirement already satisfied: tzlocal>=0.2 in ./.venv/lib/python3.13/site-packages (from dateparser->-r requirements.txt (line 3)) (5.3.1)
+Requirement already satisfied: starlette<0.48.0,>=0.40.0 in ./.venv/lib/python3.13/site-packages (from fastapi->-r requirements.txt (line 4)) (0.47.3)
+Requirement already satisfied: pydantic!=1.8,!=1.8.1,!=2.0.0,!=2.0.1,!=2.1.0,<3.0.0,>=1.7.4 in ./.venv/lib/python3.13/site-packages (from fastapi->-r requirements.txt (line 4)) (2.11.7)
+Requirement already satisfied: annotated-types>=0.6.0 in ./.venv/lib/python3.13/site-packages (from pydantic!=1.8,!=1.8.1,!=2.0.0,!=2.0.1,!=2.1.0,<3.0.0,>=1.7.4->fastapi->-r requirements.txt (line 4)) (0.7.0)
+Requirement already satisfied: pydantic-core==2.33.2 in ./.venv/lib/python3.13/site-packages (from pydantic!=1.8,!=1.8.1,!=2.0.0,!=2.0.1,!=2.1.0,<3.0.0,>=1.7.4->fastapi->-r requirements.txt (line 4)) (2.33.2)
+Requirement already satisfied: typing-inspection>=0.4.0 in ./.venv/lib/python3.13/site-packages (from pydantic!=1.8,!=1.8.1,!=2.0.0,!=2.0.1,!=2.1.0,<3.0.0,>=1.7.4->fastapi->-r requirements.txt (line 4)) (0.4.1)
+Requirement already satisfied: anyio<5,>=3.6.2 in ./.venv/lib/python3.13/site-packages (from starlette<0.48.0,>=0.40.0->fastapi->-r requirements.txt (line 4)) (4.10.0)
+Requirement already satisfied: idna>=2.8 in ./.venv/lib/python3.13/site-packages (from anyio<5,>=3.6.2->starlette<0.48.0,>=0.40.0->fastapi->-r requirements.txt (line 4)) (3.10)
+Requirement already satisfied: sniffio>=1.1 in ./.venv/lib/python3.13/site-packages (from anyio<5,>=3.6.2->starlette<0.48.0,>=0.40.0->fastapi->-r requirements.txt (line 4)) (1.3.1)
+Requirement already satisfied: certifi in ./.venv/lib/python3.13/site-packages (from httpx->-r requirements.txt (line 5)) (2025.8.3)
+Requirement already satisfied: httpcore==1.* in ./.venv/lib/python3.13/site-packages (from httpx->-r requirements.txt (line 5)) (1.0.9)
+Requirement already satisfied: h11>=0.16 in ./.venv/lib/python3.13/site-packages (from httpcore==1.*->httpx->-r requirements.txt (line 5)) (0.16.0)
+Requirement already satisfied: bcrypt>=3.1.0 in ./.venv/lib/python3.13/site-packages (from passlib[bcrypt]->-r requirements.txt (line 6)) (4.3.0)
+Requirement already satisfied: iniconfig>=1 in ./.venv/lib/python3.13/site-packages (from pytest->-r requirements.txt (line 7)) (2.1.0)
+Requirement already satisfied: packaging>=20 in ./.venv/lib/python3.13/site-packages (from pytest->-r requirements.txt (line 7)) (25.0)
+Requirement already satisfied: pluggy<2,>=1.5 in ./.venv/lib/python3.13/site-packages (from pytest->-r requirements.txt (line 7)) (1.6.0)
+Requirement already satisfied: pygments>=2.7.2 in ./.venv/lib/python3.13/site-packages (from pytest->-r requirements.txt (line 7)) (2.19.2)
+Requirement already satisfied: ecdsa!=0.15 in ./.venv/lib/python3.13/site-packages (from python-jose[cryptography]->-r requirements.txt (line 10)) (0.19.1)
+Requirement already satisfied: rsa!=4.1.1,!=4.4,<5.0,>=4.0 in ./.venv/lib/python3.13/site-packages (from python-jose[cryptography]->-r requirements.txt (line 10)) (4.9.1)
+Requirement already satisfied: pyasn1>=0.5.0 in ./.venv/lib/python3.13/site-packages (from python-jose[cryptography]->-r requirements.txt (line 10)) (0.6.1)
+Requirement already satisfied: cryptography>=3.4.0 in ./.venv/lib/python3.13/site-packages (from python-jose[cryptography]->-r requirements.txt (line 10)) (45.0.6)
+Requirement already satisfied: charset_normalizer<4,>=2 in ./.venv/lib/python3.13/site-packages (from requests->-r requirements.txt (line 12)) (3.4.3)
+Requirement already satisfied: urllib3<3,>=1.21.1 in ./.venv/lib/python3.13/site-packages (from requests->-r requirements.txt (line 12)) (2.5.0)
+Requirement already satisfied: greenlet>=1 in ./.venv/lib/python3.13/site-packages (from SQLAlchemy->-r requirements.txt (line 13)) (3.2.4)
+Requirement already satisfied: click>=7.0 in ./.venv/lib/python3.13/site-packages (from uvicorn[standard]->-r requirements.txt (line 16)) (8.2.1)
+Requirement already satisfied: httptools>=0.6.3 in ./.venv/lib/python3.13/site-packages (from uvicorn[standard]->-r requirements.txt (line 16)) (0.6.4)
+Requirement already satisfied: pyyaml>=5.1 in ./.venv/lib/python3.13/site-packages (from uvicorn[standard]->-r requirements.txt (line 16)) (6.0.2)
+Requirement already satisfied: uvloop>=0.15.1 in ./.venv/lib/python3.13/site-packages (from uvicorn[standard]->-r requirements.txt (line 16)) (0.21.0)
+Requirement already satisfied: watchfiles>=0.13 in ./.venv/lib/python3.13/site-packages (from uvicorn[standard]->-r requirements.txt (line 16)) (1.1.0)
+Requirement already satisfied: websockets>=10.4 in ./.venv/lib/python3.13/site-packages (from uvicorn[standard]->-r requirements.txt (line 16)) (15.0.1)
+Requirement already satisfied: MarkupSafe>=2.0 in ./.venv/lib/python3.13/site-packages (from jinja2->-r requirements.txt (line 31)) (3.0.2)
+Requirement already satisfied: cffi>=1.14 in ./.venv/lib/python3.13/site-packages (from cryptography>=3.4.0->python-jose[cryptography]->-r requirements.txt (line 10)) (1.17.1)
+Requirement already satisfied: pycparser in ./.venv/lib/python3.13/site-packages (from cffi>=1.14->cryptography>=3.4.0->python-jose[cryptography]->-r requirements.txt (line 10)) (2.22)
+Requirement already satisfied: six>=1.9.0 in ./.venv/lib/python3.13/site-packages (from ecdsa!=0.15->python-jose[cryptography]->-r requirements.txt (line 10)) (1.17.0)
+[run_server] SECRET_KEY not set; generating a temporary one for this session
+[run_server] Generated SECRET_KEY (exported for this process). For production, set SECRET_KEY in the service environment.
+[run_server] Starting uvicorn in dev mode (reload) on https://0.0.0.0:10443 (log_level=info access_log=true)
+INFO:     Will watch for changes in these directories: ['/home/mbaily/other_git/gpt5_fast_todo']
+INFO:     Uvicorn running on https://0.0.0.0:10443 (Press CTRL+C to quit)
+INFO:     Started reloader process [21691] using WatchFiles
+INFO:     Started server process [21775]
+INFO:     Waiting for application startup.
+2025-08-28 14:51:08,486 INFO:app.main: starting server using DATABASE_URL=sqlite+aiosqlite:///./test.db
+2025-08-28 14:51:08,486 INFO:app.main: seeded DateDataParser initialized for languages=["en"]
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app/main.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [21775]
+INFO:     Started server process [21984]
+INFO:     Waiting for application startup.
+2025-08-28 14:53:40,334 INFO:app.main: starting server using DATABASE_URL=sqlite+aiosqlite:///./test.db
+2025-08-28 14:53:40,335 INFO:app.main: seeded DateDataParser initialized for languages=["en"]
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app/main.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [21984]
+INFO:     Started server process [21993]
+INFO:     Waiting for application startup.
+2025-08-28 14:53:45,319 INFO:app.main: starting server using DATABASE_URL=sqlite+aiosqlite:///./test.db
+2025-08-28 14:53:45,319 INFO:app.main: seeded DateDataParser initialized for languages=["en"]
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app/auth.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [21993]
+INFO:     Started server process [22003]
+INFO:     Waiting for application startup.
+2025-08-28 14:53:50,327 INFO:app.main: starting server using DATABASE_URL=sqlite+aiosqlite:///./test.db
+2025-08-28 14:53:50,327 INFO:app.main: seeded DateDataParser initialized for languages=["en"]
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app/auth.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [22003]
+INFO:     Started server process [22012]
+INFO:     Waiting for application startup.
+2025-08-28 14:53:55,355 INFO:app.main: starting server using DATABASE_URL=sqlite+aiosqlite:///./test.db
+2025-08-28 14:53:55,355 INFO:app.main: seeded DateDataParser initialized for languages=["en"]
+INFO:     Application startup complete.
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [22012]
+INFO:     Stopping reloader process [21691]

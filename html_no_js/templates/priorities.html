@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}Priorities — Fast Todo (no-js){% endblock %}
+{% block content %}
+  <h2>Priority summary</h2>
+  {% set circled = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
+  <p class="meta">Lists (highest priority first)</p>
+  <ul class="lists-list">
+    {% for l in lists if l.priority is not none %}
+      <li class="list-item"><a class="list-title" href="/html_no_js/lists/{{ l.id }}">{{ l.name }}</a>
+        <span class="meta" style="margin-left:0.5rem">{{ circled.get(l.priority, l.priority) }}</span>
+      </li>
+    {% endfor %}
+  </ul>
+  <h3 style="margin-top:1rem">Todos (highest priority first)</h3>
+  <ul class="todos-list">
+    {% for t, l in todos if t.priority is not none %}
+        <li class="todo"><div class="todo-content"><div class="todo-main"><div class="todo-title-inline"><a class="wrap-text" href="/html_no_js/todos/{{ t.id }}">{{ t.text }}</a>
+      <span class="meta" style="margin-left:0.35rem">{{ circled.get(t.priority, t.priority) }}</span></div><div class="meta">in <a href="/html_no_js/lists/{{ l.id }}">{{ l.name }}</a></div></div></div></li>
+    {% endfor %}
+  </ul>
+{% endblock %}

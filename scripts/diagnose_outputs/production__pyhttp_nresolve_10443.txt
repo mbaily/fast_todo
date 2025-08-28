@@ -1,0 +1,20 @@
+[
+  {
+    "sni": "203.222.147.179",
+    "returncode": 0,
+    "found_set_cookie": false,
+    "out_file": "production__pyhttp_nresolve_10443.sni_203.222.147.179.txt"
+  },
+  {
+    "sni": "203.222.147.179",
+    "returncode": 0,
+    "found_set_cookie": false,
+    "out_file": "production__pyhttp_nresolve_10443.sni_203.222.147.179.txt"
+  },
+  {
+    "sni": "localhost",
+    "returncode": 0,
+    "found_set_cookie": false,
+    "out_file": "production__pyhttp_nresolve_10443.sni_localhost.txt"
+  }
+]
