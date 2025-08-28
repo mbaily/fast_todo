@@ -114,6 +114,8 @@ class Todo(SQLModel, table=True):
     # Every Todo must belong to a ListState. Make list_id required (non-optional)
     # so creation will fail if no list_id is provided.
     list_id: int = Field(foreign_key="liststate.id")
+    # Optional per-todo priority: 1 (lowest) .. 10 (highest). Null means no priority.
+    priority: Optional[int] = Field(default=None, index=True)
 
     # Relationship should reflect that a todo always has a parent list.
     list: ListState = Relationship(

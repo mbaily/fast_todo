@@ -2568,7 +2568,7 @@ async def _get_recent_lists_impl(limit: int, current_user: User):
 
 
 @app.post("/todos")
-async def create_todo(text: str, note: Optional[str] = None, list_id: int = None, current_user: User = Depends(require_login)):
+async def create_todo(text: str, note: Optional[str] = None, list_id: int = None, priority: Optional[int] = None, current_user: User = Depends(require_login)):
     """
     Create a todo in an explicit, existing list. `list_id` is required and
     must reference an existing ListState. Requires authentication; the
@@ -2601,7 +2601,7 @@ async def create_todo(text: str, note: Optional[str] = None, list_id: int = None
         _, recdict = parse_date_and_recurrence(text or '')
         import json
         meta_json = json.dumps(recdict) if recdict else None
-        todo = Todo(text=clean_text, note=note, list_id=list_id, recurrence_rrule=rrule_str or None, recurrence_meta=meta_json, recurrence_dtstart=dtstart_val)
+        todo = Todo(text=clean_text, note=note, list_id=list_id, priority=priority, recurrence_rrule=rrule_str or None, recurrence_meta=meta_json, recurrence_dtstart=dtstart_val)
         sess.add(todo)
         await sess.commit()
         await sess.refresh(todo)
@@ -2668,6 +2668,17 @@ async def update_todo(todo_id: int, text: Optional[str] = None, note: Optional[s
                 todo.text = remove_hashtags_from_text(text.lstrip())
             except Exception:
                 todo.text = text
+        # allow updating priority via API patch (if provided)
+        if 'priority' in locals() and locals().get('priority') is not None:
+            try:
+                pr = locals().get('priority')
+                if pr is None or (isinstance(pr, str) and str(pr).strip() == ''):
+                    todo.priority = None
+                else:
+                    todo.priority = int(pr)
+            except Exception:
+                # ignore invalid priority values
+                pass
         if note is not None:
             todo.note = note
         # If text or note changed, recompute recurrence metadata and persist.
@@ -3264,6 +3275,7 @@ def _serialize_todo(todo: Todo, completions: list[dict] | None = None) -> dict:
         "deferred_until": _fmt(todo.deferred_until),
         "list_id": todo.list_id,
         "completions": completions or [],
+        "priority": getattr(todo, 'priority', None),
     }
 
 
@@ -4616,7 +4628,12 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
         ctypes = qct.all()
 
         # load todos and completion states in batch
-        q2 = await sess.exec(select(Todo).where(Todo.list_id == list_id).order_by(Todo.created_at.desc()))
+        # Order todos: priority (higher first, NULLs last), then newest created_at first
+        try:
+            q2 = await sess.exec(select(Todo).where(Todo.list_id == list_id).order_by(Todo.priority.desc().nullslast(), Todo.created_at.desc()))
+        except Exception:
+            # Fallback if DB/driver doesn't support nullslast or priority desc expression
+            q2 = await sess.exec(select(Todo).where(Todo.list_id == list_id).order_by(Todo.created_at.desc()))
         todos = q2.all()
         todo_ids = [t.id for t in todos]
         ctype_ids = [c.id for c in ctypes]
@@ -4652,6 +4669,7 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
                 "modified_at": t.modified_at,
                 "completed": completed_default,
                 "pinned": getattr(t, 'pinned', False),
+                "priority": getattr(t, 'priority', None),
                 "extra_completions": extra,
             })
 
@@ -4832,6 +4850,40 @@ async def html_update_list_priority(request: Request, list_id: int, priority: st
         await sess.commit()
     # redirect back to the list page
     ref = request.headers.get('Referer', f'/html_no_js/lists/{list_id}')
+    return RedirectResponse(url=ref, status_code=303)
+
+
+@app.post('/html_no_js/todos/{todo_id}/priority')
+async def html_update_todo_priority(request: Request, todo_id: int, priority: str = Form(None), current_user: User = Depends(require_login)):
+    """Update the optional priority for a todo. Accepts values '' or 'none' or '1'..'10'."""
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    val: int | None = None
+    if priority is not None and str(priority).strip() != '' and str(priority).lower() != 'none':
+        try:
+            n = int(priority)
+            if n < 1 or n > 10:
+                raise ValueError('priority out of range')
+            val = n
+        except Exception:
+            val = None
+    async with async_session() as sess:
+        todo = await sess.get(Todo, todo_id)
+        if not todo:
+            raise HTTPException(status_code=404, detail='todo not found')
+        # ownership via parent list
+        ql = await sess.exec(select(ListState).where(ListState.id == todo.list_id))
+        lst = ql.first()
+        if not lst or lst.owner_id not in (None, current_user.id):
+            raise HTTPException(status_code=403, detail='forbidden')
+        todo.priority = val
+        todo.modified_at = now_utc()
+        sess.add(todo)
+        await sess.commit()
+    ref = request.headers.get('Referer', f'/html_no_js/todos/{todo_id}')
     return RedirectResponse(url=ref, status_code=303)
 
 
@@ -5194,6 +5246,7 @@ async def html_view_todo(request: Request, todo_id: int, current_user: User = De
             "modified_at": todo.modified_at,
             "list_id": todo.list_id,
             "pinned": getattr(todo, 'pinned', False),
+            "priority": getattr(todo, 'priority', None),
         }
         list_row = None
         if lst:

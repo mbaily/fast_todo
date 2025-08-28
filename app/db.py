@@ -585,6 +585,9 @@ async def init_db():
                 add_sql.append("ALTER TABLE todo ADD COLUMN recurrence_dtstart DATETIME")
             if 'recurrence_parser_version' not in cols:
                 add_sql.append("ALTER TABLE todo ADD COLUMN recurrence_parser_version TEXT")
+            # Add priority column to todo table if missing
+            if 'priority' not in cols:
+                add_sql.append("ALTER TABLE todo ADD COLUMN priority INTEGER")
             for s in add_sql:
                 try:
                     await conn.execute(text(s))
@@ -635,6 +638,10 @@ async def init_db():
                 await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_liststate_parent_list_pos ON liststate(parent_list_id, parent_list_position)"))
             except Exception:
                 logger.exception('failed to create ix_liststate_parent_list_pos during init_db')
+            try:
+                await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_todo_priority ON todo(priority)"))
+            except Exception:
+                logger.exception('failed to create ix_todo_priority during init_db')
         except Exception:
             logger.exception('failed to ensure parent_todo_id on liststate in init_db')
         # defensive dedupe: if earlier test runs created duplicate rows

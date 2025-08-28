@@ -101,6 +101,11 @@
   }
 
   </style>
+  <style>
+    /* inline priority badge next to todo title */
+    .priority-inline { display: inline-block; margin-left: 0.35rem; vertical-align: middle; }
+    .priority-circle { font-size: 0.95em; line-height: 1; }
+  </style>
   
   <div class="list-header">
     <div class="list-action-left">
@@ -119,7 +124,7 @@
             {{ csrf_field() }}
             <label for="priority-select-{{ list.id }}" class="sr-only">Priority</label>
             <select id="priority-select-{{ list.id }}" name="priority" onchange="this.form.submit()">
-              <option value="" {% if not list.priority %}selected{% endif %}>(no priority)</option>
+              <option value="" {% if not list.priority %}selected{% endif %}>(none)</option>
               {% for p in range(1, 11) %}
                 <option value="{{ p }}" {% if list.priority == p %}selected{% endif %}>{{ p }}</option>
               {% endfor %}
@@ -246,6 +251,9 @@
         var li = document.createElement('li');
         li.id = 'todo-' + todo.id;
         li.className = 'todo';
+        if (todo.priority !== undefined && todo.priority !== null) {
+          li.setAttribute('data-priority', String(todo.priority));
+        }
         // Simple innerHTML assembly (escaped) to match visible structure.
         // format date/time for tooltip: D/MM H:MMAM (day no leading zero, month zero-padded, hour 12-hour no leading zero)
         function formatInlineDateTime(ts){
@@ -273,12 +281,17 @@
         var titleHtml;
         if (HIDE_ICONS) {
           // wrap text in a span with tooltip and include magnifier inside the span
-          titleHtml = '<span class="wrap-text"' + titleAttr + dataAttr + '>' + escapeHtml(todo.text) + ' <a href="/html_no_js/todos/' + todo.id + '" class="todo-open-link" aria-label="View todo ' + todo.id + '" style="margin-left:0.25rem; text-decoration:none;">🔎</a></span>';
+          titleHtml = '<span class="wrap-text"' + titleAttr + dataAttr + '>' + escapeHtml(todo.text) + (todo.priority ? ('<span class="meta priority-inline"><span class="priority-circle">' + (circ[todo.priority] || todo.priority) + '</span></span>') : '') + ' <a href="/html_no_js/todos/' + todo.id + '" class="todo-open-link" aria-label="View todo ' + todo.id + '" style="margin-left:0.25rem; text-decoration:none;">🔎</a></span>';
         } else {
-          titleHtml = '<a class="wrap-text" href="/html_no_js/todos/' + todo.id + '"' + titleAttr + dataAttr + '>' + escapeHtml(todo.text) + '</a>';
+          titleHtml = '<a class="wrap-text" href="/html_no_js/todos/' + todo.id + '"' + titleAttr + dataAttr + '>' + escapeHtml(todo.text) + (todo.priority ? ('<span class="meta priority-inline"><span class="priority-circle">' + (circ[todo.priority] || todo.priority) + '</span></span>') : '') + '</a>';
         }
         var noteHtml = todo.note ? (HIDE_ICONS ? ('<p class="note-text"><span class="note-body">' + escapeHtml(todo.note) + '</span></p>') : ('<div class="meta line-clamp-1 wrap-text">' + escapeHtml(todo.note) + '</div>')) : '';
-        li.innerHTML = (HIDE_ICONS ? '<div class="controls-left controls-left-wide"><div class="hide-icon" aria-hidden="true">' + (todo.completed ? '<span class="todo-hide-icon">✅</span>' : '&nbsp;') + '</div></div>' : '') + '<div class="todo-content"><div class="todo-main"><div class="todo-title-inline">' + titleHtml + '</div>' + noteHtml + '</div></div>';
+        var priHtml = '';
+        if (todo.priority) {
+          var circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'};
+          priHtml = '<span class="meta priority-inline"><span class="priority-circle">' + (circ[todo.priority] || todo.priority) + '</span></span>';
+        }
+  li.innerHTML = (HIDE_ICONS ? '<div class="controls-left controls-left-wide"><div class="hide-icon" aria-hidden="true">' + (todo.completed ? '<span class="todo-hide-icon">✅</span>' : '&nbsp;') + '</div></div>' : '') + '<div class="todo-content"><div class="todo-main"><div class="todo-title-inline">' + titleHtml + '</div>' + noteHtml + priHtml + '</div></div>';
 
   ul.insertBefore(li, ul.firstChild);
   window.tooltip.debug('[tooltip-debug] create insertion inlineDate ->', inlineDate);
@@ -512,7 +525,7 @@
   {% if todos %}
   <ul class="todos-list{% if list.hide_icons %} hide-icons{% endif %}">
     {% for t in todos %}
-      <li id="todo-{{ t.id }}" class="todo">
+      <li id="todo-{{ t.id }}" class="todo" data-priority="{{ t.priority if t.priority is not none else '' }}">
           <div class="controls-left controls-left-wide">
             {% if list.hide_icons %}
               <div class="hide-icon" aria-hidden="true">{% if t.completed %}<span class="todo-hide-icon">✅</span>{% else %}&nbsp;{% endif %}</div>
@@ -554,9 +567,9 @@
                   {% set dt_iso = t.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') %}
                   {% set dt_fmt = t.created_at|in_tz(client_tz, '%-d/%m %-I:%M%p') %}
                   {% if list.hide_icons %}
-                    <span class="wrap-text"{% if dt_iso %} data-created-at="{{ dt_iso }}"{% endif %}{% if dt_fmt %} data-date="{{ dt_fmt }}"{% endif %}>{{ t.text }} <a href="/html_no_js/todos/{{ t.id }}" class="todo-open-link" aria-label="View todo {{ t.id }}" style="margin-left:0.25rem; text-decoration:none;">🔎</a></span>
+                    <span class="wrap-text"{% if dt_iso %} data-created-at="{{ dt_iso }}"{% endif %}{% if dt_fmt %} data-date="{{ dt_fmt }}"{% endif %}>{{ t.text }}{% if t.priority %} {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}<span class="meta priority-inline"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>{% endif %} <a href="/html_no_js/todos/{{ t.id }}" class="todo-open-link" aria-label="View todo {{ t.id }}" style="margin-left:0.25rem; text-decoration:none;">🔎</a></span>
                   {% else %}
-                    <a class="wrap-text" href="/html_no_js/todos/{{ t.id }}"{% if dt_iso %} data-created-at="{{ dt_iso }}"{% endif %}{% if dt_fmt %} data-date="{{ dt_fmt }}"{% endif %}>{{ t.text }}</a>
+                    <a class="wrap-text" href="/html_no_js/todos/{{ t.id }}"{% if dt_iso %} data-created-at="{{ dt_iso }}"{% endif %}{% if dt_fmt %} data-date="{{ dt_fmt }}"{% endif %}>{{ t.text }}</a>{% if t.priority %} {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}<span class="meta priority-inline"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>{% endif %}
                   {% endif %}
               </div>
               {% if t.note %}
@@ -574,6 +587,7 @@
                   {% endfor %}
                 </div>
               {% endif %}
+              {# priority is rendered inline inside the title to avoid newlines #}
             </div>
           </div>
         </li>
