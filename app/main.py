@@ -1529,15 +1529,14 @@ async def create_ignore_scope(request: Request, scope_type: str = Form(...), sco
     # token clients to call without CSRF.
     try:
         logger.info('create_ignore_scope entry: scope_type=%s scope_key=%s from_dt=%s current_user=%s', scope_type, scope_key, from_dt, getattr(current_user, 'username', None))
-        # Log some request-level info to help debug proxy/terminator differences
+        # Verbose debug logging may expose sensitive values; only enable when
+        # explicitly toggled via environment in development.
         try:
-            logger.info('create_ignore_scope headers: %s', dict(request.headers))
+            if os.getenv('ENABLE_VERBOSE_DEBUG', '0').lower() in ('1', 'true', 'yes'):
+                logger.info('create_ignore_scope headers: %s', dict(request.headers))
+                logger.info('create_ignore_scope cookies: %s', dict(request.cookies))
         except Exception:
-            logger.exception('failed to read request.headers for debug')
-        try:
-            logger.info('create_ignore_scope cookies: %s', dict(request.cookies))
-        except Exception:
-            logger.exception('failed to read request.cookies for debug')
+            logger.exception('failed to read request headers/cookies for debug')
     except Exception:
         logger.exception('early logging in create_ignore_scope failed')
 
@@ -1546,8 +1545,9 @@ async def create_ignore_scope(request: Request, scope_type: str = Form(...), sco
         # parse form fields and log them (safe for debugging in dev)
         form = await request.form()
         try:
-            # show form keys and values (beware of sensitive values in prod)
-            logger.info('create_ignore_scope form fields: %s', {k: form.get(k) for k in form.keys()})
+            if os.getenv('ENABLE_VERBOSE_DEBUG', '0').lower() in ('1', 'true', 'yes'):
+                # show form keys and values (beware of sensitive values in prod)
+                logger.info('create_ignore_scope form fields: %s', {k: form.get(k) for k in form.keys()})
         except Exception:
             logger.exception('failed to log form fields')
 
@@ -1622,7 +1622,10 @@ async def create_ignore_scope(request: Request, scope_type: str = Form(...), sco
             # scope_key is the occ_hash already; use it directly as scope_hash
             scope_hash = str(scope_key)
         else:
-            scope_hash = ignore_todo_from_hash(scope_key, from_dt)
+            # Pass the parsed datetime (if available) to the hash helper so
+            # the canonical iso-form used for hashing matches the DB stored
+            # datetime value. Fall back to raw string if parsing failed.
+            scope_hash = ignore_todo_from_hash(scope_key, parsed_from_dt if parsed_from_dt is not None else from_dt)
     else:
         raise HTTPException(status_code=400, detail='invalid scope_type')
     async with async_session() as sess:
@@ -1671,7 +1674,15 @@ async def deactivate_ignore_scope(request: Request,
             # If from_dt is provided, target the exact hash; otherwise, deactivate any
             # todo_from scopes for this scope_key (id) regardless of from_dt.
             if from_dt:
-                scope_hash = ignore_todo_from_hash(scope_key, from_dt)
+                # Parse from_dt into a timezone-aware datetime so the hash
+                # helper receives the same canonical input used when creating
+                # the IgnoredScope row.
+                try:
+                    parsed = _parse_iso_to_utc(from_dt)
+                except HTTPException:
+                    # If parse failed, treat as no matching rows (invalid input)
+                    return {'ok': True, 'updated': 0}
+                scope_hash = ignore_todo_from_hash(scope_key, parsed)
                 q = await sess.exec(select(IgnoredScope).where(IgnoredScope.user_id == current_user.id).where(IgnoredScope.scope_hash == scope_hash).where(IgnoredScope.active == True))
             else:
                 q = await sess.exec(select(IgnoredScope).where(IgnoredScope.user_id == current_user.id).where(IgnoredScope.scope_type == 'todo_from').where(IgnoredScope.scope_key == str(scope_key)).where(IgnoredScope.active == True))
