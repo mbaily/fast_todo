@@ -1237,30 +1237,56 @@ def parse_text_to_rrule_string(text: str) -> tuple[datetime | None, str]:
     # whole text. If a recurrence is found we synthesize a dtstart using
     # now_utc() (optionally honoring explicit time like 'at 9am').
     if dt is None:
+        # If no explicit date anchor was found, attempt to parse a recurrence
+        # phrase from the whole text. If a recurrence phrase is found we
+        # synthesize a dtstart using now_utc(). Also honor simple time tokens
+        # like 'at 9am' to set the time portion on the synthesized dtstart.
         try:
             rec = parse_recurrence_phrase(text)
         except Exception:
             rec = None
         if rec:
-            # synthesize dtstart from any explicit time or use now
+            # Decide whether to synthesize a dtstart. We only synthesize when
+            # the input contains other content besides a bare recurrence
+            # phrase. For example, 'Gym every other day' should synthesize
+            # (has 'Gym'), but 'every week' should not.
+            txt = text.strip().lower()
+            # simple tokenization
+            tokens = re.findall(r"[\w']+", txt)
+            RECURRENCE_KEYWORDS = {
+                'every','other','recurring','daily','weekly','monthly','yearly',
+                'day','week','month','year','weekday','weekdays','the','last','on','of','month',
+                'monday','tuesday','wednesday','thursday','friday','saturday','sunday',
+                'first','second','third','1st','2nd','3rd','st','nd','rd','th','interval',
+            }
+            # If there exists any token that's not purely a recurrence keyword
+            # or a numeric/ordinal token, we consider this non-bare and
+            # synthesize a dtstart.
+            nonrec_tokens = [t for t in tokens if t not in RECURRENCE_KEYWORDS and not re.fullmatch(r"\d+", t)]
+            if not nonrec_tokens:
+                # bare recurrence phrase like 'every week' -> do not synthesize
+                return None, ''
+
+            # synthesize dtstart as current UTC time, but allow overriding
+            # the time when an explicit 'at HH[:MM](am|pm)?' token is present
             dt = now_utc()
-            # try to extract simple time expressions like 'at 9am' or 'at 09:30'
-            tm = re.search(r"at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?", text, re.IGNORECASE)
-            if tm:
-                try:
-                    h = int(tm.group(1))
-                    m = int(tm.group(2) or 0)
-                    ampm = tm.group(3)
+            try:
+                m = re.search(r"at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?", text, flags=re.IGNORECASE)
+                if m:
+                    hour = int(m.group(1))
+                    minute = int(m.group(2) or 0)
+                    ampm = m.group(3)
                     if ampm:
-                        if ampm.lower().startswith('p') and h != 12:
-                            h += 12
-                        if ampm.lower().startswith('a') and h == 12:
-                            h = 0
-                    from datetime import datetime as _dt
-                    today = now_utc().date()
-                    dt = _dt(today.year, today.month, today.day, h, m, tzinfo=timezone.utc)
-                except Exception:
-                    dt = now_utc()
+                        if ampm.lower() == 'pm' and hour != 12:
+                            hour += 12
+                        if ampm.lower() == 'am' and hour == 12:
+                            hour = 0
+                    # Replace time on the UTC dt
+                    dt = dt.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            except Exception:
+                # If anything goes wrong parsing the time, keep now_utc()
+                dt = now_utc()
+            # proceed to build rrule string below using synthesized dt
         else:
             return None, ''
 
