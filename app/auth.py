@@ -122,13 +122,22 @@ def create_csrf_token(username: str, expires_delta: Optional[timedelta] = None) 
 
 def verify_csrf_token(token: str, username: str) -> bool:
     try:
+        logger.info('verify_csrf_token called: token_present=%s token_len=%s username=%s', bool(token), (len(token) if token else 0), username)
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        logger.info('verify_csrf_token decoded payload keys: %s', list(payload.keys()))
         if payload.get("type") != "csrf":
+            logger.info('verify_csrf_token failed: type mismatch (expected csrf, got %s)', payload.get('type'))
             return False
         if payload.get("sub") != username:
+            logger.info('verify_csrf_token failed: subject mismatch (expected %s, got %s)', username, payload.get('sub'))
             return False
+        logger.info('verify_csrf_token success for user=%s', username)
         return True
-    except JWTError:
+    except JWTError as e:
+        logger.info('verify_csrf_token JWTError: %s', str(e))
+        return False
+    except Exception as e:
+        logger.exception('verify_csrf_token unexpected exception: %s', str(e))
         return False
 
 async def get_current_user(token: Optional[str] = Depends(oauth2_scheme), request: Request = None) -> User:

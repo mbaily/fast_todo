@@ -22,7 +22,7 @@ from .models import RecentListVisit
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import text
 from fastapi import Request, Form
-from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, StreamingResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from .utils import format_server_local, format_in_timezone
@@ -613,6 +613,43 @@ async def html_pwa_index_file(request: Request):
     if not current_user:
         return RedirectResponse(url='/html_pwa/login', status_code=303)
     return FileResponse("html_pwa/index.html", media_type="text/html")
+
+
+@app.get('/__debug_echo', response_class=JSONResponse)
+@app.post('/__debug_echo', response_class=JSONResponse)
+async def __debug_echo(request: Request):
+    """Debug endpoint: returns request headers, cookies and client connection info.
+
+    Useful when debugging proxies/TLS terminators to see what the FastAPI app actually
+    receives. Keep this route minimal and safe (no side-effects).
+    """
+    try:
+        headers = {k: v for k, v in request.headers.items()}
+    except Exception:
+        headers = {}
+    try:
+        cookies = {k: v for k, v in request.cookies.items()}
+    except Exception:
+        cookies = {}
+    # client info available in ASGI scope
+    client_info = None
+    try:
+        client = request.client
+        if client:
+            client_info = {"host": client.host, "port": client.port}
+    except Exception:
+        client_info = None
+
+    # Common headers that proxies/terminators may set for client certs
+    forwarded_client_cert = headers.get('x-forwarded-client-cert') or headers.get('x-ssl-client-cert') or headers.get('x-ssl-client-verify')
+
+    payload = {
+        "headers": headers,
+        "cookies": cookies,
+        "client": client_info,
+        "forwarded_client_cert": forwarded_client_cert,
+    }
+    return JSONResponse(payload)
 
 
 @app.post("/lists")
@@ -1490,17 +1527,91 @@ async def create_ignore_scope(request: Request, scope_type: str = Form(...), sco
     """
     # Require CSRF for cookie-authenticated browser requests. Allow bearer
     # token clients to call without CSRF.
+    try:
+        logger.info('create_ignore_scope entry: scope_type=%s scope_key=%s from_dt=%s current_user=%s', scope_type, scope_key, from_dt, getattr(current_user, 'username', None))
+        # Log some request-level info to help debug proxy/terminator differences
+        try:
+            logger.info('create_ignore_scope headers: %s', dict(request.headers))
+        except Exception:
+            logger.exception('failed to read request.headers for debug')
+        try:
+            logger.info('create_ignore_scope cookies: %s', dict(request.cookies))
+        except Exception:
+            logger.exception('failed to read request.cookies for debug')
+    except Exception:
+        logger.exception('early logging in create_ignore_scope failed')
+
     auth_hdr = request.headers.get('authorization')
     if not auth_hdr:
+        # parse form fields and log them (safe for debugging in dev)
         form = await request.form()
+        try:
+            # show form keys and values (beware of sensitive values in prod)
+            logger.info('create_ignore_scope form fields: %s', {k: form.get(k) for k in form.keys()})
+        except Exception:
+            logger.exception('failed to log form fields')
+
+        # token may come from the form or from the csrf cookie
         token = form.get('_csrf') or request.cookies.get('csrf_token')
+        try:
+            logger.info('create_ignore_scope selected csrf token: present=%s len=%s', bool(token), (len(token) if token else 0))
+        except Exception:
+            logger.exception('failed to log csrf token info')
+
         from .auth import verify_csrf_token
-        if not token or not verify_csrf_token(token, current_user.username):
+        try:
+            logger.info('create_ignore_scope verifying csrf token for user=%s', getattr(current_user, 'username', None))
+            ok = False
+            try:
+                ok = verify_csrf_token(token, current_user.username)
+            except Exception:
+                # If verify_csrf_token raises, log and treat as failure
+                logger.exception('verify_csrf_token raised an exception')
+                ok = False
+            logger.info('create_ignore_scope verify_csrf_token result: %s', ok)
+            if not token or not ok:
+                logger.info('create_ignore_scope failing CSRF check: token_present=%s verify_ok=%s', bool(token), ok)
+                raise HTTPException(status_code=403, detail='invalid csrf token')
+        except HTTPException:
+            # re-raise HTTPException to preserve intended response
+            raise
+        except Exception:
+            logger.exception('unexpected error during CSRF verification')
             raise HTTPException(status_code=403, detail='invalid csrf token')
 
     from .models import IgnoredScope
     # compute scope_hash conservatively
     from .utils import ignore_list_hash, ignore_todo_from_hash
+    # Normalize from_dt into a Python datetime so SQLite DateTime column
+    # receives a proper datetime object instead of a string (which causes
+    # a TypeError on insert). Accept ISO date or datetime strings; for
+    # date-only strings like 'YYYY-MM-DD' treat them as midnight UTC.
+    parsed_from_dt = None
+    if from_dt:
+        try:
+            from datetime import datetime as _dt
+            # Try full ISO parse first
+            try:
+                parsed = _dt.fromisoformat(from_dt)
+                # If parsed has no tzinfo, assume UTC for consistency
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(tzinfo=timezone.utc)
+                parsed_from_dt = parsed
+            except Exception:
+                # Fallback for date-only strings YYYY-MM-DD
+                import re as _re
+                m = _re.match(r'^(\d{4})-(\d{2})-(\d{2})$', from_dt)
+                if m:
+                    y, mo, d = map(int, m.groups())
+                    parsed_from_dt = _dt(y, mo, d, tzinfo=timezone.utc)
+                else:
+                    raise HTTPException(status_code=400, detail='invalid from_dt')
+        except HTTPException:
+            raise
+        except Exception:
+            logger.exception('failed to parse from_dt: %s', from_dt)
+            raise HTTPException(status_code=400, detail='invalid from_dt')
+
     if scope_type == 'list':
         scope_hash = ignore_list_hash(scope_key, owner_id=current_user.id)
     elif scope_type == 'todo_from' or scope_type == 'occurrence':
@@ -1515,7 +1626,9 @@ async def create_ignore_scope(request: Request, scope_type: str = Form(...), sco
     else:
         raise HTTPException(status_code=400, detail='invalid scope_type')
     async with async_session() as sess:
-        rec = IgnoredScope(user_id=current_user.id, scope_type=scope_type, scope_key=str(scope_key), from_dt=from_dt, scope_hash=scope_hash, active=True)
+        # store parsed_from_dt (datetime) when available so DB insert uses
+        # a proper datetime object instead of the raw string
+        rec = IgnoredScope(user_id=current_user.id, scope_type=scope_type, scope_key=str(scope_key), from_dt=parsed_from_dt, scope_hash=scope_hash, active=True)
         sess.add(rec)
         await sess.commit()
         await sess.refresh(rec)
