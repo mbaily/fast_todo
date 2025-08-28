@@ -9,6 +9,8 @@
     <style>
       :root {
         --page-side-margin: 2rem; /* keep in sync with body margin */
+        --page-top-margin: var(--page-side-margin); /* per-page override for top margin */
+        --page-top-gap: 0.25rem; /* default vertical gap under header/toolbar; can be overridden per-page */
         --full-bleed-right-gutter: 4rem; /* space to the right of full-bleed elements */
         --full-bleed-padding: 0.75rem; /* comfortable padding inside full-bleed elements */
         /* dark theme colors */
@@ -23,8 +25,8 @@
       }
   /* prevent any horizontal scrolling in the no-JS client */
   html, body { overflow-x: hidden; }
-  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial; margin: var(--page-side-margin); background: var(--bg); color: var(--text); }
-  header { margin-bottom: 0.5rem; }
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial; margin: var(--page-top-margin) var(--page-side-margin); background: var(--bg); color: var(--text); }
+  header { margin-bottom: var(--page-top-gap); }
   a { color: var(--accent); }
   a.button { background: transparent; border: 1px solid var(--border); color: var(--text); }
   /* form controls */
