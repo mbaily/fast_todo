@@ -1551,10 +1551,14 @@ async def create_ignore_scope(request: Request, scope_type: str = Form(...), sco
         except Exception:
             logger.exception('failed to log form fields')
 
-        # token may come from the form or from the csrf cookie
-        token = form.get('_csrf') or request.cookies.get('csrf_token')
+        # token may come from the form or from the csrf cookie. Prefer a
+        # successful verification from the freshest source: try form token
+        # first (matching client-submitted hidden field), but if it fails and
+        # a csrf cookie is present, try verifying the cookie as a fallback.
+        form_token = form.get('_csrf')
+        cookie_token = request.cookies.get('csrf_token')
         try:
-            logger.info('create_ignore_scope selected csrf token: present=%s len=%s', bool(token), (len(token) if token else 0))
+            logger.info('create_ignore_scope csrf tokens: form_present=%s cookie_present=%s', bool(form_token), bool(cookie_token))
         except Exception:
             logger.exception('failed to log csrf token info')
 
@@ -1562,15 +1566,29 @@ async def create_ignore_scope(request: Request, scope_type: str = Form(...), sco
         try:
             logger.info('create_ignore_scope verifying csrf token for user=%s', getattr(current_user, 'username', None))
             ok = False
-            try:
-                ok = verify_csrf_token(token, current_user.username)
-            except Exception:
-                # If verify_csrf_token raises, log and treat as failure
-                logger.exception('verify_csrf_token raised an exception')
-                ok = False
-            logger.info('create_ignore_scope verify_csrf_token result: %s', ok)
-            if not token or not ok:
-                logger.info('create_ignore_scope failing CSRF check: token_present=%s verify_ok=%s', bool(token), ok)
+            used = None
+            # Try form token first if provided
+            if form_token:
+                try:
+                    ok = verify_csrf_token(form_token, current_user.username)
+                except Exception:
+                    logger.exception('verify_csrf_token(form) raised an exception')
+                    ok = False
+                if ok:
+                    used = 'form'
+            # If form token absent or failed, fall back to cookie token
+            if not ok and cookie_token:
+                try:
+                    ok = verify_csrf_token(cookie_token, current_user.username)
+                except Exception:
+                    logger.exception('verify_csrf_token(cookie) raised an exception')
+                    ok = False
+                if ok:
+                    used = 'cookie'
+
+            logger.info('create_ignore_scope verify_csrf_token result: ok=%s used=%s', ok, used)
+            if not ok:
+                logger.info('create_ignore_scope failing CSRF check: form_present=%s cookie_present=%s', bool(form_token), bool(cookie_token))
                 raise HTTPException(status_code=403, detail='invalid csrf token')
         except HTTPException:
             # re-raise HTTPException to preserve intended response
@@ -1656,9 +1674,24 @@ async def deactivate_ignore_scope(request: Request,
     auth_hdr = request.headers.get('authorization')
     if not auth_hdr:
         form = await request.form()
-        token = form.get('_csrf') or request.cookies.get('csrf_token')
+        form_token = form.get('_csrf')
+        cookie_token = request.cookies.get('csrf_token')
         from .auth import verify_csrf_token
-        if not token or not verify_csrf_token(token, current_user.username):
+        ok = False
+        # prefer form token but fallback to cookie if form fails/absent
+        if form_token:
+            try:
+                ok = verify_csrf_token(form_token, current_user.username)
+            except Exception:
+                logger.exception('verify_csrf_token(form) raised an exception')
+                ok = False
+        if not ok and cookie_token:
+            try:
+                ok = verify_csrf_token(cookie_token, current_user.username)
+            except Exception:
+                logger.exception('verify_csrf_token(cookie) raised an exception')
+                ok = False
+        if not ok:
             raise HTTPException(status_code=403, detail='invalid csrf token')
 
     from .models import IgnoredScope
@@ -3103,8 +3136,8 @@ async def defer_todo(todo_id: int, hours: int, current_user: User = Depends(requ
         return {"id": todo.id, "deferred_until": todo.deferred_until.isoformat()}
 
 
-@app.post("/todos/{todo_id}/complete")
-async def complete_todo(todo_id: int, completion_type: str = "default", done: bool = True, current_user: User = Depends(require_login)):
+async def _complete_todo_impl(todo_id: int, completion_type: str = "default", done: bool = True, current_user: User = None):
+    """Internal implementation for completing a todo. `current_user` must be a User instance when called internally."""
     async with async_session() as sess:
         q = select(Todo).where(Todo.id == todo_id)
         res = await sess.exec(q)
@@ -3114,7 +3147,8 @@ async def complete_todo(todo_id: int, completion_type: str = "default", done: bo
         # enforce ownership/visibility via parent list: allow owner or public list
         ql = await sess.exec(select(ListState).where(ListState.id == todo.list_id))
         lst = ql.first()
-        if lst and lst.owner_id not in (None, current_user.id):
+        # current_user must be provided by callers (endpoint wrapper or internal callers)
+        if lst and current_user is not None and lst.owner_id not in (None, current_user.id):
             raise HTTPException(status_code=403, detail='forbidden')
         # find or create completion type for the list
         qc = select(CompletionType).where(CompletionType.list_id == todo.list_id).where(CompletionType.name == completion_type)
@@ -3142,6 +3176,12 @@ async def complete_todo(todo_id: int, completion_type: str = "default", done: bo
         except Exception:
             await sess.rollback()
         return {"todo_id": todo_id, "completion_type": completion_type, "done": done}
+
+
+@app.post("/todos/{todo_id}/complete")
+async def complete_todo(todo_id: int, completion_type: str = "default", done: bool = True, current_user: User = Depends(require_login)):
+    """Endpoint wrapper that injects `current_user` and calls internal implementation."""
+    return await _complete_todo_impl(todo_id=todo_id, completion_type=completion_type, done=done, current_user=current_user)
 
 
 @app.post("/admin/undefer")
@@ -4951,7 +4991,7 @@ async def html_toggle_todo_completion_type(request: Request, todo_id: int, compl
         ctype_name = ctype.name
     # Toggle via API-level logic
     val = True if str(done).lower() in ('1','true','yes') else False
-    await complete_todo(todo_id=todo_id, completion_type=ctype_name, done=val)
+    await _complete_todo_impl(todo_id=todo_id, completion_type=ctype_name, done=val, current_user=current_user)
     anchor = form.get('anchor') or f'todo-{todo_id}'
     return RedirectResponse(url=f'/html_no_js/lists/{list_id_val}#{anchor}', status_code=303)
 
@@ -4991,8 +5031,8 @@ async def html_toggle_complete(request: Request, todo_id: int, done: str = Form(
     async with async_session() as sess:
         q = await sess.exec(select(Todo).where(Todo.id == todo_id))
         todo = q.first()
-    # require login for completing todos; complete_todo does not check auth
-    await complete_todo(todo_id=todo_id, done=val)
+    # require login for completing todos; call internal impl with authenticated user
+    await _complete_todo_impl(todo_id=todo_id, done=val, current_user=current_user)
     # if the form included an anchor field, use it as a fragment
     form = await request.form()
     anchor = form.get('anchor')
@@ -5018,7 +5058,7 @@ async def html_toggle_complete_get(request: Request, todo_id: int, done: str, cu
         lst = ql.first()
         if lst and lst.owner_id not in (None, current_user.id):
             raise HTTPException(status_code=403, detail='forbidden')
-    await complete_todo(todo_id=todo_id, done=val)
+    await _complete_todo_impl(todo_id=todo_id, done=val, current_user=current_user)
     # optional anchor param to include as fragment when redirecting
     anchor = request.query_params.get('anchor')
     if todo and todo.list_id:
