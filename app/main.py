@@ -719,34 +719,38 @@ async def list_lists(current_user: User = Depends(require_login)):
 @app.get('/html_no_js/priorities')
 async def html_priorities(request: Request, current_user: User = Depends(require_login)):
     async with async_session() as sess:
-        # lists with priority
-        ql = await sess.exec(select(ListState).where(ListState.owner_id == current_user.id).where(ListState.priority != None))
+        # determine whether to hide completed items (cookie defaults to on)
+        hide_completed_cookie = request.cookies.get('priorities_hide_completed')
+        hide_completed = True if hide_completed_cookie is None else (hide_completed_cookie == '1')
+
+        # lists with priority (optionally exclude completed)
+        ql_stmt = select(ListState).where(ListState.owner_id == current_user.id).where(ListState.priority != None)
+        if hide_completed:
+            ql_stmt = ql_stmt.where(ListState.completed == False)
+        ql = await sess.exec(ql_stmt)
         lists = ql.all()
-        # include todos that either have their own priority or belong to a prioritized list
-        prioritized_list_ids = [l.id for l in lists if l.id is not None]
-        qt = await sess.exec(select(Todo).where((Todo.priority != None) | (Todo.list_id.in_(prioritized_list_ids))))
-        todos_all = qt.all()
-        # filter by visibility (todo's parent list must be visible to the user) and attach list
-        todos: list[tuple[Todo, ListState]] = []
-        for t in todos_all:
+        # todos with priority: fetch todos that have a priority (and optionally exclude completed)
+        qt2_stmt = select(Todo).where(Todo.priority != None)
+        # do not attempt to filter by a non-existent Todo.completed column here;
+        # some backends represent todo completion via TodoCompletion rows.
+        qt2 = await sess.exec(qt2_stmt)
+        todos = []
+        for t in qt2.all():
             ql2 = await sess.exec(select(ListState).where(ListState.id == t.list_id))
             lst = ql2.first()
             if not lst:
                 continue
-            if lst.owner_id is None or lst.owner_id == current_user.id or lst.id in prioritized_list_ids:
+            if lst.owner_id is None or lst.owner_id == current_user.id:
+                # If hide_completed is requested, skip todos that have any
+                # completion rows marked done=True.
+                if hide_completed:
+                    qc = await sess.exec(select(TodoCompletion).where(TodoCompletion.todo_id == t.id).where(TodoCompletion.done == True))
+                    if qc.first():
+                        continue
                 todos.append((t, lst))
         # sort lists and todos by priority descending
         lists_sorted = sorted(lists, key=lambda l: (l.priority if l.priority is not None else -999), reverse=True)
-        # sort todos by their own priority descending; if none, fall back to their list's priority so prioritized lists surface their todos
-        def todo_sort_key(tl: tuple[Todo, ListState]):
-            todo, lst = tl
-            if todo.priority is not None:
-                return todo.priority
-            if lst.priority is not None:
-                return lst.priority - 0.1  # slightly lower than a todo with same numeric priority
-            return -999
-
-        todos_sorted = sorted(todos, key=todo_sort_key, reverse=True)
+        todos_sorted = sorted(todos, key=lambda tl: (tl[0].priority if tl[0].priority is not None else -999), reverse=True)
     return TEMPLATES.TemplateResponse(request, 'priorities.html', {'request': request, 'lists': lists_sorted, 'todos': todos_sorted, 'client_tz': await get_session_timezone(request)})
 
 
