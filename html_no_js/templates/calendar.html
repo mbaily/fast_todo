@@ -27,7 +27,7 @@
         <li class="todo">
           <div class="controls-left">
             <input type="checkbox" class="occ-complete" data-hash="{{ ev.occ_hash }}" {% if ev.completed %}checked{% endif %} aria-label="mark occurrence complete">
-            <button type="button" class="occ-ignore-occ" data-occ="{{ ev.occ_hash }}" title="Ignore this occurrence" aria-label="Ignore this occurrence" style="margin-left:0.25rem;padding:0.1rem 0.25rem;font-size:0.9rem;">🔕</button>
+            <button type="button" class="occ-ignore-occ" data-occ="{{ ev.occ_hash }}" title="Ignore in calendar altogether." aria-label="Ignore this occurrence" style="margin-left:0.25rem;padding:0.1rem 0.25rem;font-size:0.9rem;">🔕</button>
             <button type="button" class="occ-ignore-from" data-todo="{{ ev.id }}" data-occ-dt="{{ ev.occurrence_dt }}" title="Ignore from this date" aria-label="Ignore from this date" style="margin-left:0.25rem;padding:0.1rem 0.25rem;font-size:0.9rem;">⏭️</button>
           </div>
           <div class="todo-content">
@@ -96,7 +96,7 @@
             const occDate = (ev.occurrence_date || ev.occurrence_dt);
             let occControls = `<div class="controls-left">
             <input type="checkbox" class="occ-complete" data-hash="${ev.occ_hash}" ${ev.completed ? 'checked' : ''} aria-label="mark occurrence complete">
-            <button type="button" class="occ-ignore-occ" data-occ="${ev.occ_hash}" title="Ignore this occurrence" aria-label="Ignore this occurrence" style="margin-left:0.25rem;padding:0.1rem 0.25rem;font-size:0.9rem;">🔕</button>
+            <button type="button" class="occ-ignore-occ" data-occ="${ev.occ_hash}" title="Ignore in calendar altogether" aria-label="Ignore this occurrence" style="margin-left:0.25rem;padding:0.1rem 0.25rem;font-size:0.9rem;">🔕</button>
             <button type="button" class="occ-ignore-from" data-todo="${ev.id}" data-occ-dt="${occDate}" title="Ignore from this date" aria-label="Ignore from this date" style="margin-left:0.25rem;padding:0.1rem 0.25rem;font-size:0.9rem;">⏭️</button>`;
           if (showIgnored && ev.ignored) {
             // show an unignore control (checkbox or button) when item is ignored
