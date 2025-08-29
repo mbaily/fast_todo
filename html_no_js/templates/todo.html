@@ -9,6 +9,9 @@
     /* page-specific: remove top page margin so the site title sits flush to the top */
     body { margin-top: 0 !important; }
     header { margin-top: 0 !important; }
+  /* Make the inline pin toggle stand out when todo is pinned (match index orange style) */
+  .pin-button.pinned { border-color: #ff8a3d; background: rgba(255,138,61,0.06); color: #ffb68a; }
+  .pin-button.pinned:hover { background: rgba(255,138,61,0.12); }
   /* ensure completed sublists are struck-through (match index) */
   .lists-list .list-title.done { text-decoration: line-through; color: #6b7280; }
   /* sublists action column: ensure sufficient width and no overlap */
@@ -169,6 +172,11 @@
           <option value="{{ p }}" {% if todo.priority == p %}selected{% endif %}>{{ p }}</option>
         {% endfor %}
       </select>
+    </form>
+    <form method="post" action="/html_no_js/todos/{{ todo.id }}/pin" style="display:inline-block; margin-left:0.5rem">
+      {{ csrf_field() }}
+      <input type="hidden" name="pinned" value="{{ 'false' if todo.pinned|default(false) else 'true' }}">
+      <button type="submit" class="pin-button {% if todo.pinned|default(false) %}pinned{% endif %}" aria-label="Toggle pin" title="Toggle pin">{{ '📌' if todo.pinned|default(false) else '📍' }}</button>
     </form>
   </div>
 
