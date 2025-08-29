@@ -118,7 +118,7 @@
     </div>
     <div class="list-main">
       <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
-        <h3 class="list-title" style="margin:0;">{{ list.name }}</h3>
+  <h3 class="list-title" style="margin:0;">{{ list.name }}</h3>
         {% if not list.parent_todo_id and not list.parent_list_id %}
           <form method="post" action="/html_no_js/lists/{{ list.id }}/priority" style="display:inline-flex; align-items:center; gap:0.25rem;">
             {{ csrf_field() }}
@@ -182,6 +182,82 @@
         });
       });
     } catch(e) {}
+  })();
+  </script>
+
+  {# If this list is configured to show Sublists "Up top", render the Sublists
+     block here, just above the create-todo form. Otherwise the original
+     Sublists block (further down) will render in its previous location. #}
+  {% if sublists is defined and list.lists_up_top %}
+  <section aria-label="Sublists" style="margin-top:1rem">
+    <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.4rem">
+      <h3 style="margin:0 0 .4rem 0">Sublists <button type="button" id="mark-list-hdr" data-list-id="{{ list.id }}" title="Mark this list for move" style="border:none;background:transparent;cursor:pointer;font-size:1rem;">🔖</button> <a href="/html_no_js/move" id="move-hdr" title="Open move page" style="text-decoration:none; font-size:1rem;">↔️</a></h3>
+      <form method="post" action="/html_no_js/lists/{{ list.id }}/lists_up_top" style="display:inline; margin-left:0.5rem;">
+        {{ csrf_field() }}
+        <input type="hidden" name="lists_up_top" id="lists_up_top_hidden_{{ list.id }}" value="{{ 'true' if list.lists_up_top else 'false' }}">
+        <label style="display:inline-flex; align-items:center; gap:0.4rem;">
+          <input type="checkbox" id="lists_up_top_checkbox_{{ list.id }}" {% if list.lists_up_top %}checked{% endif %}>
+          <span>Up top</span>
+        </label>
+      </form>
+    </div>
+    <form method="post" action="/html_no_js/lists/{{ list.id }}/sublists/create" style="margin:0 0 .4rem 0" autocomplete="off">
+      {{ csrf_field() }}
+      <label>New sublist<br>
+        <input type="text" name="name" required placeholder="Sublist name" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+      </label>
+      <button type="submit">Create</button>
+    </form>
+    {% if sublists|length > 0 %}
+      <ul class="lists-list">
+        {% for sl in sublists %}
+          {% set created_iso = sl.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') %}
+          {% set modified_iso = sl.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') if sl.modified_at else None %}
+          <li class="list-item"{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %}>
+            <div class="list-action-left" style="display:flex;gap:0.25rem;align-items:center;">
+              <form method="post" action="/html_no_js/lists/{{ list.id }}/sublists/{{ sl.id }}/move" style="display:inline">
+                {{ csrf_field() }}
+                <input type="hidden" name="direction" value="up">
+                <button type="submit" class="list-action-btn" title="Move up">⬆️</button>
+              </form>
+              <form method="post" action="/html_no_js/lists/{{ list.id }}/sublists/{{ sl.id }}/move" style="display:inline">
+                {{ csrf_field() }}
+                <input type="hidden" name="direction" value="down">
+                <button type="submit" class="list-action-btn" title="Move down">⬇️</button>
+              </form>
+            </div>
+            <div class="list-main">
+              <a class="list-title {% if sl.completed %}done{% endif %}" href="/html_no_js/lists/{{ sl.id }}">{{ sl.name }}</a>
+              <button type="button" class="list-action-btn edit-list-btn" data-list-id="{{ sl.id }}" data-list-name="{{ sl.name|e }}" title="Edit list name">✏️</button>
+              {% if sl.created_at %}
+                <div class="meta">cr. {{ sl.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</div>
+              {% endif %}
+              {% if sl.hashtags and sl.hashtags|length > 0 %}
+                <div class="tags" role="list" aria-label="List tags">
+                  {% for tag in (sl.hashtags | sort) %}
+                    <div role="listitem" style="display:inline-block;margin-right:0.35rem">
+                      <a class="tag-chip" href="/html_no_js/search?q={{ tag|urlencode }}" role="link">{{ tag }}</a>
+                    </div>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  <script>
+  (function(){
+    var cb = document.getElementById('lists_up_top_checkbox_{{ list.id }}');
+    var hidden = document.getElementById('lists_up_top_hidden_{{ list.id }}');
+    if (!cb || !hidden) return;
+    cb.addEventListener('change', function(){
+      hidden.value = cb.checked ? 'true' : 'false';
+      try { hidden.closest('form').submit(); } catch(e) { try { hidden.form.submit(); } catch(e) {} }
+    });
   })();
   </script>
 
@@ -769,9 +845,19 @@
   </nav>
   
   {# Sublists section moved here, below the delete icon toolbar #}
-  {% if sublists is defined %}
+  {% if sublists is defined and not list.lists_up_top %}
   <section aria-label="Sublists" style="margin-top:1rem">
-    <h3 style="margin:0 0 .4rem 0">Sublists <button type="button" id="mark-list-hdr" data-list-id="{{ list.id }}" title="Mark this list for move" style="border:none;background:transparent;cursor:pointer;font-size:1rem;">🔖</button> <a href="/html_no_js/move" id="move-hdr" title="Open move page" style="text-decoration:none; font-size:1rem;">↔️</a></h3>
+    <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.4rem">
+      <h3 style="margin:0 0 .4rem 0">Sublists <button type="button" id="mark-list-hdr" data-list-id="{{ list.id }}" title="Mark this list for move" style="border:none;background:transparent;cursor:pointer;font-size:1rem;">🔖</button> <a href="/html_no_js/move" id="move-hdr" title="Open move page" style="text-decoration:none; font-size:1rem;">↔️</a></h3>
+      <form method="post" action="/html_no_js/lists/{{ list.id }}/lists_up_top" style="display:inline; margin-left:0.5rem;">
+        {{ csrf_field() }}
+        <input type="hidden" name="lists_up_top" id="lists_up_top_hidden_{{ list.id }}" value="{{ 'true' if list.lists_up_top else 'false' }}">
+        <label style="display:inline-flex; align-items:center; gap:0.4rem;">
+          <input type="checkbox" id="lists_up_top_checkbox_{{ list.id }}" {% if list.lists_up_top %}checked{% endif %}>
+          <span>Up top</span>
+        </label>
+      </form>
+    </div>
     <form method="post" action="/html_no_js/lists/{{ list.id }}/sublists/create" style="margin:0 0 .4rem 0" autocomplete="off">
       {{ csrf_field() }}
       <label>New sublist<br>
@@ -842,5 +928,14 @@
   var btn = document.getElementById('mark-list-hdr');
   if (btn){ btn.addEventListener('click', function(){ var lid = Number(btn.getAttribute('data-list-id')); if (lid) { mark('lists', lid); btn.textContent='✔️'; setTimeout(function(){ btn.textContent='🔖'; }, 1200); } }); }
 })();
+</script>
+<script>
+  (function(){
+    var cb = document.getElementById('lists_up_top_checkbox_{{ list.id }}');
+    var hidden = document.getElementById('lists_up_top_hidden_{{ list.id }}');
+    var form = hidden && hidden.closest('form');
+    if (!cb || !hidden || !form) return;
+    cb.addEventListener('change', function(){ hidden.value = cb.checked ? 'true' : 'false'; try{ form.submit(); } catch(e){} });
+  })();
 </script>
 {% endblock %}

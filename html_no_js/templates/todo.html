@@ -56,6 +56,8 @@
       <p class="meta" style="margin:0">List: <a href="/html_no_js/lists/{{ todo.list_id }}">{{ list.name if list else todo.list_id }}</a></p>
     </div>
   </div>
+  
+
   {% if todo.note %}
     <p class="note-text">{{ todo.note|linkify }}</p>
   {% endif %}
@@ -80,6 +82,71 @@
     <label>Add Tag <input name="tag" placeholder="#tag" aria-label="Tag name"></label>
     <button type="submit">Add</button>
   </form>
+  {# If the user opts to show sublists up-top, render them here (below tags) #}
+  {% if sublists is defined and (todo is defined and todo.lists_up_top) %}
+    <section aria-label="Sublists" style="margin-top:1rem">
+      <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.4rem">
+        <h3 style="margin:0 0 .4rem 0">Sublists <button type="button" id="mark-list-hdr" data-todo-id="{{ todo.id }}" title="Mark this todo for move" style="border:none;background:transparent;cursor:pointer;font-size:1rem;">🔖</button> <a href="/html_no_js/move" id="move-hdr" title="Open move page" style="text-decoration:none; font-size:1rem;">↔️</a></h3>
+        <form method="post" action="/html_no_js/todos/{{ todo.id }}/lists_up_top" style="display:inline; margin-left:0.5rem;">
+          {{ csrf_field() }}
+          <input type="hidden" name="lists_up_top" id="lists_up_top_hidden_{{ todo.id }}" value="{{ 'true' if todo.lists_up_top else 'false' }}">
+          <label style="display:inline-flex; align-items:center; gap:0.4rem;">
+            <input type="checkbox" id="lists_up_top_checkbox_{{ todo.id }}" {% if todo.lists_up_top %}checked{% endif %}>
+            <span>Up top</span>
+          </label>
+        </form>
+      </div>
+    
+    {# Inline create control (replaces the previous 'No sublists yet' message) #}
+  <form method="post" action="/html_no_js/todos/{{ todo.id }}/sublists/create" style="margin:0 0 .4rem 0" autocomplete="off">
+      {{ csrf_field() }}
+      <label>New sublist<br>
+        <input type="text" name="name" required placeholder="Sublist name" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+      </label>
+      <button type="submit">Create</button>
+    </form>
+    {% if sublists|length > 0 %}
+      <ul class="lists-list">
+        {% for sl in sublists %}
+          {% set created_iso = sl.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') %}
+          {% set modified_iso = sl.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') if sl.modified_at else None %}
+          <li class="list-item"{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %}>
+            <div class="list-action-left" style="display:flex;gap:0.25rem;align-items:center;">
+              {# Move up/down within parent todo #}
+              <form method="post" action="/html_no_js/todos/{{ todo.id }}/sublists/{{ sl.id }}/move" style="display:inline">
+                {{ csrf_field() }}
+                <input type="hidden" name="direction" value="up">
+                <button type="submit" class="list-action-btn" title="Move up">⬆️</button>
+              </form>
+              <form method="post" action="/html_no_js/todos/{{ todo.id }}/sublists/{{ sl.id }}/move" style="display:inline">
+                {{ csrf_field() }}
+                <input type="hidden" name="direction" value="down">
+                <button type="submit" class="list-action-btn" title="Move down">⬇️</button>
+              </form>
+            </div>
+            <div class="list-main">
+              <a class="list-title {% if sl.completed %}done{% endif %}" href="/html_no_js/lists/{{ sl.id }}">{{ sl.name }}</a>
+              <button type="button" class="list-action-btn edit-list-btn" data-list-id="{{ sl.id }}" data-list-name="{{ sl.name|e }}" title="Edit list name">✏️</button>
+              {% if sl.created_at %}
+                <div class="meta">cr. {{ sl.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</div>
+              {% endif %}
+              {# list-level tags #}
+              {% if sl.hashtags and sl.hashtags|length > 0 %}
+                <div class="tags" role="list" aria-label="List tags">
+                  {% for tag in (sl.hashtags | sort) %}
+                    <div role="listitem" style="display:inline-block;margin-right:0.35rem">
+                      <a class="tag-chip" href="/html_no_js/search?q={{ tag|urlencode }}" role="link">{{ tag }}</a>
+                    </div>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </section>
+  {% endif %}
   <p class="meta">Created: {{ todo.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }} &nbsp; Modified: {{ todo.modified_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</p>
 
   <form id="todo-edit-form" method="post" action="/html_no_js/todos/{{ todo.id }}/edit" autocomplete="off">
@@ -105,11 +172,23 @@
     </form>
   </div>
 
-  {% if sublists is defined %}
-  <section aria-label="Sublists" style="margin-top:1rem">
-    <h3 style="margin:0 0 .4rem 0">Sublists <button type="button" id="mark-list-hdr" data-todo-id="{{ todo.id }}" title="Mark this todo for move" style="border:none;background:transparent;cursor:pointer;font-size:1rem;">🔖</button> <a href="/html_no_js/move" id="move-hdr" title="Open move page" style="text-decoration:none; font-size:1rem;">↔️</a></h3>
+  {# Optionally render sublists up-top for todos with lists_up_top set #}
+  {% if sublists is defined and (todo is defined and not todo.lists_up_top) %}
+    <section aria-label="Sublists" style="margin-top:1rem">
+      <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.4rem">
+        <h3 style="margin:0 0 .4rem 0">Sublists <button type="button" id="mark-list-hdr" data-todo-id="{{ todo.id }}" title="Mark this todo for move" style="border:none;background:transparent;cursor:pointer;font-size:1rem;">🔖</button> <a href="/html_no_js/move" id="move-hdr" title="Open move page" style="text-decoration:none; font-size:1rem;">↔️</a></h3>
+        <form method="post" action="/html_no_js/todos/{{ todo.id }}/lists_up_top" style="display:inline; margin-left:0.5rem;">
+          {{ csrf_field() }}
+          <input type="hidden" name="lists_up_top" id="lists_up_top_hidden_{{ todo.id }}" value="{{ 'true' if todo.lists_up_top else 'false' }}">
+          <label style="display:inline-flex; align-items:center; gap:0.4rem;">
+            <input type="checkbox" id="lists_up_top_checkbox_{{ todo.id }}" {% if todo.lists_up_top %}checked{% endif %}>
+            <span>Up top</span>
+          </label>
+        </form>
+      </div>
+    
     {# Inline create control (replaces the previous 'No sublists yet' message) #}
-    <form method="post" action="/html_no_js/todos/{{ todo.id }}/sublists/create" style="margin:0 0 .4rem 0" autocomplete="off">
+  <form method="post" action="/html_no_js/todos/{{ todo.id }}/sublists/create" style="margin:0 0 .4rem 0" autocomplete="off">
       {{ csrf_field() }}
       <label>New sublist<br>
         <input type="text" name="name" required placeholder="Sublist name" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
@@ -479,6 +558,15 @@
     });
   });
 })();
+</script>
+<script>
+  (function(){
+    var cb = document.getElementById('lists_up_top_checkbox_{{ todo.id }}');
+    var hidden = document.getElementById('lists_up_top_hidden_{{ todo.id }}');
+    var form = hidden && hidden.closest('form');
+    if (!cb || !hidden || !form) return;
+    cb.addEventListener('change', function(){ hidden.value = cb.checked ? 'true' : 'false'; try{ form.submit(); } catch(e){} });
+  })();
 </script>
 {% endblock %}
 

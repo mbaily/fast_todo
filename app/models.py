@@ -30,6 +30,8 @@ class ListState(SQLModel, table=True):
     modified_at: datetime | None = Field(default_factory=now_utc)
     expanded: bool = Field(default=True)
     hide_done: bool = Field(default=False)
+    # When true, render this list's sublists "up top" near the title
+    lists_up_top: bool = Field(default=False)
     # If true, hide UI action icons (completion checkbox, pin, delete) for this list
     hide_icons: bool = Field(default=False)
     completed: bool = Field(default=False)
@@ -118,6 +120,8 @@ class Todo(SQLModel, table=True):
     list_id: int = Field(foreign_key="liststate.id")
     # Optional per-todo priority: 1 (lowest) .. 10 (highest). Null means no priority.
     priority: Optional[int] = Field(default=None, index=True)
+    # When true, render this todo's child sublists above tags/other metadata
+    lists_up_top: bool = Field(default=False)
 
     # Relationship should reflect that a todo always has a parent list.
     list: ListState = Relationship(

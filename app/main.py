@@ -4583,6 +4583,58 @@ async def html_set_list_icons(request: Request, list_id: int, hide_icons: str = 
     return RedirectResponse(url=ref, status_code=303)
 
 
+@app.post('/html_no_js/lists/{list_id}/lists_up_top')
+async def html_set_list_lists_up_top(request: Request, list_id: int, lists_up_top: str = Form(None), current_user: User = Depends(require_login)):
+    # CSRF and ownership
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    async with async_session() as sess:
+        q = await sess.exec(select(ListState).where(ListState.id == list_id))
+        lst = q.first()
+        if not lst:
+            raise HTTPException(status_code=404, detail='list not found')
+        if lst.owner_id is not None and lst.owner_id != current_user.id:
+            raise HTTPException(status_code=403, detail='forbidden')
+        if lists_up_top is not None:
+            val = str(lists_up_top).lower() in ('1', 'true', 'yes', 'on')
+            lst.lists_up_top = val
+            sess.add(lst)
+            await sess.commit()
+            await sess.refresh(lst)
+    ref = request.headers.get('Referer', f'/html_no_js/lists/{list_id}')
+    return RedirectResponse(url=ref, status_code=303)
+
+
+@app.post('/html_no_js/todos/{todo_id}/lists_up_top')
+async def html_set_todo_lists_up_top(request: Request, todo_id: int, lists_up_top: str = Form(None), current_user: User = Depends(require_login)):
+    # CSRF and ownership enforced via parent list
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    async with async_session() as sess:
+        q = await sess.exec(select(Todo).where(Todo.id == todo_id))
+        todo = q.first()
+        if not todo:
+            raise HTTPException(status_code=404, detail='todo not found')
+        ql = await sess.exec(select(ListState).where(ListState.id == todo.list_id))
+        lst = ql.first()
+        if lst and lst.owner_id is not None and lst.owner_id != current_user.id:
+            raise HTTPException(status_code=403, detail='forbidden')
+        if lists_up_top is not None:
+            val = str(lists_up_top).lower() in ('1', 'true', 'yes', 'on')
+            todo.lists_up_top = val
+            sess.add(todo)
+            await sess.commit()
+            await sess.refresh(todo)
+    ref = request.headers.get('Referer', f'/html_no_js/todos/{todo_id}')
+    return RedirectResponse(url=ref, status_code=303)
+
+
 @app.post('/html_no_js/lists/{list_id}/category')
 async def html_set_list_category(request: Request, list_id: int, category_id: Optional[int] = Form(None), current_user: User = Depends(require_login)):
     """Assign or clear a list's category.
@@ -5029,7 +5081,8 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
             "hashtags": list_tags,
             # persist UI preference so templates can render checkbox state
             "hide_icons": getattr(lst, 'hide_icons', False),
-            "category_id": getattr(lst, 'category_id', None),
+            "list_id": lst.id,
+            "lists_up_top": getattr(lst, 'lists_up_top', False),
             "priority": getattr(lst, 'priority', None),
             # expose parent todo owner for sublist toolbar/navigation
             "parent_todo_id": getattr(lst, 'parent_todo_id', None),
@@ -5568,10 +5621,12 @@ async def html_view_todo(request: Request, todo_id: int, current_user: User = De
             "list_id": todo.list_id,
             "pinned": getattr(todo, 'pinned', False),
             "priority": getattr(todo, 'priority', None),
+            # persist UI preference so template can render checkbox state
+            "lists_up_top": getattr(todo, 'lists_up_top', False),
         }
         list_row = None
         if lst:
-            list_row = {"id": lst.id, "name": lst.name, "completed": lst.completed}
+            list_row = {"id": lst.id, "name": lst.name, "completed": lst.completed, "lists_up_top": getattr(lst, 'lists_up_top', False)}
         # Fetch sublists owned by this todo. Use explicit sibling position when set,
         # else fall back to created_at ASC (older first). We'll also enrich with hashtags.
         sublists = []
