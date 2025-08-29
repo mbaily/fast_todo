@@ -5081,6 +5081,7 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
             "hashtags": list_tags,
             # persist UI preference so templates can render checkbox state
             "hide_icons": getattr(lst, 'hide_icons', False),
+            "category_id": getattr(lst, 'category_id', None),
             "list_id": lst.id,
             "lists_up_top": getattr(lst, 'lists_up_top', False),
             "priority": getattr(lst, 'priority', None),
