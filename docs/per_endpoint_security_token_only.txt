@@ -1,0 +1,120 @@
+Per-endpoint security token flows (only auth/token info)
+
+Notes on auth primitives used below:
+- Authorization: Bearer <token> = JWT produced by POST /auth/token (create_access_token)
+- session cookie: cookie named `session_token` created by server-side session via `create_session_for_user`
+- access_token cookie: fallback cookie named `access_token` containing JWT
+- CSRF: cookie-based POSTs may require CSRF token (see `create_csrf_token` / `verify_csrf_token`)
+- require_login dependency = endpoint requires authenticated user (401 if missing)
+- get_current_user dependency = endpoint accepts optional token or cookie (may be None)
+
+Endpoints (path -> security token flow):
+
+GET /server/logs
+- Auth: require_login -> accepts either Bearer JWT (Authorization header) or session cookie (`session_token`) or access_token cookie. If missing -> 401.
+
+POST /server/logs
+- Auth: require_login -> same as above; POST with cookie may require CSRF protections.
+
+DELETE /server/logs
+- Auth: require_login -> same as above; admin-level restriction not enforced here by dependency alone.
+
+GET /service-worker.js
+- Auth: none (static asset) -- no token required.
+
+GET /manifest.json
+- Auth: none (static asset).
+
+GET /
+- Auth: none for page render; subsequent API calls from page require auth.
+
+GET /html_pwa/, /html_pwa/index.html, other HTML templates
+- Auth: require_login for rendered pages that display user data (session cookie expected for browser flows). Some public templates may not require it.
+
+POST /__debug_echo, GET /__debug_echo
+- Auth: POST uses require_login (debug); GET may be public depending on registration. Check handler for explicit dependency.
+
+GET /lists
+- Auth: require_login -> Bearer or session cookie required.
+
+POST /lists
+- Auth: require_login -> Bearer or session cookie; POST with cookie may require CSRF.
+
+GET /lists/{list_id}, GET /lists/recent
+- Auth: require_login -> Bearer or session cookie.
+
+DELETE /lists/{list_id}
+- Auth: Depends(get_current_user) (optional auth) but handler may enforce ownership; when invoked for protected actions, Bearer or session cookie required.
+
+GET /calendar/events
+- Auth: require_login -> Bearer or session cookie.
+
+GET /calendar/occurrences
+- Auth: require_login -> Bearer or session cookie.
+
+POST /occurrence/complete, POST /occurrence/uncomplete
+- Auth: require_login -> Bearer or session cookie; browser POSTs may require CSRF.
+
+POST /ignore/scope, POST /ignore/unscope
+- Auth: require_login -> Accepts Bearer JWT or session cookie; server persists IgnoredScope; POST via cookie may require CSRF token validation.
+
+POST /parse_text_to_rrule
+- Auth: require_login -> Bearer or session cookie.
+
+POST /auth/token
+- Auth: public endpoint for obtaining JWT. Flow: POST credentials -> server returns access_token (JWT). No token required to call.
+
+POST /server/default_list/{list_id}
+- Auth: require_login -> Bearer or session cookie; likely admin or owner-restricted in code.
+
+POST /html_no_js/lists/{list_id}/delete
+- Auth: require_login -> Bearer or session cookie; HTML form POST may require CSRF.
+
+GET/POST /lists/{list_id}/hashtags
+- Auth: require_login -> Bearer or session cookie.
+
+GET /lists/{list_id}/completion_types, POST /lists/{list_id}/completion_types, DELETE /lists/{list_id}/completion_types/{name}
+- Auth: require_login -> Bearer or session cookie.
+
+POST /lists/{list_id}/state, /lists/{list_id}/icons, /lists/{list_id}/visit
+- Auth: require_login -> Bearer or session cookie.
+
+GET /todos/{todo_id}
+- Auth: require_login -> Bearer or session cookie.
+
+POST /todos, PATCH /todos/{todo_id}, DELETE /todos/{todo_id}
+- Auth: require_login (create/update/delete) or Depends(get_current_user) in some delete handlers -> Bearer or session cookie; cookie POSTs may require CSRF token for HTML forms.
+
+POST /todos/{todo_id}/defer, /todos/{todo_id}/complete, /todos/{todo_id}/pin
+- Auth: require_login -> Bearer or session cookie; POST from browser may require CSRF protection.
+
+POST /admin/undefer, POST /admin/prune_tombstones
+- Auth: require_login -> Bearer or session cookie; handlers likely check current_user.is_admin inside for admin-only actions.
+
+GET /server/default_list
+- Auth: require_login -> Bearer or session cookie.
+
+GET /server/logs/stream (SSE)
+- Auth: require_login -> SSE connections inherit session cookie (EventSource uses same-origin cookies); Authorization header for SSE isn't typical. SSE requires session cookie for browser clients.
+
+API category endpoints (/api/categories, /api/categories/{cat_id}/sort, /api/categories/{cat_id}/move)
+- Auth: require_login -> Bearer or session cookie.
+
+HTML no-JS endpoints under /html_no_js/* (create/edit lists, todos, login, logout, etc.)
+- Auth: many require require_login and thus session cookie for browser flows; login endpoints are public (POST /html_no_js/login) and POST /html_pwa/login issues session cookies or tokens.
+
+POST /sync and GET /sync
+- Auth: require_login -> Browser uses session cookie (credentials included) for GET/POST; API clients should use Authorization: Bearer <token> when calling programmatically.
+
+GET /__debug_setcookie
+- Auth: may be public/debug; check handler; often sets session cookie for testing.
+
+All other endpoints that include `current_user: User = Depends(require_login)`
+- Auth: require_login -> must provide either Authorization: Bearer <token> or a valid `session_token` cookie (server-side session) or `access_token` cookie; POSTs from browser forms may require CSRF.
+
+Summary of token acceptance rules:
+- Authorization header with Bearer JWT: treated as authoritative when present. Use POST /auth/token to obtain.
+- If Authorization header is absent, the server will try `session_token` cookie (server-side session). Next fallback is `access_token` cookie containing JWT.
+- For cookie-based POST endpoints, handlers may validate a CSRF token created by `create_csrf_token` and verified by `verify_csrf_token`.
+
+End of file.
