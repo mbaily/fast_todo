@@ -119,6 +119,23 @@
     <div class="list-main">
       <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
   <h3 class="list-title" style="margin:0;">{{ list.name }}</h3>
+        {# Show list tags directly under the title per UX request #}
+        {% if list and list.id and list.hashtags and list.hashtags|length > 0 %}
+          <div class="tags" role="list" aria-label="List tags" style="width:100%; margin-top:0.35rem">
+            {% for tag in (list.hashtags | sort) %}
+              {% if tag and tag != '#' %}
+                <div role="listitem" style="display:inline-block; margin-right:0.4rem">
+                  <a class="tag-chip" href="/html_no_js/search?q={{ tag|urlencode }}" role="link">{{ tag }}</a>
+                  <form method="post" action="/html_no_js/lists/{{ list.id }}/hashtags/remove" style="display:inline">
+                    {{ csrf_field() }}
+                    <input type="hidden" name="tag" value="{{ tag }}">
+                    <button type="submit" class="tag-remove" aria-label="Remove {{ tag }}"><span aria-hidden="true">✖</span><span class="sr-only">Remove {{ tag }}</span></button>
+                  </form>
+                </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+        {% endif %}
         {% if not list.parent_todo_id and not list.parent_list_id %}
           <form method="post" action="/html_no_js/lists/{{ list.id }}/priority" style="display:inline-flex; align-items:center; gap:0.25rem;">
             {{ csrf_field() }}
@@ -163,24 +180,29 @@
   {% if completion_types is not none %}
   {% endif %}
   <script>
-  // Minimal rename for sublists: prompt and POST to list edit endpoint
+  // Minimal rename for sublists: prompt and POST to list edit endpoint.
+  // Use event delegation so buttons added later (or rendered after this script)
+  // are handled correctly.
   (function(){
+    function handleEditBtn(btn){
+      var id = btn.getAttribute('data-list-id');
+      var current = btn.getAttribute('data-list-name') || '';
+      var name = window.prompt('New list name', current);
+      if (!name || name.trim() === '') return;
+      var fd = new FormData();
+      fd.append('name', name);
+      var csrfInput = document.querySelector('input[name="_csrf"]');
+      if (csrfInput && csrfInput.value) fd.append('_csrf', csrfInput.value);
+      fetch('/html_no_js/lists/' + encodeURIComponent(id) + '/edit', { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function(res){ if(res.ok) location.reload(); else alert('Rename failed'); })
+        .catch(function(){ alert('Rename failed'); });
+    }
     try {
-      document.querySelectorAll('.edit-list-btn').forEach(function(btn){
-        btn.addEventListener('click', function(){
-          var id = btn.getAttribute('data-list-id');
-          var current = btn.getAttribute('data-list-name') || '';
-          var name = window.prompt('New list name', current);
-          if (!name || name.trim() === '') return;
-          var fd = new FormData();
-          fd.append('name', name);
-          var csrfInput = document.querySelector('input[name="_csrf"]');
-          if (csrfInput && csrfInput.value) fd.append('_csrf', csrfInput.value);
-          fetch('/html_no_js/lists/' + encodeURIComponent(id) + '/edit', { method: 'POST', body: fd, credentials: 'same-origin' })
-            .then(function(res){ if(res.ok) location.reload(); else alert('Rename failed'); })
-            .catch(function(){ alert('Rename failed'); });
-        });
-      });
+      document.body.addEventListener('click', function(ev){
+        var btn = ev.target && ev.target.closest ? ev.target.closest('.edit-list-btn') : null;
+        if (!btn) return;
+        handleEditBtn(btn);
+      }, false);
     } catch(e) {}
   })();
   </script>
@@ -673,23 +695,7 @@
     <p>No todos yet.</p>
   {% endif %}
 
-  {# Show list tags on their own line, like todo.html, placed just above completion types #}
-  {% if list and list.id and list.hashtags and list.hashtags|length > 0 %}
-    <div class="tags" role="list" aria-label="List tags">
-      {% for tag in (list.hashtags | sort) %}
-        {% if tag and tag != '#' %}
-          <div role="listitem" style="display:inline-block; margin-right:0.4rem">
-            <a class="tag-chip" href="/html_no_js/search?q={{ tag|urlencode }}" role="link">{{ tag }}</a>
-            <form method="post" action="/html_no_js/lists/{{ list.id }}/hashtags/remove" style="display:inline">
-              {{ csrf_field() }}
-              <input type="hidden" name="tag" value="{{ tag }}">
-              <button type="submit" class="tag-remove" aria-label="Remove {{ tag }}"><span aria-hidden="true">✖</span><span class="sr-only">Remove {{ tag }}</span></button>
-            </form>
-          </div>
-        {% endif %}
-      {% endfor %}
-    </div>
-  {% endif %}
+  
   {% if completion_types is not none %}
   <h3>Completion types</h3>
   <div class="meta" style="margin-bottom:0.5rem">
