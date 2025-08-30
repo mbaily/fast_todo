@@ -349,6 +349,17 @@ window.addEventListener && window.addEventListener('storage', function(ev){
       var isDone = !!li.querySelector('.list-title.done');
       li.style.display = (hide && isDone) ? 'none' : '';
     });
+    // update category counts to reflect hidden items
+    try{
+      document.querySelectorAll('.category-section').forEach(function(section){
+        var ul = section.querySelector('ul.category-lists');
+        if (!ul) return;
+        var total = ul.querySelectorAll(':scope > li.list-item').length;
+        var visible = ul.querySelectorAll(':scope > li.list-item:not([style*="display: none"])').length;
+        var countSpan = section.querySelector('.count');
+        if (countSpan) countSpan.textContent = ' (' + visible + ')';
+      });
+    }catch(e){}
   }
   cb.addEventListener('change', function(){ setCookie(cookieName, cb.checked ? '1' : '0', 365); apply(); });
   // initial
