@@ -206,20 +206,6 @@
   window.categories = {{ categories | default([]) | tojson | safe }};
 </script>
 
-{% if calendar_occurrences and calendar_occurrences|length > 0 %}
-  <section class="calendar-summary" style="margin-top:1rem;">
-    <h3>Calendar</h3>
-    <ul style="list-style:none;padding-left:0;margin:0;">
-      {% for ev in calendar_occurrences %}
-        <li>
-          <strong>{{ ev.occurrence_date or ev.occurrence_dt[:10] }}</strong>
-          &nbsp; <a href="{% if ev.item_type == 'todo' %}/html_no_js/todos/{{ ev.id }}{% else %}/html_no_js/lists/{{ ev.id }}{% endif %}">{{ ev.title or (ev.rrule or '')[:60] }}</a>
-          {% if ev.is_recurring %}<span class="muted"> (recurring)</span>{% endif %}
-        </li>
-      {% endfor %}
-    </ul>
-  </section>
-{% endif %}
 
 <!-- Hide Completed control (browser-cookie persisted) -->
 <div id="hide-completed-control" style="margin:0.5rem 0;">
