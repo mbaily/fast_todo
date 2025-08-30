@@ -58,6 +58,10 @@ except Exception:
     # Keep startup robust; do not prevent server from starting if print fails
     pass
 
+# Hard-enable verbose debug logging for debugging intermittent server 403s.
+# Set to False to disable. This is intentionally hardcoded per request.
+ENABLE_VERBOSE_DEBUG = True
+
 # Optional debugpy attach for live debugging. Enabled by setting ENABLE_DEBUGPY=1
 # DEBUGPY_PORT defaults to 5678. If DEBUGPY_WAIT=1 the server will pause until a
 # debugger attaches (useful during development).
@@ -1489,14 +1493,42 @@ async def mark_occurrence_completed(request: Request, hash: str = Form(...), cur
     """
     # Determine whether request used bearer token (Authorization header)
     auth_hdr = request.headers.get('authorization')
+    # Add verbose debug logging to help diagnose 403s. Controlled by
+    # ENABLE_VERBOSE_DEBUG environment variable to avoid leaking secrets.
+    try:
+        logger.info('/occurrence/complete called user=%s auth_hdr_present=%s', getattr(current_user, 'username', None), bool(auth_hdr))
+    except Exception:
+        pass
+
     # If no Authorization header, this is likely a cookie-authenticated browser
     # request — require CSRF token. Accept token from form field _csrf or
-    # cookie 'csrf_token'.
+    # cookie 'csrf_token'. Log masked token info when verbose debugging is enabled.
     if not auth_hdr:
         form = await request.form()
         token = form.get('_csrf') or request.cookies.get('csrf_token')
+        try:
+                if ENABLE_VERBOSE_DEBUG:
+                    import hashlib
+                    tok_hash = None
+                    try:
+                        if token:
+                            tok_hash = hashlib.sha256(token.encode('utf-8')).hexdigest()[:12]
+                    except Exception:
+                        tok_hash = None
+                    try:
+                        logger.info('/occurrence/complete debug: token_present=%s token_hash_prefix=%s form_keys=%s cookie_names=%s header_keys=%s remote=%s',
+                                    bool(token), tok_hash, list(form.keys()), list(request.cookies.keys()), list(request.headers.keys()), (request.client.host if request.client else None))
+                    except Exception:
+                        logger.exception('occurrence/complete: failed to log debug info')
+        except Exception:
+            logger.exception('occurrence/complete: verbose debug block failed')
+
         from .auth import verify_csrf_token
         if not token or not verify_csrf_token(token, current_user.username):
+            try:
+                logger.warning('/occurrence/complete CSRF verification failed for user=%s token_present=%s', getattr(current_user, 'username', None), bool(token))
+            except Exception:
+                pass
             raise HTTPException(status_code=403, detail='invalid csrf token')
 
     from .models import CompletedOccurrence
@@ -1539,13 +1571,40 @@ async def unmark_occurrence_completed(request: Request, hash: str = Form(...), c
     token API clients can omit CSRF.
     """
     # Require CSRF for cookie-authenticated browser requests. Allow bearer
-    # token clients to call without CSRF.
+    # token clients to call without CSRF. Add verbose debugging similar to
+    # /occurrence/complete to diagnose 403 failures.
     auth_hdr = request.headers.get('authorization')
+    try:
+        logger.info('/occurrence/uncomplete called user=%s auth_hdr_present=%s', getattr(current_user, 'username', None), bool(auth_hdr))
+    except Exception:
+        pass
+
     if not auth_hdr:
         form = await request.form()
         token = form.get('_csrf') or request.cookies.get('csrf_token')
+        try:
+            if ENABLE_VERBOSE_DEBUG:
+                import hashlib
+                tok_hash = None
+                try:
+                    if token:
+                        tok_hash = hashlib.sha256(token.encode('utf-8')).hexdigest()[:12]
+                except Exception:
+                    tok_hash = None
+                try:
+                    logger.info('/occurrence/uncomplete debug: token_present=%s token_hash_prefix=%s form_keys=%s cookie_names=%s header_keys=%s remote=%s',
+                                bool(token), tok_hash, list(form.keys()), list(request.cookies.keys()), list(request.headers.keys()), (request.client.host if request.client else None))
+                except Exception:
+                    logger.exception('occurrence/uncomplete: failed to log debug info')
+        except Exception:
+            logger.exception('occurrence/uncomplete: verbose debug block failed')
+
         from .auth import verify_csrf_token
         if not token or not verify_csrf_token(token, current_user.username):
+            try:
+                logger.warning('/occurrence/uncomplete CSRF verification failed for user=%s token_present=%s', getattr(current_user, 'username', None), bool(token))
+            except Exception:
+                pass
             raise HTTPException(status_code=403, detail='invalid csrf token')
 
     from .models import CompletedOccurrence
@@ -1576,13 +1635,16 @@ async def create_ignore_scope(request: Request, scope_type: str = Form(...), sco
     try:
         logger.info('create_ignore_scope entry: scope_type=%s scope_key=%s from_dt=%s current_user=%s', scope_type, scope_key, from_dt, getattr(current_user, 'username', None))
         # Verbose debug logging may expose sensitive values; only enable when
-        # explicitly toggled via environment in development.
+        # explicitly toggled during debugging.
         try:
-            if os.getenv('ENABLE_VERBOSE_DEBUG', '0').lower() in ('1', 'true', 'yes'):
-                logger.info('create_ignore_scope headers: %s', dict(request.headers))
-                logger.info('create_ignore_scope cookies: %s', dict(request.cookies))
+            if ENABLE_VERBOSE_DEBUG:
+                try:
+                    logger.info('create_ignore_scope headers: %s', dict(request.headers))
+                    logger.info('create_ignore_scope cookies: %s', dict(request.cookies))
+                except Exception:
+                    logger.exception('failed to read request headers/cookies for debug')
         except Exception:
-            logger.exception('failed to read request headers/cookies for debug')
+            logger.exception('failed to evaluate ENABLE_VERBOSE_DEBUG')
     except Exception:
         logger.exception('early logging in create_ignore_scope failed')
 
@@ -1591,7 +1653,7 @@ async def create_ignore_scope(request: Request, scope_type: str = Form(...), sco
         # parse form fields and log them (safe for debugging in dev)
         form = await request.form()
         try:
-            if os.getenv('ENABLE_VERBOSE_DEBUG', '0').lower() in ('1', 'true', 'yes'):
+            if ENABLE_VERBOSE_DEBUG:
                 # show form keys and values (beware of sensitive values in prod)
                 logger.info('create_ignore_scope form fields: %s', {k: form.get(k) for k in form.keys()})
         except Exception:
