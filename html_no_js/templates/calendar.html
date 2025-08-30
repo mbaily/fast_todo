@@ -181,17 +181,44 @@
   document.addEventListener('change', function(e){
     const cb = e.target.closest('.occ-complete'); if (!cb) return; const hash = cb.getAttribute('data-hash'); if (!hash) return;
     if (cb.checked) {
+      // disable checkbox to avoid duplicate clicks and optimistic race
+      cb.disabled = true;
       const csrf = getCookie('csrf_token') || '';
       const body = `_csrf=${encodeURIComponent(csrf)}&hash=${encodeURIComponent(hash)}`;
       fetch('/occurrence/complete', { method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded'}, body: body, credentials: 'same-origin' })
-        .then(async r => { let j=null; try{ j = await r.json(); }catch(e){ j={error:'invalid-json'};} console.log('DEBUG: complete_response', {status:r.status, body:j}); /* optional: refresh */ /* fetchOccurrencesForCurrentWindow(); */ })
-        .catch(err => console.error('DEBUG: complete_error', err));
+        .then(async r => {
+          let j = null;
+          try { j = await r.json(); } catch (e) { j = { error: 'invalid-json' }; }
+          console.log('DEBUG: complete_response', { status: r.status, body: j });
+          // if server responded with non-OK or payload indicates failure, revert
+          if (!r.ok || (j && typeof j.ok !== 'undefined' && !j.ok)) {
+            cb.checked = false;
+          }
+        })
+        .catch(err => {
+          console.error('DEBUG: complete_error', err);
+          cb.checked = false;
+        })
+        .finally(() => { cb.disabled = false; });
     } else {
+      // disable checkbox to avoid duplicate clicks and optimistic race
+      cb.disabled = true;
       const csrf = getCookie('csrf_token') || '';
       const body = `_csrf=${encodeURIComponent(csrf)}&hash=${encodeURIComponent(hash)}`;
       fetch('/occurrence/uncomplete', { method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded'}, body: body, credentials: 'same-origin' })
-        .then(async r => { let j=null; try{ j = await r.json(); }catch(e){ j={error:'invalid-json'};} console.log('DEBUG: uncomplete_response', {status:r.status, body:j}); /* optional: refresh */ /* fetchOccurrencesForCurrentWindow(); */ })
-        .catch(err => console.error('DEBUG: uncomplete_error', err));
+        .then(async r => {
+          let j = null;
+          try { j = await r.json(); } catch (e) { j = { error: 'invalid-json' }; }
+          console.log('DEBUG: uncomplete_response', { status: r.status, body: j });
+          if (!r.ok || (j && typeof j.ok !== 'undefined' && !j.ok)) {
+            cb.checked = true;
+          }
+        })
+        .catch(err => {
+          console.error('DEBUG: uncomplete_error', err);
+          cb.checked = true;
+        })
+        .finally(() => { cb.disabled = false; });
     }
   });
   </script>
