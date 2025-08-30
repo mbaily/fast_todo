@@ -69,14 +69,9 @@
   </style>
   
 
-  <!-- search form: search lists and todos -->
-  <form method="get" action="/html_no_js/search" style="margin:0.5rem 0">
-    <input name="q" placeholder="Search lists and todos" value="{{ request.query_params.get('q','') }}">
-    <button type="submit">Search</button>
-  </form>
   {% if pinned_todos and pinned_todos|length > 0 %}
     <section class="pinned-todos">
-      <h3>Pinned</h3>
+      <!-- <h3>Pinned</h3> -->
   <ul>
   {# sort pinned_todos by modified_at (newest first). If modified_at is missing, fall back to original order #}
   {% for t in (pinned_todos | sort(attribute='modified_at') | reverse) %}
@@ -96,15 +91,10 @@
       </ul>
     </section>
   {% endif %}
-  <form method="post" action="/html_no_js/lists/create">
-  {{ csrf_field() }}
-  <input name="name" placeholder="List name" required>
-    <button type="submit">Create</button>
-  </form>
   {# Move calendar summary directly under pinned todos #}
   {% if calendar_occurrences and calendar_occurrences|length > 0 %}
     <section class="calendar-summary">
-      <h3>Calendar</h3>
+      <!--<h3>Calendar</h3>-->
       <ul style="list-style:none;padding-left:0;margin:0 0 1rem 0;">
         {% for ev in calendar_occurrences %}
           <li>
@@ -116,6 +106,16 @@
       </ul>
     </section>
   {% endif %}
+  <!-- search form: search lists and todos -->
+  <form method="get" action="/html_no_js/search" style="margin:0.5rem 0">
+    <input name="q" placeholder="Search lists and todos" value="{{ request.query_params.get('q','') }}">
+    <button type="submit">Search</button>
+  </form>
+    <form method="post" action="/html_no_js/lists/create">
+  {{ csrf_field() }}
+  <input name="name" placeholder="List name" required>
+    <button type="submit">Create</button>
+  </form>
   
   {% if cursors %}
     <nav class="pagination" aria-label="Pages">

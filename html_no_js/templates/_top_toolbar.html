@@ -74,6 +74,9 @@
 
   <div class="spacer" aria-hidden="true"></div>
 
+            <a href="/html_no_js/priorities" class="button" title="Priority summary">Priorities</a>
+        <a href="/html_no_js/" class="button">Lists</a>
+
   {# Prefer rendering a Logout POST form so pages like the calendar show Logout instead of Login.
      If `csrf_token` is present include the hidden field; if not present still render the form as a
      POST fallback (the server may accept session cookie-based CSRF). If your server requires the
@@ -94,6 +97,8 @@
       <span class="label">Login</span>
     </a>
   {% endif %}
+
+  
 
   </nav>
 {% endif %}
