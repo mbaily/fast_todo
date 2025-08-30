@@ -88,6 +88,21 @@ else
   python -m pip install --no-cache-dir "${PIP_PACKAGES[@]}"
 fi
 
+
+ENV_FILE="/etc/default/gpt5_fast_todo"
+
+# Load SECRET_KEY only, ignore the rest (avoid sourcing untrusted code)
+if [ -f "$ENV_FILE" ]; then
+  # shellcheck disable=SC1090
+  SECRET_KEY=$(grep -E '^SECRET_KEY=' "$ENV_FILE" | head -n1 | cut -d= -f2-)
+  # Remove surrounding quotes if present
+  SECRET_KEY=${SECRET_KEY#\"}
+  SECRET_KEY=${SECRET_KEY%\"}
+  export SECRET_KEY
+else
+  echo "Warning: $ENV_FILE not found; SECRET_KEY not set" >&2
+fi
+
 # Ensure SECRET_KEY is set in the environment
 if [ -z "${SECRET_KEY-}" ]; then
   echo "[run_server] SECRET_KEY not set; generating a temporary one for this session"
