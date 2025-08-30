@@ -59,8 +59,7 @@ def _issue_csrf_cookie(resp, username: str):
         logger.exception('failed to issue csrf cookie')
 
 
-# Add middleware with 5 minute threshold
-app.add_middleware(_CSRFMiddleware, threshold_seconds=300)
+# (middleware registered later after app is created)
 
 # Print a startup notice if SECRET_KEY is already set in the environment. This
 # helps detect accidental secrets left in the environment when starting the
