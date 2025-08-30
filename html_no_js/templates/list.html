@@ -666,9 +666,11 @@
                   {% set dt_iso = t.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') %}
                   {% set dt_fmt = t.created_at|in_tz(client_tz, '%-d/%m %-I:%M%p') %}
                   {% if list.hide_icons %}
-                    <span class="wrap-text"{% if dt_iso %} data-created-at="{{ dt_iso }}"{% endif %}{% if dt_fmt %} data-date="{{ dt_fmt }}"{% endif %}>{{ t.text }}{% if t.priority %} {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}<span class="meta priority-inline"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>{% endif %} <a href="/html_no_js/todos/{{ t.id }}" class="todo-open-link" aria-label="View todo {{ t.id }}" style="margin-left:0.25rem; text-decoration:none;">🔎</a></span>
+                    <span class="wrap-text"{% if dt_iso %} data-created-at="{{ dt_iso }}"{% endif %}{% if dt_fmt %} data-date="{{ dt_fmt }}"{% endif %}>
+                      <a class="wrap-text{% if t.completed %} done{% endif %}" href="/html_no_js/todos/{{ t.id }}"{% if dt_iso %} data-created-at="{{ dt_iso }}"{% endif %}{% if dt_fmt %} data-date="{{ dt_fmt }}"{% endif %}>{{ t.text }}</a>{% if t.priority %} {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}<span class="meta priority-inline"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>{% endif %} <a href="/html_no_js/todos/{{ t.id }}" class="todo-open-link" aria-label="View todo {{ t.id }}" style="margin-left:0.25rem; text-decoration:none;">🔎</a>
+                    </span>
                   {% else %}
-                    <a class="wrap-text" href="/html_no_js/todos/{{ t.id }}"{% if dt_iso %} data-created-at="{{ dt_iso }}"{% endif %}{% if dt_fmt %} data-date="{{ dt_fmt }}"{% endif %}>{{ t.text }}</a>{% if t.priority %} {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}<span class="meta priority-inline"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>{% endif %}
+                    <a class="wrap-text{% if t.completed %} done{% endif %}" href="/html_no_js/todos/{{ t.id }}"{% if dt_iso %} data-created-at="{{ dt_iso }}"{% endif %}{% if dt_fmt %} data-date="{{ dt_fmt }}"{% endif %}>{{ t.text }}</a>{% if t.priority %} {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}<span class="meta priority-inline"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>{% endif %}
                   {% endif %}
               </div>
               {% if t.note %}

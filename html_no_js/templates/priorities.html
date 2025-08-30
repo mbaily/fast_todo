@@ -25,7 +25,7 @@
   <h3 style="margin-top:1rem">Todos (highest priority first)</h3>
   <ul class="todos-list">
     {% for t, l in todos if t.priority is not none %}
-    <li class="todo"><div class="todo-content"><div class="todo-main"><div class="todo-title-inline"><a class="wrap-text" href="/html_no_js/todos/{{ t.id }}">{{ t.text }}</a>
+  <li class="todo"><div class="todo-content"><div class="todo-main"><div class="todo-title-inline"><a class="wrap-text{% if t.completed %} done{% endif %}" href="/html_no_js/todos/{{ t.id }}">{{ t.text }}</a>
     <span class="meta priority-inline" style="margin-left:0.35rem"><span class="priority-circle">{{ circled.get(t.priority, t.priority) }}</span></span></div><div class="meta">in <a href="/html_no_js/lists/{{ l.id }}">{{ l.name }}</a></div></div></div></li>
     {% endfor %}
   </ul>
