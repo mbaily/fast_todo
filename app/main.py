@@ -3969,6 +3969,18 @@ async def html_index(request: Request):
                         pm.setdefault(tid, []).append(tag)
                     for p in pinned_todos:
                         p['tags'] = pm.get(p['id'], [])
+                # determine completed state for pinned todos using the list's 'default' completion type
+                try:
+                    if pin_ids:
+                        qcomp = select(TodoCompletion.todo_id).join(CompletionType, CompletionType.id == TodoCompletion.completion_type_id).where(TodoCompletion.todo_id.in_(pin_ids)).where(CompletionType.name == 'default').where(TodoCompletion.done == True)
+                        cres = await sess.exec(qcomp)
+                        completed_ids = set(r[0] if isinstance(r, tuple) else r for r in cres.all())
+                    else:
+                        completed_ids = set()
+                except Exception:
+                    completed_ids = set()
+                for p in pinned_todos:
+                    p['completed'] = p['id'] in completed_ids
         except Exception:
             # if DB lacks the pinned column or some error occurs, show no pinned todos
             pinned_todos = []

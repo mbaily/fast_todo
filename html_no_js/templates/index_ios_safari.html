@@ -36,7 +36,7 @@
       {% for t in (pinned_todos | sort(attribute='modified_at') | reverse) %}
         <li>
           {{ '📌' if t.pinned|default(false) else '📍' }}
-          <a class="{% if t.completed %}done{% endif %}" href="/html_no_js/todos/{{ t.id }}">{{ t.text }}</a>
+          <a class="wrap-text{% if t.completed %} done{% endif %}" href="/html_no_js/todos/{{ t.id }}">{{ t.text }}</a>
           <span> in <a href="/html_no_js/lists/{{ t.list_id }}">{{ t.list_name or t.list_id }}</a></span>
           {% if t.tags and t.tags|length > 0 %}
             {% for tag in (t.tags | sort) %}
