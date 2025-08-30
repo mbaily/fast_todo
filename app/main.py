@@ -5536,7 +5536,51 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
                     'modified_at': getattr(l, 'modified_at', None),
                     'hashtags': tag_map.get(l.id, []),
                     'parent_list_position': getattr(l, 'parent_list_position', None),
+                    # placeholder for any higher-priority uncompleted todo in this sublist
+                    'override_priority': None,
+                    # include the sublist's own priority if present on the ORM object
+                    'priority': getattr(l, 'priority', None),
                 })
+            # Determine highest uncompleted todo priority per sublist (if any)
+            try:
+                if sub_ids:
+                    todo_q = await sess.exec(select(Todo.id, Todo.list_id, Todo.priority).where(Todo.list_id.in_(sub_ids)).where(Todo.priority != None))
+                    # use a distinct variable name so we don't clobber the main `todo_rows`
+                    todo_id_rows = todo_q.all()
+                    todo_map: dict[int, list[tuple[int,int]]] = {}
+                    todo_ids = []
+                    for tid, lid, pri in todo_id_rows:
+                        todo_map.setdefault(lid, []).append((tid, pri))
+                        todo_ids.append(tid)
+                    completed_ids = set()
+                    if todo_ids:
+                        try:
+                            qcomp = select(TodoCompletion.todo_id).join(CompletionType, CompletionType.id == TodoCompletion.completion_type_id).where(TodoCompletion.todo_id.in_(todo_ids)).where(CompletionType.name == 'default').where(TodoCompletion.done == True)
+                            cres = await sess.exec(qcomp)
+                            completed_ids = set(r[0] if isinstance(r, tuple) else r for r in cres.all())
+                        except Exception:
+                            completed_ids = set()
+                    # compute highest uncompleted priority per sublist
+                    for sub in sublists:
+                        lid = sub.get('id')
+                        candidates = todo_map.get(lid, [])
+                        max_p = None
+                        for tid, pri in candidates:
+                            if tid in completed_ids:
+                                continue
+                            try:
+                                if pri is None:
+                                    continue
+                                pv = int(pri)
+                            except Exception:
+                                continue
+                            if max_p is None or pv > max_p:
+                                max_p = pv
+                        if max_p is not None:
+                            sub['override_priority'] = max_p
+            except Exception:
+                # failure computing overrides should not break list rendering
+                pass
         except Exception:
             sublists = []
     from .auth import create_csrf_token

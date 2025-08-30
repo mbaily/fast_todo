@@ -115,7 +115,7 @@
   <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
   <h3 class="list-title" style="margin:0;">{{ list.name }}</h3>
   <button type="button" class="list-action-btn edit-list-btn" data-list-id="{{ list.id }}" data-list-name="{{ list.name|e }}" title="Edit list name" style="margin-left:0.25rem;">✏️</button>
-            {% if not list.parent_todo_id and not list.parent_list_id %}
+            {# {% if not list.parent_todo_id and not list.parent_list_id %} #}
               <form method="post" action="/html_no_js/lists/{{ list.id }}/priority" style="display:inline-flex; align-items:center; gap:0.25rem; margin-left:0.5rem;">
                 {{ csrf_field() }}
                 <label for="priority-select-{{ list.id }}" class="sr-only">Priority</label>
@@ -126,7 +126,7 @@
                   {% endfor %}
                 </select>
               </form>
-            {% endif %}
+            {# {% endif %} #}
             {# Show list tags directly under the title per UX request #}
             {% if list and list.id and list.hashtags and list.hashtags|length > 0 %}
               <div class="tags" role="list" aria-label="List tags" style="width:100%; margin-top:0.35rem">
@@ -158,7 +158,6 @@
       <a class="button" href="/html_no_js/lists/{{ list.parent_list_id }}" title="Back to owning list">← Back to {{ list.parent_list_name or 'list' }}</a>
     {% endif %}
     <span class="meta" style="margin-left:0.25rem;">
-      sublist
       <!-- 
       {% if list.parent_todo_id %}
         todo “{{ list.parent_todo_text or ('#' ~ list.parent_todo_id) }}”
@@ -231,7 +230,10 @@
         {% for sl in sublists %}
           {% set created_iso = sl.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') %}
           {% set modified_iso = sl.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') if sl.modified_at else None %}
-          <li class="list-item"{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %}>
+          {# Render sublist priority data attributes and glyphs similar to index.html. Use parent_list_position as persistent manual-order. #}
+          {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
+          {% set eff = sl.override_priority if (sl.override_priority is not none and (sl.priority is none or sl.override_priority > sl.priority)) else sl.priority %}
+          <li class="list-item"{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %}{% if eff is not none %} data-priority="{{ eff }}"{% endif %}{% if sl.priority is not none %} data-list-priority="{{ sl.priority }}"{% endif %}{% if sl.override_priority is not none %} data-override-priority="{{ sl.override_priority }}"{% endif %}{% if sl.parent_list_position is not none %} data-parent-list-position="{{ sl.parent_list_position }}"{% endif %}>
             <div class="list-action-left" style="display:flex;gap:0.25rem;align-items:center;">
               <form method="post" action="/html_no_js/lists/{{ list.id }}/sublists/{{ sl.id }}/move" style="display:inline">
                 {{ csrf_field() }}
@@ -246,6 +248,12 @@
             </div>
             <div class="list-main">
               <a class="list-title {% if sl.completed %}done{% endif %}" href="/html_no_js/lists/{{ sl.id }}">{{ sl.name }}</a>
+              {% if sl.priority is not none %}
+                <span class="meta priority-inline" title="List priority"><span class="priority-circle">{{ circ.get(sl.priority, sl.priority) }}</span></span>
+              {% endif %}
+              {% if sl.override_priority is not none and (sl.priority is none or sl.override_priority > sl.priority) %}
+                <span class="muted priority-inline priority-override" title="Highest uncompleted todo priority"><span class="priority-circle">{{ circ.get(sl.override_priority, sl.override_priority) }}</span></span>
+              {% endif %}
               <button type="button" class="list-action-btn edit-list-btn" data-list-id="{{ sl.id }}" data-list-name="{{ sl.name|e }}" title="Edit list name">✏️</button>
               {% if sl.created_at %}
                 <div class="meta">cr. {{ sl.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</div>
@@ -266,6 +274,38 @@
     {% endif %}
   </section>
   {% endif %}
+
+  <script>
+  // Sort Sublists by effective priority (desc), using parent_list_position as persistent tie-breaker (asc).
+  (function(){
+    try {
+      var ul = document.querySelector('.lists-list');
+      if (!ul) return;
+      var items = Array.from(ul.querySelectorAll('li.list-item'));
+      if (!items.length) return;
+      // Parse attributes into sort keys
+      function parseIntOrNull(v){ if (v === null || typeof v === 'undefined' || v === '') return null; var n = parseInt(v, 10); return isNaN(n) ? null : n; }
+      items.sort(function(a, b){
+        // effective priority (higher first)
+        var ap = parseIntOrNull(a.getAttribute('data-priority'));
+        var bp = parseIntOrNull(b.getAttribute('data-priority'));
+        if (ap === null && bp !== null) return 1;
+        if (bp === null && ap !== null) return -1;
+        if (ap !== null && bp !== null){ if (bp !== ap) return bp - ap; }
+        // tie-breaker: parent_list_position (lower means earlier)
+        var ao = parseIntOrNull(a.getAttribute('data-parent-list-position'));
+        var bo = parseIntOrNull(b.getAttribute('data-parent-list-position'));
+        if (ao === null && bo !== null) return 1;
+        if (bo === null && ao !== null) return -1;
+        if (ao !== null && bo !== null){ if (ao !== bo) return ao - bo; }
+        // final fallback: keep DOM order stable
+        return 0;
+      });
+      // Reinsert items in sorted order
+      items.forEach(function(li){ ul.appendChild(li); });
+    } catch(e) { console && console.error && console.error('sublists sort failed', e); }
+  })();
+  </script>
 
   <script>
   (function(){
@@ -874,7 +914,9 @@
         {% for sl in sublists %}
           {% set created_iso = sl.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') %}
           {% set modified_iso = sl.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') if sl.modified_at else None %}
-          <li class="list-item"{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %}>
+          {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
+          {% set eff = sl.override_priority if (sl.override_priority is not none and (sl.priority is none or sl.override_priority > sl.priority)) else sl.priority %}
+          <li class="list-item"{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %}{% if eff is not none %} data-priority="{{ eff }}"{% endif %}{% if sl.priority is not none %} data-list-priority="{{ sl.priority }}"{% endif %}{% if sl.override_priority is not none %} data-override-priority="{{ sl.override_priority }}"{% endif %}{% if sl.parent_list_position is not none %} data-parent-list-position="{{ sl.parent_list_position }}"{% endif %}>
             <div class="list-action-left" style="display:flex;gap:0.25rem;align-items:center;">
               <form method="post" action="/html_no_js/lists/{{ list.id }}/sublists/{{ sl.id }}/move" style="display:inline">
                 {{ csrf_field() }}
@@ -889,6 +931,12 @@
             </div>
             <div class="list-main">
               <a class="list-title {% if sl.completed %}done{% endif %}" href="/html_no_js/lists/{{ sl.id }}">{{ sl.name }}</a>
+              {% if sl.priority is not none %}
+                <span class="meta priority-inline" title="List priority"><span class="priority-circle">{{ circ.get(sl.priority, sl.priority) }}</span></span>
+              {% endif %}
+              {% if sl.override_priority is not none and (sl.priority is none or sl.override_priority > sl.priority) %}
+                <span class="muted priority-inline priority-override" title="Highest uncompleted todo priority"><span class="priority-circle">{{ circ.get(sl.override_priority, sl.override_priority) }}</span></span>
+              {% endif %}
               <button type="button" class="list-action-btn edit-list-btn" data-list-id="{{ sl.id }}" data-list-name="{{ sl.name|e }}" title="Edit list name">✏️</button>
               {% if sl.created_at %}
                 <div class="meta">cr. {{ sl.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</div>
@@ -906,6 +954,34 @@
           </li>
         {% endfor %}
       </ul>
+      <script>
+      // Sort Sublists by effective priority (desc), using parent_list_position as persistent tie-breaker (asc).
+      (function(){
+        try {
+          var ul = document.querySelectorAll('.lists-list');
+          if (!ul || !ul.length) return;
+          // find the last lists-list in this section (the one we just rendered)
+          var localUl = ul[ul.length-1];
+          var items = Array.from(localUl.querySelectorAll('li.list-item'));
+          if (!items.length) return;
+          function parseIntOrNull(v){ if (v === null || typeof v === 'undefined' || v === '') return null; var n = parseInt(v, 10); return isNaN(n) ? null : n; }
+          items.sort(function(a, b){
+            var ap = parseIntOrNull(a.getAttribute('data-priority'));
+            var bp = parseIntOrNull(b.getAttribute('data-priority'));
+            if (ap === null && bp !== null) return 1;
+            if (bp === null && ap !== null) return -1;
+            if (ap !== null && bp !== null){ if (bp !== ap) return bp - ap; }
+            var ao = parseIntOrNull(a.getAttribute('data-parent-list-position'));
+            var bo = parseIntOrNull(b.getAttribute('data-parent-list-position'));
+            if (ao === null && bo !== null) return 1;
+            if (bo === null && ao !== null) return -1;
+            if (ao !== null && bo !== null){ if (ao !== bo) return ao - bo; }
+            return 0;
+          });
+          items.forEach(function(li){ localUl.appendChild(li); });
+        } catch(e) { console && console.error && console.error('sublists sort failed', e); }
+      })();
+      </script>
     {% endif %}
   </section>
   {% endif %}
