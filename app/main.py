@@ -5,7 +5,7 @@ from sqlalchemy import delete as sqlalchemy_delete
 from sqlalchemy import and_, or_
 from .db import async_session, init_db
 from .models import ListState, Todo, CompletionType, TodoCompletion, User
-from .auth import get_current_user, create_access_token, require_login
+from .auth import get_current_user, create_access_token, require_login, CSRF_TOKEN_EXPIRE_MINUTES
 from pydantic import BaseModel
 from .utils import now_utc, normalize_hashtag
 from datetime import datetime, timedelta, timezone
@@ -1516,8 +1516,27 @@ async def mark_occurrence_completed(request: Request, hash: str = Form(...), cur
                     except Exception:
                         tok_hash = None
                     try:
-                        logger.info('/occurrence/complete debug: token_present=%s token_hash_prefix=%s form_keys=%s cookie_names=%s header_keys=%s remote=%s',
-                                    bool(token), tok_hash, list(form.keys()), list(request.cookies.keys()), list(request.headers.keys()), (request.client.host if request.client else None))
+                        # Attempt to decode JWT payload to extract exp/sub for diagnostics
+                        token_exp_iso = None
+                        token_seconds_left = None
+                        token_expired = None
+                        token_sub = None
+                        try:
+                            import base64, json, datetime
+                            parts = (token or '').split('.')
+                            if len(parts) >= 2:
+                                payload = json.loads(base64.urlsafe_b64decode(parts[1] + '=='))
+                                token_sub = payload.get('sub')
+                                exp = payload.get('exp')
+                                if exp is not None:
+                                    token_exp_iso = datetime.datetime.utcfromtimestamp(int(exp)).isoformat() + 'Z'
+                                    now_ts = int(datetime.datetime.utcnow().timestamp())
+                                    token_seconds_left = int(exp) - now_ts
+                                    token_expired = token_seconds_left <= 0
+                        except Exception:
+                            token_exp_iso = token_seconds_left = token_expired = token_sub = None
+                        logger.info('/occurrence/complete debug: token_present=%s token_hash_prefix=%s token_sub=%s token_exp=%s token_exp_seconds_left=%s token_expired=%s csrf_timeout_minutes=%s form_keys=%s cookie_names=%s header_keys=%s remote=%s',
+                                    bool(token), tok_hash, token_sub, token_exp_iso, token_seconds_left, token_expired, CSRF_TOKEN_EXPIRE_MINUTES, list(form.keys()), list(request.cookies.keys()), list(request.headers.keys()), (request.client.host if request.client else None))
                     except Exception:
                         logger.exception('occurrence/complete: failed to log debug info')
         except Exception:
@@ -1591,11 +1610,30 @@ async def unmark_occurrence_completed(request: Request, hash: str = Form(...), c
                         tok_hash = hashlib.sha256(token.encode('utf-8')).hexdigest()[:12]
                 except Exception:
                     tok_hash = None
-                try:
-                    logger.info('/occurrence/uncomplete debug: token_present=%s token_hash_prefix=%s form_keys=%s cookie_names=%s header_keys=%s remote=%s',
-                                bool(token), tok_hash, list(form.keys()), list(request.cookies.keys()), list(request.headers.keys()), (request.client.host if request.client else None))
-                except Exception:
-                    logger.exception('occurrence/uncomplete: failed to log debug info')
+                    try:
+                        # Decode CSRF JWT payload for expiry diagnostics
+                        token_exp_iso = None
+                        token_seconds_left = None
+                        token_expired = None
+                        token_sub = None
+                        try:
+                            import base64, json, datetime
+                            parts = (token or '').split('.')
+                            if len(parts) >= 2:
+                                payload = json.loads(base64.urlsafe_b64decode(parts[1] + '=='))
+                                token_sub = payload.get('sub')
+                                exp = payload.get('exp')
+                                if exp is not None:
+                                    token_exp_iso = datetime.datetime.utcfromtimestamp(int(exp)).isoformat() + 'Z'
+                                    now_ts = int(datetime.datetime.utcnow().timestamp())
+                                    token_seconds_left = int(exp) - now_ts
+                                    token_expired = token_seconds_left <= 0
+                        except Exception:
+                            token_exp_iso = token_seconds_left = token_expired = token_sub = None
+                        logger.info('/occurrence/uncomplete debug: token_present=%s token_hash_prefix=%s token_sub=%s token_exp=%s token_exp_seconds_left=%s token_expired=%s csrf_timeout_minutes=%s form_keys=%s cookie_names=%s header_keys=%s remote=%s',
+                                    bool(token), tok_hash, token_sub, token_exp_iso, token_seconds_left, token_expired, CSRF_TOKEN_EXPIRE_MINUTES, list(form.keys()), list(request.cookies.keys()), list(request.headers.keys()), (request.client.host if request.client else None))
+                    except Exception:
+                        logger.exception('occurrence/uncomplete: failed to log debug info')
         except Exception:
             logger.exception('occurrence/uncomplete: verbose debug block failed')
 
