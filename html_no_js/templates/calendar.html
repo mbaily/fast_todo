@@ -86,7 +86,19 @@
       const parent = container && container.parentNode; if (!parent) return;
       if (data && data.occurrences && data.occurrences.length > 0) {
         const ul = document.createElement('ul'); ul.className = 'todos-list full-bleed';
+        // read global in-flight map if present so we can preserve user actions
+        const occInFlight = (window.__occInFlight || {});
         for (const ev of data.occurrences) {
+          // if a change for this occ_hash is in-flight, prefer the current DOM
+          // checkbox state (user action) instead of the server-provided value
+          try {
+            if (ev && ev.occ_hash && occInFlight[ev.occ_hash]) {
+              const existing = document.querySelector(`.occ-complete[data-hash="${ev.occ_hash}"]`);
+              if (existing) {
+                ev.completed = !!existing.checked;
+              }
+            }
+          } catch (e) { /* ignore DOM lookup failures */ }
           const li = document.createElement('li'); li.className = 'todo';
           const title = ev.item_type === 'todo' ? `<a href="/html_no_js/todos/${ev.id}">${ev.title}</a>` : ev.item_type === 'list' ? `<a href="/html_no_js/lists/${ev.id}">${ev.title}</a>` : ev.title;
           // Build a left-controls column so checkboxes and ignore buttons sit to the left of the content
