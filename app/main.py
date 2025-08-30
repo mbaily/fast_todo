@@ -3911,8 +3911,48 @@ async def html_index(request: Request):
                 "modified_at": getattr(l, 'modified_at', None),
                 "category_id": l.category_id,
                 "priority": getattr(l, 'priority', None),
+                # placeholder for any higher-priority uncompleted todo in this list
+                "override_priority": None,
                 "hashtags": tag_map.get(l.id, []),
             })
+        # Determine highest uncompleted todo priority per list (if any)
+        try:
+            todo_q = await sess.exec(select(Todo.id, Todo.list_id, Todo.priority).where(Todo.list_id.in_(list_ids)).where(Todo.priority != None))
+            todo_rows = todo_q.all()
+            todo_map: dict[int, list[tuple[int,int]]] = {}
+            todo_ids = []
+            for tid, lid, pri in todo_rows:
+                todo_map.setdefault(lid, []).append((tid, pri))
+                todo_ids.append(tid)
+            completed_ids = set()
+            if todo_ids:
+                try:
+                    qcomp = select(TodoCompletion.todo_id).join(CompletionType, CompletionType.id == TodoCompletion.completion_type_id).where(TodoCompletion.todo_id.in_(todo_ids)).where(CompletionType.name == 'default').where(TodoCompletion.done == True)
+                    cres = await sess.exec(qcomp)
+                    completed_ids = set(r[0] if isinstance(r, tuple) else r for r in cres.all())
+                except Exception:
+                    completed_ids = set()
+            # compute highest uncompleted priority per list
+            for row in list_rows:
+                lid = row.get('id')
+                candidates = todo_map.get(lid, [])
+                max_p = None
+                for tid, pri in candidates:
+                    if tid in completed_ids:
+                        continue
+                    try:
+                        if pri is None:
+                            continue
+                        pv = int(pri)
+                    except Exception:
+                        continue
+                    if max_p is None or pv > max_p:
+                        max_p = pv
+                if max_p is not None:
+                    row['override_priority'] = max_p
+        except Exception:
+            # failure computing overrides should not break index rendering
+            pass
         # group lists by category for easier template rendering
         lists_by_category: dict[int, list[dict]] = {}
         # Within each category, sort lists by priority (if set) ascending, then by created_at desc
@@ -3922,7 +3962,18 @@ async def html_index(request: Request):
         for cid, rows in lists_by_category.items():
             # When sorting by priority, ignore priority for lists that are completed
             def _list_sort_key(r):
-                p = r.get('priority') if (r.get('priority') is not None and not r.get('completed')) else None
+                # consider override_priority (highest uncompleted todo priority) if present
+                lp = r.get('priority') if (r.get('priority') is not None and not r.get('completed')) else None
+                op = r.get('override_priority') if (r.get('override_priority') is not None and not r.get('completed')) else None
+                # use the higher of op and lp (None means absent)
+                if lp is None and op is None:
+                    p = None
+                elif lp is None:
+                    p = op
+                elif op is None:
+                    p = lp
+                else:
+                    p = lp if lp >= op else op
                 # primary: presence of priority (priority items first), then priority value (asc), then newest created_at
                 return (0 if p is not None else 1, p or 0, -(r.get('created_at').timestamp() if r.get('created_at') else 0))
             rows.sort(key=_list_sort_key)

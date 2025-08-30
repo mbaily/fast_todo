@@ -103,12 +103,17 @@
           {% for lst in uncats %}
             {% set created_iso = lst.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') %}
             {% set modified_iso = lst.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') if lst.modified_at else None %}
-            <li{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %} data-priority="{{ lst.priority if lst.priority is not none else '' }}">
+            {# effective priority: consider override_priority when present and higher than list.priority #}
+            {% set eff = lst.override_priority if (lst.override_priority is not none and (lst.priority is none or lst.override_priority > lst.priority)) else lst.priority %}
+            <li{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %} data-priority="{{ eff if eff is not none else '' }}">
               <a class="{% if lst.completed %}done{% endif %}" href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>
               <!--<button type="button" class="edit-list-btn" data-list-id="{{ lst.id }}" data-list-name="{{ lst.name|e }}" title="Edit list name" style="background:none;border:none;color:inherit;padding:0;margin-left:0.25rem;cursor:pointer;">✏️</button>-->
               {% if lst.priority %}
                 {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
                 <span class="muted priority-inline"><span class="priority-circle">{{ circ.get(lst.priority, lst.priority) }}</span></span>
+              {% endif %}
+              {% if lst.override_priority and (lst.priority is none or lst.override_priority > lst.priority) %}
+                <span class="muted priority-inline priority-override" title="Highest uncompleted todo priority"><span class="priority-circle">{{ circ.get(lst.override_priority, lst.override_priority) }}</span></span>
               {% endif %}
               {% if lst.created_at %}<span class="muted"> cr. {{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</span>{% endif %}
               <div class="all-tags-inline" data-list-id="{{ lst.id }}" data-list-tags='{{ lst.hashtags | tojson }}' aria-hidden="true" style="display:inline-block;margin-left:0.5rem;"></div>
@@ -130,19 +135,24 @@
           </h3>
           <ul id="ios-cat-{{ cat.id }}" class="category-lists">
             {% for lst in cat_lists %}
-              {% set created_iso = lst.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') %}
-              {% set modified_iso = lst.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') if lst.modified_at else None %}
-              <li{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %} data-priority="{{ lst.priority if lst.priority is not none else '' }}">
-                <a class="{% if lst.completed %}done{% endif %}" href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>
-                <!--<button type="button" class="edit-list-btn" data-list-id="{{ lst.id }}" data-list-name="{{ lst.name|e }}" title="Edit list name" style="background:none;border:none;color:inherit;padding:0;margin-left:0.25rem;cursor:pointer;">✏️</button>-->
-                {% if lst.priority %}
-                  {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
-                  <span class="muted priority-inline"><span class="priority-circle">{{ circ.get(lst.priority, lst.priority) }}</span></span>
-                {% endif %}
-                {% if lst.created_at %}<span class="muted"> cr. {{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</span>{% endif %}
-                <div class="all-tags-inline" data-list-id="{{ lst.id }}" data-list-tags='{{ lst.hashtags | tojson }}' aria-hidden="true" style="display:inline-block;margin-left:0.5rem;"></div>
-              </li>
-            {% endfor %}
+                {% set created_iso = lst.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') %}
+                {% set modified_iso = lst.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') if lst.modified_at else None %}
+                {# effective priority: consider override_priority when present and higher than list.priority #}
+                {% set eff = lst.override_priority if (lst.override_priority is not none and (lst.priority is none or lst.override_priority > lst.priority)) else lst.priority %}
+                <li{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %} data-priority="{{ eff if eff is not none else '' }}">
+                  <a class="{% if lst.completed %}done{% endif %}" href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>
+                  <!--<button type="button" class="edit-list-btn" data-list-id="{{ lst.id }}" data-list-name="{{ lst.name|e }}" title="Edit list name" style="background:none;border:none;color:inherit;padding:0;margin-left:0.25rem;cursor:pointer;">✏️</button>-->
+                  {% if lst.priority %}
+                    {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
+                    <span class="muted priority-inline"><span class="priority-circle">{{ circ.get(lst.priority, lst.priority) }}</span></span>
+                  {% endif %}
+                  {% if lst.override_priority and (lst.priority is none or lst.override_priority > lst.priority) %}
+                    <span class="muted priority-inline priority-override" title="Highest uncompleted todo priority"><span class="priority-circle">{{ circ.get(lst.override_priority, lst.override_priority) }}</span></span>
+                  {% endif %}
+                  {% if lst.created_at %}<span class="muted"> cr. {{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</span>{% endif %}
+                  <div class="all-tags-inline" data-list-id="{{ lst.id }}" data-list-tags='{{ lst.hashtags | tojson }}' aria-hidden="true" style="display:inline-block;margin-left:0.5rem;"></div>
+                </li>
+              {% endfor %}
           </ul>
         </li>
       {% endif %}
@@ -161,9 +171,16 @@
         </select>
       </label>
     </div>
+    <!-- embed categories JSON to avoid JS linter / static parsing issues -->
+    <script type="application/json" id="server-categories">{{ categories | default([]) | tojson | safe }}</script>
     <script>
-      // expose categories metadata to client scripts
-      window.categories = {{ categories | default([]) | tojson | safe }};
+      (function(){
+        try{
+          var el = document.getElementById('server-categories');
+          var txt = el ? (el.textContent || el.innerText || '').trim() : '[]';
+          window.categories = txt ? JSON.parse(txt) : [];
+        }catch(e){ window.categories = []; }
+      })();
     </script>
     <script>
       // Sort within categories (created vs modified), persisted in cookie

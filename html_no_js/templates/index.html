@@ -141,13 +141,18 @@
         {% for lst in uncats %}
           {% set created_iso = lst.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') %}
           {% set modified_iso = lst.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') if lst.modified_at else None %}
-          <li class="list-item"{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %} data-priority="{{ lst.priority if lst.priority is not none else '' }}">
+          {# effective priority: use override_priority when present and higher than list.priority #}
+          {% set eff = lst.override_priority if (lst.override_priority is not none and (lst.priority is none or lst.override_priority > lst.priority)) else lst.priority %}
+          <li class="list-item"{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %} data-priority="{{ eff if eff is not none else '' }}">
             <div class="list-main">
               <a class="list-title {% if lst.completed %}done{% endif %}" href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>
               <!--<button type="button" class="list-action-btn edit-list-btn" data-list-id="{{ lst.id }}" data-list-name="{{ lst.name|e }}" title="Edit list name">✏️</button>-->
                 {% if lst.priority %}
                 {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
                 <span class="meta priority-inline"><span class="priority-circle">{{ circ.get(lst.priority, lst.priority) }}</span></span>
+                {% endif %}
+                {% if lst.override_priority and (lst.priority is none or lst.override_priority > lst.priority) %}
+                  <span class="meta priority-inline priority-override" title="Highest uncompleted todo priority"><span class="priority-circle">{{ circ.get(lst.override_priority, lst.override_priority) }}</span></span>
               {% endif %}
               {% if lst.created_at %}
                 <div class="meta">cr. {{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</div>
@@ -174,13 +179,18 @@
           {% for lst in cat_lists %}
             {% set created_iso = lst.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') %}
             {% set modified_iso = lst.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') if lst.modified_at else None %}
-            <li class="list-item"{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %} data-priority="{{ lst.priority if lst.priority is not none else '' }}">
+            {# effective priority: use override_priority when present and higher than list.priority #}
+            {% set eff = lst.override_priority if (lst.override_priority is not none and (lst.priority is none or lst.override_priority > lst.priority)) else lst.priority %}
+            <li class="list-item"{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %} data-priority="{{ eff if eff is not none else '' }}">
               <div class="list-main">
                 <a class="list-title {% if lst.completed %}done{% endif %}" href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>
                 <!--<button type="button" class="list-action-btn edit-list-btn" data-list-id="{{ lst.id }}" data-list-name="{{ lst.name|e }}" title="Edit list name">✏️</button>-->
                 {% if lst.priority %}
                   {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
                   <span class="meta priority-inline"><span class="priority-circle">{{ circ.get(lst.priority, lst.priority) }}</span></span>
+                {% endif %}
+                {% if lst.override_priority and (lst.priority is none or lst.override_priority > lst.priority) %}
+                  <span class="meta priority-inline priority-override" title="Highest uncompleted todo priority"><span class="priority-circle">{{ circ.get(lst.override_priority, lst.override_priority) }}</span></span>
                 {% endif %}
                 {% if lst.created_at %}
                   <div class="meta">cr. {{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</div>
@@ -200,10 +210,16 @@
   <a href="/html_no_js/categories" class="btn" style="font-weight:bold;">→ Categories</a>
 </div>
 
+<!-- embed server-provided categories as JSON in a non-JS script tag so static JS parsers don't see Jinja tokens -->
+<script type="application/json" id="server-categories">{{ categories | default([]) | tojson | safe }}</script>
 <script>
-  // expose categories metadata from server to client-side scripts
-  // categories should serialize to a JSON array; default to [] if missing
-  window.categories = {{ categories | default([]) | tojson | safe }};
+  (function(){
+    try{
+      var el = document.getElementById('server-categories');
+      var txt = el ? (el.textContent || el.innerText || '').trim() : '[]';
+      window.categories = txt ? JSON.parse(txt) : [];
+    }catch(e){ window.categories = []; }
+  })();
 </script>
 
 
