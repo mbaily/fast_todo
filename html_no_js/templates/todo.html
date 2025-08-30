@@ -55,10 +55,10 @@
             {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
             <span class="meta priority-inline" title="Priority {{ todo.priority }}" style="margin-left:0.5rem;"><span class="priority-circle">{{ circ.get(todo.priority, todo.priority) }}</span></span>
           {% endif %}
-        </h2>
-      <p class="meta" style="margin:0">List: <a href="/html_no_js/lists/{{ todo.list_id }}">{{ list.name if list else todo.list_id }}</a></p>
-    </div>
+        </h2>      
+      </div>    
   </div>
+  <p class="meta" style="margin:0">List: <a href="/html_no_js/lists/{{ todo.list_id }}">{{ list.name if list else todo.list_id }}</a></p>
   
 
   {% if todo.note %}

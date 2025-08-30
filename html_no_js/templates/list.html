@@ -152,10 +152,10 @@
   {% if list.parent_todo_id or list.parent_list_id %}
   <nav class="page-toolbar" role="toolbar" aria-label="Sublist actions" style="display:flex;gap:0.5rem;align-items:center;margin:0.4rem 0 0.6rem 0;flex-wrap:wrap;">
     {% if list.parent_todo_id %}
-      <a class="button" href="/html_no_js/todos/{{ list.parent_todo_id }}" title="Back to owning todo">← Back to {{ list.parent_todo_text or 'todo' }}</a>
+      <span class="meta">List: <a href="/html_no_js/todos/{{ list.parent_todo_id }}" title="Back to owning todo">{{ list.parent_todo_text or ('#' ~ list.parent_todo_id) }}</a></span>
     {% endif %}
     {% if list.parent_list_id %}
-      <a class="button" href="/html_no_js/lists/{{ list.parent_list_id }}" title="Back to owning list">← Back to {{ list.parent_list_name or 'list' }}</a>
+      <span class="meta">List: <a href="/html_no_js/lists/{{ list.parent_list_id }}" title="Back to owning list">{{ list.parent_list_name or ('#' ~ list.parent_list_id) }}</a></span>
     {% endif %}
     <span class="meta" style="margin-left:0.25rem;">
       <!-- 
