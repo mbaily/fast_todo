@@ -48,6 +48,20 @@ if not logger.handlers:
     logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
+# Helper to set a csrf_token cookie on a response for a username
+def _issue_csrf_cookie(resp, username: str):
+    try:
+        from .auth import create_csrf_token
+        csrf = create_csrf_token(username)
+        # httponly=False so client-side JS can read when necessary
+        resp.set_cookie('csrf_token', csrf, httponly=False, samesite='lax', secure=COOKIE_SECURE)
+    except Exception:
+        logger.exception('failed to issue csrf cookie')
+
+
+# Add middleware with 5 minute threshold
+app.add_middleware(_CSRFMiddleware, threshold_seconds=300)
+
 # Print a startup notice if SECRET_KEY is already set in the environment. This
 # helps detect accidental secrets left in the environment when starting the
 # server. Printed to stderr so it appears in most service logs.
@@ -588,6 +602,60 @@ async def service_worker_js():
 async def manifest_json():
     """Serve the web app manifest at the site root."""
     return FileResponse("static/manifest.json", media_type="application/manifest+json", headers={"Cache-Control": "no-cache"})
+
+
+# CSRF refresh endpoint: requires login and issues a new csrf_token cookie.
+@app.post('/csrf/refresh')
+async def csrf_refresh(current_user: User = Depends(require_login)):
+    from fastapi.responses import JSONResponse
+    resp = JSONResponse({'ok': True})
+    _issue_csrf_cookie(resp, getattr(current_user, 'username', None))
+    return resp
+
+
+# CSRF refresh middleware: refresh CSRF cookie for authenticated sessions when
+# missing or expiring within threshold seconds (default 5 minutes).
+from starlette.middleware.base import BaseHTTPMiddleware
+
+
+class _CSRFMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app, threshold_seconds: int = 300):
+        super().__init__(app)
+        self.threshold_seconds = threshold_seconds
+
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        try:
+            token = request.cookies.get('csrf_token')
+            try:
+                user = await get_current_user(request=request)
+            except Exception:
+                user = None
+            if user and getattr(user, 'username', None):
+                need_issue = False
+                if not token:
+                    need_issue = True
+                else:
+                    try:
+                        import base64, json, datetime
+                        parts = token.split('.')
+                        if len(parts) >= 2:
+                            payload = json.loads(base64.urlsafe_b64decode(parts[1] + '=='))
+                            exp = payload.get('exp')
+                            if isinstance(exp, int):
+                                now_ts = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
+                                if (exp - now_ts) < self.threshold_seconds:
+                                    need_issue = True
+                    except Exception:
+                        need_issue = True
+                if need_issue:
+                    _issue_csrf_cookie(response, user.username)
+        except Exception:
+            logger.exception('csrf refresh middleware failed')
+        return response
+
+
+app.add_middleware(_CSRFMiddleware, threshold_seconds=300)
 
 
 @app.get("/")
