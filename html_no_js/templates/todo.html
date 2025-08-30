@@ -113,7 +113,9 @@
         {% for sl in sublists %}
           {% set created_iso = sl.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') %}
           {% set modified_iso = sl.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') if sl.modified_at else None %}
-          <li class="list-item"{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %}>
+          {# compute effective priority (use override if higher) and expose data attributes for sorting #}
+          {% set eff = sl.override_priority if (sl.override_priority is not none and (sl.priority is none or sl.override_priority > sl.priority)) else sl.priority %}
+          <li class="list-item"{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %}{% if eff is not none %} data-priority="{{ eff }}"{% endif %}{% if sl.priority is not none %} data-list-priority="{{ sl.priority }}"{% endif %}{% if sl.override_priority is not none %} data-override-priority="{{ sl.override_priority }}"{% endif %}{% if sl.parent_list_position is not none %} data-parent-list-position="{{ sl.parent_list_position }}"{% endif %}>
             <div class="list-action-left" style="display:flex;gap:0.25rem;align-items:center;">
               {# Move up/down within parent todo #}
               <form method="post" action="/html_no_js/todos/{{ todo.id }}/sublists/{{ sl.id }}/move" style="display:inline">
@@ -129,6 +131,12 @@
             </div>
             <div class="list-main">
               <a class="list-title {% if sl.completed %}done{% endif %}" href="/html_no_js/lists/{{ sl.id }}">{{ sl.name }}</a>
+              {% if sl.priority is not none %}
+                <span class="meta priority-inline" title="List priority"><span class="priority-circle">{{ circ.get(sl.priority, sl.priority) }}</span></span>
+              {% endif %}
+              {% if sl.override_priority is not none and (sl.priority is none or sl.override_priority > sl.priority) %}
+                <span class="muted priority-inline priority-override" title="Highest uncompleted todo priority"><span class="priority-circle">{{ circ.get(sl.override_priority, sl.override_priority) }}</span></span>
+              {% endif %}
               <button type="button" class="list-action-btn edit-list-btn" data-list-id="{{ sl.id }}" data-list-name="{{ sl.name|e }}" title="Edit list name">✏️</button>
               {% if sl.created_at %}
                 <div class="meta">cr. {{ sl.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</div>
@@ -147,7 +155,33 @@
           </li>
         {% endfor %}
       </ul>
-    {% endif %}
+      <script>
+      // Sort Sublists by effective priority (desc), using parent_list_position as persistent tie-breaker (asc).
+      (function(){
+        try {
+          var ul = document.querySelector('.lists-list');
+          if (!ul) return;
+          var items = Array.from(ul.querySelectorAll('li.list-item'));
+          if (!items.length) return;
+          function parseIntOrNull(v){ if (v === null || typeof v === 'undefined' || v === '') return null; var n = parseInt(v, 10); return isNaN(n) ? null : n; }
+          items.sort(function(a, b){
+            var ap = parseIntOrNull(a.getAttribute('data-priority'));
+            var bp = parseIntOrNull(b.getAttribute('data-priority'));
+            if (ap === null && bp !== null) return 1;
+            if (bp === null && ap !== null) return -1;
+            if (ap !== null && bp !== null){ if (bp !== ap) return bp - ap; }
+            var ao = parseIntOrNull(a.getAttribute('data-parent-list-position'));
+            var bo = parseIntOrNull(b.getAttribute('data-parent-list-position'));
+            if (ao === null && bo !== null) return 1;
+            if (bo === null && ao !== null) return -1;
+            if (ao !== null && bo !== null){ if (ao !== bo) return ao - bo; }
+            return 0;
+          });
+          items.forEach(function(li){ ul.appendChild(li); });
+        } catch(e) { console && console.error && console.error('sublists sort failed', e); }
+      })();
+      </script>
+     {% endif %}
   </section>
   {% endif %}
   <p class="meta">Created: {{ todo.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }} &nbsp; Modified: {{ todo.modified_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</p>
@@ -208,7 +242,9 @@
         {% for sl in sublists %}
           {% set created_iso = sl.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') %}
           {% set modified_iso = sl.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') if sl.modified_at else None %}
-          <li class="list-item"{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %}>
+          {# compute effective priority (use override if higher) and expose data attributes for sorting #}
+          {% set eff = sl.override_priority if (sl.override_priority is not none and (sl.priority is none or sl.override_priority > sl.priority)) else sl.priority %}
+          <li class="list-item"{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %}{% if eff is not none %} data-priority="{{ eff }}"{% endif %}{% if sl.priority is not none %} data-list-priority="{{ sl.priority }}"{% endif %}{% if sl.override_priority is not none %} data-override-priority="{{ sl.override_priority }}"{% endif %}{% if sl.parent_list_position is not none %} data-parent-list-position="{{ sl.parent_list_position }}"{% endif %}>
             <div class="list-action-left" style="display:flex;gap:0.25rem;align-items:center;">
               {# Move up/down within parent todo #}
               <form method="post" action="/html_no_js/todos/{{ todo.id }}/sublists/{{ sl.id }}/move" style="display:inline">
@@ -224,6 +260,12 @@
             </div>
             <div class="list-main">
               <a class="list-title {% if sl.completed %}done{% endif %}" href="/html_no_js/lists/{{ sl.id }}">{{ sl.name }}</a>
+              {% if sl.priority is not none %}
+                <span class="meta priority-inline" title="List priority"><span class="priority-circle">{{ circ.get(sl.priority, sl.priority) }}</span></span>
+              {% endif %}
+              {% if sl.override_priority is not none and (sl.priority is none or sl.override_priority > sl.priority) %}
+                <span class="muted priority-inline priority-override" title="Highest uncompleted todo priority"><span class="priority-circle">{{ circ.get(sl.override_priority, sl.override_priority) }}</span></span>
+              {% endif %}
               <button type="button" class="list-action-btn edit-list-btn" data-list-id="{{ sl.id }}" data-list-name="{{ sl.name|e }}" title="Edit list name">✏️</button>
               {% if sl.created_at %}
                 <div class="meta">cr. {{ sl.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</div>

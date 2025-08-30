@@ -5560,6 +5560,13 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
                             completed_ids = set(r[0] if isinstance(r, tuple) else r for r in cres.all())
                         except Exception:
                             completed_ids = set()
+                    # diagnostic logging to help debug missing override priorities
+                    try:
+                        logger.info('todo override diagnostic: todo_id_rows=%s', todo_id_rows)
+                        logger.info('todo override diagnostic: todo_map keys=%s', list(todo_map.keys()))
+                        logger.info('todo override diagnostic: completed_ids=%s', completed_ids)
+                    except Exception:
+                        pass
                     # compute highest uncompleted priority per sublist
                     for sub in sublists:
                         lid = sub.get('id')
@@ -6037,6 +6044,7 @@ async def html_view_todo(request: Request, todo_id: int, current_user: User = De
         # Fetch sublists owned by this todo. Use explicit sibling position when set,
         # else fall back to created_at ASC (older first). We'll also enrich with hashtags.
         sublists = []
+        sub_ids = []
         try:
             # First select all sublists for this todo
             qsubs = select(ListState).where(ListState.parent_todo_id == todo_id)
@@ -6066,13 +6074,70 @@ async def html_view_todo(request: Request, todo_id: int, current_user: User = De
                     'modified_at': getattr(l, 'modified_at', None),
                     'hashtags': tag_map.get(l.id, []),
                     'parent_todo_position': getattr(l, 'parent_todo_position', None),
+                    # placeholder for any higher-priority uncompleted todo in this sublist
+                    'override_priority': None,
+                    # include the sublist's own priority if present on the ORM object
+                    'priority': getattr(l, 'priority', None),
+                    # provide parent_list_position alias for templates that expect it
+                    'parent_list_position': getattr(l, 'parent_todo_position', None),
                 })
         except Exception:
             sublists = []
+        # Determine highest uncompleted todo priority per sublist (if any)
+        try:
+            if sub_ids:
+                todo_q = await sess.exec(select(Todo.id, Todo.list_id, Todo.priority).where(Todo.list_id.in_(sub_ids)).where(Todo.priority != None))
+                todo_id_rows = todo_q.all()
+                todo_map: dict[int, list[tuple[int,int]]] = {}
+                todo_ids = []
+                for tid, lid, pri in todo_id_rows:
+                    todo_map.setdefault(lid, []).append((tid, pri))
+                    todo_ids.append(tid)
+                completed_ids = set()
+                if todo_ids:
+                    try:
+                        qcomp = select(TodoCompletion.todo_id).join(CompletionType, CompletionType.id == TodoCompletion.completion_type_id).where(TodoCompletion.todo_id.in_(todo_ids)).where(CompletionType.name == 'default').where(TodoCompletion.done == True)
+                        cres = await sess.exec(qcomp)
+                        completed_ids = set(r[0] if isinstance(r, tuple) else r for r in cres.all())
+                    except Exception:
+                        completed_ids = set()
+                # diagnostic logging to help debug missing override priorities
+                try:
+                    logger.info('todo override diagnostic: todo_id_rows=%s', todo_id_rows)
+                    logger.info('todo override diagnostic: todo_map keys=%s', list(todo_map.keys()))
+                    logger.info('todo override diagnostic: completed_ids=%s', completed_ids)
+                except Exception:
+                    pass
+                # compute highest uncompleted priority per sublist
+                for sub in sublists:
+                    lid = sub.get('id')
+                    candidates = todo_map.get(lid, [])
+                    max_p = None
+                    for tid, pri in candidates:
+                        if tid in completed_ids:
+                            continue
+                        try:
+                            if pri is None:
+                                continue
+                            pv = int(pri)
+                        except Exception:
+                            continue
+                        if max_p is None or pv > max_p:
+                            max_p = pv
+                    if max_p is not None:
+                        sub['override_priority'] = max_p
+        except Exception:
+            # failure computing overrides should not break todo rendering
+            pass
     csrf_token = None
     from .auth import create_csrf_token
     csrf_token = create_csrf_token(current_user.username)
     client_tz = await get_session_timezone(request)
+    # debug: log sublists passed to template for easier diagnosis (temporary)
+    try:
+        logger.info('rendering todo %s sublists: %s', todo_id, sublists)
+    except Exception:
+        pass
     # pass plain dicts (with datetime objects preserved) to avoid lazy DB loads
     return TEMPLATES.TemplateResponse(request, 'todo.html', {"request": request, "todo": todo_row, "completed": completed, "list": list_row, "csrf_token": csrf_token, "client_tz": client_tz, "tags": todo_tags, "all_hashtags": all_hashtags, 'sublists': sublists})
 
