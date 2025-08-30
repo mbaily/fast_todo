@@ -828,8 +828,22 @@ async def html_priorities(request: Request, current_user: User = Depends(require
                         continue
                 todos.append((t, lst))
         # sort lists and todos by priority descending
-        lists_sorted = sorted(lists, key=lambda l: (l.priority if l.priority is not None else -999), reverse=True)
-        todos_sorted = sorted(todos, key=lambda tl: (tl[0].priority if tl[0].priority is not None else -999), reverse=True)
+        # completed items should not affect priority ordering: treat their priority as None
+        def _list_priority_key(l):
+            p = getattr(l, 'priority', None)
+            if getattr(l, 'completed', False):
+                p = None
+            return p if p is not None else -999
+
+        def _todo_priority_key(tl):
+            t = tl[0]
+            p = getattr(t, 'priority', None)
+            # detect completed by checking TodoCompletion rows was done earlier; here prefer to treat attribute 'completed' on the joined list tuple if available
+            # when rendering priorities view we don't have per-todo 'completed' flag on the Todo object, so assume not completed (server-side filtering handled hide_completed)
+            return p if p is not None else -999
+
+        lists_sorted = sorted(lists, key=_list_priority_key, reverse=True)
+        todos_sorted = sorted(todos, key=_todo_priority_key, reverse=True)
     return TEMPLATES.TemplateResponse(request, 'priorities.html', {'request': request, 'lists': lists_sorted, 'todos': todos_sorted, 'client_tz': await get_session_timezone(request)})
 
 
@@ -3906,7 +3920,12 @@ async def html_index(request: Request):
             cid = row.get('category_id') or 0
             lists_by_category.setdefault(cid, []).append(row)
         for cid, rows in lists_by_category.items():
-            rows.sort(key=lambda r: (0 if r.get('priority') is not None else 1, r.get('priority') or 0, -(r.get('created_at').timestamp() if r.get('created_at') else 0)))
+            # When sorting by priority, ignore priority for lists that are completed
+            def _list_sort_key(r):
+                p = r.get('priority') if (r.get('priority') is not None and not r.get('completed')) else None
+                # primary: presence of priority (priority items first), then priority value (asc), then newest created_at
+                return (0 if p is not None else 1, p or 0, -(r.get('created_at').timestamp() if r.get('created_at') else 0))
+            rows.sort(key=_list_sort_key)
         # fetch categories ordered by position
         categories = []
         try:
@@ -5311,6 +5330,20 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
                 "priority": getattr(t, 'priority', None),
                 "extra_completions": extra,
             })
+
+        # Ensure completed todos do not use priority for ordering: treat priority as None when completed
+        def _todo_display_sort_key(row):
+            # if completed, ignore priority
+            p = row.get('priority') if not row.get('completed') else None
+            # primary: presence of priority (priorityed first), then priority value (higher first), then newest created_at
+            # we invert priority to sort descending via tuple (has_priority, priority_value)
+            has_p = 1 if p is not None else 0
+            pr_val = p if p is not None else -999
+            # return tuple such that sorting with reverse=True will place higher priorities first
+            return (has_p, pr_val, row.get('created_at').timestamp() if row.get('created_at') else 0)
+
+        # sort with reverse to get priority high-to-low and newest first for ties
+        todo_rows.sort(key=_todo_display_sort_key, reverse=True)
 
         # fetch hashtags for all todos in this list
         todo_ids = [r['id'] for r in todo_rows]
