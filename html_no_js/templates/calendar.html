@@ -180,9 +180,27 @@
 
   document.addEventListener('change', function(e){
     const cb = e.target.closest('.occ-complete'); if (!cb) return; const hash = cb.getAttribute('data-hash'); if (!hash) return;
+    // simple in-flight and debounce guard to prevent duplicate toggles
+    // caused by rapid duplicate events when fetchOccurrencesForCurrentWindow
+    // replaces DOM or on initial page refresh. Keyed by occ_hash.
+    window.__occInFlight = window.__occInFlight || {};
+    window.__occLastProcessed = window.__occLastProcessed || {};
+    const now = Date.now();
+    // ignore event if a request for this hash is already in-flight
+    if (window.__occInFlight[hash]) {
+      console.debug('IGNORING duplicate change - in-flight', hash);
+      return;
+    }
+    // ignore if we processed a change for this hash very recently (debounce 800ms)
+    const last = window.__occLastProcessed[hash] || 0;
+    if (now - last < 800) {
+      console.debug('IGNORING duplicate change - debounced', hash, now - last);
+      return;
+    }
     if (cb.checked) {
-      // disable checkbox to avoid duplicate clicks and optimistic race
-      cb.disabled = true;
+  // mark in-flight and disable checkbox to avoid duplicate clicks and optimistic race
+  window.__occInFlight[hash] = true;
+  cb.disabled = true;
       const csrf = getCookie('csrf_token') || '';
       const body = `_csrf=${encodeURIComponent(csrf)}&hash=${encodeURIComponent(hash)}`;
       fetch('/occurrence/complete', { method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded'}, body: body, credentials: 'same-origin' })
@@ -199,10 +217,11 @@
           console.error('DEBUG: complete_error', err);
           cb.checked = false;
         })
-        .finally(() => { cb.disabled = false; });
+  .finally(() => { cb.disabled = false; window.__occInFlight[hash] = false; window.__occLastProcessed[hash] = Date.now(); });
     } else {
-      // disable checkbox to avoid duplicate clicks and optimistic race
-      cb.disabled = true;
+  // mark in-flight and disable checkbox to avoid duplicate clicks and optimistic race
+  window.__occInFlight[hash] = true;
+  cb.disabled = true;
       const csrf = getCookie('csrf_token') || '';
       const body = `_csrf=${encodeURIComponent(csrf)}&hash=${encodeURIComponent(hash)}`;
       fetch('/occurrence/uncomplete', { method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded'}, body: body, credentials: 'same-origin' })
@@ -218,7 +237,7 @@
           console.error('DEBUG: uncomplete_error', err);
           cb.checked = true;
         })
-        .finally(() => { cb.disabled = false; });
+  .finally(() => { cb.disabled = false; window.__occInFlight[hash] = false; window.__occLastProcessed[hash] = Date.now(); });
     }
   });
   </script>
