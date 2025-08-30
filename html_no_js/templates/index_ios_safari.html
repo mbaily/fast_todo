@@ -105,7 +105,7 @@
             {% set modified_iso = lst.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') if lst.modified_at else None %}
             <li{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %} data-priority="{{ lst.priority if lst.priority is not none else '' }}">
               <a class="{% if lst.completed %}done{% endif %}" href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>
-              <button type="button" class="edit-list-btn" data-list-id="{{ lst.id }}" data-list-name="{{ lst.name|e }}" title="Edit list name" style="background:none;border:none;color:inherit;padding:0;margin-left:0.25rem;cursor:pointer;">✏️</button>
+              <!--<button type="button" class="edit-list-btn" data-list-id="{{ lst.id }}" data-list-name="{{ lst.name|e }}" title="Edit list name" style="background:none;border:none;color:inherit;padding:0;margin-left:0.25rem;cursor:pointer;">✏️</button>-->
               {% if lst.priority %}
                 {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
                 <span class="muted priority-inline"><span class="priority-circle">{{ circ.get(lst.priority, lst.priority) }}</span></span>
@@ -134,7 +134,7 @@
               {% set modified_iso = lst.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') if lst.modified_at else None %}
               <li{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %} data-priority="{{ lst.priority if lst.priority is not none else '' }}">
                 <a class="{% if lst.completed %}done{% endif %}" href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>
-                <button type="button" class="edit-list-btn" data-list-id="{{ lst.id }}" data-list-name="{{ lst.name|e }}" title="Edit list name" style="background:none;border:none;color:inherit;padding:0;margin-left:0.25rem;cursor:pointer;">✏️</button>
+                <!--<button type="button" class="edit-list-btn" data-list-id="{{ lst.id }}" data-list-name="{{ lst.name|e }}" title="Edit list name" style="background:none;border:none;color:inherit;padding:0;margin-left:0.25rem;cursor:pointer;">✏️</button>-->
                 {% if lst.priority %}
                   {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
                   <span class="muted priority-inline"><span class="priority-circle">{{ circ.get(lst.priority, lst.priority) }}</span></span>
