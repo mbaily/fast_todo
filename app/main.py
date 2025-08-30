@@ -277,13 +277,11 @@ async def lifespan(app: FastAPI):
         from .auth import SECRET_KEY as _SECRET_KEY
     except Exception:
         _SECRET_KEY = None
-    if _SECRET_KEY == "CHANGE_ME_IN_ENV_FOR_TESTS":
-        # If running in a production-like environment (COOKIE_SECURE set or ENV=production), fail-fast.
-        env = os.getenv("ENV", "").lower()
-        if COOKIE_SECURE or env in ("production", "prod"):
-            raise RuntimeError("insecure SECRET_KEY detected; set SECRET_KEY in the environment for production")
-        else:
-            logger.warning("SECRET_KEY is the test fallback; this is insecure for production. Set SECRET_KEY in the environment.")
+    # If SECRET_KEY is missing or still the test fallback, fail fast. The
+    # application should not start without a proper secret in the environment
+    # to avoid subtle authentication/CSRF/security issues.
+    if _SECRET_KEY is None or _SECRET_KEY == "CHANGE_ME_IN_ENV_FOR_TESTS":
+        raise RuntimeError("SECRET_KEY not set or insecure fallback in use; set the SECRET_KEY environment variable before starting the server")
 
     # initialize DB and ensure default list exists
     await init_db()
