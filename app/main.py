@@ -48,6 +48,16 @@ if not logger.handlers:
     logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
+# Print a startup notice if SECRET_KEY is already set in the environment. This
+# helps detect accidental secrets left in the environment when starting the
+# server. Printed to stderr so it appears in most service logs.
+try:
+    if os.environ.get('SECRET_KEY'):
+        print('NOTICE: environment variable SECRET_KEY is set. Ensure this is intended and not a leaked secret.', file=sys.stderr)
+except Exception:
+    # Keep startup robust; do not prevent server from starting if print fails
+    pass
+
 # Optional debugpy attach for live debugging. Enabled by setting ENABLE_DEBUGPY=1
 # DEBUGPY_PORT defaults to 5678. If DEBUGPY_WAIT=1 the server will pause until a
 # debugger attaches (useful during development).
