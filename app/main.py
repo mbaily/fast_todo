@@ -1559,19 +1559,38 @@ async def mark_occurrence_completed(request: Request, hash: str = Form(...), cur
                             token_sub = payload.get('sub')
                             exp = payload.get('exp')
                             if exp is not None:
-                                token_exp_iso = datetime.datetime.utcfromtimestamp(int(exp)).isoformat() + 'Z'
-                                now_ts = int(datetime.datetime.utcnow().timestamp())
-                                token_seconds_left = int(exp) - now_ts
-                                token_expired = token_seconds_left <= 0
+                                # record raw exp and types for diagnosis
+                                raw_exp = exp
+                                raw_exp_type = type(exp).__name__
+                                # try to interpret as int-seconds since epoch
+                                try:
+                                    exp_int = int(exp)
+                                except Exception:
+                                    exp_int = None
+                                if exp_int is not None:
+                                    # use timezone-aware UTC timestamps to avoid naive->local interpretation
+                                    token_exp_iso = datetime.datetime.fromtimestamp(int(exp_int), datetime.timezone.utc).isoformat().replace('+00:00', 'Z')
+                                    now_dt = datetime.datetime.now(datetime.timezone.utc)
+                                    now_ts = int(now_dt.timestamp())
+                                    now_iso = now_dt.isoformat().replace('+00:00', 'Z')
+                                    token_seconds_left = int(exp_int) - now_ts
+                                    token_expired = token_seconds_left <= 0
+                                else:
+                                    token_exp_iso = None
+                                    now_dt = datetime.datetime.now(datetime.timezone.utc)
+                                    now_ts = int(now_dt.timestamp())
+                                    now_iso = now_dt.isoformat().replace('+00:00', 'Z')
+                                    token_seconds_left = None
+                                    token_expired = None
                             else:
-                                token_exp_iso = token_seconds_left = token_expired = None
+                                token_exp_iso = token_seconds_left = token_expired = raw_exp = raw_exp_type = None
                     except Exception:
-                        token_sub = token_exp_iso = token_seconds_left = token_expired = None
+                        token_sub = token_exp_iso = token_seconds_left = token_expired = raw_exp = raw_exp_type = now_ts = now_iso = None
                 else:
                     token_sub = token_exp_iso = token_seconds_left = token_expired = None
                 try:
-                    logger.info('/occurrence/complete CSRF diagnostic: token_sub=%s token_exp=%s token_exp_seconds_left=%s token_expired=%s csrf_timeout_minutes=%s',
-                                token_sub, token_exp_iso, token_seconds_left, token_expired, CSRF_TOKEN_EXPIRE_MINUTES)
+                    logger.info('/occurrence/complete CSRF diagnostic: token_sub=%s token_exp=%s token_exp_seconds_left=%s token_expired=%s csrf_timeout_minutes=%s raw_exp=%s raw_exp_type=%s now_ts=%s now_iso=%s',
+                                token_sub, token_exp_iso, token_seconds_left, token_expired, CSRF_TOKEN_EXPIRE_MINUTES, repr(raw_exp) if 'raw_exp' in locals() else None, (raw_exp_type if 'raw_exp_type' in locals() else None), (now_ts if 'now_ts' in locals() else None), (now_iso if 'now_iso' in locals() else None))
                 except Exception:
                     pass
             except Exception:
@@ -1682,19 +1701,35 @@ async def unmark_occurrence_completed(request: Request, hash: str = Form(...), c
                             token_sub = payload.get('sub')
                             exp = payload.get('exp')
                             if exp is not None:
-                                token_exp_iso = datetime.datetime.utcfromtimestamp(int(exp)).isoformat() + 'Z'
-                                now_ts = int(datetime.datetime.utcnow().timestamp())
-                                token_seconds_left = int(exp) - now_ts
-                                token_expired = token_seconds_left <= 0
+                                raw_exp = exp
+                                raw_exp_type = type(exp).__name__
+                                try:
+                                    exp_int = int(exp)
+                                except Exception:
+                                    exp_int = None
+                                if exp_int is not None:
+                                    token_exp_iso = datetime.datetime.fromtimestamp(int(exp_int), datetime.timezone.utc).isoformat().replace('+00:00', 'Z')
+                                    now_dt = datetime.datetime.now(datetime.timezone.utc)
+                                    now_ts = int(now_dt.timestamp())
+                                    now_iso = now_dt.isoformat().replace('+00:00', 'Z')
+                                    token_seconds_left = int(exp_int) - now_ts
+                                    token_expired = token_seconds_left <= 0
+                                else:
+                                    token_exp_iso = None
+                                    now_dt = datetime.datetime.now(datetime.timezone.utc)
+                                    now_ts = int(now_dt.timestamp())
+                                    now_iso = now_dt.isoformat().replace('+00:00', 'Z')
+                                    token_seconds_left = None
+                                    token_expired = None
                             else:
-                                token_exp_iso = token_seconds_left = token_expired = None
+                                token_exp_iso = token_seconds_left = token_expired = raw_exp = raw_exp_type = None
                     except Exception:
-                        token_sub = token_exp_iso = token_seconds_left = token_expired = None
+                        token_sub = token_exp_iso = token_seconds_left = token_expired = raw_exp = raw_exp_type = now_ts = now_iso = None
                 else:
                     token_sub = token_exp_iso = token_seconds_left = token_expired = None
                 try:
-                    logger.info('/occurrence/uncomplete CSRF diagnostic: token_sub=%s token_exp=%s token_exp_seconds_left=%s token_expired=%s csrf_timeout_minutes=%s',
-                                token_sub, token_exp_iso, token_seconds_left, token_expired, CSRF_TOKEN_EXPIRE_MINUTES)
+                    logger.info('/occurrence/uncomplete CSRF diagnostic: token_sub=%s token_exp=%s token_exp_seconds_left=%s token_expired=%s csrf_timeout_minutes=%s raw_exp=%s raw_exp_type=%s now_ts=%s now_iso=%s',
+                                token_sub, token_exp_iso, token_seconds_left, token_expired, CSRF_TOKEN_EXPIRE_MINUTES, repr(raw_exp) if 'raw_exp' in locals() else None, (raw_exp_type if 'raw_exp_type' in locals() else None), (now_ts if 'now_ts' in locals() else None), (now_iso if 'now_iso' in locals() else None))
                 except Exception:
                     pass
             except Exception:
