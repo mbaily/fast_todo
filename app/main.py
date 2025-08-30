@@ -1548,6 +1548,34 @@ async def mark_occurrence_completed(request: Request, hash: str = Form(...), cur
                 logger.warning('/occurrence/complete CSRF verification failed for user=%s token_present=%s', getattr(current_user, 'username', None), bool(token))
             except Exception:
                 pass
+            # Additional immediate diagnostics: log token expiry/sub if available
+            try:
+                if token:
+                    import base64, json, datetime
+                    try:
+                        parts = token.split('.')
+                        if len(parts) >= 2:
+                            payload = json.loads(base64.urlsafe_b64decode(parts[1] + '=='))
+                            token_sub = payload.get('sub')
+                            exp = payload.get('exp')
+                            if exp is not None:
+                                token_exp_iso = datetime.datetime.utcfromtimestamp(int(exp)).isoformat() + 'Z'
+                                now_ts = int(datetime.datetime.utcnow().timestamp())
+                                token_seconds_left = int(exp) - now_ts
+                                token_expired = token_seconds_left <= 0
+                            else:
+                                token_exp_iso = token_seconds_left = token_expired = None
+                    except Exception:
+                        token_sub = token_exp_iso = token_seconds_left = token_expired = None
+                else:
+                    token_sub = token_exp_iso = token_seconds_left = token_expired = None
+                try:
+                    logger.info('/occurrence/complete CSRF diagnostic: token_sub=%s token_exp=%s token_exp_seconds_left=%s token_expired=%s csrf_timeout_minutes=%s',
+                                token_sub, token_exp_iso, token_seconds_left, token_expired, CSRF_TOKEN_EXPIRE_MINUTES)
+                except Exception:
+                    pass
+            except Exception:
+                logger.exception('occurrence/complete: failed to log immediate CSRF diagnostics')
             raise HTTPException(status_code=403, detail='invalid csrf token')
 
     from .models import CompletedOccurrence
@@ -1643,6 +1671,34 @@ async def unmark_occurrence_completed(request: Request, hash: str = Form(...), c
                 logger.warning('/occurrence/uncomplete CSRF verification failed for user=%s token_present=%s', getattr(current_user, 'username', None), bool(token))
             except Exception:
                 pass
+            # Additional immediate diagnostics: log token expiry/sub if available
+            try:
+                if token:
+                    import base64, json, datetime
+                    try:
+                        parts = token.split('.')
+                        if len(parts) >= 2:
+                            payload = json.loads(base64.urlsafe_b64decode(parts[1] + '=='))
+                            token_sub = payload.get('sub')
+                            exp = payload.get('exp')
+                            if exp is not None:
+                                token_exp_iso = datetime.datetime.utcfromtimestamp(int(exp)).isoformat() + 'Z'
+                                now_ts = int(datetime.datetime.utcnow().timestamp())
+                                token_seconds_left = int(exp) - now_ts
+                                token_expired = token_seconds_left <= 0
+                            else:
+                                token_exp_iso = token_seconds_left = token_expired = None
+                    except Exception:
+                        token_sub = token_exp_iso = token_seconds_left = token_expired = None
+                else:
+                    token_sub = token_exp_iso = token_seconds_left = token_expired = None
+                try:
+                    logger.info('/occurrence/uncomplete CSRF diagnostic: token_sub=%s token_exp=%s token_exp_seconds_left=%s token_expired=%s csrf_timeout_minutes=%s',
+                                token_sub, token_exp_iso, token_seconds_left, token_expired, CSRF_TOKEN_EXPIRE_MINUTES)
+                except Exception:
+                    pass
+            except Exception:
+                logger.exception('occurrence/uncomplete: failed to log immediate CSRF diagnostics')
             raise HTTPException(status_code=403, detail='invalid csrf token')
 
     from .models import CompletedOccurrence
