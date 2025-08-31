@@ -225,6 +225,18 @@ class CompletedOccurrence(SQLModel, table=True):
     completed_at: datetime | None = Field(default_factory=now_utc)
 
 
+class TrashMeta(SQLModel, table=True):
+    """Metadata for todos moved to the trash so we can restore them.
+
+    Stores the original list_id and a tombstone-like timestamp of when the
+    todo was trashed. Kept minimal to avoid coupling with the Todo model.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    todo_id: int = Field(foreign_key='todo.id', index=True)
+    original_list_id: Optional[int] = Field(default=None, foreign_key='liststate.id', index=True)
+    trashed_at: datetime | None = Field(default_factory=now_utc, index=True)
+
+
 class IgnoredScope(SQLModel, table=True):
     """Records ignore rules per-user (list-wide or todo-from-date).
 

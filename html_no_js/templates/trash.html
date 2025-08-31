@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% block title %}Trash — Fast Todo (no-js){% endblock %}
+{% block content %}
+  <h2>Trash</h2>
+  <p class="meta">Items you deleted. You can restore them back to their original list or delete permanently.</p>
+  {% if todos and todos|length > 0 %}
+    <ul class="todos-list">
+      {% for todo in todos %}
+        <li class="todo">
+          <div class="controls-left">
+            <form method="post" action="/html_no_js/trash/{{ todo.id }}/restore" style="display:inline">
+              {{ csrf_field() }}
+              <button type="submit" title="Restore">↩️</button>
+            </form>
+            <form method="post" action="/html_no_js/trash/{{ todo.id }}/delete" class="confirm-delete" data-confirm="Delete permanently? This cannot be undone." style="display:inline">
+              {{ csrf_field() }}
+              <button type="submit" title="Delete permanently">🗑</button>
+            </form>
+          </div>
+          <div class="todo-content">
+            <div class="todo-main">
+              <a class="todo-title-inline" href="/html_no_js/todos/{{ todo.id }}">{{ todo.text }}</a>
+              {% if todo.note %}
+                <div class="note-text">{{ todo.note|linkify }}</div>
+              {% endif %}
+            </div>
+            <div class="todo-action-right meta">Modified: {{ todo.modified_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</div>
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="meta">Trash is empty.</p>
+  {% endif %}
+{% endblock %}

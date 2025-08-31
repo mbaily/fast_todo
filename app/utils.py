@@ -1319,12 +1319,6 @@ def parse_text_to_rrule_string(text: str) -> tuple[datetime | None, str]:
         except Exception:
             rec = None
         if rec:
-            # Heuristic: for 'every day' recurrences without an explicit
-            # date anchor, require a time or date anchor in the text before
-            # synthesizing a dtstart. This avoids treating casual notes like
-            # 'pay water bill every day' as a calendar recurrence.
-            if rec.get('freq') == 'DAILY' and not _has_time_or_date_anchor(text):
-                return None, ''
             # Decide whether to synthesize a dtstart. We only synthesize when
             # the input contains other content besides a bare recurrence
             # phrase. For example, 'Gym every other day' should synthesize
@@ -1344,6 +1338,15 @@ def parse_text_to_rrule_string(text: str) -> tuple[datetime | None, str]:
             nonrec_tokens = [t for t in tokens if t not in RECURRENCE_KEYWORDS and not re.fullmatch(r"\d+", t)]
             if not nonrec_tokens:
                 # bare recurrence phrase like 'every week' -> do not synthesize
+                return None, ''
+            # Heuristic: for 'every day' recurrences without an explicit
+            # date or time anchor, only block synthesis when the phrase is
+            # essentially bare; if the text contains other tokens (e.g., a
+            # task name) we will synthesize dtstart. This allows inputs like
+            # 'Gym every other day' or 'Exercise every day' to produce a
+            # synthesized dtstart while still avoiding synthesis for bare
+            # phrases like 'every day'.
+            if rec.get('freq') == 'DAILY' and not _has_time_or_date_anchor(text) and not nonrec_tokens:
                 return None, ''
 
             # synthesize dtstart as current UTC time, but allow overriding

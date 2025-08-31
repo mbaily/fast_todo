@@ -1,3 +1,4 @@
+from .models import TrashMeta
 from fastapi import FastAPI, HTTPException, Depends
 from sqlmodel import select
 from sqlalchemy import update as sqlalchemy_update
@@ -3349,28 +3350,28 @@ async def delete_todo(todo_id: int, current_user: Optional[User] = Depends(get_c
             else:
                 if lst.owner_id not in (None, current_user.id):
                     raise HTTPException(status_code=403, detail="forbidden")
-    # Detach any sublists owned by this todo so they don't dangle
-    try:
-        await sess.exec(sqlalchemy_update(ListState).where(ListState.parent_todo_id == todo_id).values(parent_todo_id=None))
+        # Detach any sublists owned by this todo so they don't dangle
+        try:
+            await sess.exec(sqlalchemy_update(ListState).where(ListState.parent_todo_id == todo_id).values(parent_todo_id=None))
+            await sess.commit()
+        except Exception:
+            await sess.rollback()
+        # delete dependent link/completion rows at the DB level first to avoid
+        # SQLAlchemy trying to null-out PK columns on dependent rows during flush
+        await sess.exec(sqlalchemy_delete(TodoCompletion).where(TodoCompletion.todo_id == todo_id))
+        await sess.exec(sqlalchemy_delete(TodoHashtag).where(TodoHashtag.todo_id == todo_id))
+        # now delete the todo
+        # record tombstone so offline clients learn about the deletion
+        ts = Tombstone(item_type='todo', item_id=todo_id)
+        sess.add(ts)
+        await sess.delete(todo)
+        # Touch parent list modified_at and persist
+        try:
+            await _touch_list_modified(sess, getattr(todo, 'list_id', None))
+        except Exception:
+            pass
         await sess.commit()
-    except Exception:
-        await sess.rollback()
-    # delete dependent link/completion rows at the DB level first to avoid
-    # SQLAlchemy trying to null-out PK columns on dependent rows during flush
-    await sess.exec(sqlalchemy_delete(TodoCompletion).where(TodoCompletion.todo_id == todo_id))
-    await sess.exec(sqlalchemy_delete(TodoHashtag).where(TodoHashtag.todo_id == todo_id))
-    # now delete the todo
-    # record tombstone so offline clients learn about the deletion
-    ts = Tombstone(item_type='todo', item_id=todo_id)
-    sess.add(ts)
-    await sess.delete(todo)
-    # Touch parent list modified_at and persist
-    try:
-        await _touch_list_modified(sess, getattr(todo, 'list_id', None))
-    except Exception:
-        pass
-    await sess.commit()
-    return {"ok": True}
+        return {"ok": True}
 
 
 @app.post('/todos/{todo_id}/pin')
@@ -6199,12 +6200,50 @@ async def html_delete_todo(request: Request, todo_id: int):
         except Exception:
             list_id = None
 
-    # attempt deletion, but if the todo is already missing return to the list view
+    # attempt deletion as a soft-delete for HTML flows: move into per-user Trash list.
     try:
-        await delete_todo(todo_id=todo_id, current_user=cu)
+        async with async_session() as sess:
+            todo_row = await sess.get(Todo, todo_id)
+            if not todo_row:
+                # prefer explicit list_id from the form when available
+                if list_id:
+                    return RedirectResponse(url=f"/html_no_js/lists/{list_id}", status_code=303)
+                ref = request.headers.get('Referer', '/html_no_js/')
+                return RedirectResponse(url=ref, status_code=303)
+
+            # Find or create the user's Trash list (only for authenticated users)
+            if cu:
+                q = await sess.exec(select(ListState).where(ListState.owner_id == cu.id).where(ListState.name == 'Trash'))
+                trash = q.first()
+                if not trash:
+                    trash = ListState(name='Trash', owner_id=cu.id)
+                    sess.add(trash)
+                    await sess.commit()
+                    await sess.refresh(trash)
+
+                # If already in trash, perform permanent delete using API-style delete
+                if getattr(todo_row, 'list_id', None) == trash.id:
+                    # commit session to ensure visibility
+                    await sess.commit()
+                    await delete_todo(todo_id=todo_id, current_user=cu)
+                else:
+                    # create TrashMeta and move todo into trash
+                    tm = TrashMeta(todo_id=todo_id, original_list_id=getattr(todo_row, 'list_id', None))
+                    sess.add(tm)
+                    todo_row.list_id = trash.id
+                    todo_row.modified_at = now_utc()
+                    sess.add(todo_row)
+                    try:
+                        await _touch_list_modified(sess, tm.original_list_id)
+                        await _touch_list_modified(sess, trash.id)
+                    except Exception:
+                        pass
+                    await sess.commit()
+            else:
+                # anonymous: fallback to permanent delete
+                await delete_todo(todo_id=todo_id, current_user=cu)
     except HTTPException as e:
         if e.status_code == 404:
-            # prefer explicit list_id from the form when available
             if list_id:
                 return RedirectResponse(url=f"/html_no_js/lists/{list_id}", status_code=303)
             ref = request.headers.get('Referer', '/html_no_js/')
@@ -6234,6 +6273,81 @@ async def html_delete_todo(request: Request, todo_id: int):
         ref_nohash = ref.split('#')[0]
         return RedirectResponse(url=f"{ref_nohash}#{anchor}", status_code=303)
 
+    return RedirectResponse(url=ref, status_code=303)
+
+
+@app.get('/html_no_js/trash', response_class=HTMLResponse)
+async def html_view_trash(request: Request, current_user: User = Depends(require_login)):
+    # List todos in the current user's Trash list
+    async with async_session() as sess:
+        q = await sess.exec(select(ListState).where(ListState.owner_id == current_user.id).where(ListState.name == 'Trash'))
+        trash = q.first()
+        todos = []
+        if trash:
+            q2 = await sess.exec(select(Todo).where(Todo.list_id == trash.id).order_by(Todo.modified_at.desc()))
+            todos = q2.all()
+        # render a simple trash page
+        csrf = None
+        try:
+            from .auth import create_csrf_token
+            csrf = create_csrf_token(current_user.username)
+        except Exception:
+            csrf = None
+        return TEMPLATES.TemplateResponse('trash.html', {'request': request, 'todos': todos, 'csrf_token': csrf})
+
+
+@app.post('/html_no_js/trash/{todo_id}/restore')
+async def html_restore_trash(request: Request, todo_id: int, current_user: User = Depends(require_login)):
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    async with async_session() as sess:
+        todo = await sess.get(Todo, todo_id)
+        if not todo:
+            raise HTTPException(status_code=404, detail='todo not found')
+        # ensure ownership
+        ql = await sess.exec(select(ListState).where(ListState.id == todo.list_id))
+        lst = ql.first()
+        if not lst or lst.owner_id != current_user.id:
+            raise HTTPException(status_code=403, detail='forbidden')
+        # find TrashMeta
+        q = await sess.exec(select(TrashMeta).where(TrashMeta.todo_id == todo_id))
+        tm = q.first()
+        if not tm:
+            # nothing to restore, redirect back
+            ref = request.headers.get('Referer', '/html_no_js/trash')
+            return RedirectResponse(url=ref, status_code=303)
+        original = tm.original_list_id
+        if original is None:
+            # if original missing, leave in place
+            return RedirectResponse(url='/html_no_js/trash', status_code=303)
+        # move back
+        todo.list_id = original
+        todo.modified_at = now_utc()
+        sess.add(todo)
+        # remove TrashMeta
+        await sess.exec(sqlalchemy_delete(TrashMeta).where(TrashMeta.todo_id == todo_id))
+        try:
+            await _touch_list_modified(sess, original)
+            await _touch_list_modified(sess, getattr(lst, 'id', None))
+        except Exception:
+            pass
+        await sess.commit()
+        return RedirectResponse(url=f'/html_no_js/lists/{original}', status_code=303)
+
+
+@app.post('/html_no_js/trash/{todo_id}/delete')
+async def html_permanent_delete_trash(request: Request, todo_id: int, current_user: User = Depends(require_login)):
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    # Use delete_todo which will permanently delete if todo is already in trash
+    await delete_todo(todo_id=todo_id, current_user=current_user)
+    ref = request.headers.get('Referer', '/html_no_js/trash')
     return RedirectResponse(url=ref, status_code=303)
 
 
