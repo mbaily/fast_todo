@@ -1,0 +1,17 @@
+[ ] Failing test: `tests/test_year_resolution_integration.py::test_calendar_window_prefers_window_candidates`  
+
+  (pytest summary: "FAILED tests/test_year_resolution_integration.py::test_calendar_window_prefers_window_candidates — 1 failed")
+[ ] issue with todo id 275 or item id 275 - what was the issue there? What was the title of this todo?
+
+[ ] create list in index.html is no longer extracting hashtags when you type them in which it was with the FORM submit client flow (which has been replaced by DOM-update and JSON endpoint).
+
+
+[ ] There is a failing pytest.
+  (pytest summary: "FAILED tests/test_year_resolution_integration.py::test_calendar_window_prefers_window_candidates — 1 failed")
+DON'T USE BASH HEREDOCS. keep modifying the debug script as you need to debug this failing pytest test. find out why it's failing. And don't use any bash heredocs. And don't use grep or any UNIX commands at all except python and pip. Just keep modifying the debug script as you need to debug and extract information. That's the most efficient way. DON'T USE BASH HEREDOCS. DON'T USE UNIX PIPES.
+Don't use python one-liners.
+DON'T USE BASH HEREDOCS.
+DON'T USE BASH HEREDOCS.
+DON'T USE BASH HEREDOCS.
+
+[ ] Remove all logs - we don't need them anymore. Add them later as needed.

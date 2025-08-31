@@ -1,0 +1,49 @@
+<script>
+// Shared helper to update visible list names when a list is renamed via AJAX.
+// Usage: window.__ft_onListRenamed(listId, newName)
+(function(){
+  if (typeof window === 'undefined') return;
+  function updateAnchors(listId, name){
+    try{
+      var anchors = Array.from(document.querySelectorAll('a'));
+      anchors.forEach(function(a){
+        try{
+          var href = a.getAttribute('href') || '';
+          if (href.indexOf('/html_no_js/lists/' + String(listId)) !== -1){
+            a.textContent = name;
+          }
+        }catch(e){}
+      });
+    }catch(e){}
+  }
+  function updateListTitles(listId, name){
+    try{
+      // update any .list-title anchors or headings
+      var els = Array.from(document.querySelectorAll('.list-title')) || [];
+      els.forEach(function(a){ try { var href = a.getAttribute && a.getAttribute('href') || ''; if (!href || href.indexOf('/html_no_js/lists/' + String(listId)) !== -1) a.textContent = name; } catch(e){} });
+      // update H3 or H2 list title without href
+      var mainTitle = document.querySelector('h3.list-title') || document.querySelector('.list-title:not([href])');
+      if (mainTitle){
+        // Ensure it matches the listId by checking nearby data attributes if available
+        try{
+          var wrapper = mainTitle.closest && mainTitle.closest('[data-list-id]');
+          if (!wrapper || wrapper.getAttribute('data-list-id') === String(listId) || !wrapper) mainTitle.textContent = name;
+        }catch(e){ mainTitle.textContent = name; }
+      }
+    }catch(e){}
+  }
+  function updateEditButtons(listId, name){
+    try{
+      var editBtn = document.querySelector('.edit-list-btn[data-list-id="' + listId + '"]');
+      if (editBtn) editBtn.setAttribute('data-list-name', name);
+    }catch(e){}
+  }
+  window.__ft_onListRenamed = function(listId, name){
+    try{
+      updateAnchors(listId, name);
+      updateListTitles(listId, name);
+      updateEditButtons(listId, name);
+    }catch(e){ /* ignore */ }
+  };
+})();
+</script>
