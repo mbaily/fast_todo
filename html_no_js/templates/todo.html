@@ -200,7 +200,7 @@
     <label for="todo-priority-{{ todo.id }}">Priority</label>
     <form method="post" action="/html_no_js/todos/{{ todo.id }}/priority" style="display:inline-block; margin-left:0.5rem">
       {{ csrf_field() }}
-      <select id="todo-priority-{{ todo.id }}" name="priority" onchange="this.form.submit()">
+      <select id="todo-priority-{{ todo.id }}" name="priority">
         <option value="" {% if not todo.priority %}selected{% endif %}>(none)</option>
         {% for p in range(1, 11) %}
           <option value="{{ p }}" {% if todo.priority == p %}selected{% endif %}>{{ p }}</option>
@@ -603,11 +603,65 @@
       var csrfInput = document.querySelector('input[name="_csrf"]');
       if (csrfInput && csrfInput.value) fd.append('_csrf', csrfInput.value);
       fetch('/html_no_js/lists/' + encodeURIComponent(id) + '/edit', { method: 'POST', body: fd, credentials: 'same-origin' })
-        .then(function(res){ if(res.ok) location.reload(); else alert('Rename failed'); })
+        .then(function(res){ if (!res.ok) throw new Error('Rename failed'); return res.json().catch(function(){ return null; }); })
+        .then(function(){
+          try{
+            var els = Array.from(document.querySelectorAll('.list-title'));
+            els.forEach(function(a){ try { var href = a.getAttribute('href') || ''; if (href.indexOf('/html_no_js/lists/' + String(id)) !== -1) a.textContent = name; } catch(e){} });
+            var editBtn = document.querySelector('.edit-list-btn[data-list-id="' + id + '"]'); if (editBtn) editBtn.setAttribute('data-list-name', name);
+          }catch(e){}
+        })
         .catch(function(){ alert('Rename failed'); });
     });
   });
 })();
+// Delegate todo-level forms (delete, pin, tag remove/add) to use fetch + DOM updates
+(function(){
+  function todoFormMatch(action){ try { return action && action.match(/\/html_no_js\/todos\/(\d+)\/(delete|pin|hashtags|hashtags\/remove)/); } catch(e){ return null; } }
+  document.body.addEventListener('submit', function(ev){
+    var form = ev.target; if (!form || form.tagName !== 'FORM') return; var action = form.getAttribute('action') || '';
+    var m = todoFormMatch(action); if (!m) return; ev.preventDefault();
+    var todoId = m[1]; var fd = new FormData(form); var csrf = document.querySelector('input[name="_csrf"]'); if (csrf && csrf.value) fd.append('_csrf', csrf.value);
+    fetch(action, { method: 'POST', body: fd, credentials: 'same-origin' })
+      .then(function(res){ if (!res.ok) throw new Error('Request failed'); return res.text().catch(function(){ return null; }); })
+      .then(function(){
+        try{
+          if (action.indexOf('/delete') !== -1) {
+            var anchor = form.querySelector('input[name="anchor"]'); var anchorId = anchor ? anchor.value : ('todo-' + todoId); var li = document.getElementById(anchorId) || document.getElementById('todo-' + todoId); if (li) li.remove(); return;
+          }
+          if (action.indexOf('/pin') !== -1) {
+            var btn = form.querySelector('button'); if (btn) { var pinned = btn.classList && btn.classList.contains('pinned'); if (pinned) { btn.classList.remove('pinned'); btn.textContent='📍'; } else { btn.classList.add('pinned'); btn.textContent='📌'; } } return;
+          }
+          if (action.indexOf('/hashtags/remove') !== -1) {
+            // remove the surrounding tag element (closest div role=listitem)
+            var wrapper = form.closest('[role="listitem"]') || form.parentElement; if (wrapper) wrapper.remove(); return;
+          }
+          if (action.indexOf('/hashtags') !== -1) {
+            // add tag: server returns redirect or simple success; insert new tag inline if possible
+            // Best-effort: read tag field from form and append a new tag-chip
+            var tag = form.querySelector('input[name="tag"]'); if (tag && tag.value) {
+              var container = form.closest('form') ? form.parentElement : form.parentElement;
+              var div = document.createElement('div'); div.setAttribute('role','listitem'); div.style.display='inline-block'; div.style.marginRight='0.4rem';
+              var a = document.createElement('a'); a.className='tag-chip'; a.href='/html_no_js/search?q=' + encodeURIComponent(tag.value); a.textContent = tag.value; div.appendChild(a);
+              var remForm = document.createElement('form'); remForm.method='post'; remForm.action = action + '/remove'; remForm.style.display='inline'; var inp = document.createElement('input'); inp.type='hidden'; inp.name='tag'; inp.value=tag.value; remForm.appendChild(inp); var btn = document.createElement('button'); btn.type='submit'; btn.className='tag-remove'; btn.innerHTML='<span aria-hidden="true">✖</span><span class="sr-only">Remove ' + tag.value + '</span>'; remForm.appendChild(btn); div.appendChild(remForm);
+              // append before the add-tag form
+              if (form.parentElement) form.parentElement.insertBefore(div, form);
+            }
+          }
+        }catch(e){ console && console.error && console.error('todo form DOM update failed', e); }
+      })
+      .catch(function(){ alert('Action failed'); });
+  }, false);
+})();
+
+// Priority select: POST via fetch and update header priority circle
+(function(){ try { var sel = document.getElementById('todo-priority-{{ todo.id }}'); if (!sel) return; sel.addEventListener('change', function(){ var v = sel.value; var fd = new FormData(); fd.append('priority', v); var csrf = document.querySelector('input[name="_csrf"]'); if (csrf && csrf.value) fd.append('_csrf', csrf.value); fetch('/html_no_js/todos/{{ todo.id }}/priority', { method: 'POST', body: fd, credentials: 'same-origin' }).then(function(res){ if (!res.ok) throw new Error('Priority update failed'); return res.json().catch(function(){ return null; }); }).then(function(){ try{ var circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'}; var el = document.querySelector('.todo-header .priority-circle'); if (el) el.textContent = v ? (circ[v] || v) : ''; }catch(e){} }).catch(function(){ console && console.error && console.error('Priority update failed'); }); }); } catch(e){} })();
+
+// lists_up_top checkbox: POST via fetch
+(function(){ var cb = document.getElementById('lists_up_top_checkbox_{{ todo.id }}'); var hidden = document.getElementById('lists_up_top_hidden_{{ todo.id }}'); if (!cb || !hidden) return; cb.addEventListener('change', function(){ hidden.value = cb.checked ? 'true' : 'false'; var fd = new FormData(); fd.append('lists_up_top', hidden.value); var csrf = document.querySelector('input[name="_csrf"]'); if (csrf && csrf.value) fd.append('_csrf', csrf.value); fetch((hidden.closest('form') && hidden.closest('form').action) || '/html_no_js/todos/{{ todo.id }}/lists_up_top', { method: 'POST', body: fd, credentials: 'same-origin' }).then(function(res){ if (!res.ok) console && console.error && console.error('lists_up_top update failed'); }); }); })();
+
+// Delegate sublist move for todo (same logic as list page)
+(function(){ function matchSublistMove(action){ try{ var m = action && action.match(/\/html_no_js\/todos\/(?:\d+)\/sublists\/(\d+)\/move/); return m; }catch(e){ return null; } } document.body.addEventListener('submit', function(ev){ var form = ev.target; if (!form || form.tagName !== 'FORM') return; var action = form.getAttribute('action') || ''; var m = matchSublistMove(action); if (!m) return; ev.preventDefault(); var sublistId = m[1]; var fd = new FormData(form); var dir = fd.get('direction'); var csrf = document.querySelector('input[name="_csrf"]'); if (csrf && csrf.value) fd.append('_csrf', csrf.value); fetch(action, { method: 'POST', body: fd, credentials: 'same-origin' }).then(function(res){ if (!res.ok) throw new Error('Move failed'); return res.text().catch(function(){ return null; }); }).then(function(){ try{ var selector = 'a.list-title[href*="/html_no_js/lists/' + sublistId + '"]'; var a = document.querySelector(selector); if (!a) return; var liNode = a.closest('li.list-item'); if (!liNode) return; var parentUl = liNode.parentElement; if (!parentUl) return; if (dir === 'up') { var prev = liNode.previousElementSibling; if (prev) parentUl.insertBefore(liNode, prev); } else if (dir === 'down') { var next = liNode.nextElementSibling; if (next) parentUl.insertBefore(next, liNode); } }catch(e){ console && console.error && console.error('sublist move DOM update failed', e); } }).catch(function(){ alert('Move failed'); }); }, false); })();
 </script>
 <script>
   (function(){

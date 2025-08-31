@@ -62,3 +62,18 @@ Update: sublist move conversion
 
 Notes:
 - The DOM reordering is local and optimistic. If the server response includes other changes (e.g., reassigning parent_list_position), the client will not reflect those without a richer response; consider adding a JSON response if you want authoritative post-move state.
+
+File: html_no_js/templates/todo.html
+- Converted controls and behaviors to avoid full-page reloads where appropriate:
+  - Rename (edit-list-btn): posts via fetch and updates matching `.list-title` anchors and `.edit-list-btn[data-list-id]` attribute on success (no reload).
+  - Todo delete (`/html_no_js/todos/<id>/delete`): intercepted and sent via fetch; on success removes the todo element from the DOM.
+  - Pin toggle (`/html_no_js/todos/<id>/pin`): intercepted and sent via fetch; on success toggles `.pinned` class and emoji on the button.
+  - Tags: tag remove forms intercepted and remove the tag element on success; tag add form is handled optimistically by inserting a new tag-chip element client-side when the add form is submitted.
+  - Priority select (`#todo-priority-<id>`): changed to POST via fetch and update the `.priority-circle` in the header without reloading.
+  - `lists_up_top` checkbox: changed to POST via fetch instead of submitting the form.
+  - Sublist move forms: intercepted and re-ordered the corresponding sublist `<li>` up/down on success (same behavior added earlier for list.html).
+  - Autosave already posts via fetch; retained and preserved.
+
+Notes:
+ - All handlers are progressive-enhancement friendly: if fetch fails the code often falls back to default form submission (where reasonable) or shows an alert. CSRF token appended from `_csrf` hidden input when present.
+ - Many DOM updates are optimistic and best-effort to work with existing server responses. For stricter correctness, add JSON-returning endpoints and re-render authoritative state from the response.

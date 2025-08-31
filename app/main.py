@@ -61,6 +61,23 @@ def _issue_csrf_cookie(resp, username: str):
         logger.exception('failed to issue csrf cookie')
 
 
+def _redirect_or_json(request: Request, url: str, extra: dict | None = None, status: int = 303):
+    """Return JSON when client asked for application/json, otherwise a RedirectResponse.
+
+    JSON payload is {'ok': True, 'redirect': url, **extra}.
+    """
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        payload = {'ok': True, 'redirect': url}
+        if extra:
+            try:
+                payload.update(extra)
+            except Exception:
+                pass
+        return JSONResponse(payload)
+    return RedirectResponse(url=url, status_code=status)
+
+
 # (middleware registered later after app is created)
 
 # Print a startup notice if SECRET_KEY is already set in the environment. This
@@ -2556,7 +2573,7 @@ async def html_delete_list(request: Request, list_id: int):
     from .auth import get_current_user as _gcu
     cu = await _gcu(token=None, request=request)
     if not cu:
-        return RedirectResponse(url='/html_no_js/login', status_code=303)
+        return _redirect_or_json(request, '/html_no_js/login')
     form = await request.form()
     token = form.get('_csrf')
     from .auth import verify_csrf_token
@@ -2566,7 +2583,7 @@ async def html_delete_list(request: Request, list_id: int):
     async with async_session() as sess:
         lst = await sess.get(ListState, list_id)
         if not lst:
-            return RedirectResponse(url='/html_no_js/', status_code=303)
+            return _redirect_or_json(request, '/html_no_js/')
         # ensure ownership
         if lst.owner_id != cu.id:
             raise HTTPException(status_code=403, detail='forbidden')
@@ -2583,7 +2600,7 @@ async def html_delete_list(request: Request, list_id: int):
         # If already in trash, perform permanent delete
         if lst.parent_list_id == trash.id:
             await delete_list(list_id=list_id, current_user=cu)
-            return RedirectResponse(url='/html_no_js/', status_code=303)
+            return _redirect_or_json(request, '/html_no_js/')
 
         # create ListTrashMeta and move the list under Trash (preserve owner)
         meta = ListTrashMeta(list_id=list_id, original_parent_list_id=getattr(lst, 'parent_list_id', None), original_owner_id=getattr(lst, 'owner_id', None))
@@ -2597,7 +2614,7 @@ async def html_delete_list(request: Request, list_id: int):
         except Exception:
             pass
         await sess.commit()
-    return RedirectResponse(url='/html_no_js/', status_code=303)
+    return _redirect_or_json(request, '/html_no_js/')
 
 
 @app.post("/lists/{list_id}/hashtags")
@@ -2846,6 +2863,12 @@ async def html_remove_list_hashtag(request: Request, list_id: int, current_user:
         raise HTTPException(status_code=400, detail='tag is required')
     async with async_session() as sess:
         await _remove_list_hashtag_core(sess, list_id, tag, current_user)
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse({'ok': True, 'removed': tag})
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse({'ok': True, 'id': list_id, 'hide_icons': getattr(lst, 'hide_icons', None)})
     ref = request.headers.get('Referer', f'/html_no_js/lists/{list_id}')
     return RedirectResponse(url=ref, status_code=303)
 
@@ -2894,6 +2917,9 @@ async def html_add_list_hashtag(request: Request, list_id: int, current_user: Us
                 await sess.commit()
             except IntegrityError:
                 await sess.rollback()
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse({'ok': True, 'tag': tag})
     ref = request.headers.get('Referer', f'/html_no_js/lists/{list_id}')
     return RedirectResponse(url=ref, status_code=303)
 
@@ -3448,12 +3474,17 @@ async def html_pin_todo(request: Request, todo_id: int, pinned: str = Form(...),
     pinned_bool = str(pinned).lower() in ('1', 'true', 'yes')
     # reuse pin_todo logic
     await pin_todo(todo_id=todo_id, pinned=pinned_bool, current_user=current_user)
-    # after pinning, redirect back to the parent list so the user stays on the list view
+    # If the client asked for JSON, return minimal JSON; otherwise redirect back to the list/todo
+    accept = (request.headers.get('Accept') or '')
     async with async_session() as sess:
         todo = await sess.get(Todo, todo_id)
         if todo and getattr(todo, 'list_id', None):
+            if 'application/json' in accept.lower():
+                return JSONResponse({'ok': True, 'id': todo.id, 'pinned': todo.pinned})
             return RedirectResponse(url=f'/html_no_js/lists/{todo.list_id}#todo-{todo_id}', status_code=303)
-    # fallback: redirect to the todo page if we couldn't determine the list
+    # fallback: return JSON or redirect to the todo page
+    if 'application/json' in accept.lower():
+        return JSONResponse({'ok': True, 'id': todo_id, 'pinned': pinned_bool})
     return RedirectResponse(url=f'/html_no_js/todos/{todo_id}', status_code=303)
 
 
@@ -3613,7 +3644,7 @@ async def html_move_list_to_list(request: Request, source_list_id: int = Form(..
         except Exception:
             pass
         await sess.commit()
-    return RedirectResponse(url=f'/html_no_js/lists/{target_list_id}', status_code=303)
+    return _redirect_or_json(request, f'/html_no_js/lists/{target_list_id}')
 
 
 @app.post('/html_no_js/move/todo_to_list')
@@ -3680,7 +3711,7 @@ async def html_move_todo_to_list(request: Request, source_todo_id: int = Form(..
             pass
         await sess.commit()
         tid = int(todo.id)
-    return RedirectResponse(url=f'/html_no_js/lists/{target_list_id}#todo-{tid}', status_code=303)
+    return _redirect_or_json(request, f'/html_no_js/lists/{target_list_id}#todo-{tid}')
 
 
 @app.post('/html_no_js/move/clear')
@@ -3702,7 +3733,7 @@ async def html_move_clear_parent(request: Request, item_type: str = Form(...), i
             lst.modified_at = now_utc()
             sess.add(lst)
             await sess.commit()
-            return RedirectResponse(url=f'/html_no_js/lists/{item_id}', status_code=303)
+            return _redirect_or_json(request, f'/html_no_js/lists/{item_id}')
         elif item_type == 'todo':
             todo = await sess.get(Todo, item_id)
             if not todo:
@@ -5041,7 +5072,17 @@ async def html_create_list(request: Request, name: str = Form(...), current_user
     # create_list now expects the Request as the first argument (so it can
     # read query params when tests/clients send name via params). Pass
     # the current request through when invoking it internally.
-    await create_list(request, name=name, current_user=current_user)
+    new_list = await create_list(request, name=name, current_user=current_user)
+    # create_list may return the created ListState or None; try to include id/name
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        payload = {'ok': True}
+        try:
+            if new_list is not None:
+                payload.update({'id': getattr(new_list, 'id', None), 'name': getattr(new_list, 'name', None)})
+        except Exception:
+            pass
+        return JSONResponse(payload)
     return RedirectResponse(url="/html_no_js/", status_code=303)
 
 
@@ -5244,6 +5285,9 @@ async def html_set_list_lists_up_top(request: Request, list_id: int, lists_up_to
             sess.add(lst)
             await sess.commit()
             await sess.refresh(lst)
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse({'ok': True, 'id': list_id, 'lists_up_top': lst.lists_up_top})
     ref = request.headers.get('Referer', f'/html_no_js/lists/{list_id}')
     return RedirectResponse(url=ref, status_code=303)
 
@@ -5271,6 +5315,9 @@ async def html_set_todo_lists_up_top(request: Request, todo_id: int, lists_up_to
             sess.add(todo)
             await sess.commit()
             await sess.refresh(todo)
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse({'ok': True, 'id': todo.id, 'lists_up_top': todo.lists_up_top})
     ref = request.headers.get('Referer', f'/html_no_js/todos/{todo_id}')
     return RedirectResponse(url=ref, status_code=303)
 
@@ -5928,7 +5975,10 @@ async def html_update_list_priority(request: Request, list_id: int, priority: st
         lst.modified_at = now_utc()
         sess.add(lst)
         await sess.commit()
-    # redirect back to the list page
+    # If the client asked for JSON, return minimal JSON; otherwise redirect back to the list page
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse({'ok': True, 'id': list_id, 'priority': val})
     ref = request.headers.get('Referer', f'/html_no_js/lists/{list_id}')
     return RedirectResponse(url=ref, status_code=303)
 
@@ -5963,6 +6013,10 @@ async def html_update_todo_priority(request: Request, todo_id: int, priority: st
         todo.modified_at = now_utc()
         sess.add(todo)
         await sess.commit()
+    # If AJAX client requested JSON, return the updated todo info; otherwise redirect
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse({'ok': True, 'id': todo_id, 'priority': val})
     ref = request.headers.get('Referer', f'/html_no_js/todos/{todo_id}')
     return RedirectResponse(url=ref, status_code=303)
 
@@ -5986,6 +6040,9 @@ async def html_toggle_list_complete(request: Request, list_id: int, completed: s
         lst.modified_at = now_utc()
         sess.add(lst)
         await sess.commit()
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse({'ok': True, 'id': list_id, 'completed': lst.completed})
     return RedirectResponse(url=f'/html_no_js/lists/{list_id}', status_code=303)
 
 
@@ -6078,7 +6135,16 @@ async def html_add_completion_type(request: Request, list_id: int, name: str = F
     # Disallow creating another "default"
     if name.strip().lower() == 'default':
         return RedirectResponse(url=f'/html_no_js/lists/{list_id}', status_code=303)
-    await create_completion_type_endpoint(list_id=list_id, name=name.strip(), current_user=current_user)
+    ct = await create_completion_type_endpoint(list_id=list_id, name=name.strip(), current_user=current_user)
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        payload = {'ok': True}
+        try:
+            if ct is not None:
+                payload.update({'id': getattr(ct, 'id', None), 'name': getattr(ct, 'name', None)})
+        except Exception:
+            pass
+        return JSONResponse(payload)
     return RedirectResponse(url=f'/html_no_js/lists/{list_id}', status_code=303)
 
 
@@ -6094,6 +6160,9 @@ async def html_remove_completion_type(request: Request, list_id: int, name: str 
     if name.strip().lower() == 'default':
         return RedirectResponse(url=f'/html_no_js/lists/{list_id}', status_code=303)
     await delete_completion_type_endpoint(list_id=list_id, name=name.strip(), current_user=current_user)
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse({'ok': True, 'list_id': list_id, 'removed': name.strip()})
     return RedirectResponse(url=f'/html_no_js/lists/{list_id}', status_code=303)
 
 
@@ -6125,7 +6194,11 @@ async def html_toggle_todo_completion_type(request: Request, todo_id: int, compl
     val = True if str(done).lower() in ('1','true','yes') else False
     await _complete_todo_impl(todo_id=todo_id, completion_type=ctype_name, done=val, current_user=current_user)
     anchor = form.get('anchor') or f'todo-{todo_id}'
-    return RedirectResponse(url=f'/html_no_js/lists/{list_id_val}#{anchor}', status_code=303)
+    url = f'/html_no_js/lists/{list_id_val}#{anchor}'
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse({'ok': True, 'todo_id': todo_id, 'completion_type': ctype_name, 'done': val})
+    return RedirectResponse(url=url, status_code=303)
 
 @app.post('/lists/{list_id}/complete')
 async def api_toggle_list_complete(list_id: int, completed: bool = Form(...), current_user: User = Depends(require_login)):
@@ -6151,7 +6224,16 @@ async def html_create_todo(request: Request, text: str = Form(...), list_id: int
     from .auth import verify_csrf_token
     if not token or not verify_csrf_token(token, current_user.username):
         raise HTTPException(status_code=403, detail="invalid csrf token")
-    await create_todo(text=text, list_id=list_id, current_user=current_user)
+    new_todo = await create_todo(text=text, list_id=list_id, current_user=current_user)
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        payload = {'ok': True}
+        try:
+            if new_todo is not None:
+                payload.update({'id': getattr(new_todo, 'id', None), 'text': getattr(new_todo, 'text', None), 'list_id': getattr(new_todo, 'list_id', None)})
+        except Exception:
+            pass
+        return JSONResponse(payload)
     return RedirectResponse(url=f"/html_no_js/lists/{list_id}", status_code=303)
 
 
@@ -6168,11 +6250,16 @@ async def html_toggle_complete(request: Request, todo_id: int, done: str = Form(
     # if the form included an anchor field, use it as a fragment
     form = await request.form()
     anchor = form.get('anchor')
+    accept = (request.headers.get('Accept') or '')
     if todo and todo.list_id:
         url = f"/html_no_js/lists/{todo.list_id}"
         if anchor:
             url = f"{url}#{anchor}"
+        if 'application/json' in accept.lower():
+            return JSONResponse({'ok': True, 'todo_id': todo_id, 'done': val, 'list_id': todo.list_id})
         return RedirectResponse(url=url, status_code=303)
+    if 'application/json' in accept.lower():
+        return JSONResponse({'ok': True, 'todo_id': todo_id, 'done': val})
     return RedirectResponse(url="/html_no_js/", status_code=303)
 
 
@@ -6293,18 +6380,25 @@ async def html_delete_todo(request: Request, todo_id: int):
 
     # If we know the list_id prefer redirecting to that list. If the user
     # came from a lists page and an anchor was supplied, include it.
+    accept = (request.headers.get('Accept') or '')
     if list_id:
         list_url = f"/html_no_js/lists/{list_id}"
         if anchor and ref_path.startswith('/html_no_js/lists'):
             list_url = f"{list_url}#{anchor}"
+        if 'application/json' in accept.lower():
+            return JSONResponse({'ok': True, 'deleted': todo_id, 'list_id': list_id})
         return RedirectResponse(url=list_url, status_code=303)
 
     # If no list_id is available, preserve the referer but if it points to a
     # lists page and an anchor was supplied, include the fragment.
     if anchor and ref_path.startswith('/html_no_js/lists'):
         ref_nohash = ref.split('#')[0]
+        if 'application/json' in accept.lower():
+            return JSONResponse({'ok': True, 'deleted': todo_id, 'ref': f"{ref_nohash}#{anchor}"})
         return RedirectResponse(url=f"{ref_nohash}#{anchor}", status_code=303)
 
+    if 'application/json' in accept.lower():
+        return JSONResponse({'ok': True, 'deleted': todo_id, 'ref': ref})
     return RedirectResponse(url=ref, status_code=303)
 
 
@@ -6354,11 +6448,11 @@ async def html_restore_trash(request: Request, todo_id: int, current_user: User 
         if not tm:
             # nothing to restore, redirect back
             ref = request.headers.get('Referer', '/html_no_js/trash')
-            return RedirectResponse(url=ref, status_code=303)
+            return _redirect_or_json(request, ref)
         original = tm.original_list_id
         if original is None:
             # if original missing, leave in place
-            return RedirectResponse(url='/html_no_js/trash', status_code=303)
+            return _redirect_or_json(request, '/html_no_js/trash')
         # move back
         todo.list_id = original
         todo.modified_at = now_utc()
@@ -6371,7 +6465,7 @@ async def html_restore_trash(request: Request, todo_id: int, current_user: User 
         except Exception:
             pass
         await sess.commit()
-        return RedirectResponse(url=f'/html_no_js/lists/{original}', status_code=303)
+    return _redirect_or_json(request, f'/html_no_js/lists/{original}')
 
 
 
@@ -6384,7 +6478,7 @@ async def html_restore_list_trash(request: Request, list_id: int):
     except Exception:
         current_user = None
     if not current_user:
-        return RedirectResponse(url='/html_no_js/login', status_code=303)
+        return _redirect_or_json(request, '/html_no_js/login')
     # CSRF
     form = await request.form()
     token = form.get('_csrf')
@@ -6398,7 +6492,7 @@ async def html_restore_list_trash(request: Request, list_id: int):
         if not lst:
             # If the list can't be found, redirect back to trash page.
             ref = request.headers.get('Referer', '/html_no_js/trash')
-            return RedirectResponse(url=ref, status_code=303)
+            return _redirect_or_json(request, ref)
         if lst.parent_list_id is None or lst.owner_id != current_user.id:
             # not a trashed list owned by user
             raise HTTPException(status_code=403, detail='forbidden')
@@ -6407,7 +6501,7 @@ async def html_restore_list_trash(request: Request, list_id: int):
         if not meta:
             # nothing to restore
             ref = request.headers.get('Referer', '/html_no_js/trash')
-            return RedirectResponse(url=ref, status_code=303)
+            return _redirect_or_json(request, ref)
         original_parent = meta.original_parent_list_id
         original_owner = meta.original_owner_id
         # restore owner if needed
@@ -6426,7 +6520,7 @@ async def html_restore_list_trash(request: Request, list_id: int):
             pass
         await sess.commit()
         # redirect to restored list page
-        return RedirectResponse(url=f'/html_no_js/lists/{lst.id}', status_code=303)
+    return _redirect_or_json(request, f'/html_no_js/lists/{lst.id}')
 
 
 @app.post('/html_no_js/trash/lists/{list_id}/delete')
@@ -6438,7 +6532,7 @@ async def html_permanent_delete_list_trash(request: Request, list_id: int):
     except Exception:
         current_user = None
     if not current_user:
-        return RedirectResponse(url='/html_no_js/login', status_code=303)
+        return _redirect_or_json(request, '/html_no_js/login')
     form = await request.form()
     token = form.get('_csrf')
     from .auth import verify_csrf_token
@@ -6454,7 +6548,7 @@ async def html_permanent_delete_list_trash(request: Request, list_id: int):
         logger.info('html_permanent_delete_list_trash lookup lst=%s', bool(lst))
         if not lst:
             ref = request.headers.get('Referer', '/html_no_js/trash')
-            return RedirectResponse(url=ref, status_code=303)
+            return _redirect_or_json(request, ref)
         # enforce ownership
         if lst.owner_id != current_user.id:
             raise HTTPException(status_code=403, detail='forbidden')
@@ -6497,8 +6591,8 @@ async def html_permanent_delete_list_trash(request: Request, list_id: int):
             await sess.exec(sqlalchemy_delete(TodoHashtag).where(TodoHashtag.todo_id.in_(todo_ids)))
             await sess.exec(sqlalchemy_delete(Todo).where(Todo.id.in_(todo_ids)))
             await sess.commit()
-        ref = request.headers.get('Referer', '/html_no_js/trash')
-        return RedirectResponse(url=ref, status_code=303)
+    ref = request.headers.get('Referer', '/html_no_js/trash')
+    return _redirect_or_json(request, ref)
 
 # Diagnostic: list registered routes that include 'trash' for debugging tests
 try:
@@ -6518,7 +6612,7 @@ async def html_permanent_delete_trash(request: Request, todo_id: int, current_us
     # Use delete_todo which will permanently delete if todo is already in trash
     await delete_todo(todo_id=todo_id, current_user=current_user)
     ref = request.headers.get('Referer', '/html_no_js/trash')
-    return RedirectResponse(url=ref, status_code=303)
+    return _redirect_or_json(request, ref)
 
 
 
@@ -6724,7 +6818,10 @@ async def html_create_sublist(request: Request, todo_id: int, name: str = Form(.
             await sess.commit()
         except Exception:
             await sess.rollback()
-    return RedirectResponse(url=f'/html_no_js/todos/{todo_id}', status_code=303)
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse({'ok': True, 'id': sub.id, 'name': sub.name, 'parent_todo_id': todo_id})
+    return _redirect_or_json(request, f'/html_no_js/todos/{todo_id}')
 
 
 async def _normalize_sublist_positions(sess, parent_todo_id: int):
@@ -6855,7 +6952,10 @@ async def html_move_sublist(request: Request, todo_id: int, list_id: int, direct
         raise HTTPException(status_code=403, detail='invalid csrf token')
     # Perform move directly to avoid double-reading the request body/CSRF checks
     async with async_session() as sess:
-        await _move_sublist_core(sess, current_user=current_user, todo_id=todo_id, list_id=list_id, direction=direction)
+        res = await _move_sublist_core(sess, current_user=current_user, todo_id=todo_id, list_id=list_id, direction=direction)
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse(res)
     return RedirectResponse(url=f'/html_no_js/todos/{todo_id}', status_code=303)
 
 
@@ -6981,7 +7081,10 @@ async def html_move_list_sublist(request: Request, list_id: int, sub_id: int, di
     if not token or not verify_csrf_token(token, current_user.username):
         raise HTTPException(status_code=403, detail='invalid csrf token')
     async with async_session() as sess:
-        await _move_list_sublist_core(sess, current_user=current_user, list_id=list_id, sub_id=sub_id, direction=direction)
+        res = await _move_list_sublist_core(sess, current_user=current_user, list_id=list_id, sub_id=sub_id, direction=direction)
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse(res)
     return RedirectResponse(url=f'/html_no_js/lists/{list_id}', status_code=303)
 
 
@@ -7017,6 +7120,9 @@ async def html_remove_todo_hashtag(request: Request, todo_id: int, current_user:
     # don't invoke FastAPI dependency resolution by calling the route func.
     async with async_session() as sess:
         await _remove_todo_hashtag_core(sess, todo_id, tag, current_user)
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse({'ok': True, 'removed': tag})
     # redirect back to referer when possible
     ref = request.headers.get('Referer', f'/html_no_js/todos/{todo_id}')
     return RedirectResponse(url=ref, status_code=303)
@@ -7067,7 +7173,10 @@ async def html_add_todo_hashtag(request: Request, todo_id: int, current_user: Us
                 await sess.commit()
             except IntegrityError:
                 await sess.rollback()
+        accept = (request.headers.get('Accept') or '')
+        if 'application/json' in accept.lower():
+            return JSONResponse({'ok': True, 'tag': ntag, 'todo_id': todo_id})
         # redirect back
-    ref = request.headers.get('Referer', f'/html_no_js/todos/{todo_id}')
-    return RedirectResponse(url=ref, status_code=303)
+        ref = request.headers.get('Referer', f'/html_no_js/todos/{todo_id}')
+        return RedirectResponse(url=ref, status_code=303)
 
