@@ -1,0 +1,41 @@
+Changes made so far (start with index.html)
+
+File: html_no_js/templates/index.html
+- Changed the minimal in-place rename handler that previously POSTed and called location.reload() to instead:
+  - Send the POST as before to `/html_no_js/lists/<id>/edit` with FormData and CSRF token.
+  - On success, update any `.list-title` anchor whose `href` contains `/html_no_js/lists/<id>` to the new name (textContent).
+  - Update any `.edit-list-btn[data-list-id]` `data-list-name` attribute if present.
+  - Avoid a full page reload; show a generic alert('Rename failed') on error.
+
+Controls inspected but not modified in this pass (decisions):
+- Create list form (`form method="post" action="/html_no_js/lists/create")` : left as-is. This creates a new list and likely needs server-side rendering for the new list; conversion deferred.
+- Hide Completed checkbox (`#hide-completed-checkbox`) : already handled purely client-side via cookie and DOM; no server POST, so left as-is.
+- Show all tags checkbox (`#show-all-tags-checkbox`) : currently fetches `/lists/<id>/hashtags?...` via fetch to display combined tags; it already avoids full reloads, left as-is.
+- Sort order select (`#list-sort-order`) : currently client-side persisted to cookie and sorts DOM; no server POST, left as-is.
+
+Notes / Next steps:
+- Search for other simple controls on index.html that cause POSTs and reloads (e.g., delete list, pin/unpin) and convert them similarly to use fetch + DOM update.
+- Add API endpoints if the server lacks JSON responses for edit/delete actions; currently the edit handler appears to accept POST and may return JSON or redirect. If it redirects, consider adding a JSON-returning variant under `/api/...` and updating fetch URL.
+- For each change, ensure CSRF token is sent and handle errors gracefully.
+
+Status:
+- index.html rename handler converted. Summary file created.
+
+File: html_no_js/templates/list.html
+- Converted controls to avoid full page reloads where appropriate:
+  - Rename (sublists and main list edit-list-btn): previously POSTed and called location.reload(); now posts to `/html_no_js/lists/<id>/edit` and on success updates any `.list-title` elements matching the list id and updates the `.edit-list-btn[data-list-id]` `data-list-name` attribute. Errors use alert('Rename failed').
+  - `lists_up_top` checkbox: previously submitted the parent form; now sends a POST via fetch to `/html_no_js/lists/<id>/lists_up_top` with FormData and CSRF token. No reload; failure logged to console.
+  - `hide-icons` checkbox: previously submitted the form; now POSTs via fetch to the form action, sends CSRF token, and toggles the `.hide-icons` class on `.todos-list` immediately so the UI updates without reload.
+  - Priority select (`#priority-select-{{ list.id }}`): removed inline `this.form.submit()` and added JavaScript to POST via fetch to `/html_no_js/lists/<id>/priority` with FormData and CSRF token. On success, attempts to update inline priority display (`.priority-circle`) for the list header. This is a best-effort DOM update; server JSON response not strictly required.
+
+Controls inspected but deferred or left alone:
+- Create sublist/todo forms and sublist move buttons: left as standard POST forms for now (they create new elements or depend on server ordering). Converting these requires server JSON responses or additional DOM templates.
+- Todo-level toggles on the list (complete, extra completion toggles, delete, pin): these are many per-item forms; they are good candidates but were not converted in this pass to limit scope.
+
+Notes:
+- I preserved CSRF handling by reading `input[name="_csrf"]` where present and appending to FormData.
+- Several UI updates perform best-effort DOM changes; if you prefer strict JSON API flows, I can add API endpoints that return JSON objects and adjust client code to rely on them for robust updates.
+
+Status:
+- Converted: rename, lists_up_top checkbox, hide-icons checkbox, priority select (client-side JS + fetch). 
+- Deferred: create-list/create-sublist, todo-level toggles (complete/delete/pin), sublist move forms.

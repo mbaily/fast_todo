@@ -381,15 +381,36 @@ window.addEventListener && window.addEventListener('storage', function(ev){
       var current = btn.getAttribute('data-list-name') || '';
       var name = window.prompt('New list name', current);
       if (!name || name.trim() === '' ) return;
-      // POST as form so CSRF macro and server accept it
-      var fd = new FormData();
-      fd.append('name', name);
-      // include csrf from page if present
-      var csrfInput = document.querySelector('input[name="_csrf"]');
-      if (csrfInput && csrfInput.value) fd.append('_csrf', csrfInput.value);
-      fetch('/html_no_js/lists/' + encodeURIComponent(id) + '/edit', { method: 'POST', body: fd, credentials: 'same-origin' })
-        .then(function(res){ if (res.ok) location.reload(); else alert('Rename failed'); })
-        .catch(function(){ alert('Rename failed'); });
+          // POST as form so CSRF macro and server accept it
+          var fd = new FormData();
+          fd.append('name', name);
+          // include csrf from page if present
+          var csrfInput = document.querySelector('input[name="_csrf"]');
+          if (csrfInput && csrfInput.value) fd.append('_csrf', csrfInput.value);
+          fetch('/html_no_js/lists/' + encodeURIComponent(id) + '/edit', { method: 'POST', body: fd, credentials: 'same-origin' })
+            .then(function(res){
+              if (!res.ok) throw new Error('Rename failed');
+              return res.json().catch(function(){ return null; });
+            })
+            .then(function(data){
+              // update the list title in-place without reloading
+              try{
+                // find any .list-item that links to this list id
+                var anchors = Array.from(document.querySelectorAll('.list-title'));
+                anchors.forEach(function(a){
+                  try{
+                    var href = a.getAttribute('href') || '';
+                    if (href.indexOf('/html_no_js/lists/' + String(id)) !== -1){
+                      a.textContent = name;
+                    }
+                  }catch(e){}
+                });
+                // also update any edit button data attribute if present
+                var editBtn = document.querySelector('.edit-list-btn[data-list-id="' + id + '"]');
+                if (editBtn) editBtn.setAttribute('data-list-name', name);
+              }catch(e){}
+            })
+            .catch(function(){ alert('Rename failed'); });
     });
   });
 })();

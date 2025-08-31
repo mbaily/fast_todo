@@ -119,7 +119,7 @@
               <form method="post" action="/html_no_js/lists/{{ list.id }}/priority" style="display:inline-flex; align-items:center; gap:0.25rem; margin-left:0.5rem;">
                 {{ csrf_field() }}
                 <label for="priority-select-{{ list.id }}" class="sr-only">Priority</label>
-                <select id="priority-select-{{ list.id }}" name="priority" onchange="this.form.submit()">
+                <select id="priority-select-{{ list.id }}" name="priority">
                   <option value="" {% if not list.priority %}selected{% endif %}>(none)</option>
                   {% for p in range(1, 11) %}
                     <option value="{{ p }}" {% if list.priority == p %}selected{% endif %}>{{ p }}</option>
@@ -189,7 +189,15 @@
       var csrfInput = document.querySelector('input[name="_csrf"]');
       if (csrfInput && csrfInput.value) fd.append('_csrf', csrfInput.value);
       fetch('/html_no_js/lists/' + encodeURIComponent(id) + '/edit', { method: 'POST', body: fd, credentials: 'same-origin' })
-        .then(function(res){ if(res.ok) location.reload(); else alert('Rename failed'); })
+        .then(function(res){ if (!res.ok) throw new Error('Rename failed'); return res.json().catch(function(){ return null; }); })
+        .then(function(data){
+          try{
+            // update any visible title elements for this list id
+            var els = Array.from(document.querySelectorAll('.list-title'));
+            els.forEach(function(a){ try { var href = a.getAttribute('href') || ''; if (href.indexOf('/html_no_js/lists/' + String(id)) !== -1) a.textContent = name; } catch(e){} });
+            var editBtn = document.querySelector('.edit-list-btn[data-list-id="' + id + '"]'); if (editBtn) editBtn.setAttribute('data-list-name', name);
+          }catch(e){}
+        })
         .catch(function(){ alert('Rename failed'); });
     }
     try {
@@ -314,7 +322,12 @@
     if (!cb || !hidden) return;
     cb.addEventListener('change', function(){
       hidden.value = cb.checked ? 'true' : 'false';
-      try { hidden.closest('form').submit(); } catch(e) { try { hidden.form.submit(); } catch(e) {} }
+      // send via fetch to avoid full page reload
+      try {
+        var fd = new FormData(); fd.append('lists_up_top', hidden.value);
+        var csrf = document.querySelector('input[name="_csrf"]'); if (csrf && csrf.value) fd.append('_csrf', csrf.value);
+        fetch('/html_no_js/lists/{{ list.id }}/lists_up_top', { method: 'POST', body: fd, credentials: 'same-origin' }).then(function(res){ if (!res.ok) console && console.error && console.error('lists_up_top update failed'); });
+      } catch(e){}
     });
   })();
   </script>
@@ -780,7 +793,14 @@
           if (!cb || !hidden || !form) return;
           cb.addEventListener('change', function(){
             hidden.value = cb.checked ? 'true' : 'false';
-            try { form.submit(); } catch(e) { /* ignore */ }
+            try {
+              var fd = new FormData(); fd.append('hide_icons', hidden.value);
+              var csrf = document.querySelector('input[name="_csrf"]'); if (csrf && csrf.value) fd.append('_csrf', csrf.value);
+              fetch(form.getAttribute('action') || window.location.href, { method: 'POST', body: fd, credentials: 'same-origin' }).then(function(res){ if (!res.ok) console && console.error && console.error('hide-icons update failed'); else {
+                // toggle DOM class immediately so UI reflects choice
+                var ul = document.querySelector('.todos-list'); if (ul) { if (cb.checked) ul.classList.add('hide-icons'); else ul.classList.remove('hide-icons'); }
+              });
+            } catch(e){}
           });
         })();
       </script>
@@ -1016,6 +1036,48 @@
     var form = hidden && hidden.closest('form');
     if (!cb || !hidden || !form) return;
     cb.addEventListener('change', function(){ hidden.value = cb.checked ? 'true' : 'false'; try{ form.submit(); } catch(e){} });
+  })();
+</script>
+<script>
+  // Priority select: submit via fetch and update priority UI inline
+  (function(){
+    try{
+      var sel = document.getElementById('priority-select-{{ list.id }}');
+      if (!sel) return;
+      sel.addEventListener('change', function(){
+        var v = sel.value;
+        var fd = new FormData(); fd.append('priority', v);
+        var csrf = document.querySelector('input[name="_csrf"]'); if (csrf && csrf.value) fd.append('_csrf', csrf.value);
+        fetch('/html_no_js/lists/{{ list.id }}/priority', { method: 'POST', body: fd, credentials: 'same-origin' })
+          .then(function(res){ if (!res.ok) throw new Error('Priority update failed'); return res.json().catch(function(){ return null; }); })
+          .then(function(data){
+            try{
+              // update any inline priority-circle for this list (if present)
+              var circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'};
+              var elems = document.querySelectorAll('.priority-circle');
+              elems.forEach(function(el){
+                var parent = el.closest('[data-list-id], .list-main, .list-title');
+                // best-effort: if this page's list (top title) has a nearby priority-circle, update it
+              });
+              // For now, update the header area: find any .meta.priority-inline directly under .list-main and replace its content
+              var header = document.querySelector('.list-header');
+              if (header) {
+                var p = header.querySelector('.priority-inline .priority-circle');
+                if (p) {
+                  p.textContent = v ? (circ[v] || v) : '';
+                } else if (v) {
+                  // insert a new priority-inline element after the title
+                  var title = header.querySelector('.list-main');
+                  if (title) {
+                    var span = document.createElement('span'); span.className = 'meta priority-inline'; var inner = document.createElement('span'); inner.className = 'priority-circle'; inner.textContent = (circ[v] || v); span.appendChild(inner); title.querySelector('.list-main') && title.appendChild(span);
+                  }
+                }
+              }
+            }catch(e){}
+          })
+          .catch(function(){ console && console.error && console.error('Priority update failed'); });
+      });
+    } catch(e) {}
   })();
 </script>
 {% endblock %}
