@@ -1,4 +1,4 @@
-from .models import TrashMeta
+from .models import TrashMeta, ListTrashMeta
 from fastapi import FastAPI, HTTPException, Depends
 from sqlmodel import select
 from sqlalchemy import update as sqlalchemy_update
@@ -6375,58 +6375,137 @@ async def html_restore_trash(request: Request, todo_id: int, current_user: User 
 
 
 
-    @app.post('/html_no_js/trash/lists/{list_id}/restore')
-    async def html_restore_list_trash(request: Request, list_id: int, current_user: User = Depends(require_login)):
-        form = await request.form()
-        token = form.get('_csrf')
-        from .auth import verify_csrf_token
-        if not token or not verify_csrf_token(token, current_user.username):
-            raise HTTPException(status_code=403, detail='invalid csrf token')
-        async with async_session() as sess:
-            lst = await sess.get(ListState, list_id)
-            if not lst:
-                raise HTTPException(status_code=404, detail='list not found')
-            if lst.parent_list_id is None or lst.owner_id != current_user.id:
-                # not a trashed list owned by user
-                raise HTTPException(status_code=403, detail='forbidden')
-            q = await sess.exec(select(ListTrashMeta).where(ListTrashMeta.list_id == list_id))
-            meta = q.first()
-            if not meta:
-                # nothing to restore
-                ref = request.headers.get('Referer', '/html_no_js/trash')
-                return RedirectResponse(url=ref, status_code=303)
-            original_parent = meta.original_parent_list_id
-            original_owner = meta.original_owner_id
-            # restore owner if needed
-            if original_owner is not None:
-                lst.owner_id = original_owner
-            # restore parent pointer
-            lst.parent_list_id = original_parent
-            lst.modified_at = now_utc()
-            sess.add(lst)
-            # remove meta
-            await sess.exec(sqlalchemy_delete(ListTrashMeta).where(ListTrashMeta.list_id == list_id))
+@app.post('/html_no_js/trash/lists/{list_id}/restore')
+async def html_restore_list_trash(request: Request, list_id: int):
+    # resolve current_user from cookies/session like other HTML handlers
+    from .auth import get_current_user as _gcu
+    try:
+        current_user = await _gcu(token=None, request=request)
+    except Exception:
+        current_user = None
+    if not current_user:
+        return RedirectResponse(url='/html_no_js/login', status_code=303)
+    # CSRF
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    logger.info('html_restore_list_trash called list_id=%s user=%s', list_id, getattr(current_user, 'id', None))
+    async with async_session() as sess:
+        lst = await sess.get(ListState, list_id)
+        logger.info('html_restore_list_trash lookup lst=%s', bool(lst))
+        if not lst:
+            # If the list can't be found, redirect back to trash page.
+            ref = request.headers.get('Referer', '/html_no_js/trash')
+            return RedirectResponse(url=ref, status_code=303)
+        if lst.parent_list_id is None or lst.owner_id != current_user.id:
+            # not a trashed list owned by user
+            raise HTTPException(status_code=403, detail='forbidden')
+        q = await sess.exec(select(ListTrashMeta).where(ListTrashMeta.list_id == list_id))
+        meta = q.first()
+        if not meta:
+            # nothing to restore
+            ref = request.headers.get('Referer', '/html_no_js/trash')
+            return RedirectResponse(url=ref, status_code=303)
+        original_parent = meta.original_parent_list_id
+        original_owner = meta.original_owner_id
+        # restore owner if needed
+        if original_owner is not None:
+            lst.owner_id = original_owner
+        # restore parent pointer
+        lst.parent_list_id = original_parent
+        lst.modified_at = now_utc()
+        sess.add(lst)
+        # remove meta
+        await sess.exec(sqlalchemy_delete(ListTrashMeta).where(ListTrashMeta.list_id == list_id))
+        try:
+            await _touch_list_modified(sess, original_parent)
+            await _touch_list_modified(sess, lst.id)
+        except Exception:
+            pass
+        await sess.commit()
+        # redirect to restored list page
+        return RedirectResponse(url=f'/html_no_js/lists/{lst.id}', status_code=303)
+
+
+@app.post('/html_no_js/trash/lists/{list_id}/delete')
+async def html_permanent_delete_list_trash(request: Request, list_id: int):
+    # resolve current_user from cookies/session like other HTML handlers
+    from .auth import get_current_user as _gcu
+    try:
+        current_user = await _gcu(token=None, request=request)
+    except Exception:
+        current_user = None
+    if not current_user:
+        return RedirectResponse(url='/html_no_js/login', status_code=303)
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    logger.info('html_permanent_delete_list_trash called list_id=%s user=%s', list_id, getattr(current_user, 'id', None))
+    # Perform permanent deletion inline (same behavior as delete_list) to
+    # avoid subtle dependency/visibility issues when called from another
+    # request handler.
+    async with async_session() as sess:
+        q = await sess.exec(select(ListState).where(ListState.id == list_id))
+        lst = q.first()
+        logger.info('html_permanent_delete_list_trash lookup lst=%s', bool(lst))
+        if not lst:
+            ref = request.headers.get('Referer', '/html_no_js/trash')
+            return RedirectResponse(url=ref, status_code=303)
+        # enforce ownership
+        if lst.owner_id != current_user.id:
+            raise HTTPException(status_code=403, detail='forbidden')
+
+        # capture todos that belong to this list
+        qtodos = await sess.exec(select(Todo.id).where(Todo.list_id == list_id))
+        todo_ids = [t for t in qtodos.all()]
+
+        # detach any child sublists owned by this list
+        try:
+            await sess.exec(sqlalchemy_update(ListState).where(ListState.parent_list_id == list_id).values(parent_list_id=None, parent_list_position=None))
+            await sess.commit()
+        except Exception:
+            await sess.rollback()
+        # remove list-level artifacts
+        await sess.exec(sqlalchemy_delete(CompletionType).where(CompletionType.list_id == list_id))
+        await sess.exec(sqlalchemy_delete(ListHashtag).where(ListHashtag.list_id == list_id))
+        # delete the list row
+        await sess.exec(sqlalchemy_delete(ListState).where(ListState.id == list_id))
+        await sess.commit()
+
+        # record tombstone for the list
+        try:
+            ts_list = Tombstone(item_type='list', item_id=list_id)
+            sess.add(ts_list)
+            await sess.commit()
+        except Exception:
             try:
-                await _touch_list_modified(sess, original_parent)
-                await _touch_list_modified(sess, lst.id)
+                await sess.rollback()
             except Exception:
                 pass
+
+        # record tombstones and delete todos
+        if todo_ids:
+            for tid in todo_ids:
+                ts = Tombstone(item_type='todo', item_id=tid)
+                sess.add(ts)
             await sess.commit()
-            # redirect to restored list page
-            return RedirectResponse(url=f'/html_no_js/lists/{lst.id}', status_code=303)
-
-
-    @app.post('/html_no_js/trash/lists/{list_id}/delete')
-    async def html_permanent_delete_list_trash(request: Request, list_id: int, current_user: User = Depends(require_login)):
-        form = await request.form()
-        token = form.get('_csrf')
-        from .auth import verify_csrf_token
-        if not token or not verify_csrf_token(token, current_user.username):
-            raise HTTPException(status_code=403, detail='invalid csrf token')
-        # call existing delete_list which will perform permanent deletion and tombstones
-        await delete_list(list_id=list_id, current_user=current_user)
+            await sess.exec(sqlalchemy_delete(TodoCompletion).where(TodoCompletion.todo_id.in_(todo_ids)))
+            await sess.exec(sqlalchemy_delete(TodoHashtag).where(TodoHashtag.todo_id.in_(todo_ids)))
+            await sess.exec(sqlalchemy_delete(Todo).where(Todo.id.in_(todo_ids)))
+            await sess.commit()
         ref = request.headers.get('Referer', '/html_no_js/trash')
         return RedirectResponse(url=ref, status_code=303)
+
+# Diagnostic: list registered routes that include 'trash' for debugging tests
+try:
+    trash_routes = [r.path for r in app.routes if hasattr(r, 'path') and 'trash' in r.path]
+    logger.info('registered trash routes: %s', trash_routes)
+except Exception:
+    pass
 
 
 @app.post('/html_no_js/trash/{todo_id}/delete')

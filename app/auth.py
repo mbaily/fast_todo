@@ -192,6 +192,7 @@ async def require_login(user: Optional[User] = Depends(get_current_user)) -> Use
     Returns the User when present, otherwise raises 401 Unauthorized.
     Use this in endpoints that must deny anonymous access.
     """
+    logger.info('require_login called, user_present=%s', bool(user))
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="authentication required")
     return user
