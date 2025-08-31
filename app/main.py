@@ -815,6 +815,9 @@ async def html_repl_ssh_keys(request: Request, pubkeys: str = Form(...), current
                 keys.append({"id": r.id, "comment": r.comment, "public_key": r.public_key, "enabled": r.enabled, "created_at": r.created_at})
     except Exception:
         keys = []
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse({'ok': True, 'ssh_enabled': bool(current_user.is_admin or allow_all), 'ssh_message': msg, 'ssh_keys': keys, 'csrf_token': next_csrf})
     return TEMPLATES.TemplateResponse(request, 'repl.html', {
         "request": request,
         "client_tz": client_tz,
@@ -1066,13 +1069,16 @@ async def create_list(request: Request, name: str = Form(None), current_user: Us
             tags = extract_hashtags(request.query_params.get('name') or name)
         except Exception:
             tags = []
-        # preserve order and dedupe
-        seen: list[str] = []
-        for t in tags:
-            if t and t not in seen:
-                seen.append(t)
-        if seen:
-            await _sync_list_hashtags(sess, lst.id, seen)
+        accept = (request.headers.get('Accept') or '')
+        if 'application/json' in accept.lower():
+            return JSONResponse({'ok': True, 'ssh_enabled': bool(current_user.is_admin or allow_all), 'ssh_keys': keys, 'csrf_token': next_csrf})
+        return TEMPLATES.TemplateResponse(request, 'repl.html', {
+            "request": request,
+            "client_tz": client_tz,
+            "csrf_token": next_csrf,
+            "ssh_enabled": bool(current_user.is_admin or allow_all),
+            "ssh_keys": keys,
+        })
         return lst
 
 
@@ -2885,9 +2891,6 @@ async def html_remove_list_hashtag(request: Request, list_id: int, current_user:
     accept = (request.headers.get('Accept') or '')
     if 'application/json' in accept.lower():
         return JSONResponse({'ok': True, 'removed': tag})
-    accept = (request.headers.get('Accept') or '')
-    if 'application/json' in accept.lower():
-        return JSONResponse({'ok': True, 'id': list_id, 'hide_icons': getattr(lst, 'hide_icons', None)})
     ref = request.headers.get('Referer', f'/html_no_js/lists/{list_id}')
     return RedirectResponse(url=ref, status_code=303)
 
@@ -7076,7 +7079,10 @@ async def html_create_list_sublist(request: Request, list_id: int, name: str = F
             await sess.commit()
         except Exception:
             await sess.rollback()
-    return RedirectResponse(url=f'/html_no_js/lists/{list_id}', status_code=303)
+        accept = (request.headers.get('Accept') or '')
+        if 'application/json' in accept.lower():
+            return JSONResponse({'ok': True, 'id': sub.id, 'name': sub.name, 'parent_list_id': list_id})
+        return RedirectResponse(url=f'/html_no_js/lists/{list_id}', status_code=303)
 
 
 class MoveListSublistRequest(BaseModel):
