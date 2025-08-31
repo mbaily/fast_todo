@@ -50,6 +50,50 @@ def _contains_generic_anchor(s: str) -> bool:
     return False
 
 
+def _contains_time_token(s: str) -> bool:
+    """Return True if s contains a time-like token (e.g., '9am', '09:00', 'at 9', 'at 09:00am')."""
+    if not s:
+        return False
+    sl = s.lower()
+    # common time patterns: 9am, 9 pm, 09:00, 9:00am, at 9, at 09:00
+    if re.search(r"\b(at\s+)?\d{1,2}(:\d{2})?\s*(am|pm)?\b", sl):
+        return True
+    # standalone 24-hour times like 17:30
+    if re.search(r"\b\d{1,2}:\d{2}\b", sl):
+        return True
+    # phrases like 'in the morning', 'in the evening', 'tonight' (though 'tonight' is blacklisted elsewhere)
+    if re.search(r"\b(in the (morning|evening|afternoon)|morning|evening|afternoon|noon|midnight)\b", sl):
+        return True
+    return False
+
+
+def _contains_date_anchor(s: str) -> bool:
+    """Return True if s contains an explicit date anchor (month name, weekday, or numeric date)."""
+    if not s:
+        return False
+    sl = s.lower()
+    # month names
+    for m in MONTHS_EN:
+        if re.search(r"\b" + re.escape(m.lower()) + r"\b", sl):
+            return True
+        if re.search(r"\b" + re.escape(m[:3].lower()) + r"\b", sl):
+            return True
+    # weekday names or 'on monday' style
+    if re.search(r"\b(on\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b", sl):
+        return True
+    if re.search(r"\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", sl):
+        return True
+    # numeric day/month like '5/9' or '5-9' or '5th'
+    if re.search(r"\b\d{1,2}[./-]\d{1,2}\b", sl) or re.search(r"\b\d{1,2}(st|nd|rd|th)\b", sl):
+        return True
+    return False
+
+
+def _has_time_or_date_anchor(s: str) -> bool:
+    """Return True if s contains a time token or explicit date anchor."""
+    return _contains_time_token(s) or _contains_date_anchor(s)
+
+
 def now_utc() -> datetime:
     """Return timezone-aware current UTC datetime."""
     return datetime.now(timezone.utc)
@@ -1126,6 +1170,13 @@ def parse_date_and_recurrence(text: str) -> tuple[datetime | None, dict | None]:
 
         rec = parse_recurrence_phrase(tail)
 
+        # Heuristic: if recurrence is DAILY (every day) and the tail does not
+        # contain an explicit time or date anchor, treat it as non-recurring.
+        if rec and rec.get('freq') == 'DAILY':
+            if not _has_time_or_date_anchor(tail):
+                # suppress ambiguous every-day recurrence unless a time/date is present
+                rec = None
+
         # ensure dt is timezone-aware UTC
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
@@ -1268,6 +1319,12 @@ def parse_text_to_rrule_string(text: str) -> tuple[datetime | None, str]:
         except Exception:
             rec = None
         if rec:
+            # Heuristic: for 'every day' recurrences without an explicit
+            # date anchor, require a time or date anchor in the text before
+            # synthesizing a dtstart. This avoids treating casual notes like
+            # 'pay water bill every day' as a calendar recurrence.
+            if rec.get('freq') == 'DAILY' and not _has_time_or_date_anchor(text):
+                return None, ''
             # Decide whether to synthesize a dtstart. We only synthesize when
             # the input contains other content besides a bare recurrence
             # phrase. For example, 'Gym every other day' should synthesize
