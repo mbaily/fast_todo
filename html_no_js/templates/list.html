@@ -109,6 +109,29 @@
         <input type="hidden" name="completed" value="{{ 'false' if list.completed else 'true' }}">
         <button type="submit" class="list-action-btn" title="{{ 'Unmark list complete' if list.completed else 'Mark list complete' }}" aria-label="Toggle list complete">{{ '☑' if list.completed else '☐' }}</button>
       </form>
+      <script>
+      (function(){
+        try {
+          var sel = 'form[action="/html_no_js/lists/{{ list.id }}/complete"]';
+          var f = document.querySelector(sel);
+          if (!f) return;
+          f.addEventListener('submit', async function(e){
+            e.preventDefault();
+            try {
+              var fd = new FormData(f);
+              var res = await fetch(f.action, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
+              if (!res.ok) { console && console.error && console.error('list complete failed', res.status); return; }
+              var j = await res.json().catch(function(){ return null; });
+              var completed = (j && typeof j.completed !== 'undefined') ? Boolean(j.completed) : (fd.get('completed') === 'true');
+              var btn = f.querySelector('button[type="submit"]');
+              if (btn) { btn.textContent = completed ? '☑' : '☐'; btn.title = completed ? 'Unmark list complete' : 'Mark list complete'; }
+              var title = document.querySelector('.list-title'); if (title) title.classList.toggle('done', completed);
+              var hidden = f.querySelector('input[name="completed"]'); if (hidden) hidden.value = completed ? 'false' : 'true';
+            } catch(err){ console && console.error && console.error('list-complete error', err); }
+          }, false);
+        } catch(e){}
+      })();
+      </script>
       {# Delete moved to page-toolbar below; keep this area compact and only show the complete toggle here. #}
     </div>
     <div class="list-main">
@@ -191,12 +214,7 @@
       fetch('/html_no_js/lists/' + encodeURIComponent(id) + '/edit', { method: 'POST', body: fd, credentials: 'same-origin' })
         .then(function(res){ if (!res.ok) throw new Error('Rename failed'); return res.json().catch(function(){ return null; }); })
         .then(function(data){
-          try{
-            // update any visible title elements for this list id
-            var els = Array.from(document.querySelectorAll('.list-title'));
-            els.forEach(function(a){ try { var href = a.getAttribute('href') || ''; if (href.indexOf('/html_no_js/lists/' + String(id)) !== -1) a.textContent = name; } catch(e){} });
-            var editBtn = document.querySelector('.edit-list-btn[data-list-id="' + id + '"]'); if (editBtn) editBtn.setAttribute('data-list-name', name);
-          }catch(e){}
+          try{ if (window.__ft_onListRenamed) window.__ft_onListRenamed(id, name); } catch(e){}
         })
         .catch(function(){ alert('Rename failed'); });
     }

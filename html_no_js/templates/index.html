@@ -393,22 +393,7 @@ window.addEventListener && window.addEventListener('storage', function(ev){
               return res.json().catch(function(){ return null; });
             })
             .then(function(data){
-              // update the list title in-place without reloading
-              try{
-                // find any .list-item that links to this list id
-                var anchors = Array.from(document.querySelectorAll('.list-title'));
-                anchors.forEach(function(a){
-                  try{
-                    var href = a.getAttribute('href') || '';
-                    if (href.indexOf('/html_no_js/lists/' + String(id)) !== -1){
-                      a.textContent = name;
-                    }
-                  }catch(e){}
-                });
-                // also update any edit button data attribute if present
-                var editBtn = document.querySelector('.edit-list-btn[data-list-id="' + id + '"]');
-                if (editBtn) editBtn.setAttribute('data-list-name', name);
-              }catch(e){}
+              try{ if (window.__ft_onListRenamed) window.__ft_onListRenamed(id, name); } catch(e){}
             })
             .catch(function(){ alert('Rename failed'); });
     });

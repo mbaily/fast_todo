@@ -1069,17 +1069,8 @@ async def create_list(request: Request, name: str = Form(None), current_user: Us
             tags = extract_hashtags(request.query_params.get('name') or name)
         except Exception:
             tags = []
-        accept = (request.headers.get('Accept') or '')
-        if 'application/json' in accept.lower():
-            return JSONResponse({'ok': True, 'ssh_enabled': bool(current_user.is_admin or allow_all), 'ssh_keys': keys, 'csrf_token': next_csrf})
-        return TEMPLATES.TemplateResponse(request, 'repl.html', {
-            "request": request,
-            "client_tz": client_tz,
-            "csrf_token": next_csrf,
-            "ssh_enabled": bool(current_user.is_admin or allow_all),
-            "ssh_keys": keys,
-        })
-        return lst
+    # return the created list object (API clients expect the new list)
+    return lst
 
 
 @app.get("/lists")
@@ -2639,6 +2630,9 @@ async def html_delete_list(request: Request, list_id: int):
         except Exception:
             pass
         await sess.commit()
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse({'ok': True, 'deleted': list_id})
     return _redirect_or_json(request, '/html_no_js/')
 
 
@@ -6295,7 +6289,10 @@ async def html_create_todo(request: Request, text: str = Form(...), list_id: int
     if 'application/json' in accept.lower():
         payload = {'ok': True}
         try:
-            if new_todo is not None:
+            # create_todo may return a serialized dict or an object; handle both
+            if isinstance(new_todo, dict):
+                payload.update({k: new_todo.get(k) for k in ('id', 'text', 'list_id')})
+            elif new_todo is not None:
                 payload.update({'id': getattr(new_todo, 'id', None), 'text': getattr(new_todo, 'text', None), 'list_id': getattr(new_todo, 'list_id', None)})
         except Exception:
             pass
@@ -6513,8 +6510,8 @@ async def html_restore_trash(request: Request, todo_id: int, current_user: User 
         tm = q.first()
         if not tm:
             # nothing to restore, redirect back
-            ref = request.headers.get('Referer', '/html_no_js/trash')
-            return _redirect_or_json(request, ref)
+                ref = request.headers.get('Referer', '/html_no_js/trash')
+                return _redirect_or_json(request, ref)
         original = tm.original_list_id
         if original is None:
             # if original missing, leave in place
@@ -6586,6 +6583,9 @@ async def html_restore_list_trash(request: Request, list_id: int):
             pass
         await sess.commit()
         # redirect to restored list page
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse({'ok': True, 'restored': list_id})
     return _redirect_or_json(request, f'/html_no_js/lists/{lst.id}')
 
 
@@ -6658,6 +6658,9 @@ async def html_permanent_delete_list_trash(request: Request, list_id: int):
             await sess.exec(sqlalchemy_delete(Todo).where(Todo.id.in_(todo_ids)))
             await sess.commit()
     ref = request.headers.get('Referer', '/html_no_js/trash')
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse({'ok': True, 'deleted': list_id})
     return _redirect_or_json(request, ref)
 
 # Diagnostic: list registered routes that include 'trash' for debugging tests

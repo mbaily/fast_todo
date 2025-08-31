@@ -605,11 +605,7 @@
       fetch('/html_no_js/lists/' + encodeURIComponent(id) + '/edit', { method: 'POST', body: fd, credentials: 'same-origin' })
         .then(function(res){ if (!res.ok) throw new Error('Rename failed'); return res.json().catch(function(){ return null; }); })
         .then(function(){
-          try{
-            var els = Array.from(document.querySelectorAll('.list-title'));
-            els.forEach(function(a){ try { var href = a.getAttribute('href') || ''; if (href.indexOf('/html_no_js/lists/' + String(id)) !== -1) a.textContent = name; } catch(e){} });
-            var editBtn = document.querySelector('.edit-list-btn[data-list-id="' + id + '"]'); if (editBtn) editBtn.setAttribute('data-list-name', name);
-          }catch(e){}
+          try{ if (window.__ft_onListRenamed) window.__ft_onListRenamed(id, name); } catch(e){}
         })
         .catch(function(){ alert('Rename failed'); });
     });
