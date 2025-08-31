@@ -1,0 +1,556 @@
+2025-08-31 12:05:06,314 INFO:app.ssh_repl: SSH REPL: debug logger initialized
+2025-08-31 12:05:06,315 INFO:app.ssh_repl: SSH REPL: using existing host key at ./ssh_repl_host_key
+2025-08-31 12:05:11,462 INFO:app.ssh_repl: SSH REPL: debug logger initialized
+2025-08-31 12:05:11,464 INFO:app.ssh_repl: SSH REPL: using existing host key at ./ssh_repl_host_key
+2025-08-31 12:08:39,440 INFO:app.ssh_repl: SSH REPL: debug logger initialized
+2025-08-31 12:08:39,441 INFO:app.ssh_repl: SSH REPL: using existing host key at ./ssh_repl_host_key
+2025-08-31 12:08:41,420 INFO:app.ssh_repl: SSH REPL: connection made from ('127.0.0.1', 60734)
+2025-08-31 12:08:41,519 INFO:app.ssh_repl: SSH REPL: begin_auth for username=mbaily
+2025-08-31 12:10:32,536 INFO:app.ssh_repl: SSH REPL: connection made from ('127.0.0.1', 55942)
+2025-08-31 12:10:32,634 INFO:app.ssh_repl: SSH REPL: begin_auth for username=mbaily
+2025-08-31 12:11:13,200 INFO:app.ssh_repl: SSH REPL: debug logger initialized
+2025-08-31 12:11:13,201 INFO:app.ssh_repl: SSH REPL: using existing host key at ./ssh_repl_host_key
+2025-08-31 12:11:18,154 INFO:app.ssh_repl: SSH REPL: debug logger initialized
+2025-08-31 12:11:18,155 INFO:app.ssh_repl: SSH REPL: using existing host key at ./ssh_repl_host_key
+2025-08-31 12:11:43,263 INFO:app.ssh_repl: SSH REPL: debug logger initialized
+2025-08-31 12:11:43,264 INFO:app.ssh_repl: SSH REPL: using existing host key at ./ssh_repl_host_key
+2025-08-31 12:12:30,959 INFO:app.ssh_repl: SSH REPL: debug logger initialized
+2025-08-31 12:12:30,960 INFO:app.ssh_repl: SSH REPL: using existing host key at ./ssh_repl_host_key
+2025-08-31 12:12:47,210 INFO:app.ssh_repl: SSH REPL: debug logger initialized
+2025-08-31 12:12:47,211 INFO:app.ssh_repl: SSH REPL: using existing host key at ./ssh_repl_host_key
+2025-08-31 12:12:56,046 INFO:app.ssh_repl: SSH REPL: connection made from ('127.0.0.1', 33730)
+2025-08-31 12:12:56,138 INFO:app.ssh_repl: SSH REPL: begin_auth for username=mbaily
+2025-08-31 12:12:56,138 INFO:app.ssh_repl: SSH REPL: public_key_auth_supported called
+2025-08-31 12:12:56,138 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:12:56,138 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:13:04,661 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:13:04,662 INFO:app.ssh_repl: SSH REPL: validate_password for username=mbaily
+2025-08-31 12:13:04,673 INFO:app.ssh_repl: SSH REPL: password auth OK for username=mbaily
+2025-08-31 12:13:04,675 INFO:app.ssh_repl: SSH REPL: session started for username=mbaily from ('127.0.0.1', 33730)
+2025-08-31 12:13:09,247 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=ls()
+2025-08-31 12:13:11,537 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=
+2025-08-31 12:13:11,697 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=
+2025-08-31 12:13:13,508 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=extewg
+2025-08-31 12:13:13,512 ERROR:app.ssh_repl: SSH REPL: error running code for username=mbaily
+Traceback (most recent call last):
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/ssh_repl.py", line 158, in _run_cmd
+    out, val = await asyncio.get_running_loop().run_in_executor(None, run_code_for_user, user, code)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/concurrent/futures/thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/repl_api.py", line 615, in run_code_for_user
+    last_val = eval(compiled, env_globals, env_locals)
+  File "<repl>", line 1, in <module>
+NameError: name 'extewg' is not defined
+2025-08-31 12:13:14,777 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=
+2025-08-31 12:13:15,506 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=exit()
+2025-08-31 12:13:15,509 ERROR:app.ssh_repl: SSH REPL: error running code for username=mbaily
+Traceback (most recent call last):
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/ssh_repl.py", line 158, in _run_cmd
+    out, val = await asyncio.get_running_loop().run_in_executor(None, run_code_for_user, user, code)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/concurrent/futures/thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/repl_api.py", line 615, in run_code_for_user
+    last_val = eval(compiled, env_globals, env_locals)
+  File "<repl>", line 1, in <module>
+NameError: name 'exit' is not defined
+2025-08-31 12:13:17,089 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=exit()
+2025-08-31 12:13:17,093 ERROR:app.ssh_repl: SSH REPL: error running code for username=mbaily
+Traceback (most recent call last):
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/ssh_repl.py", line 158, in _run_cmd
+    out, val = await asyncio.get_running_loop().run_in_executor(None, run_code_for_user, user, code)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/concurrent/futures/thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/repl_api.py", line 615, in run_code_for_user
+    last_val = eval(compiled, env_globals, env_locals)
+  File "<repl>", line 1, in <module>
+NameError: name 'exit' is not defined
+2025-08-31 12:13:18,649 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=elp()
+2025-08-31 12:13:18,652 ERROR:app.ssh_repl: SSH REPL: error running code for username=mbaily
+Traceback (most recent call last):
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/ssh_repl.py", line 158, in _run_cmd
+    out, val = await asyncio.get_running_loop().run_in_executor(None, run_code_for_user, user, code)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/concurrent/futures/thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/repl_api.py", line 615, in run_code_for_user
+    last_val = eval(compiled, env_globals, env_locals)
+  File "<repl>", line 1, in <module>
+NameError: name 'elp' is not defined. Did you mean: 'help'?
+2025-08-31 12:13:20,117 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=help()
+2025-08-31 12:13:40,353 INFO:app.ssh_repl: SSH REPL: connection made from ('127.0.0.1', 35552)
+2025-08-31 12:13:40,446 INFO:app.ssh_repl: SSH REPL: begin_auth for username=mbaily
+2025-08-31 12:13:40,447 INFO:app.ssh_repl: SSH REPL: public_key_auth_supported called
+2025-08-31 12:13:40,447 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:13:40,447 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:13:40,450 INFO:app.ssh_repl: SSH REPL: public_key_auth_supported called
+2025-08-31 12:13:40,450 INFO:app.ssh_repl: SSH REPL: validate_public_key for username=mbaily fingerprint=SHA256:JrT+qFclAWt7vTsaKYDRzZBllHWxTVkoy3qqCMWvIc8
+2025-08-31 12:13:40,455 INFO:app.ssh_repl: SSH REPL: public key auth FAIL for username=mbaily fingerprint=SHA256:JrT+qFclAWt7vTsaKYDRzZBllHWxTVkoy3qqCMWvIc8
+2025-08-31 12:13:40,455 INFO:app.ssh_repl: SSH REPL: public_key_auth_supported called
+2025-08-31 12:13:40,455 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:13:40,455 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:13:40,455 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:13:42,436 INFO:app.ssh_repl: SSH REPL: validate_password for username=mbaily
+2025-08-31 12:13:42,446 INFO:app.ssh_repl: SSH REPL: password auth OK for username=mbaily
+2025-08-31 12:13:42,447 INFO:app.ssh_repl: SSH REPL: session started for username=mbaily from ('127.0.0.1', 35552)
+2025-08-31 12:13:44,653 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=
+2025-08-31 12:13:45,516 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=
+2025-08-31 12:13:46,890 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=elp()
+2025-08-31 12:13:46,894 ERROR:app.ssh_repl: SSH REPL: error running code for username=mbaily
+Traceback (most recent call last):
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/ssh_repl.py", line 158, in _run_cmd
+    out, val = await asyncio.get_running_loop().run_in_executor(None, run_code_for_user, user, code)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/concurrent/futures/thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/repl_api.py", line 615, in run_code_for_user
+    last_val = eval(compiled, env_globals, env_locals)
+  File "<repl>", line 1, in <module>
+NameError: name 'elp' is not defined. Did you mean: 'help'?
+2025-08-31 12:13:48,088 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=help()
+2025-08-31 12:14:30,629 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=
+2025-08-31 12:14:30,813 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=
+2025-08-31 12:15:40,567 INFO:app.ssh_repl: SSH REPL: debug logger initialized
+2025-08-31 12:15:40,568 INFO:app.ssh_repl: SSH REPL: using existing host key at ./ssh_repl_host_key
+2025-08-31 12:15:41,068 INFO:app.ssh_repl: SSH REPL: connection made from ('127.0.0.1', 60952)
+2025-08-31 12:15:41,118 INFO:app.ssh_repl: SSH REPL: begin_auth for username=mbaily
+2025-08-31 12:15:41,119 INFO:app.ssh_repl: SSH REPL: public_key_auth_supported called
+2025-08-31 12:15:41,119 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:15:41,119 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:15:41,121 INFO:app.ssh_repl: SSH REPL: public_key_auth_supported called
+2025-08-31 12:15:41,122 INFO:app.ssh_repl: SSH REPL: validate_public_key for username=mbaily fingerprint=SHA256:JrT+qFclAWt7vTsaKYDRzZBllHWxTVkoy3qqCMWvIc8
+2025-08-31 12:15:41,127 INFO:app.ssh_repl: SSH REPL: public key auth FAIL for username=mbaily fingerprint=SHA256:JrT+qFclAWt7vTsaKYDRzZBllHWxTVkoy3qqCMWvIc8
+2025-08-31 12:15:41,127 INFO:app.ssh_repl: SSH REPL: public_key_auth_supported called
+2025-08-31 12:15:41,127 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:15:41,127 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:15:41,127 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:15:43,006 INFO:app.ssh_repl: SSH REPL: validate_password for username=mbaily
+2025-08-31 12:15:43,017 INFO:app.ssh_repl: SSH REPL: password auth OK for username=mbaily
+2025-08-31 12:15:43,018 INFO:app.ssh_repl: SSH REPL: session started for username=mbaily from ('127.0.0.1', 60952)
+2025-08-31 12:15:43,738 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=exit
+2025-08-31 12:15:44,706 INFO:app.ssh_repl: SSH REPL: connection made from ('127.0.0.1', 50428)
+2025-08-31 12:15:44,799 INFO:app.ssh_repl: SSH REPL: begin_auth for username=mbaily
+2025-08-31 12:15:44,799 INFO:app.ssh_repl: SSH REPL: public_key_auth_supported called
+2025-08-31 12:15:44,799 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:15:44,799 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:15:44,802 INFO:app.ssh_repl: SSH REPL: public_key_auth_supported called
+2025-08-31 12:15:44,802 INFO:app.ssh_repl: SSH REPL: validate_public_key for username=mbaily fingerprint=SHA256:JrT+qFclAWt7vTsaKYDRzZBllHWxTVkoy3qqCMWvIc8
+2025-08-31 12:15:44,804 INFO:app.ssh_repl: SSH REPL: public key auth FAIL for username=mbaily fingerprint=SHA256:JrT+qFclAWt7vTsaKYDRzZBllHWxTVkoy3qqCMWvIc8
+2025-08-31 12:15:44,804 INFO:app.ssh_repl: SSH REPL: public_key_auth_supported called
+2025-08-31 12:15:44,805 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:15:44,805 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:15:44,805 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:15:48,931 INFO:app.ssh_repl: SSH REPL: validate_password for username=mbaily
+2025-08-31 12:15:48,941 INFO:app.ssh_repl: SSH REPL: password auth OK for username=mbaily
+2025-08-31 12:15:48,942 INFO:app.ssh_repl: SSH REPL: session started for username=mbaily from ('127.0.0.1', 50428)
+2025-08-31 12:15:50,750 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=help()
+2025-08-31 12:15:57,793 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=exit()
+2025-08-31 12:15:57,797 ERROR:app.ssh_repl: SSH REPL: error running code for username=mbaily
+Traceback (most recent call last):
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/ssh_repl.py", line 158, in _run_cmd
+    out, val = await asyncio.get_running_loop().run_in_executor(None, run_code_for_user, user, code)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/concurrent/futures/thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/repl_api.py", line 615, in run_code_for_user
+    last_val = eval(compiled, env_globals, env_locals)
+  File "<repl>", line 1, in <module>
+NameError: name 'exit' is not defined
+2025-08-31 12:16:15,254 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=ls
+2025-08-31 12:16:16,521 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=ls()
+2025-08-31 12:17:16,794 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=help()
+2025-08-31 12:17:18,295 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=ls()
+2025-08-31 12:17:36,188 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=cd('dokuwiki-places')
+2025-08-31 12:17:37,858 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=ls()
+2025-08-31 12:17:46,129 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=ls("dokuwiki-places")
+2025-08-31 12:17:53,621 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=ls("/dokuwiki-places")
+2025-08-31 12:20:39,083 INFO:app.ssh_repl: SSH REPL: debug logger initialized
+2025-08-31 12:20:39,084 INFO:app.ssh_repl: SSH REPL: using existing host key at ./ssh_repl_host_key
+2025-08-31 12:20:44,021 INFO:app.ssh_repl: SSH REPL: debug logger initialized
+2025-08-31 12:20:44,023 INFO:app.ssh_repl: SSH REPL: using existing host key at ./ssh_repl_host_key
+2025-08-31 12:22:02,562 INFO:app.ssh_repl: SSH REPL: connection made from ('127.0.0.1', 45998)
+2025-08-31 12:22:02,655 INFO:app.ssh_repl: SSH REPL: begin_auth for username=mbaily
+2025-08-31 12:22:02,655 INFO:app.ssh_repl: SSH REPL: public_key_auth_supported called
+2025-08-31 12:22:02,655 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:22:02,655 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:22:02,658 INFO:app.ssh_repl: SSH REPL: public_key_auth_supported called
+2025-08-31 12:22:02,659 INFO:app.ssh_repl: SSH REPL: validate_public_key for username=mbaily fingerprint=SHA256:JrT+qFclAWt7vTsaKYDRzZBllHWxTVkoy3qqCMWvIc8
+2025-08-31 12:22:02,662 INFO:app.ssh_repl: SSH REPL: public key auth FAIL for username=mbaily fingerprint=SHA256:JrT+qFclAWt7vTsaKYDRzZBllHWxTVkoy3qqCMWvIc8
+2025-08-31 12:22:02,662 INFO:app.ssh_repl: SSH REPL: public_key_auth_supported called
+2025-08-31 12:22:02,662 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:22:02,662 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:22:02,663 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:22:04,334 INFO:app.ssh_repl: SSH REPL: validate_password for username=mbaily
+2025-08-31 12:22:04,345 INFO:app.ssh_repl: SSH REPL: password auth OK for username=mbaily
+2025-08-31 12:22:04,346 INFO:app.ssh_repl: SSH REPL: session started for username=mbaily from ('127.0.0.1', 45998)
+2025-08-31 12:22:05,121 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=ls()
+2025-08-31 12:22:10,541 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=pwd()
+2025-08-31 12:22:17,098 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=cd /dokuwiki-places
+2025-08-31 12:22:17,102 ERROR:app.ssh_repl: SSH REPL: error running code for username=mbaily
+Traceback (most recent call last):
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/ssh_repl.py", line 158, in _run_cmd
+    out, val = await asyncio.get_running_loop().run_in_executor(None, run_code_for_user, user, code)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/concurrent/futures/thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/repl_api.py", line 615, in run_code_for_user
+    last_val = eval(compiled, env_globals, env_locals)
+  File "<repl>", line 1, in <module>
+NameError: name 'dokuwiki' is not defined
+2025-08-31 12:22:20,911 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=cd(/dokuwiki-places)
+2025-08-31 12:22:20,915 ERROR:app.ssh_repl: SSH REPL: error running code for username=mbaily
+Traceback (most recent call last):
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/repl_api.py", line 614, in run_code_for_user
+    compiled = compile(code, "<repl>", "eval")
+  File "<repl>", line 1
+    cd(/dokuwiki-places)
+       ^
+SyntaxError: invalid syntax
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/ssh_repl.py", line 158, in _run_cmd
+    out, val = await asyncio.get_running_loop().run_in_executor(None, run_code_for_user, user, code)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/concurrent/futures/thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/repl_api.py", line 617, in run_code_for_user
+    compiled = compile(code, "<repl>", "exec")
+  File "<repl>", line 1
+    cd(/dokuwiki-places)
+       ^
+SyntaxError: invalid syntax
+2025-08-31 12:22:23,651 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=cd('/dokuwiki-places')
+2025-08-31 12:22:31,060 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=exit
+2025-08-31 12:22:31,709 INFO:app.ssh_repl: SSH REPL: connection made from ('127.0.0.1', 60904)
+2025-08-31 12:22:31,803 INFO:app.ssh_repl: SSH REPL: begin_auth for username=mbaily
+2025-08-31 12:22:31,803 INFO:app.ssh_repl: SSH REPL: public_key_auth_supported called
+2025-08-31 12:22:31,803 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:22:31,803 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:22:31,807 INFO:app.ssh_repl: SSH REPL: public_key_auth_supported called
+2025-08-31 12:22:31,807 INFO:app.ssh_repl: SSH REPL: validate_public_key for username=mbaily fingerprint=SHA256:JrT+qFclAWt7vTsaKYDRzZBllHWxTVkoy3qqCMWvIc8
+2025-08-31 12:22:31,810 INFO:app.ssh_repl: SSH REPL: public key auth FAIL for username=mbaily fingerprint=SHA256:JrT+qFclAWt7vTsaKYDRzZBllHWxTVkoy3qqCMWvIc8
+2025-08-31 12:22:31,810 INFO:app.ssh_repl: SSH REPL: public_key_auth_supported called
+2025-08-31 12:22:31,810 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:22:31,810 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:22:31,811 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:22:33,697 INFO:app.ssh_repl: SSH REPL: validate_password for username=mbaily
+2025-08-31 12:22:33,706 INFO:app.ssh_repl: SSH REPL: password auth OK for username=mbaily
+2025-08-31 12:22:33,707 INFO:app.ssh_repl: SSH REPL: session started for username=mbaily from ('127.0.0.1', 60904)
+2025-08-31 12:22:38,941 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=cd('/dokuwiki-places')
+2025-08-31 12:22:39,834 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=ls()
+2025-08-31 12:22:54,123 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=cd('/dokuwiki-places')
+2025-08-31 12:22:55,570 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=pwd()
+2025-08-31 12:23:59,321 INFO:app.ssh_repl: SSH REPL: debug logger initialized
+2025-08-31 12:23:59,322 INFO:app.ssh_repl: SSH REPL: using existing host key at ./ssh_repl_host_key
+2025-08-31 12:24:04,343 INFO:app.ssh_repl: SSH REPL: debug logger initialized
+2025-08-31 12:24:04,344 INFO:app.ssh_repl: SSH REPL: using existing host key at ./ssh_repl_host_key
+2025-08-31 12:24:08,053 INFO:app.ssh_repl: SSH REPL: debug logger initialized
+2025-08-31 12:24:08,054 INFO:app.ssh_repl: SSH REPL: using existing host key at ./ssh_repl_host_key
+2025-08-31 12:24:13,059 INFO:app.ssh_repl: SSH REPL: debug logger initialized
+2025-08-31 12:24:13,060 INFO:app.ssh_repl: SSH REPL: using existing host key at ./ssh_repl_host_key
+2025-08-31 12:24:31,147 INFO:app.ssh_repl: SSH REPL: debug logger initialized
+2025-08-31 12:24:31,148 INFO:app.ssh_repl: SSH REPL: using existing host key at ./ssh_repl_host_key
+2025-08-31 12:24:31,533 INFO:app.ssh_repl: SSH REPL: connection made from ('127.0.0.1', 51006)
+2025-08-31 12:24:31,630 INFO:app.ssh_repl: SSH REPL: begin_auth for username=mbaily
+2025-08-31 12:24:31,630 INFO:app.ssh_repl: SSH REPL: public_key_auth_supported called
+2025-08-31 12:24:31,630 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:24:31,631 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:24:31,633 INFO:app.ssh_repl: SSH REPL: public_key_auth_supported called
+2025-08-31 12:24:31,633 INFO:app.ssh_repl: SSH REPL: validate_public_key for username=mbaily fingerprint=SHA256:JrT+qFclAWt7vTsaKYDRzZBllHWxTVkoy3qqCMWvIc8
+2025-08-31 12:24:31,639 INFO:app.ssh_repl: SSH REPL: public key auth FAIL for username=mbaily fingerprint=SHA256:JrT+qFclAWt7vTsaKYDRzZBllHWxTVkoy3qqCMWvIc8
+2025-08-31 12:24:31,639 INFO:app.ssh_repl: SSH REPL: public_key_auth_supported called
+2025-08-31 12:24:31,639 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:24:31,639 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:24:31,640 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:24:33,148 INFO:app.ssh_repl: SSH REPL: validate_password for username=mbaily
+2025-08-31 12:24:33,159 INFO:app.ssh_repl: SSH REPL: password auth OK for username=mbaily
+2025-08-31 12:24:33,160 INFO:app.ssh_repl: SSH REPL: session started for username=mbaily from ('127.0.0.1', 51006)
+2025-08-31 12:24:34,331 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=ls()
+2025-08-31 12:24:39,716 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=cd('/dokuwiki-places')
+2025-08-31 12:24:40,853 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=ls()
+2025-08-31 12:24:44,446 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=help()
+2025-08-31 12:24:56,117 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=a=L('todo')
+2025-08-31 12:24:56,124 ERROR:app.ssh_repl: SSH REPL: error running code for username=mbaily
+Traceback (most recent call last):
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/repl_api.py", line 617, in run_code_for_user
+    compiled = compile(code, "<repl>", "eval")
+  File "<repl>", line 1
+    a=L('todo')
+     ^
+SyntaxError: invalid syntax
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/ssh_repl.py", line 173, in _run_cmd
+    out, val = await asyncio.get_running_loop().run_in_executor(None, run_code_for_user, user, code, self._repl)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/concurrent/futures/thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/repl_api.py", line 621, in run_code_for_user
+    exec(compiled, env_globals, env_locals)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<repl>", line 1, in <module>
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/repl_api.py", line 118, in L
+    raise ValueError(f"list not found for path: {path}")
+ValueError: list not found for path: /dokuwiki-places/todo
+2025-08-31 12:24:56,547 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=a
+2025-08-31 12:24:56,552 ERROR:app.ssh_repl: SSH REPL: error running code for username=mbaily
+Traceback (most recent call last):
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/ssh_repl.py", line 173, in _run_cmd
+    out, val = await asyncio.get_running_loop().run_in_executor(None, run_code_for_user, user, code, self._repl)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/concurrent/futures/thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/repl_api.py", line 618, in run_code_for_user
+    last_val = eval(compiled, env_globals, env_locals)
+  File "<repl>", line 1, in <module>
+NameError: name 'a' is not defined
+2025-08-31 12:25:06,481 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=a=L('Make a page regex possible')
+2025-08-31 12:25:06,489 ERROR:app.ssh_repl: SSH REPL: error running code for username=mbaily
+Traceback (most recent call last):
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/repl_api.py", line 617, in run_code_for_user
+    compiled = compile(code, "<repl>", "eval")
+  File "<repl>", line 1
+    a=L('Make a page regex possible')
+     ^
+SyntaxError: invalid syntax
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/ssh_repl.py", line 173, in _run_cmd
+    out, val = await asyncio.get_running_loop().run_in_executor(None, run_code_for_user, user, code, self._repl)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/concurrent/futures/thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/repl_api.py", line 621, in run_code_for_user
+    exec(compiled, env_globals, env_locals)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<repl>", line 1, in <module>
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/repl_api.py", line 118, in L
+    raise ValueError(f"list not found for path: {path}")
+ValueError: list not found for path: /dokuwiki-places/Make a page regex possible
+2025-08-31 12:25:11,414 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=a=T('Make a page regex possible')
+2025-08-31 12:25:11,418 ERROR:app.ssh_repl: SSH REPL: error running code for username=mbaily
+Traceback (most recent call last):
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/repl_api.py", line 617, in run_code_for_user
+    compiled = compile(code, "<repl>", "eval")
+  File "<repl>", line 1
+    a=T('Make a page regex possible')
+     ^
+SyntaxError: invalid syntax
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/ssh_repl.py", line 173, in _run_cmd
+    out, val = await asyncio.get_running_loop().run_in_executor(None, run_code_for_user, user, code, self._repl)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/concurrent/futures/thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/repl_api.py", line 621, in run_code_for_user
+    exec(compiled, env_globals, env_locals)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<repl>", line 1, in <module>
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/repl_api.py", line 138, in T
+    raise ValueError("invalid todo selector: use id or (list_path, text)")
+ValueError: invalid todo selector: use id or (list_path, text)
+2025-08-31 12:25:24,790 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=a=T('.', 'Make a page regex possible')
+2025-08-31 12:25:24,794 ERROR:app.ssh_repl: SSH REPL: error running code for username=mbaily
+Traceback (most recent call last):
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/repl_api.py", line 617, in run_code_for_user
+    compiled = compile(code, "<repl>", "eval")
+  File "<repl>", line 1
+    a=T('.', 'Make a page regex possible')
+     ^
+SyntaxError: invalid syntax
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/ssh_repl.py", line 173, in _run_cmd
+    out, val = await asyncio.get_running_loop().run_in_executor(None, run_code_for_user, user, code, self._repl)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/concurrent/futures/thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/repl_api.py", line 621, in run_code_for_user
+    exec(compiled, env_globals, env_locals)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<repl>", line 1, in <module>
+TypeError: Repl.T() takes 2 positional arguments but 3 were given
+2025-08-31 12:25:35,746 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=a=T(1)
+2025-08-31 12:25:38,578 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=a
+2025-08-31 12:25:38,582 ERROR:app.ssh_repl: SSH REPL: error running code for username=mbaily
+Traceback (most recent call last):
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/ssh_repl.py", line 173, in _run_cmd
+    out, val = await asyncio.get_running_loop().run_in_executor(None, run_code_for_user, user, code, self._repl)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/concurrent/futures/thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/repl_api.py", line 618, in run_code_for_user
+    last_val = eval(compiled, env_globals, env_locals)
+  File "<repl>", line 1, in <module>
+NameError: name 'a' is not defined
+2025-08-31 12:25:50,355 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=ls
+2025-08-31 12:25:52,328 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=ls()
+2025-08-31 12:25:53,756 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=help()
+2025-08-31 12:25:57,703 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=a
+2025-08-31 12:25:57,707 ERROR:app.ssh_repl: SSH REPL: error running code for username=mbaily
+Traceback (most recent call last):
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/ssh_repl.py", line 173, in _run_cmd
+    out, val = await asyncio.get_running_loop().run_in_executor(None, run_code_for_user, user, code, self._repl)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/concurrent/futures/thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/repl_api.py", line 618, in run_code_for_user
+    last_val = eval(compiled, env_globals, env_locals)
+  File "<repl>", line 1, in <module>
+NameError: name 'a' is not defined
+2025-08-31 12:26:04,497 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=pwd()
+2025-08-31 12:26:06,020 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=ls
+2025-08-31 12:26:09,763 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=
+2025-08-31 12:26:09,945 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=
+2025-08-31 12:26:10,228 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=
+2025-08-31 12:26:10,388 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=
+2025-08-31 12:26:10,530 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=
+2025-08-31 12:26:11,149 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=pwd()
+2025-08-31 12:26:11,746 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=ls()
+2025-08-31 12:26:18,572 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=T(1)
+2025-08-31 12:26:24,527 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=a = T(1)
+2025-08-31 12:26:25,153 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=a
+2025-08-31 12:26:25,157 ERROR:app.ssh_repl: SSH REPL: error running code for username=mbaily
+Traceback (most recent call last):
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/ssh_repl.py", line 173, in _run_cmd
+    out, val = await asyncio.get_running_loop().run_in_executor(None, run_code_for_user, user, code, self._repl)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/concurrent/futures/thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/repl_api.py", line 618, in run_code_for_user
+    last_val = eval(compiled, env_globals, env_locals)
+  File "<repl>", line 1, in <module>
+NameError: name 'a' is not defined
+2025-08-31 12:27:29,115 INFO:app.ssh_repl: SSH REPL: debug logger initialized
+2025-08-31 12:27:29,116 INFO:app.ssh_repl: SSH REPL: using existing host key at ./ssh_repl_host_key
+2025-08-31 12:27:34,164 INFO:app.ssh_repl: SSH REPL: debug logger initialized
+2025-08-31 12:27:34,165 INFO:app.ssh_repl: SSH REPL: using existing host key at ./ssh_repl_host_key
+2025-08-31 12:27:36,066 INFO:app.ssh_repl: SSH REPL: debug logger initialized
+2025-08-31 12:27:41,108 INFO:app.ssh_repl: SSH REPL: debug logger initialized
+2025-08-31 12:27:44,207 INFO:app.ssh_repl: SSH REPL: debug logger initialized
+2025-08-31 12:27:49,331 INFO:app.ssh_repl: SSH REPL: debug logger initialized
+2025-08-31 12:28:01,150 INFO:app.ssh_repl: SSH REPL: debug logger initialized
+2025-08-31 12:28:01,152 INFO:app.ssh_repl: SSH REPL: using existing host key at ./ssh_repl_host_key
+2025-08-31 12:28:06,168 INFO:app.ssh_repl: SSH REPL: debug logger initialized
+2025-08-31 12:28:06,169 INFO:app.ssh_repl: SSH REPL: using existing host key at ./ssh_repl_host_key
+2025-08-31 12:28:31,040 INFO:app.ssh_repl: SSH REPL: connection made from ('127.0.0.1', 60434)
+2025-08-31 12:28:31,130 INFO:app.ssh_repl: SSH REPL: begin_auth for username=mbaily
+2025-08-31 12:28:31,130 INFO:app.ssh_repl: SSH REPL: public_key_auth_supported called
+2025-08-31 12:28:31,130 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:28:31,130 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:28:31,133 INFO:app.ssh_repl: SSH REPL: public_key_auth_supported called
+2025-08-31 12:28:31,134 INFO:app.ssh_repl: SSH REPL: validate_public_key for username=mbaily fingerprint=SHA256:JrT+qFclAWt7vTsaKYDRzZBllHWxTVkoy3qqCMWvIc8
+2025-08-31 12:28:31,139 INFO:app.ssh_repl: SSH REPL: public key auth FAIL for username=mbaily fingerprint=SHA256:JrT+qFclAWt7vTsaKYDRzZBllHWxTVkoy3qqCMWvIc8
+2025-08-31 12:28:31,139 INFO:app.ssh_repl: SSH REPL: public_key_auth_supported called
+2025-08-31 12:28:31,139 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:28:31,139 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:28:31,139 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:28:38,588 INFO:app.ssh_repl: SSH REPL: debug logger initialized
+2025-08-31 12:28:38,589 INFO:app.ssh_repl: SSH REPL: using existing host key at ./ssh_repl_host_key
+2025-08-31 12:28:39,342 INFO:app.ssh_repl: SSH REPL: connection made from ('127.0.0.1', 43984)
+2025-08-31 12:28:39,439 INFO:app.ssh_repl: SSH REPL: begin_auth for username=mbaily
+2025-08-31 12:28:39,439 INFO:app.ssh_repl: SSH REPL: public_key_auth_supported called
+2025-08-31 12:28:39,439 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:28:39,439 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:28:39,442 INFO:app.ssh_repl: SSH REPL: public_key_auth_supported called
+2025-08-31 12:28:39,442 INFO:app.ssh_repl: SSH REPL: validate_public_key for username=mbaily fingerprint=SHA256:JrT+qFclAWt7vTsaKYDRzZBllHWxTVkoy3qqCMWvIc8
+2025-08-31 12:28:39,448 INFO:app.ssh_repl: SSH REPL: public key auth FAIL for username=mbaily fingerprint=SHA256:JrT+qFclAWt7vTsaKYDRzZBllHWxTVkoy3qqCMWvIc8
+2025-08-31 12:28:39,448 INFO:app.ssh_repl: SSH REPL: public_key_auth_supported called
+2025-08-31 12:28:39,448 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:28:39,449 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:28:39,449 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:28:40,659 INFO:app.ssh_repl: SSH REPL: validate_password for username=mbaily
+2025-08-31 12:28:40,671 INFO:app.ssh_repl: SSH REPL: password auth OK for username=mbaily
+2025-08-31 12:28:40,672 INFO:app.ssh_repl: SSH REPL: session started for username=mbaily from ('127.0.0.1', 43984)
+2025-08-31 12:28:42,291 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=ls()
+2025-08-31 12:28:48,106 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=cd('test3')
+2025-08-31 12:28:48,972 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=ls()
+2025-08-31 12:28:56,197 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=cd('..')
+2025-08-31 12:28:56,205 ERROR:app.ssh_repl: SSH REPL: error running code for username=mbaily
+Traceback (most recent call last):
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/ssh_repl.py", line 175, in _run_cmd
+    out, val = await asyncio.get_running_loop().run_in_executor(None, run_code_for_user, user, code, self._repl, self._locals)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/concurrent/futures/thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/repl_api.py", line 621, in run_code_for_user
+    last_val = eval(compiled, env_globals, env_locals)
+  File "<repl>", line 1, in <module>
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/repl_api.py", line 163, in cd
+    self.cwd = self.L(target)
+               ~~~~~~^^^^^^^^
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/repl_api.py", line 118, in L
+    raise ValueError(f"list not found for path: {path}")
+ValueError: list not found for path: /test3/..
+2025-08-31 12:29:02,653 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=cd('/')
+2025-08-31 12:29:02,656 ERROR:app.ssh_repl: SSH REPL: error running code for username=mbaily
+Traceback (most recent call last):
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/ssh_repl.py", line 175, in _run_cmd
+    out, val = await asyncio.get_running_loop().run_in_executor(None, run_code_for_user, user, code, self._repl, self._locals)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/concurrent/futures/thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/repl_api.py", line 621, in run_code_for_user
+    last_val = eval(compiled, env_globals, env_locals)
+  File "<repl>", line 1, in <module>
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/repl_api.py", line 163, in cd
+    self.cwd = self.L(target)
+               ~~~~~~^^^^^^^^
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/repl_api.py", line 118, in L
+    raise ValueError(f"list not found for path: {path}")
+ValueError: list not found for path: /
+2025-08-31 12:29:04,633 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=ls()
+2025-08-31 12:29:12,387 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=
+2025-08-31 12:29:12,604 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=
+2025-08-31 12:29:12,741 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=
+2025-08-31 12:29:13,319 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=
+2025-08-31 12:29:41,758 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=
+2025-08-31 12:29:42,691 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=
+2025-08-31 12:33:10,296 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=ls()
+2025-08-31 12:33:12,651 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=exit
+2025-08-31 12:33:13,180 INFO:app.ssh_repl: SSH REPL: connection made from ('127.0.0.1', 35926)
+2025-08-31 12:33:13,274 INFO:app.ssh_repl: SSH REPL: begin_auth for username=mbaily
+2025-08-31 12:33:13,275 INFO:app.ssh_repl: SSH REPL: public_key_auth_supported called
+2025-08-31 12:33:13,275 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:33:13,275 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:33:13,278 INFO:app.ssh_repl: SSH REPL: public_key_auth_supported called
+2025-08-31 12:33:13,278 INFO:app.ssh_repl: SSH REPL: validate_public_key for username=mbaily fingerprint=SHA256:JrT+qFclAWt7vTsaKYDRzZBllHWxTVkoy3qqCMWvIc8
+2025-08-31 12:33:13,281 INFO:app.ssh_repl: SSH REPL: public key auth FAIL for username=mbaily fingerprint=SHA256:JrT+qFclAWt7vTsaKYDRzZBllHWxTVkoy3qqCMWvIc8
+2025-08-31 12:33:13,281 INFO:app.ssh_repl: SSH REPL: public_key_auth_supported called
+2025-08-31 12:33:13,281 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:33:13,281 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:33:13,281 INFO:app.ssh_repl: SSH REPL: password_auth_supported called
+2025-08-31 12:33:15,887 INFO:app.ssh_repl: SSH REPL: validate_password for username=mbaily
+2025-08-31 12:33:15,896 INFO:app.ssh_repl: SSH REPL: password auth OK for username=mbaily
+2025-08-31 12:33:15,897 INFO:app.ssh_repl: SSH REPL: session started for username=mbaily from ('127.0.0.1', 35926)
+2025-08-31 12:33:16,551 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=ls()
+2025-08-31 12:33:22,341 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=cd('test55')
+2025-08-31 12:33:23,240 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=ls()
+2025-08-31 12:39:02,958 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=exit()
+2025-08-31 12:39:02,962 ERROR:app.ssh_repl: SSH REPL: error running code for username=mbaily
+Traceback (most recent call last):
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/ssh_repl.py", line 175, in _run_cmd
+    out, val = await asyncio.get_running_loop().run_in_executor(None, run_code_for_user, user, code, self._repl, self._locals)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/concurrent/futures/thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/home/mbaily/other_git/gpt5_fast_todo/app/repl_api.py", line 621, in run_code_for_user
+    last_val = eval(compiled, env_globals, env_locals)
+  File "<repl>", line 1, in <module>
+NameError: name 'exit' is not defined
+2025-08-31 12:39:04,310 INFO:app.ssh_repl: SSH REPL: cmd username=mbaily text=exit
+2025-08-31 12:39:09,701 INFO:app.ssh_repl: SSH REPL: debug logger initialized
+2025-08-31 12:39:09,703 INFO:app.ssh_repl: SSH REPL: using existing host key at ./ssh_repl_host_key

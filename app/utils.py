@@ -32,6 +32,23 @@ NUMBER_WORDS = {
     'zero','one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve'
 }
 
+# Generic single-token anchors that should not by themselves or as part of a
+# matched span produce a date (e.g. 'today', 'now', 'tonight'). Treat any
+# matched span that contains one of these tokens as non-date to avoid
+# spurious detections like '25th today'.
+GENERIC_ANCHOR_BLACKLIST = {'now', 'today', 'tonight', 'tonite', 'this', 'next'}
+
+
+def _contains_generic_anchor(s: str) -> bool:
+    """Return True if any generic anchor token appears as a word in s."""
+    if not s:
+        return False
+    sl = s.lower()
+    for w in GENERIC_ANCHOR_BLACKLIST:
+        if re.search(r"\b" + re.escape(w) + r"\b", sl):
+            return True
+    return False
+
 
 def now_utc() -> datetime:
     """Return timezone-aware current UTC datetime."""
@@ -482,14 +499,13 @@ def extract_dates(text: str | None) -> list[datetime]:
         except Exception:
             # If fallback fails, ignore and return whatever we have
             pass
-        # Filter out generic single-token anchors like 'now'/'today' which can
-        # appear in freeform notes and produce spurious dates. Reuse the same
-        # conservative blacklist as extract_dates_meta.
-        GENERIC_ANCHOR_BLACKLIST = {'now', 'today', 'tonight', 'tonite', 'this', 'next'}
+        # Use conservative filtering: skip any matched span that contains a
+        # generic anchor token (e.g. 'today') or is a single ambiguous
+        # number-word. This prevents spans like '25th today' from producing
+        # spurious parsed datetimes.
         if results:
             for match, dt in results:
-                mtok = match.strip().lower()
-                if mtok in GENERIC_ANCHOR_BLACKLIST or (len(mtok.split()) == 1 and mtok in NUMBER_WORDS):
+                if _contains_generic_anchor(match) or (len(match.strip().split()) == 1 and match.strip().lower() in NUMBER_WORDS):
                     continue
                 if dt.tzinfo is None:
                     dt = dt.replace(tzinfo=timezone.utc)
@@ -661,10 +677,10 @@ def extract_dates_meta(text: str | None) -> list[dict]:
         GENERIC_ANCHOR_BLACKLIST = {'now', 'today', 'tonight', 'tonite', 'this', 'next'}
 
         for match_text, dt in results:
-            # If the matched substring is a short generic anchor, skip it.
-            mtok = match_text.strip().lower()
-            if mtok in GENERIC_ANCHOR_BLACKLIST or (len(mtok.split()) == 1 and mtok in NUMBER_WORDS):
-                # ignore this match as it's likely not an intentional date anchor
+            # If the matched substring contains a generic anchor token (e.g.
+            # 'today') or is a single ambiguous number-word, skip it. This
+            # prevents spans like '25th today' from producing a date.
+            if _contains_generic_anchor(match_text) or (len(match_text.strip().split()) == 1 and match_text.strip().lower() in NUMBER_WORDS):
                 continue
             # Detect explicit 4-digit year token in the matched substring
             year_present = bool(re.search(r"\b\d{4}\b", match_text))
@@ -1093,6 +1109,12 @@ def parse_date_and_recurrence(text: str) -> tuple[datetime | None, dict | None]:
 
         # take first match
         matched_text, dt = results[0]
+
+        # If the matched_text contains a generic anchor token (e.g. 'today' or
+        # 'now'), treat it as non-match to avoid interpreting casual words
+        # (and mixed spans like '25th today') as explicit date anchors.
+        if _contains_generic_anchor(matched_text):
+            return None, None
 
         # find its position in the original text to extract following phrase
         idx = text.lower().find(matched_text.lower())

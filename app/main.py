@@ -34,6 +34,7 @@ from .utils import parse_text_to_rrule, recurrence_dict_to_rrule_string, recurre
 from .models import Session
 import logging
 from . import config
+from .repl_api import run_code_for_user
 
 import sys
 
@@ -433,6 +434,52 @@ async def lifespan(app: FastAPI):
                 logger.exception('tombstone prune worker encountered an error')
 
     prune_task = asyncio.create_task(_prune_tombstones_worker(PRUNE_INTERVAL_SECONDS, TOMBSTONE_TTL_DAYS))
+    # Optionally start SSH REPL server (before yield so it's available during app lifetime)
+    ssh_server = None
+    try:
+        _enable_ssh = os.getenv('SSH_REPL_ENABLE', '0').lower() in ('1','true','yes')
+    except Exception:
+        _enable_ssh = False
+    if _enable_ssh:
+        try:
+            bind = os.getenv('SSH_REPL_BIND','0.0.0.0')
+            port = int(os.getenv('SSH_REPL_PORT','2222'))
+            hk = os.getenv('SSH_REPL_HOST_KEY_PATH','./ssh_repl_host_key')
+            logger.info('SSH REPL: enabled by env; attempting to start (bind=%s port=%s host_key=%s)', bind, port, hk)
+            # quick port availability check to avoid conflicting binds (race is possible but rare)
+            import socket as _socket
+            def _port_free(host: str, port_num: int) -> bool:
+                s = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+                try:
+                    s.setsockopt(_socket.SOL_SOCKET, _socket.SO_REUSEADDR, 1)
+                    s.bind((host, port_num))
+                    s.close()
+                    return True
+                except Exception:
+                    try:
+                        s.close()
+                    except Exception:
+                        pass
+                    return False
+
+            if not _port_free(bind, port):
+                logger.warning('SSH REPL: port %s:%d already in use; will not start embedded SSH server', bind, port)
+            else:
+                from .ssh_repl import start_server as _start_ssh
+                try:
+                    ssh_server = await _start_ssh()
+                    logger.info('SSH REPL: started (bind=%s port=%s)', bind, port)
+                except OSError as _e:
+                    # Common case: address already in use if another process bound the port between our check and bind
+                    logger.warning('SSH REPL: failed to start (bind error): %s', _e)
+                    ssh_server = None
+                except Exception:
+                    logger.exception('SSH REPL: failed to start')
+                    ssh_server = None
+        except Exception:
+            logger.exception('SSH REPL: unexpected error during startup attempt')
+    else:
+        logger.info('SSH REPL: disabled (set SSH_REPL_ENABLE=1 to enable)')
     try:
         yield
     finally:
@@ -448,6 +495,15 @@ async def lifespan(app: FastAPI):
             await prune_task
         except Exception:
             pass
+        # Stop SSH REPL server on shutdown
+        try:
+            if ssh_server is not None:
+                logger.info('SSH REPL: stopping')
+                ssh_server.close()
+                await ssh_server.wait_closed()
+                logger.info('SSH REPL: stopped')
+        except Exception:
+            logger.exception('SSH REPL: error while stopping')
 
 
 app = FastAPI(lifespan=lifespan)
@@ -587,6 +643,202 @@ async def timing_middleware(request: Request, call_next):
     except Exception:
         logger.info('timing %s %s %.1fms', request.method, request.url.path, duration_ms)
     return resp
+
+
+# ---------------- REPL (no-JS) -----------------
+@app.get('/html_no_js/repl', response_class=HTMLResponse)
+async def html_repl_page(request: Request, current_user: User = Depends(require_login)):
+    # require login; show a simple textarea, submit button, and output area
+    client_tz = await get_session_timezone(request)
+    # issue/refresh csrf cookie for convenience
+    try:
+        from .auth import create_csrf_token
+        csrf = create_csrf_token(current_user.username)
+    except Exception:
+        csrf = None
+    # determine if this user may manage SSH REPL keys
+    allow_all = os.getenv('ALLOW_SSH_KEYS_FOR_ALL', '0').lower() in ('1', 'true', 'yes')
+    ssh_enabled = bool(current_user.is_admin or allow_all)
+    # load current user's SSH REPL keys
+    from .models import SshPublicKey
+    keys: list[dict] = []
+    try:
+        async with async_session() as sess:
+            res = await sess.exec(select(SshPublicKey).where(SshPublicKey.user_id == current_user.id).order_by(SshPublicKey.created_at.desc()))
+            rows = res.all()
+            for r in rows:
+                keys.append({"id": r.id, "comment": r.comment, "public_key": r.public_key, "enabled": r.enabled, "created_at": r.created_at})
+    except Exception:
+        keys = []
+    return TEMPLATES.TemplateResponse(request, 'repl.html', {
+        "request": request,
+        "client_tz": client_tz,
+        "csrf_token": csrf,
+        "ssh_enabled": ssh_enabled,
+        "ssh_keys": keys,
+    })
+
+
+@app.post('/html_no_js/repl/exec', response_class=HTMLResponse)
+async def html_repl_exec(request: Request, code: str = Form(...), current_user: User = Depends(require_login)):
+    # CSRF check
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    # Run user code in a background thread to avoid blocking the event loop
+    loop = asyncio.get_event_loop()
+    out: str = ''
+    val: Any = None
+    # prepare a fresh csrf for the returned page so the next submit is valid
+    from .auth import create_csrf_token
+    next_csrf = create_csrf_token(current_user.username)
+    try:
+        out, val = await loop.run_in_executor(None, run_code_for_user, current_user, code)
+        # present last value as text
+        if val is None:
+            result = ''
+        elif isinstance(val, str):
+            result = val
+        else:
+            try:
+                result = json.dumps(val, default=str, indent=2)
+            except Exception:
+                result = str(val)
+    except Exception as e:
+        out = ''
+        result = f"Error: {e}"
+    client_tz = await get_session_timezone(request)
+    # reload user's keys after action
+    from .models import SshPublicKey
+    keys: list[dict] = []
+    try:
+        async with async_session() as sess:
+            res = await sess.exec(select(SshPublicKey).where(SshPublicKey.user_id == current_user.id).order_by(SshPublicKey.created_at.desc()))
+            rows = res.all()
+            for r in rows:
+                keys.append({"id": r.id, "comment": r.comment, "public_key": r.public_key, "enabled": r.enabled, "created_at": r.created_at})
+    except Exception:
+        keys = []
+    return TEMPLATES.TemplateResponse(request, 'repl.html', {
+        "request": request,
+        "client_tz": client_tz,
+        "output": out,
+        "result": result,
+        "code": code,
+        "csrf_token": next_csrf,
+        "ssh_enabled": bool(current_user.is_admin or os.getenv('ALLOW_SSH_KEYS_FOR_ALL', '0').lower() in ('1','true','yes')),
+        "ssh_keys": keys,
+    })
+
+
+@app.post('/html_no_js/repl/ssh_keys', response_class=HTMLResponse)
+async def html_repl_ssh_keys(request: Request, pubkeys: str = Form(...), current_user: User = Depends(require_login)):
+    # CSRF
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token, create_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    allow_all = os.getenv('ALLOW_SSH_KEYS_FOR_ALL', '0').lower() in ('1', 'true', 'yes')
+    if not (current_user.is_admin or allow_all):
+        raise HTTPException(status_code=403, detail='forbidden')
+    # Parse and validate keys
+    lines = [ln.strip() for ln in (pubkeys or '').splitlines()]
+    key_re = re.compile(r'^(ssh-(rsa|ed25519)|ecdsa-sha2-[^ ]+|sk-ssh-[^ ]+) [A-Za-z0-9+/=]+( .*)?$')
+    candidates = [ln for ln in lines if ln and key_re.match(ln)]
+    added = 0
+    skipped = 0
+    from .models import SshPublicKey
+    try:
+        async with async_session() as sess:
+            for k in candidates:
+                # skip duplicates for this user
+                exists = await sess.exec(select(SshPublicKey).where(SshPublicKey.user_id == current_user.id, SshPublicKey.public_key == k))
+                if exists.first():
+                    skipped += 1
+                    continue
+                comment = None
+                parts = k.split(' ', 2)
+                if len(parts) == 3:
+                    comment = parts[2]
+                row = SshPublicKey(user_id=current_user.id, public_key=k, comment=comment)
+                sess.add(row)
+                added += 1
+            await sess.commit()
+        msg = f"Saved {added} key(s)" + (f", skipped {skipped}" if skipped else '')
+    except Exception as e:
+        msg = f"Error saving keys: {e}"
+    # Prepare response context
+    client_tz = await get_session_timezone(request)
+    next_csrf = create_csrf_token(current_user.username)
+    # reload user's keys
+    keys: list[dict] = []
+    try:
+        async with async_session() as sess:
+            res = await sess.exec(select(SshPublicKey).where(SshPublicKey.user_id == current_user.id).order_by(SshPublicKey.created_at.desc()))
+            rows = res.all()
+            for r in rows:
+                keys.append({"id": r.id, "comment": r.comment, "public_key": r.public_key, "enabled": r.enabled, "created_at": r.created_at})
+    except Exception:
+        keys = []
+    return TEMPLATES.TemplateResponse(request, 'repl.html', {
+        "request": request,
+        "client_tz": client_tz,
+        "csrf_token": next_csrf,
+        "ssh_enabled": bool(current_user.is_admin or allow_all),
+        "ssh_message": msg,
+        "ssh_keys": keys,
+    })
+
+
+@app.post('/html_no_js/repl/ssh_keys/delete', response_class=HTMLResponse)
+async def html_repl_ssh_keys_delete(request: Request, key_id: int = Form(...), current_user: User = Depends(require_login)):
+    # CSRF
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token, create_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    allow_all = os.getenv('ALLOW_SSH_KEYS_FOR_ALL', '0').lower() in ('1', 'true', 'yes')
+    if not (current_user.is_admin or allow_all):
+        raise HTTPException(status_code=403, detail='forbidden')
+    from .models import SshPublicKey
+    # delete if owned by user
+    deleted = False
+    try:
+        async with async_session() as sess:
+            res = await sess.exec(select(SshPublicKey).where(SshPublicKey.id == key_id))
+            row = res.first()
+            if row and row.user_id == current_user.id:
+                await sess.delete(row)
+                await sess.commit()
+                deleted = True
+    except Exception:
+        deleted = False
+    msg = "Deleted key" if deleted else "Key not found or not yours"
+    # Prepare response context
+    client_tz = await get_session_timezone(request)
+    next_csrf = create_csrf_token(current_user.username)
+    # reload user's keys
+    keys: list[dict] = []
+    try:
+        async with async_session() as sess:
+            res = await sess.exec(select(SshPublicKey).where(SshPublicKey.user_id == current_user.id).order_by(SshPublicKey.created_at.desc()))
+            rows = res.all()
+            for r in rows:
+                keys.append({"id": r.id, "comment": r.comment, "public_key": r.public_key, "enabled": r.enabled, "created_at": r.created_at})
+    except Exception:
+        keys = []
+    return TEMPLATES.TemplateResponse(request, 'repl.html', {
+        "request": request,
+        "client_tz": client_tz,
+        "csrf_token": next_csrf,
+        "ssh_enabled": bool(current_user.is_admin or allow_all),
+        "ssh_message": msg,
+        "ssh_keys": keys,
+    })
 
 
 @app.get("/service-worker.js")
@@ -905,8 +1157,15 @@ async def calendar_events(request: Request, start: Optional[str] = None, end: Op
             try:
                 tags = getattr(l, 'hashtags', None)
                 if tags:
-                    texts.append(' '.join([getattr(t, 'tag', '') for t in tags]))
+                    for ht in tags:
+                        try:
+                            tg = getattr(ht, 'tag', None)
+                            if tg:
+                                texts.append(f"#{tg}")
+                        except Exception:
+                            pass
             except Exception:
+                # if relationship not loaded or any error, ignore
                 pass
             combined = ' \n '.join(texts)
             dates = extract_dates(combined)

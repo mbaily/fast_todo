@@ -1,0 +1,111 @@
+SSH REPL server (embedded SSH protocol daemon)
+=============================================
+
+Overview
+--------
+This application can expose its Python REPL over the SSH protocol using an embedded SSH server (not the system sshd). Users connect with a standard SSH client and interact with the same user-scoped REPL helpers (L, T, ls, show, new_list, new_todo, mv, setprop, fmt, help).
+
+Key points:
+- Runs inside the FastAPI process via AsyncSSH.
+- Opt-in via environment variable.
+- Authenticates either with the app password or with user-associated SSH public keys stored in the database.
+- Provides a line-oriented REPL: one Python expression/statement per line.
+
+
+Enabling the server
+-------------------
+Environment variables:
+- SSH_REPL_ENABLE=1            # enable the SSH REPL server
+- SSH_REPL_BIND=0.0.0.0        # bind address (default: 0.0.0.0)
+- SSH_REPL_PORT=2222           # TCP port (default: 2222)
+- SSH_REPL_HOST_KEY_PATH=./ssh_repl_host_key   # persisted host key file (default shown)
+
+When enabled, the server starts during FastAPI lifespan startup and stops on shutdown/reload.
+
+Dependencies
+------------
+This feature uses AsyncSSH. Ensure the dependency is installed (requirements already include it):
+- asyncssh
+
+
+Authentication
+--------------
+Two auth methods are supported:
+
+1) Password authentication
+   - Username: your app username
+   - Password: your app password (verified using the existing auth logic)
+
+2) Public key authentication
+   - Keys are stored per-app-user in the database table `SshPublicKey`.
+   - Add keys via the REPL web page section “SSH access (optional)” (admin by default; can be allowed to all with ALLOW_SSH_KEYS_FOR_ALL=1).
+   - On connection, the server matches the offered client key against enabled keys belonging to the same username.
+   - Accepted key formats include typical OpenSSH public key lines (e.g., ssh-ed25519, ecdsa-sha2-*, sk-ssh-*, and ssh-rsa if desired).
+
+Note: The embedded SSH server does NOT use the system’s sshd and does not modify system user files. Keys are stored and matched within the application database only.
+
+
+Host key (server identity)
+--------------------------
+The server maintains its own host key at SSH_REPL_HOST_KEY_PATH. If the file does not exist at startup, a new ed25519 key is generated. Keep this file stable to avoid client “host key changed” warnings.
+
+
+Using the SSH REPL
+------------------
+Connect with your SSH client after enabling the server:
+
+    ssh USER@HOST -p 2222
+
+You will see a greeting and a prompt:
+
+    Welcome to gpt5_fast_todo REPL over SSH
+    Type help() or Ctrl-D to exit.
+
+    >>>
+
+Examples:
+- help()
+- help(ls)
+- proj = new_list('Projects')
+- t = new_todo('Plan 2026 roadmap', at=proj, priority=2)
+- ls('/Projects')
+- mv(L('/Projects'), '/')
+
+Session behavior
+----------------
+- Line-oriented: each newline submits code for execution.
+- Stdout is printed; the final expression value is shown (as JSON when possible).
+- Use Ctrl-D, exit, or quit to close the session.
+
+
+Security and access control
+---------------------------
+- The REPL is always scoped to the authenticated app user; all DB access enforces ownership.
+- Keep the port behind a firewall or restrict bind address if needed.
+- Consider enabling only public key auth by policy and avoiding passwords where required.
+- The key upload feature on the web REPL page can be limited to admins (default). To allow for all users set: ALLOW_SSH_KEYS_FOR_ALL=1.
+
+
+Troubleshooting
+---------------
+Cannot connect:
+- Verify environment vars (SSH_REPL_ENABLE=1) and that the app restarted.
+- Check server logs for “SSH REPL server started …”.
+- Ensure firewall allows the SSH_REPL_PORT.
+
+Password auth fails:
+- Confirm the app username exists and the password is correct.
+
+Public key auth fails:
+- Ensure the key was added for the same app username, is enabled, and matches the client key.
+- Re-add the key and try again if formatting looked off.
+
+Host key warning:
+- If the host key file changed, clients may warn about host key mismatch. Use a persistent SSH_REPL_HOST_KEY_PATH and keep it stable.
+
+
+Notes & limitations
+-------------------
+- The session is a single-line REPL (no multi-line blocks/indentation). You can craft one-liners or chain statements with semicolons.
+- The embedded server is not a shell and does not grant OS-level access. It only exposes the app’s Python REPL helpers.
+- The web REPL and SSH REPL share the same helper surface and security model.

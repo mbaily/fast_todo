@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Python REPL</h2>
+<p>Tip: type <code>help()</code> for commands, or <code>help(ls)</code> for details.</p>
+<form method="post" action="/html_no_js/repl/exec">
+  <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
+  <div>
+    <textarea name="code" rows="10" style="width:100%; font-family: monospace;">{{ code or '' }}</textarea>
+  </div>
+  <div style="margin-top:8px;">
+    <button type="submit">Run</button>
+    <a href="/html_no_js/">Back</a>
+  </div>
+</form>
+{% if ssh_enabled %}
+<hr/>
+<h3>SSH REPL keys</h3>
+<p>Add your SSH public keys to enable key-based login to the embedded SSH REPL server (when enabled). Keys are stored in the app database and scoped to your account.</p>
+{% if ssh_message %}<p><strong>{{ ssh_message }}</strong></p>{% endif %}
+<form method="post" action="/html_no_js/repl/ssh_keys">
+  <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
+  <div>
+    <textarea name="pubkeys" rows="6" style="width:100%; font-family: monospace;" placeholder="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... you@host
+ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTY... you@other"></textarea>
+  </div>
+  <div style="margin-top:8px;">
+    <button type="submit">Save keys</button>
+  </div>
+  <p style="font-size: 0.9em; color: #555;">Accepted key types: ssh-ed25519, ecdsa-sha2-*, sk-ssh-*. These apply to the embedded SSH REPL only.</p>
+</form>
+
+{% if ssh_keys and ssh_keys|length > 0 %}
+  <h4>Your saved keys</h4>
+  <table border="1" cellspacing="0" cellpadding="6">
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Comment</th>
+        <th>Added</th>
+        <th>Enabled</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for k in ssh_keys %}
+      {% set parts = (k.public_key or '').split(' ') %}
+      <tr>
+        <td>{{ parts[0] if parts and parts|length > 0 else '' }}</td>
+        <td>{{ k.comment or '' }}</td>
+        <td>{{ k.created_at }}</td>
+        <td>{{ 'yes' if k.enabled else 'no' }}</td>
+        <td>
+          <form method="post" action="/html_no_js/repl/ssh_keys/delete" style="display:inline;" onsubmit="return confirm('Delete this key?');">
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
+            <input type="hidden" name="key_id" value="{{ k.id }}" />
+            <button type="submit">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <p style="color:#555;">No SSH keys saved yet.</p>
+{% endif %}
+{% endif %}
+<hr/>
+<h3>SSH REPL server</h3>
+<p>If enabled via environment (SSH_REPL_ENABLE=1), you can connect to this REPL over SSH. Defaults: bind 0.0.0.0, port 2222. Configure with SSH_REPL_BIND and SSH_REPL_PORT.</p>
+<pre>ssh USER@HOST -p 2222</pre>
+{% if output %}
+<h3>Stdout</h3>
+<pre style="white-space: pre-wrap;">{{ output }}</pre>
+{% endif %}
+{% if result is not none %}
+<h3>Result</h3>
+<pre style="white-space: pre-wrap;">{{ result }}</pre>
+{% endif %}
+{% endblock %}

@@ -12,6 +12,7 @@ python-multipart
 requests
 SQLAlchemy
 sqlmodel
+asyncssh
 tzdata
 uvicorn[standard]
 

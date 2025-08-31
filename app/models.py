@@ -242,3 +242,14 @@ class IgnoredScope(SQLModel, table=True):
     scope_hash: str = Field(index=True)
     created_at: datetime | None = Field(default_factory=now_utc)
     active: bool = Field(default=True, index=True)
+
+
+class SshPublicKey(SQLModel, table=True):
+    """SSH public keys associated with an app user for SSH REPL auth."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key='user.id', index=True)
+    public_key: str  # OpenSSH-formatted public key line
+    comment: Optional[str] = None
+    fingerprint: Optional[str] = Field(default=None, index=True)
+    enabled: bool = Field(default=True, index=True)
+    created_at: datetime | None = Field(default_factory=now_utc)
