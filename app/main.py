@@ -1407,7 +1407,8 @@ async def calendar_occurrences(request: Request,
                 # Also emit an INFO log so appended occurrences are visible in server stdout and in /server/logs
                 try:
                     # include title to make it easier to correlate occurrences
-                    logger.info('calendar_occurrences.added owner_id=%s item_type=%s item_id=%s title=%s occurrence=%s rrule=%s recurring=%s source=%s', owner_id, item_type, item_id, (title or '')[:60], occ_dt.isoformat(), rrule_str or '', bool(is_rec), source)
+                    # include occ_hash for easier tracing when filtering occurs later
+                    logger.info('calendar_occurrences.added owner_id=%s item_type=%s item_id=%s title=%s occurrence=%s rrule=%s recurring=%s source=%s occ_hash=%s', owner_id, item_type, item_id, (title or '')[:60], occ_dt.isoformat(), rrule_str or '', bool(is_rec), source, pay.get('occ_hash'))
                 except Exception:
                     pass
                 # Debug helper: log ParamEvent Jan occurrences for test analysis
@@ -1587,6 +1588,15 @@ async def calendar_occurrences(request: Request,
             except Exception:
                 ca = None
             logger.info('calendar_occurrences.todo.inspect id=%s title=%s created_at=%s', getattr(t, 'id', None), (getattr(t, 'text', '') or '')[:60], (ca.isoformat() if isinstance(ca, datetime) else str(ca)))
+            # Lightweight instrumentation: emit a clear debug marker when we
+            # encounter todos with the literal text 'WindowEvent' so test runs
+            # produce an easy-to-find log line. This is safe for local debug and
+            # can be removed after diagnosis.
+            try:
+                if getattr(t, 'text', None) and 'WindowEvent' in getattr(t, 'text'):
+                    logger.info('DEBUG_WINDOWEVENT_MARKER todo_id=%s title=%s created_at=%s', getattr(t, 'id', None), (getattr(t, 'text', '') or '')[:120], (ca.isoformat() if isinstance(ca, datetime) else str(ca)))
+            except Exception:
+                pass
             meta = extract_dates_meta(combined)
             # collect explicit dates for this todo
             dates: list[datetime] = []
@@ -1618,6 +1628,11 @@ async def calendar_occurrences(request: Request,
                         _sse_debug('calendar_occurrences.branch_choice', {'todo_id': t.id, 'chosen_branch': 'todo-explicit'})
                     except Exception:
                         pass
+                    try:
+                        if getattr(t, 'id', None) == 10017:
+                            _sse_debug('calendar_occurrences.GUARDED_DEBUG', {'todo_id': t.id, 'stage': 'explicit', 'candidate': (d.isoformat() if isinstance(d, datetime) else str(d))})
+                    except Exception:
+                        pass
                     add_occ('todo', t.id, t.list_id, t.text, d, None, False, '', None, source='todo-explicit')
             # include deferred_until as explicit
             if getattr(t, 'deferred_until', None):
@@ -1629,6 +1644,11 @@ async def calendar_occurrences(request: Request,
                     if du >= start_dt and du <= end_dt:
                         try:
                             _sse_debug('calendar_occurrences.branch_choice', {'todo_id': t.id, 'chosen_branch': 'todo-deferred'})
+                        except Exception:
+                            pass
+                        try:
+                            if getattr(t, 'id', None) == 10017:
+                                _sse_debug('calendar_occurrences.GUARDED_DEBUG', {'todo_id': t.id, 'stage': 'deferred', 'candidate': (du.isoformat() if isinstance(du, datetime) else str(du))})
                         except Exception:
                             pass
                         add_occ('todo', t.id, t.list_id, t.text, du, None, False, '', None, source='todo-deferred')
@@ -1686,6 +1706,11 @@ async def calendar_occurrences(request: Request,
                                     _sse_debug('calendar_occurrences.branch_choice', {'todo_id': t.id, 'chosen_branch': 'todo-yearless'})
                                 except Exception:
                                     pass
+                                try:
+                                    if getattr(t, 'id', None) == 10017:
+                                        _sse_debug('calendar_occurrences.GUARDED_DEBUG', {'todo_id': t.id, 'stage': 'yearless-multi', 'candidate': cand.isoformat()})
+                                except Exception:
+                                    pass
                                 add_occ('todo', t.id, t.list_id, t.text, cand, None, False, '', None, source='todo-yearless')
                 else:
                     # Single token: preserve original semantics (earliest >= created_at)
@@ -1741,8 +1766,13 @@ async def calendar_occurrences(request: Request,
                                         _sse_debug('calendar_occurrences.branch_choice', {'todo_id': t.id, 'chosen_branch': 'todo-yearless-earliest'})
                                     except Exception:
                                         pass
-                                    add_occ('todo', t.id, t.list_id, t.text, earliest_cand, None, False, '', None, source='todo-yearless-earliest')
-                                    _sse_debug('calendar_occurrences.todo.added', {'todo_id': t.id, 'occurrence': earliest_cand.isoformat()})
+                                        try:
+                                            if getattr(t, 'id', None) == 10017:
+                                                _sse_debug('calendar_occurrences.GUARDED_DEBUG', {'todo_id': t.id, 'stage': 'yearless-earliest', 'candidate': earliest_cand.isoformat()})
+                                        except Exception:
+                                            pass
+                                        add_occ('todo', t.id, t.list_id, t.text, earliest_cand, None, False, '', None, source='todo-yearless-earliest')
+                                        _sse_debug('calendar_occurrences.todo.added', {'todo_id': t.id, 'occurrence': earliest_cand.isoformat()})
                             continue
 
                         # fallback: if no candidate >= created_at, include any candidate within window
@@ -1759,6 +1789,11 @@ async def calendar_occurrences(request: Request,
                             if cand >= allowed_start and cand <= allowed_end:
                                 try:
                                     _sse_debug('calendar_occurrences.branch_choice', {'todo_id': t.id, 'chosen_branch': 'todo-yearless-fallback'})
+                                except Exception:
+                                    pass
+                                try:
+                                    if getattr(t, 'id', None) == 10017:
+                                        _sse_debug('calendar_occurrences.GUARDED_DEBUG', {'todo_id': t.id, 'stage': 'yearless-fallback', 'candidate': cand.isoformat()})
                                 except Exception:
                                     pass
                                 add_occ('todo', t.id, t.list_id, t.text, cand, None, False, '', None, source='todo-yearless-fallback')
@@ -3267,6 +3302,12 @@ async def create_todo(text: str, note: Optional[str] = None, list_id: int = None
         todo_resp = _serialize_todo(todo, [])
     # Capture id before leaving session to guarantee no lazy access later
     todo_id_val = int(todo.id)
+    # Log WindowEvent todo creation to help map test-created ids to calendar traces
+    try:
+        if todo_resp and todo_resp.get('text', '').startswith('WindowEvent'):
+            logger.info(f"POST /todos created WindowEvent todo id={todo_id_val} title={todo_resp.get('text')}")
+    except Exception:
+        logger.debug('failed to log WindowEvent todo creation')
     # Log ParamEvent todo ids to help trace failing parametrized tests
     try:
         if todo_resp and todo_resp.get('text', '').startswith('ParamEvent'):

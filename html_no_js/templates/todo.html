@@ -658,6 +658,50 @@
 
 // Delegate sublist move for todo (same logic as list page)
 (function(){ function matchSublistMove(action){ try{ var m = action && action.match(/\/html_no_js\/todos\/(?:\d+)\/sublists\/(\d+)\/move/); return m; }catch(e){ return null; } } document.body.addEventListener('submit', function(ev){ var form = ev.target; if (!form || form.tagName !== 'FORM') return; var action = form.getAttribute('action') || ''; var m = matchSublistMove(action); if (!m) return; ev.preventDefault(); var sublistId = m[1]; var fd = new FormData(form); var dir = fd.get('direction'); var csrf = document.querySelector('input[name="_csrf"]'); if (csrf && csrf.value) fd.append('_csrf', csrf.value); fetch(action, { method: 'POST', body: fd, credentials: 'same-origin' }).then(function(res){ if (!res.ok) throw new Error('Move failed'); return res.text().catch(function(){ return null; }); }).then(function(){ try{ var selector = 'a.list-title[href*="/html_no_js/lists/' + sublistId + '"]'; var a = document.querySelector(selector); if (!a) return; var liNode = a.closest('li.list-item'); if (!liNode) return; var parentUl = liNode.parentElement; if (!parentUl) return; if (dir === 'up') { var prev = liNode.previousElementSibling; if (prev) parentUl.insertBefore(liNode, prev); } else if (dir === 'down') { var next = liNode.nextElementSibling; if (next) parentUl.insertBefore(next, liNode); } }catch(e){ console && console.error && console.error('sublist move DOM update failed', e); } }).catch(function(){ alert('Move failed'); }); }, false); })();
+// Intercept sublist creation and insert new sublist into the DOM using the JSON endpoint
+(function(){
+  function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+  document.body.addEventListener('submit', function(ev){
+    var form = ev.target; if (!form || form.tagName !== 'FORM') return;
+    var action = form.getAttribute('action') || '';
+    // match the create sublist action for this todo
+    var createPath = '/html_no_js/todos/{{ todo.id }}/sublists/create';
+    if (action.indexOf(createPath) === -1) return;
+    ev.preventDefault();
+    try{
+      var fd = new FormData(form);
+      // ensure CSRF included (form usually has hidden _csrf)
+      var csrf = document.querySelector('input[name="_csrf"]'); if (csrf && csrf.value) fd.append('_csrf', csrf.value);
+      fetch(action, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+        .then(function(res){ if (!res.ok) throw new Error('Create sublist failed'); return res.json().catch(function(){ return null; }); })
+        .then(function(sub){
+          if (!sub || !sub.id) return;
+          try{
+            // find or create the container UL for sublists in this section
+            var ul = form.closest('section') ? form.closest('section').querySelector('.lists-list') : null;
+            if (!ul) ul = document.querySelector('.lists-list');
+            if (!ul){ ul = document.createElement('ul'); ul.className = 'lists-list'; if (form.parentNode) form.parentNode.insertBefore(ul, form.nextSibling); }
+            var li = document.createElement('li');
+            li.className = 'list-item';
+            li.id = 'list-' + sub.id;
+            // minimal structure matching server-rendered sublist rows
+            li.innerHTML = '<div class="list-action-left" style="display:flex;gap:0.25rem;align-items:center;">'
+              + '<form method="post" action="/html_no_js/todos/{{ todo.id }}/sublists/' + sub.id + '/move" style="display:inline">'
+              + '<input type="hidden" name="direction" value="up">'
+              + '<button type="submit" class="list-action-btn" title="Move up">⬆️</button></form>'
+              + '<form method="post" action="/html_no_js/todos/{{ todo.id }}/sublists/' + sub.id + '/move" style="display:inline">'
+              + '<input type="hidden" name="direction" value="down">'
+              + '<button type="submit" class="list-action-btn" title="Move down">⬇️</button></form></div>'
+              + '<div class="list-main"><a class="list-title" href="/html_no_js/lists/' + sub.id + '">' + escapeHtml(sub.name) + '</a>'
+              + ' <button type="button" class="list-action-btn edit-list-btn" data-list-id="' + sub.id + '" data-list-name="' + escapeHtml(sub.name) + '" title="Edit list name">✏️</button></div>';
+            // insert at top
+            ul.insertBefore(li, ul.firstChild);
+          }catch(e){ console && console.error && console.error('sublist create DOM update failed', e); }
+        })
+        .catch(function(){ alert('Create sublist failed'); });
+    }catch(e){ /* ignore */ }
+  }, false);
+})();
 </script>
 <script>
   (function(){
