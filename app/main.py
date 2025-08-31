@@ -739,6 +739,20 @@ async def html_repl_exec(request: Request, code: str = Form(...), current_user: 
                 keys.append({"id": r.id, "comment": r.comment, "public_key": r.public_key, "enabled": r.enabled, "created_at": r.created_at})
     except Exception:
         keys = []
+    accept = (request.headers.get('Accept') or '')
+    # If the caller expects JSON (AJAX), return a small structured payload.
+    if 'application/json' in accept.lower():
+        from fastapi.responses import JSONResponse
+        return JSONResponse({
+            'ok': True,
+            'output': out,
+            'result': result,
+            'code': code,
+            'csrf_token': next_csrf,
+            'ssh_enabled': bool(current_user.is_admin or os.getenv('ALLOW_SSH_KEYS_FOR_ALL', '0').lower() in ('1','true','yes')),
+            'ssh_keys': keys,
+        })
+
     return TEMPLATES.TemplateResponse(request, 'repl.html', {
         "request": request,
         "client_tz": client_tz,
@@ -811,6 +825,7 @@ async def html_repl_ssh_keys(request: Request, pubkeys: str = Form(...), current
     })
 
 
+
 @app.post('/html_no_js/repl/ssh_keys/delete', response_class=HTMLResponse)
 async def html_repl_ssh_keys_delete(request: Request, key_id: int = Form(...), current_user: User = Depends(require_login)):
     # CSRF
@@ -849,6 +864,10 @@ async def html_repl_ssh_keys_delete(request: Request, key_id: int = Form(...), c
                 keys.append({"id": r.id, "comment": r.comment, "public_key": r.public_key, "enabled": r.enabled, "created_at": r.created_at})
     except Exception:
         keys = []
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse({'ok': True, 'deleted': deleted, 'message': msg, 'ssh_keys': keys})
+
     return TEMPLATES.TemplateResponse(request, 'repl.html', {
         "request": request,
         "client_tz": client_tz,
@@ -3552,8 +3571,8 @@ async def html_move_list_to_todo(request: Request, source_list_id: int = Form(..
         # Guard: prevent creating a cycle by placing a list under a todo that belongs to the same list subtree.
         # Immediate self-cycle: todo currently belongs to the source list.
         try:
-            if todo.list_id is not None and int(todo.list_id) == int(source_list_id):
-                return RedirectResponse(url=f'/html_no_js/lists/{source_list_id}', status_code=303)
+                if todo.list_id is not None and int(todo.list_id) == int(source_list_id):
+                    return _redirect_or_json(request, f'/html_no_js/lists/{source_list_id}')
         except Exception:
             pass
         # Ascend from the todo's current list through parent_list/parent_todo chain; if we encounter source_list_id, this move would create a cycle.
@@ -3563,7 +3582,7 @@ async def html_move_list_to_todo(request: Request, source_list_id: int = Form(..
             while cur_list_id is not None and seen < 200:
                 if int(cur_list_id) == int(source_list_id):
                     # would create a cycle
-                    return RedirectResponse(url=f'/html_no_js/lists/{source_list_id}', status_code=303)
+                    return _redirect_or_json(request, f'/html_no_js/lists/{source_list_id}')
                 cur_list = await sess.get(ListState, cur_list_id)
                 if not cur_list:
                     break
@@ -3596,7 +3615,11 @@ async def html_move_list_to_todo(request: Request, source_list_id: int = Form(..
         except Exception:
             pass
         await sess.commit()
-    return RedirectResponse(url=f'/html_no_js/todos/{target_todo_id}', status_code=303)
+        accept = (request.headers.get('Accept') or '')
+        # prefer JSON for AJAX clients, otherwise redirect to the todo page
+        if 'application/json' in accept.lower():
+            return JSONResponse({'ok': True, 'moved_to_todo': target_todo_id, 'source_list': source_list_id})
+        return RedirectResponse(url=f'/html_no_js/todos/{target_todo_id}', status_code=303)
 
 
 @app.post('/html_no_js/move/list_to_list')
@@ -3614,7 +3637,7 @@ async def html_move_list_to_list(request: Request, source_list_id: int = Form(..
         # Prevent moving a list into itself
         if int(source_list_id) == int(target_list_id):
             # no-op; redirect back to the list page
-            return RedirectResponse(url=f'/html_no_js/lists/{source_list_id}', status_code=303)
+            return _redirect_or_json(request, f'/html_no_js/lists/{source_list_id}')
         # Prevent cycles: if target is a descendant of source, moving source under target would create a cycle.
         try:
             seen = 0
@@ -3622,7 +3645,7 @@ async def html_move_list_to_list(request: Request, source_list_id: int = Form(..
             while cur is not None and getattr(cur, 'parent_list_id', None) is not None and seen < 100:
                 if int(cur.parent_list_id) == int(source_list_id):
                     # would create a cycle; reject politely
-                    return RedirectResponse(url=f'/html_no_js/lists/{source_list_id}', status_code=303)
+                    return _redirect_or_json(request, f'/html_no_js/lists/{source_list_id}')
                 seen += 1
                 try:
                     cur = await sess.get(ListState, cur.parent_list_id)
@@ -3667,7 +3690,7 @@ async def html_move_todo_to_list(request: Request, source_todo_id: int = Form(..
         # No-op guard: moving into the same list
         try:
             if todo.list_id is not None and int(todo.list_id) == int(target_list_id):
-                return RedirectResponse(url=f'/html_no_js/lists/{target_list_id}#todo-{source_todo_id}', status_code=303)
+                return _redirect_or_json(request, f'/html_no_js/lists/{target_list_id}#todo-{source_todo_id}')
         except Exception:
             pass
         # Cycle guard: prevent moving a todo into a list that is inside this todo's own subtree (descendant).
@@ -3682,7 +3705,7 @@ async def html_move_todo_to_list(request: Request, source_todo_id: int = Form(..
                 ptid = getattr(lst, 'parent_todo_id', None)
                 if ptid is not None and int(ptid) == int(source_todo_id):
                     # target is within the subtree of the source todo -> cycle
-                    return RedirectResponse(url=f'/html_no_js/lists/{todo.list_id}#todo-{source_todo_id}', status_code=303)
+                    return _redirect_or_json(request, f'/html_no_js/lists/{todo.list_id}#todo-{source_todo_id}')
                 # climb up
                 if getattr(lst, 'parent_list_id', None) is not None:
                     cur_list_id = int(lst.parent_list_id)
@@ -3758,6 +3781,9 @@ async def html_move_clear_parent(request: Request, item_type: str = Form(...), i
             except Exception:
                 pass
             await sess.commit()
+            accept = (request.headers.get('Accept') or '')
+            if 'application/json' in accept.lower():
+                return JSONResponse({'ok': True, 'moved_to_list': int(dst.id), 'todo_id': todo.id})
             return RedirectResponse(url=f'/html_no_js/lists/{dst.id}#todo-{todo.id}', status_code=303)
         else:
             raise HTTPException(status_code=400, detail='invalid item_type')
@@ -4813,6 +4839,9 @@ async def create_category(request: Request, name: str = Form(...)):
         nc = Category(name=name.strip()[:200], position=pos)
         sess.add(nc)
         await sess.commit()
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse({'ok': True, 'id': int(nc.id), 'name': nc.name})
     return RedirectResponse(url='/html_no_js/categories', status_code=303)
 
 
@@ -4826,6 +4855,9 @@ async def rename_category(request: Request, cat_id: int, name: str = Form(...)):
     async with async_session() as sess:
         await sess.exec(sqlalchemy_update(Category).where(Category.id == cat_id).values(name=name.strip()[:200]))
         await sess.commit()
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse({'ok': True, 'id': cat_id, 'name': name.strip()[:200]})
     return RedirectResponse(url='/html_no_js/categories', status_code=303)
 
 
@@ -4841,6 +4873,9 @@ async def delete_category(request: Request, cat_id: int):
         await sess.exec(sqlalchemy_update(ListState).where(ListState.category_id == cat_id).values(category_id=None))
         await sess.exec(sqlalchemy_delete(Category).where(Category.id == cat_id))
         await sess.commit()
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse({'ok': True, 'deleted': cat_id})
     return RedirectResponse(url='/html_no_js/categories', status_code=303)
 
 
@@ -4879,6 +4914,10 @@ async def move_category(request: Request, cat_id: int, direction: str = Form(...
                 await sess.exec(sqlalchemy_update(Category).where(Category.id == cur.id).values(position=next_pos))
                 logger.info('move_category: swap executed for cat_id=%s', cur.id)
         await sess.commit()
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        # return a minimal success payload; client may call the API listing for full state
+        return JSONResponse({'ok': True, 'id': cat_id, 'direction': direction})
     return RedirectResponse(url='/html_no_js/categories', status_code=303)
 
 
@@ -5162,6 +5201,9 @@ async def html_login_post(request: Request, username: str = Form(...), password:
     if not user or not ok:
         # re-render login with simple message (keeps no-js constraint simple)
         client_tz = await get_session_timezone(request)
+        accept = (request.headers.get('Accept') or '')
+        if 'application/json' in accept.lower():
+            return JSONResponse({'ok': False, 'error': 'invalid_credentials'})
         return TEMPLATES.TemplateResponse(request, 'login.html', {"request": request, "error": "Invalid credentials", "client_tz": client_tz})
     token = create_access_token({"sub": user.username})
     # create a server-side session token and set it in an HttpOnly cookie
@@ -5194,6 +5236,11 @@ async def html_login_post(request: Request, username: str = Form(...), password:
     # on the RedirectResponse. Browsers will follow the redirect and use the
     # cookies for subsequent requests. COOKIE_SECURE controls the Secure flag
     # so test/dev HTTP environments won't mark cookies as Secure.
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        # Return tokens and csrf so AJAX clients may persist them as needed
+        return JSONResponse({'ok': True, 'session_token': session_token, 'access_token': token, 'csrf_token': csrf})
+
     resp = RedirectResponse(url="/html_no_js/", status_code=303)
     resp.set_cookie('session_token', session_token, httponly=True, samesite='lax', secure=COOKIE_SECURE)
     resp.set_cookie('access_token', token, httponly=True, samesite='lax', secure=COOKIE_SECURE)
@@ -5260,6 +5307,9 @@ async def html_set_list_icons(request: Request, list_id: int, hide_icons: str = 
             sess.add(lst)
             await sess.commit()
             await sess.refresh(lst)
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse({'ok': True, 'id': list_id, 'hide_icons': getattr(lst, 'hide_icons', None)})
     ref = request.headers.get('Referer', f'/html_no_js/lists/{list_id}')
     return RedirectResponse(url=ref, status_code=303)
 
@@ -5358,6 +5408,9 @@ async def html_set_list_category(request: Request, list_id: int, category_id: Op
         lst.modified_at = now_utc()
         sess.add(lst)
         await sess.commit()
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse({'ok': True, 'id': list_id, 'category_id': cid})
     ref = request.headers.get('Referer', f'/html_no_js/lists/{list_id}')
     return RedirectResponse(url=ref, status_code=303)
 
@@ -5663,6 +5716,16 @@ async def html_logout(request: Request):
         from .auth import delete_session
         await delete_session(session_token)
     client_tz = await get_session_timezone(request)
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        # attempt to clear server-side session already performed above
+        resp = JSONResponse({'ok': True, 'logged_out': True})
+        # instruct client to clear cookies
+        resp.delete_cookie('session_token', path='/', samesite='lax', secure=COOKIE_SECURE)
+        resp.delete_cookie('access_token', path='/', samesite='lax', secure=COOKIE_SECURE)
+        resp.delete_cookie('csrf_token', path='/', samesite='lax', secure=COOKIE_SECURE)
+        return resp
+
     resp = TEMPLATES.TemplateResponse(request, 'logout.html', {"request": request, "client_tz": client_tz})
     # delete cookies with the same attributes used when setting them so
     # browsers will reliably remove them.
