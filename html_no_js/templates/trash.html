@@ -32,4 +32,27 @@
   {% else %}
     <p class="meta">Trash is empty.</p>
   {% endif %}
+  {% if lists is defined and lists and lists|length > 0 %}
+    <h3>Trashed lists</h3>
+    <ul class="lists-list">
+      {% for l in lists %}
+        <li class="list-item">
+          <div class="controls-left">
+            <form method="post" action="/html_no_js/trash/lists/{{ l.id }}/restore" style="display:inline">
+              {{ csrf_field() }}
+              <button type="submit" title="Restore">↩️</button>
+            </form>
+            <form method="post" action="/html_no_js/trash/lists/{{ l.id }}/delete" class="confirm-delete" data-confirm="Delete permanently? This cannot be undone." style="display:inline">
+              {{ csrf_field() }}
+              <button type="submit" title="Delete permanently">🗑</button>
+            </form>
+          </div>
+          <div class="list-main">
+            <a class="list-title" href="/html_no_js/lists/{{ l.id }}">{{ l.name }}</a>
+            <div class="meta">Modified: {{ l.modified_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</div>
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
 {% endblock %}

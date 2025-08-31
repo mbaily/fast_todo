@@ -237,6 +237,19 @@ class TrashMeta(SQLModel, table=True):
     trashed_at: datetime | None = Field(default_factory=now_utc, index=True)
 
 
+class ListTrashMeta(SQLModel, table=True):
+    """Metadata for lists moved to the trash so we can restore them.
+
+    Stores the original parent_list_id and original owner_id along with
+    a trashed_at timestamp. Kept minimal to avoid coupling with ListState.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    list_id: int = Field(foreign_key='liststate.id', index=True)
+    original_parent_list_id: Optional[int] = Field(default=None, foreign_key='liststate.id', index=True)
+    original_owner_id: Optional[int] = Field(default=None, foreign_key='user.id', index=True)
+    trashed_at: datetime | None = Field(default_factory=now_utc, index=True)
+
+
 class IgnoredScope(SQLModel, table=True):
     """Records ignore rules per-user (list-wide or todo-from-date).
 
