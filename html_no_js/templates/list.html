@@ -1080,5 +1080,104 @@
     } catch(e) {}
   })();
 </script>
+<script>
+  // Delegate todo-level form submissions (complete, complete_type, delete, pin)
+  (function(){
+    function getFormActionMatch(action){
+      try{ var m = action && action.match(/\/html_no_js\/todos\/(\d+)\/(complete|delete|pin|complete_type)/); return m; }catch(e){ return null; }
+    }
+    document.body.addEventListener('submit', function(ev){
+      var form = ev.target;
+      if (!form || form.tagName !== 'FORM') return;
+      var action = form.getAttribute('action') || '';
+      var m = getFormActionMatch(action);
+      if (!m) return; // not a todo-level form we handle
+      ev.preventDefault();
+      var todoId = m[1];
+      var actionType = m[2];
+      var fd = new FormData(form);
+      var csrf = document.querySelector('input[name="_csrf"]'); if (csrf && csrf.value) fd.append('_csrf', csrf.value);
+      fetch(action, { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function(res){ if (!res.ok) throw new Error('Request failed'); return res.text().catch(function(){ return null; }); })
+        .then(function(){
+          try{
+            var anchorInput = form.querySelector('input[name="anchor"]');
+            var anchorId = anchorInput ? anchorInput.value : ('todo-' + todoId);
+            var li = document.getElementById(anchorId) || document.getElementById('todo-' + todoId);
+            if (actionType === 'delete') {
+              if (li) li.remove();
+              return;
+            }
+            if (actionType === 'pin') {
+              var btn = form.querySelector('button') || form.querySelector('input[type=submit]');
+              if (btn) {
+                var pinned = btn.classList && btn.classList.contains('pinned');
+                if (pinned) { btn.classList.remove('pinned'); btn.textContent = '📍'; }
+                else { btn.classList.add('pinned'); btn.textContent = '📌'; }
+              }
+              return;
+            }
+            if (actionType === 'complete' || actionType === 'complete_type') {
+              var btn = form.querySelector('button') || form.querySelector('input[type=submit]');
+              if (btn) {
+                var isChecked = btn.textContent && btn.textContent.indexOf('☑') !== -1;
+                btn.textContent = isChecked ? '☐' : '☑';
+              }
+              if (li) {
+                // toggle done class on any title elements inside the todo
+                var titleElems = li.querySelectorAll('.todo-title-inline .wrap-text, .wrap-text a, .todo-title-inline');
+                titleElems.forEach(function(el){ try{ if (el.classList && el.classList.contains('done')) el.classList.remove('done'); else if (el.classList) el.classList.add('done'); }catch(e){} });
+              }
+              return;
+            }
+          }catch(e){ console && console.error && console.error('todo action DOM update failed', e); }
+        })
+        .catch(function(){ alert('Action failed'); });
+    }, false);
+  })();
+</script>
+<script>
+  // Delegate sublist move forms: POST via fetch and reorder the <li> up/down
+  (function(){
+    function matchSublistMove(action){
+      try{ var m = action && action.match(/\/html_no_js\/lists\/(?:\d+)\/sublists\/(\d+)\/move/); return m; }catch(e){ return null; }
+    }
+    document.body.addEventListener('submit', function(ev){
+      var form = ev.target;
+      if (!form || form.tagName !== 'FORM') return;
+      var action = form.getAttribute('action') || '';
+      var m = matchSublistMove(action);
+      if (!m) return;
+      ev.preventDefault();
+      var sublistId = m[1];
+      var fd = new FormData(form);
+      var dir = fd.get('direction');
+      var csrf = document.querySelector('input[name="_csrf"]'); if (csrf && csrf.value) fd.append('_csrf', csrf.value);
+      fetch(action, { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function(res){ if (!res.ok) throw new Error('Move failed'); return res.text().catch(function(){ return null; }); })
+        .then(function(){
+          try{
+            // find the li corresponding to this sublist id
+            var li = document.querySelector('li.list-item[data-parent-list-position][data-list-priority], li.list-item');
+            // better: find li with a child .list-title href pointing to the sublist id
+            var selector = 'a.list-title[href*="/html_no_js/lists/' + sublistId + '"]';
+            var a = document.querySelector(selector);
+            if (!a) return;
+            var liNode = a.closest('li.list-item'); if (!liNode) return;
+            var parentUl = liNode.parentElement;
+            if (!parentUl) return;
+            if (dir === 'up') {
+              var prev = liNode.previousElementSibling;
+              if (prev) parentUl.insertBefore(liNode, prev);
+            } else if (dir === 'down') {
+              var next = liNode.nextElementSibling;
+              if (next) parentUl.insertBefore(next, liNode);
+            }
+          }catch(e){ console && console.error && console.error('sublist move DOM update failed', e); }
+        })
+        .catch(function(){ alert('Move failed'); });
+    }, false);
+  })();
+</script>
 {% endblock %}
 

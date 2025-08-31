@@ -39,3 +39,26 @@ Notes:
 Status:
 - Converted: rename, lists_up_top checkbox, hide-icons checkbox, priority select (client-side JS + fetch). 
 - Deferred: create-list/create-sublist, todo-level toggles (complete/delete/pin), sublist move forms.
+
+Update: todo-level toggles (list page)
+- Added a delegated submit handler in `html_no_js/templates/list.html` that intercepts todo-level POST forms whose action matches `/html_no_js/todos/<id>/(complete|delete|pin|complete_type)`. The handler:
+  - Prevents the default full form submission.
+  - Sends the same FormData via fetch (credentials: 'same-origin'), including the CSRF token when present.
+  - On success updates the DOM:
+    - delete: removes the todo `<li>` element.
+    - pin: toggles `.pinned` class on the pin button and updates its emoji.
+    - complete / complete_type: toggles the button glyph between '☐' and '☑' and toggles `.done` on title elements.
+  - On failure shows a generic alert('Action failed') or logs errors to the console.
+
+Notes:
+- The handler is intentionally conservative: it does not assume specific JSON responses and uses best-effort DOM updates so it works with existing server endpoints that return redirects or HTML. If you prefer strict JSON-driven updates, I can add API endpoints that return structured responses and update the client to rely on them.
+- Edge cases not fully covered: when server-side changes alter more than simple visual state (e.g., moving the todo to another list), the DOM update will not reflect that without a stronger server response; those cases should remain full-page flows or require API changes.
+
+Update: sublist move conversion
+- Added a delegated handler in `html_no_js/templates/list.html` that intercepts sublist move forms at `/html_no_js/lists/<list.id>/sublists/<sl.id>/move`. The handler:
+  - Prevents the default submission, POSTs the same FormData via fetch (including `_csrf` when present).
+  - On success reorders the corresponding `<li class="list-item">` node up or down within its containing `.lists-list` based on the `direction` form field.
+  - On failure shows alert('Move failed') and logs errors.
+
+Notes:
+- The DOM reordering is local and optimistic. If the server response includes other changes (e.g., reassigning parent_list_position), the client will not reflect those without a richer response; consider adding a JSON response if you want authoritative post-move state.
