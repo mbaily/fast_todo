@@ -1,4 +1,4 @@
-usr/bin/env bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 # Deploy tracked repo files to a local or remote server path using rsync.
