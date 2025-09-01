@@ -1379,6 +1379,14 @@ async def calendar_occurrences(request: Request,
                     _sse_debug('calendar_occurrences.truncated', {'when': 'max_total', 'item_type': item_type, 'item_id': item_id, 'current_total': len(occurrences)})
                 except Exception:
                     pass
+                try:
+                    # Emit an explicit INFO log so truncation events (and offending item ids)
+                    # are visible in pytest-captured server output for debugging.
+                    import traceback as _tb
+                    logger.info('DEBUG_TRUNCATION_TRIGGER item_type=%s item_id=%s current_total=%s', item_type, item_id, len(occurrences))
+                    logger.debug('DEBUG_TRUNCATION_STACK:\n%s', ''.join(_tb.format_stack(limit=6)))
+                except Exception:
+                    pass
                 truncated = True
                 return
             # compute occurrence hash for client/server idempotency
@@ -1409,6 +1417,18 @@ async def calendar_occurrences(request: Request,
                     # include title to make it easier to correlate occurrences
                     # include occ_hash for easier tracing when filtering occurs later
                     logger.info('calendar_occurrences.added owner_id=%s item_type=%s item_id=%s title=%s occurrence=%s rrule=%s recurring=%s source=%s occ_hash=%s', owner_id, item_type, item_id, (title or '')[:60], occ_dt.isoformat(), rrule_str or '', bool(is_rec), source, pay.get('occ_hash'))
+                except Exception:
+                    pass
+                # Guarded retention debug: when DEBUG_RETENTION_ID is set to an item id,
+                # emit an explicit debug log if this occurrence belongs to that id.
+                try:
+                    _ret_id = os.environ.get('DEBUG_RETENTION_ID')
+                    _ret_any = os.environ.get('DEBUG_RETENTION_ANY_WINDOWEVENT')
+                    if (_ret_id and str(item_id) == str(_ret_id)) or (_ret_any and title and 'WindowEvent Jan 22' in title):
+                        # include a short stack to make it easy to see call-site in tests
+                        import traceback as _tb
+                        logger.info('DEBUG_RETENTION_MATCH item_type=%s item_id=%s title=%s occurrence=%s source=%s', item_type, item_id, (title or '')[:80], occ_dt.isoformat(), source)
+                        logger.debug('DEBUG_RETENTION_STACK:\n%s', ''.join(_tb.format_stack(limit=6)))
                 except Exception:
                     pass
                 # Debug helper: log ParamEvent Jan occurrences for test analysis
@@ -1607,6 +1627,15 @@ async def calendar_occurrences(request: Request,
                     dd = m.get('dt')
                     meta_summary.append({'year_explicit': bool(m.get('year_explicit')), 'match_text': m.get('match_text'), 'month': m.get('month'), 'day': m.get('day'), 'dt': (dd.isoformat() if isinstance(dd, datetime) else str(dd))})
                 _sse_debug('calendar_occurrences.todo.meta', {'todo_id': t.id, 'meta': meta_summary})
+                # Extra targeted debug logging for test diagnosis: when the
+                # todo title contains 'WindowEvent' emit the meta summary and
+                # the reference/created times so test runs show why a
+                # candidate may or may not be produced.
+                try:
+                    if getattr(t, 'text', None) and 'WindowEvent' in getattr(t, 'text'):
+                        logger.info('DEBUG_WINDOWEVENT_META todo_id=%s meta=%s created_at=%s', getattr(t, 'id', None), meta_summary, (ca.isoformat() if isinstance(ca, datetime) else str(ca)))
+                except Exception:
+                    pass
             except Exception:
                 pass
             # include explicit deferred_until if present
@@ -1712,6 +1741,11 @@ async def calendar_occurrences(request: Request,
                                 except Exception:
                                     pass
                                 add_occ('todo', t.id, t.list_id, t.text, cand, None, False, '', None, source='todo-yearless')
+                                try:
+                                    if getattr(t, 'text', None) and 'WindowEvent' in getattr(t, 'text'):
+                                        logger.info('DEBUG_WINDOWEVENT_CANDIDATE todo_id=%s candidate=%s source=%s ref_dt=%s created_at=%s', getattr(t, 'id', None), cand.isoformat(), 'todo-yearless-multi', (ref_dt.isoformat() if isinstance(ref_dt, datetime) else str(ref_dt)), (getattr(t, 'created_at').isoformat() if getattr(t, 'created_at', None) else None))
+                                except Exception:
+                                    pass
                 else:
                     # Single token: preserve original semantics (earliest >= created_at)
                     for m in yearless:
@@ -1761,18 +1795,31 @@ async def calendar_occurrences(request: Request,
 
                         if earliest_cand:
                             _sse_debug('calendar_occurrences.todo.earliest_candidate', {'todo_id': t.id, 'match_text': m.get('match_text'), 'earliest': earliest_cand.isoformat()})
+                            try:
+                                if getattr(t, 'text', None) and 'WindowEvent' in getattr(t, 'text'):
+                                    logger.info('DEBUG_WINDOWEVENT_EARLIEST todo_id=%s earliest=%s ref_dt=%s created_at=%s cap_dt=%s', getattr(t, 'id', None), earliest_cand.isoformat(), (ref_dt.isoformat() if isinstance(ref_dt, datetime) else str(ref_dt)), (item_created.isoformat() if item_created else None), (cap_dt.isoformat() if 'cap_dt' in locals() else None))
+                            except Exception:
+                                pass
                             if earliest_cand >= start_dt and earliest_cand <= end_dt:
                                     try:
                                         _sse_debug('calendar_occurrences.branch_choice', {'todo_id': t.id, 'chosen_branch': 'todo-yearless-earliest'})
                                     except Exception:
                                         pass
-                                        try:
-                                            if getattr(t, 'id', None) == 10017:
-                                                _sse_debug('calendar_occurrences.GUARDED_DEBUG', {'todo_id': t.id, 'stage': 'yearless-earliest', 'candidate': earliest_cand.isoformat()})
-                                        except Exception:
-                                            pass
-                                        add_occ('todo', t.id, t.list_id, t.text, earliest_cand, None, False, '', None, source='todo-yearless-earliest')
+                                    try:
+                                        if getattr(t, 'text', None) and 'WindowEvent' in getattr(t, 'text'):
+                                            logger.info('DEBUG_WINDOWEVENT_CHOSEN_EARLIEST todo_id=%s chosen=%s', getattr(t, 'id', None), earliest_cand.isoformat())
+                                    except Exception:
+                                        pass
+                                    # Diagnostic: log immediately before adding occurrence so we can see if add_occ is reached
+                                    try:
+                                        logger.info('DEBUG_BEFORE_ADD todo_id=%s candidate=%s source=%s', getattr(t, 'id', None), (earliest_cand.isoformat() if isinstance(earliest_cand, datetime) else str(earliest_cand)), 'todo-yearless-earliest')
+                                    except Exception:
+                                        pass
+                                    add_occ('todo', t.id, t.list_id, t.text, earliest_cand, None, False, '', None, source='todo-yearless-earliest')
+                                    try:
                                         _sse_debug('calendar_occurrences.todo.added', {'todo_id': t.id, 'occurrence': earliest_cand.isoformat()})
+                                    except Exception:
+                                        pass
                             continue
 
                         # fallback: if no candidate >= created_at, include any candidate within window

@@ -8,10 +8,30 @@
 
 [ ] There is a failing pytest.
   (pytest summary: "FAILED tests/test_year_resolution_integration.py::test_calendar_window_prefers_window_candidates — 1 failed")
-DON'T USE BASH HEREDOCS. keep modifying the debug script as you need to debug this failing pytest test. find out why it's failing. And don't use any bash heredocs. And don't use grep or any UNIX commands at all except python and pip. Just keep modifying the debug script as you need to debug and extract information. That's the most efficient way. DON'T USE BASH HEREDOCS. DON'T USE UNIX PIPES.
+
+
+DON'T USE BASH HEREDOCS. keep improving the debug script called 'scripts/debug_run_test.py' as you need to debug this failing pytest test. find out why it's failing. Try to get the debug script output to zero in on the bug. 
+
+And don't use any bash heredocs. And don't use grep or any UNIX commands at all except python and pip. Just keep modifying the debug script as you need to debug and extract information. That's the most efficient way. DON'T USE BASH HEREDOCS. DON'T USE UNIX PIPES.
 Don't use python one-liners.
 DON'T USE BASH HEREDOCS.
 DON'T USE BASH HEREDOCS.
 DON'T USE BASH HEREDOCS.
 
 [ ] Remove all logs - we don't need them anymore. Add them later as needed.
+
+[ ] 
+There is a failing pytest.
+  (pytest summary: "FAILED tests/test_year_resolution_integration.py::test_calendar_window_prefers_window_candidates — 1 failed")
+
+Create a debug script called 'scripts/debug_run_test.py'.
+Make the script run the pytest test and put the log lines into a python array.
+Make the script output the log lines kept in the python list to a file, so you can read that file. Make it overwrite (not append to it's output file).
+Run the script and examine the file for the relevant information from logs.
+Now modify the script to zero-in on what is causing the bug.
+Now reeort in a text file 'debug_run_test.txt', report your findings about what may be wrong, and how you modified the script file to get better output to zero-in on the bug. if necessary, zero-in on the database id's rows that are causing test failure and find out why and report. For example, a todo with a particular ID.
+Now keep running the script, examining the output and modifying the script and reporting your findings. Iterate over this until you find the bug.
+
+If you need to find out something else from the database or data layer, just write another function and put it in the debug script. Switch out the called functions for whatever you need by commenting out the output you don't need.
+
+Don't use bash heredocs.
