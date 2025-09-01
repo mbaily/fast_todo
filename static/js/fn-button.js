@@ -37,6 +37,8 @@
 
   async function handleClick(e){
     const btn = e.currentTarget; const name = btn.getAttribute('data-fn'); if (!name) return;
+    // Allow middle-click, Ctrl/Cmd-click, Shift-click to proceed with default browser behavior
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return;
     // By default skip confirm for search.multi; opt-in to confirm via data-force-confirm="true"
     const confirmText = btn.getAttribute('data-confirm');
     const forceConfirm = btn.getAttribute('data-force-confirm') === 'true';
@@ -48,7 +50,7 @@
       const res = await callFn(name, args);
       const ev = new CustomEvent('fn:result', { detail: { name, args, res } }); window.dispatchEvent(ev);
       if (res && res.results){ window.dispatchEvent(new CustomEvent('search.multi:result', { detail: res.results }));
-        try{ if (name === 'search.multi' && btn.getAttribute('data-nav') !== 'false'){ const tags = (args && args.tags) || []; const q = encodeURIComponent(Array.isArray(tags) ? tags.join(',') : String(tags || '')); window.location.href = '/html_no_js/search?q=' + q; } }catch(e){ console.debug('auto-redirect failed', e); }
+  try{ if (name === 'search.multi' && btn.getAttribute('data-nav') !== 'false'){ const tags = (args && args.tags) || []; const q = encodeURIComponent(Array.isArray(tags) ? tags.join(' ') : String(tags || '')); window.location.href = '/html_no_js/search?q=' + q; } }catch(e){ console.debug('auto-redirect failed', e); }
       }
     }catch(err){ console.error('fn-button error', err); window.dispatchEvent(new CustomEvent('fn:error', { detail: { name, error: (err && err.message) ? err.message : err } })); try{ alert('Action failed: '+err.message); }catch(e){} }
     finally{ btn.disabled = false; btn.innerHTML = orig; }

@@ -351,7 +351,8 @@ def render_fn_tags(text: str | None) -> Markup:
                     if 'tags' in args and isinstance(args['tags'], list):
                         # remove any internal whitespace from tags (server convention)
                         cleaned = [t.replace(' ', '') for t in args['tags'] if isinstance(t, str)]
-                        q = ','.join(cleaned)
+                        # join with spaces so the search page receives separate tokens
+                        q = ' '.join(cleaned)
                 except Exception:
                     q = ''
                 href = '/html_no_js/search?q=' + quote_plus(q)
