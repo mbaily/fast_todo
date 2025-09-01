@@ -17,7 +17,9 @@
   <div id="categories-root" style="margin-top:0.5rem;"></div>
 
   <div style="margin-top:0.75rem;">
-    <button id="btn-delete" type="button" style="color:#900;">Delete</button>
+  <button id="btn-delete" type="button" style="color:#900;">Delete</button>
+  <button id="btn-set-default" type="button" style="margin-left:0.5rem;">Set selected as default</button>
+  <button id="btn-clear-default" type="button" style="margin-left:0.5rem;">Clear default</button>
   </div>
 
   <script>
@@ -27,6 +29,8 @@
   const btnUp = document.getElementById('btn-up');
   const btnDown = document.getElementById('btn-down');
   const btnDelete = document.getElementById('btn-delete');
+  const btnSetDefault = document.getElementById('btn-set-default');
+  const btnClearDefault = document.getElementById('btn-clear-default');
   let selectedId = null;
     const csrf = '{{ csrf_token }}';
   console.log('[categories] script loaded');
@@ -40,8 +44,9 @@
         if(!resp.ok) throw new Error('fetch failed');
         const data = await resp.json();
   const items = data.categories || [];
+  const currentDefault = ('user_default_category_id' in data) ? data.user_default_category_id : null;
     console.log('[categories] fetched', items.map(c=>`${c.id}:${c.position}`));
-  renderList(items);
+  renderList(items, currentDefault);
   updateControls(items);
   if (statusEl) statusEl.textContent = `Loaded ${items.length} categories`;
       }catch(e){
@@ -50,14 +55,14 @@
       }
     }
 
-    function renderList(items){
+  function renderList(items, currentDefault){
       if(!items || items.length === 0){
         root.innerHTML = '<p>No categories.</p>';
         return;
       }
       const ul = document.createElement('ul');
       ul.style.listStyle = 'none'; ul.style.paddingLeft = '0';
-    items.forEach(c => {
+  items.forEach(c => {
         const li = document.createElement('li');
         li.style.marginBottom = '0.5rem';
         li.dataset.catId = c.id;
@@ -116,6 +121,11 @@
           li.style.borderLeft = '';
           li.style.paddingLeft = '';
         }
+        // highlight the user's default category with a subtle background
+        if (currentDefault !== null && Number(currentDefault) === Number(c.id)){
+          li.style.background = '#eef6ff';
+          li.title = 'Your default category';
+        }
         li.addEventListener('click', () => {
           selectedId = c.id;
           if (statusEl) statusEl.textContent = `Selected #${selectedId}`;
@@ -137,6 +147,8 @@
       btnUp.disabled = (val == null) || atTop;
       btnDown.disabled = (val == null) || atBottom;
   if (btnDelete) btnDelete.disabled = (val == null);
+  if (btnSetDefault) btnSetDefault.disabled = (val == null);
+  if (btnClearDefault) btnClearDefault.disabled = false;
     }
 
     async function moveCat(catId, direction){
@@ -204,6 +216,42 @@
           console.error('[categories] delete failed', e);
           if (statusEl) statusEl.textContent = `Delete failed: ${e}`;
           await fetchCategories();
+        }
+      });
+    }
+
+    if (btnSetDefault) {
+      btnSetDefault.addEventListener('click', async () => {
+        const val = selectedId;
+        if (val == null) return;
+        if (statusEl) statusEl.textContent = `Setting default category to #${val}...`;
+        try {
+          const payload = { category_id: val, _csrf: csrf };
+          const resp = await fetch('/api/user/default_category', {
+            method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)
+          });
+          if (!resp.ok) throw new Error('set default failed');
+          const data = await resp.json();
+          if (statusEl) statusEl.textContent = `Default category set`;
+        } catch (e) {
+          console.error('set default failed', e);
+          if (statusEl) statusEl.textContent = `Set default failed`;
+        }
+      });
+    }
+
+    if (btnClearDefault) {
+      btnClearDefault.addEventListener('click', async () => {
+        if (!window.confirm('Clear your default category? New lists will go to Uncategorized.')) return;
+        if (statusEl) statusEl.textContent = `Clearing default category...`;
+        try {
+          const payload = { category_id: null, _csrf: csrf };
+          const resp = await fetch('/api/user/default_category', { method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+          if (!resp.ok) throw new Error('clear default failed');
+          if (statusEl) statusEl.textContent = `Default cleared`;
+        } catch (e) {
+          console.error('clear default failed', e);
+          if (statusEl) statusEl.textContent = `Clear default failed`;
         }
       });
     }

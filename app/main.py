@@ -1191,7 +1191,26 @@ async def create_list(request: Request, name: str = Form(None), current_user: Us
         # Always create a new list row for the authenticated user. We allow
         # duplicate names per user (multiple lists with the same name).
         owner_id = current_user.id
-        lst = ListState(name=name, owner_id=owner_id)
+        # Accept explicit category_id from form or query params; prefer it over user's default
+        try:
+            form = await request.form()
+        except Exception:
+            form = {}
+        raw_cat = None
+        if form and form.get('category_id') is not None:
+            raw_cat = form.get('category_id')
+        elif request.query_params.get('category_id') is not None:
+            raw_cat = request.query_params.get('category_id')
+        cid = None
+        if raw_cat is not None and str(raw_cat).strip() != '' and str(raw_cat).strip() != '-1':
+            try:
+                cid = int(str(raw_cat))
+            except Exception:
+                cid = None
+        if cid is None:
+            default_cat = getattr(current_user, 'default_category_id', None)
+            cid = default_cat if default_cat is not None else None
+        lst = ListState(name=name, owner_id=owner_id, category_id=cid)
         sess.add(lst)
         try:
             await sess.commit()
@@ -4935,14 +4954,15 @@ async def html_index(request: Request):
     ua = (request.headers.get('user-agent') or '')
     # Log which template we will render and why (truncate UA to avoid huge logs)
     try:
+        user_default_cat = getattr(current_user, 'default_category_id', None)
         if force_ios:
             logger.info('html_index: rendering index_ios_safari (forced) ua=%s', ua[:200])
-            return TEMPLATES.TemplateResponse(request, "index_ios_safari.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences})
+            return TEMPLATES.TemplateResponse(request, "index_ios_safari.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat})
         if is_ios_safari(request):
             logger.info('html_index: rendering index_ios_safari (ua-detected) ua=%s', ua[:200])
-            return TEMPLATES.TemplateResponse(request, "index_ios_safari.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences})
+            return TEMPLATES.TemplateResponse(request, "index_ios_safari.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat})
         logger.info('html_index: rendering index.html (default) ua=%s', ua[:200])
-        return TEMPLATES.TemplateResponse(request, "index.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences})
+        return TEMPLATES.TemplateResponse(request, "index.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat})
     except Exception:
         # Ensure we always return something even if logging fails
         return TEMPLATES.TemplateResponse(request, "index.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences})
@@ -4971,7 +4991,7 @@ async def api_get_categories(request: Request, current_user: User = Depends(requ
         try:
             cres = await sess.exec(select(Category).order_by(Category.position.asc(), Category.id.asc()))
             cats = cres.all()
-            return {'categories': [{'id': c.id, 'name': c.name, 'position': c.position, 'sort_alphanumeric': getattr(c, 'sort_alphanumeric', False)} for c in cats]}
+            return {'categories': [{'id': c.id, 'name': c.name, 'position': c.position, 'sort_alphanumeric': getattr(c, 'sort_alphanumeric', False)} for c in cats], 'user_default_category_id': getattr(current_user, 'default_category_id', None)}
         except Exception:
             return {'categories': []}
 
@@ -5177,6 +5197,60 @@ async def api_create_category(request: Request, payload: CreateCategoryRequest, 
         await sess.commit()
         await sess.refresh(nc)
     return {'id': nc.id, 'name': nc.name, 'position': nc.position, 'sort_alphanumeric': getattr(nc, 'sort_alphanumeric', False)}
+
+
+class SetUserDefaultCategoryRequest(BaseModel):
+    category_id: Optional[int]
+
+
+@app.post('/api/user/default_category')
+async def api_set_user_default_category(request: Request, payload: SetUserDefaultCategoryRequest, current_user: User = Depends(require_login)):
+    """Set or clear the current user's default category via JSON API.
+    Accepts {category_id: int|null} where null/unset clears the default.
+    """
+    # allow bearer token clients; otherwise require CSRF
+    auth_hdr = request.headers.get('authorization')
+    if not auth_hdr:
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        token = body.get('_csrf') or request.cookies.get('csrf_token')
+        from .auth import verify_csrf_token
+        if not token or not verify_csrf_token(token, current_user.username):
+            raise HTTPException(status_code=403, detail='invalid csrf token')
+
+    cid = getattr(payload, 'category_id', None)
+    # normalize clearing values
+    if cid is None:
+        # clear default
+        async with async_session() as sess:
+            q = await sess.exec(select(User).where(User.id == current_user.id))
+            u = q.first()
+            if not u:
+                raise HTTPException(status_code=404, detail='user not found')
+            u.default_category_id = None
+            sess.add(u)
+            await sess.commit()
+        return {'ok': True, 'default_category_id': None}
+
+    try:
+        cid = int(cid)
+    except Exception:
+        raise HTTPException(status_code=400, detail='invalid category id')
+
+    async with async_session() as sess:
+        cat = await sess.get(Category, cid)
+        if not cat:
+            raise HTTPException(status_code=404, detail='category not found')
+        q = await sess.exec(select(User).where(User.id == current_user.id))
+        u = q.first()
+        if not u:
+            raise HTTPException(status_code=404, detail='user not found')
+        u.default_category_id = cid
+        sess.add(u)
+        await sess.commit()
+    return {'ok': True, 'default_category_id': cid}
 
 
 class SetCategorySortRequest(BaseModel):

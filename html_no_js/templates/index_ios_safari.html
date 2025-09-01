@@ -80,6 +80,11 @@
         <input type="hidden" name="_csrf" value="{{ csrf_token }}">
       {% endif %}
       <input name="name" placeholder="List name" required>
+      {% if user_default_category_id is defined and user_default_category_id is not none %}
+      <input type="hidden" name="category_id" value="{{ user_default_category_id }}">
+      {% else %}
+      <input type="hidden" name="category_id" value="">
+      {% endif %}
       <button type="submit">Create</button>
     </form>
 

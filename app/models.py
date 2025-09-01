@@ -158,6 +158,9 @@ class User(SQLModel, table=True):
     username: str = Field(index=True, sa_column_kwargs={"unique": True})
     password_hash: str
     is_admin: bool = Field(default=False)
+    # Optional per-user default category for newly-created lists.
+    # When set, new lists created by this user should be assigned this category.
+    default_category_id: Optional[int] = Field(default=None, foreign_key="category.id")
 
 
 class Session(SQLModel, table=True):
