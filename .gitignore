@@ -15,3 +15,5 @@ screenshots/
 
 # ignore runtime debug logs produced by instrumentation
 debug_logs/
+
+.certs/
