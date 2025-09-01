@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+usr/bin/env bash
 set -euo pipefail
 
 # Deploy tracked repo files to a local or remote server path using rsync.
@@ -88,7 +88,7 @@ if [ ! -s "$TMPFILE" ]; then
 fi
 
 # Exclude .tls/ so TLS files on the destination are preserved and not overwritten by deploy.
-RSYNC_BASE_OPTS=(--archive --compress --human-readable --links --perms --times --delete --files-from="$TMPFILE" --exclude='.git' --exclude='.tls/' --exclude='debug_logs/' --exclude='*.db' --exclude='*.sqlite' --exclude='*.sqlite3' ./)
+RSYNC_BASE_OPTS=(--archive --compress --human-readable --links --perms --times --delete --files-from="$TMPFILE" --exclude='.git' --exclude='.tls/' --exclude='.certs/' --exclude='debug_logs/' --exclude='*.db' --exclude='*.sqlite' --exclude='*.sqlite3' ./)
 
 # NOTE: .tls/ is intentionally NOT added to the transfer list so existing TLS
 # certificates on the target are preserved and not overwritten by deploy.
