@@ -4251,6 +4251,7 @@ def _serialize_list(lst: ListState) -> dict:
         "modified_at": _fmt(lst.modified_at),
     "expanded": getattr(lst, 'expanded', None),
     "hide_done": getattr(lst, 'hide_done', None),
+    "hide_icons": getattr(lst, 'hide_icons', False),
     # number of uncompleted todos in this list (computed by caller when available)
     "uncompleted_count": getattr(lst, 'uncompleted_count', None),
     }
@@ -4554,6 +4555,7 @@ async def html_index(request: Request):
                 "hashtags": tag_map.get(l.id, []),
                 # placeholder for number of uncompleted todos; will be filled below
                 "uncompleted_count": None,
+                "hide_icons": getattr(l, 'hide_icons', False),
             })
         # Determine highest uncompleted todo priority per list (if any)
         try:

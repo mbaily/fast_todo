@@ -112,7 +112,7 @@
             {% set eff = lst.override_priority if (lst.override_priority is not none and (lst.priority is none or lst.override_priority > lst.priority)) else lst.priority %}
             <li{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %} data-priority="{{ eff if eff is not none else '' }}">
               <a class="{% if lst.completed %}done{% endif %}" href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>
-              {% if lst.uncompleted_count is not none %}
+              {% if lst.uncompleted_count is not none and not (lst.hide_icons|default(false)) %}
                 <span class="count-circle colour" title="{{ lst.uncompleted_count }} uncompleted todos">{{ lst.uncompleted_count }}</span>
               {% endif %}
               <!--<button type="button" class="edit-list-btn" data-list-id="{{ lst.id }}" data-list-name="{{ lst.name|e }}" title="Edit list name" style="background:none;border:none;color:inherit;padding:0;margin-left:0.25rem;cursor:pointer;">✏️</button>-->
@@ -149,7 +149,7 @@
                 {% set eff = lst.override_priority if (lst.override_priority is not none and (lst.priority is none or lst.override_priority > lst.priority)) else lst.priority %}
                 <li{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %} data-priority="{{ eff if eff is not none else '' }}">
                   <a class="{% if lst.completed %}done{% endif %}" href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>
-                  {% if lst.uncompleted_count is not none %}
+                  {% if lst.uncompleted_count is not none and not (lst.hide_icons|default(false)) %}
                     <span class="count-circle colour" title="{{ lst.uncompleted_count }} uncompleted todos">{{ lst.uncompleted_count }}</span>
                   {% endif %}
                   <!--<button type="button" class="edit-list-btn" data-list-id="{{ lst.id }}" data-list-name="{{ lst.name|e }}" title="Edit list name" style="background:none;border:none;color:inherit;padding:0;margin-left:0.25rem;cursor:pointer;">✏️</button>-->

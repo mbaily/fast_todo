@@ -205,7 +205,7 @@
                 {% if lst.override_priority and (lst.priority is none or lst.override_priority > lst.priority) %}
                   <span class="meta priority-inline priority-override" title="Highest uncompleted todo priority"><span class="priority-circle">{{ circ.get(lst.override_priority, lst.override_priority) }}</span></span>
               {% endif %}
-              {% if lst.uncompleted_count is not none %}
+              {% if lst.uncompleted_count is not none and not (lst.hide_icons|default(false)) %}
                 <span class="count-circle colour" aria-hidden="false" title="{{ lst.uncompleted_count }} uncompleted todos">{{ lst.uncompleted_count }}</span>
               {% endif %}
               {% if lst.created_at %}
@@ -246,9 +246,9 @@
                 {% if lst.override_priority and (lst.priority is none or lst.override_priority > lst.priority) %}
                   <span class="meta priority-inline priority-override" title="Highest uncompleted todo priority"><span class="priority-circle">{{ circ.get(lst.override_priority, lst.override_priority) }}</span></span>
                 {% endif %}
-                  {% if lst.uncompleted_count is not none %}
+                {% if lst.uncompleted_count is not none and not (lst.hide_icons|default(false)) %}
                   <span class="count-circle colour" aria-hidden="false" title="{{ circ.get(lst.uncompleted_count, lst.uncompleted_count) }} uncompleted todos">{{ lst.uncompleted_count }}</span>
-                  {% endif %}
+                {% endif %}
                 {% if lst.created_at %}
                   <div class="meta">cr. {{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</div>
                 {% endif %}
