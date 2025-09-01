@@ -203,6 +203,7 @@ TEMPLATES.env.filters['in_tz'] = format_in_timezone
 from markupsafe import Markup, escape
 import re
 import time
+from urllib.parse import quote_plus
 
 
 def linkify(text: str | None) -> Markup:
@@ -340,6 +341,21 @@ def render_fn_tags(text: str | None) -> Markup:
             attrs = f'data-fn="{esc_ident}" data-args="{esc_args}"'
             if confirm:
                 attrs += f' data-confirm="{escape(confirm)}"'
+
+            # For navigation-style functions (search.multi) render an anchor so
+            # middle-click / Ctrl+click / right-click -> open in new tab works
+            if identifier == 'search.multi':
+                # Build a simple query from tags if present (comma-separated)
+                q = ''
+                try:
+                    if 'tags' in args and isinstance(args['tags'], list):
+                        # remove any internal whitespace from tags (server convention)
+                        cleaned = [t.replace(' ', '') for t in args['tags'] if isinstance(t, str)]
+                        q = ','.join(cleaned)
+                except Exception:
+                    q = ''
+                href = '/html_no_js/search?q=' + quote_plus(q)
+                return f'<a class="fn-button" role="button" href="{escape(href)}" {attrs}>{esc_label}</a>'
 
             return f'<button type="button" class="fn-button" {attrs}>{esc_label}</button>'
         except Exception:
