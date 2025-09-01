@@ -21,7 +21,7 @@ from sqlmodel import select
 from .models import Hashtag, TodoHashtag, ListHashtag, ServerState, CompletionType, SyncOperation, Tombstone, Category
 from .models import RecentListVisit
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import text
+from sqlalchemy import text, func
 from fastapi import Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, StreamingResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
@@ -4249,8 +4249,10 @@ def _serialize_list(lst: ListState) -> dict:
         "owner_id": lst.owner_id,
         "created_at": _fmt(lst.created_at),
         "modified_at": _fmt(lst.modified_at),
-        "expanded": getattr(lst, 'expanded', None),
-        "hide_done": getattr(lst, 'hide_done', None),
+    "expanded": getattr(lst, 'expanded', None),
+    "hide_done": getattr(lst, 'hide_done', None),
+    # number of uncompleted todos in this list (computed by caller when available)
+    "uncompleted_count": getattr(lst, 'uncompleted_count', None),
     }
 
 
@@ -4550,6 +4552,8 @@ async def html_index(request: Request):
                 # placeholder for any higher-priority uncompleted todo in this list
                 "override_priority": None,
                 "hashtags": tag_map.get(l.id, []),
+                # placeholder for number of uncompleted todos; will be filled below
+                "uncompleted_count": None,
             })
         # Determine highest uncompleted todo priority per list (if any)
         try:
@@ -4588,6 +4592,26 @@ async def html_index(request: Request):
                     row['override_priority'] = max_p
         except Exception:
             # failure computing overrides should not break index rendering
+            pass
+        # Compute uncompleted todo counts per list (exclude completions marked done)
+        try:
+            qcnt = await sess.exec(select(Todo.list_id, func.count(Todo.id)).where(Todo.list_id.in_(list_ids)).outerjoin(TodoCompletion, TodoCompletion.todo_id == Todo.id).group_by(Todo.list_id))
+            # fallback approach: count by filtering completions where done=True via a subquery
+            counts = {}
+            for lid, cnt in qcnt.all():
+                counts[lid] = int(cnt or 0)
+            # Adjust counts by subtracting completed todos (if completion records mark them done)
+            try:
+                qcomp = await sess.exec(select(Todo.id, Todo.list_id).join(TodoCompletion, TodoCompletion.todo_id == Todo.id).join(CompletionType, CompletionType.id == TodoCompletion.completion_type_id).where(Todo.list_id.in_(list_ids)).where(CompletionType.name == 'default').where(TodoCompletion.done == True))
+                for tid, lid in qcomp.all():
+                    counts[lid] = max(0, counts.get(lid, 0) - 1)
+            except Exception:
+                # ignore; keep counts as-is
+                pass
+            for row in list_rows:
+                row['uncompleted_count'] = counts.get(row.get('id'), 0)
+        except Exception:
+            # non-fatal: leave uncompleted_count as None
             pass
         # group lists by category for easier template rendering
         lists_by_category: dict[int, list[dict]] = {}

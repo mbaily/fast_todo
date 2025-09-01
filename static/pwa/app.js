@@ -690,7 +690,19 @@ function renderLists() {
       title.textContent = l.name || `List ${l.id}`;
       title.dataset.id = String(l.id);
       const meta = document.createElement('div'); meta.className = 'meta'; meta.textContent = l.owner_id ? 'private' : 'public';
-      main.appendChild(title); main.appendChild(meta);
+      // optional uncompleted count (supplied by server as uncompleted_count)
+      if (typeof l.uncompleted_count !== 'undefined' && l.uncompleted_count !== null) {
+        const cnt = document.createElement('span');
+        cnt.className = 'count-circle pink';
+        cnt.setAttribute('aria-label', l.uncompleted_count + ' uncompleted todos');
+        cnt.textContent = String(l.uncompleted_count);
+        // place count before meta so it appears inline with title
+        main.appendChild(title);
+        main.appendChild(cnt);
+        main.appendChild(meta);
+      } else {
+        main.appendChild(title); main.appendChild(meta);
+      }
       li.appendChild(left); li.appendChild(main);
       // clicking the row should select the list, but clicking the anchor should navigate
       li.addEventListener('click', (ev) => {

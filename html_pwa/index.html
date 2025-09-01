@@ -61,6 +61,9 @@
       .lists-list .list-main .meta { margin-left: 0; flex: 0 0 auto; white-space: nowrap; }
       .list-main .list-title { margin: 0; flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .list-main .meta { margin-left: auto; flex: 0 0 auto; white-space: nowrap; color: var(--muted); }
+  /* small circled count for uncompleted todos */
+  .count-circle { display:inline-block; min-width:1.6rem; height:1.6rem; line-height:1.6rem; text-align:center; border-radius:999px; font-size:0.9rem; margin-left:0.45rem; padding:0 0.2rem; background:#222; color:var(--text); }
+  .count-circle.pink { background: #ff88cc; color: #2b0b17; font-weight:600; }
       .list-header .list-title { margin: 0; font-size: 1rem; }
       a.button { padding: 0.25rem 0.5rem; border:1px solid var(--border); border-radius:4px; text-decoration:none; color:var(--text); background: var(--surface); }
       .full-bleed { box-sizing: border-box; margin-left: 0; padding: var(--full-bleed-padding); width: calc(100% + var(--page-side-margin)); max-width: calc(100vw - var(--full-bleed-right-gutter)); }
