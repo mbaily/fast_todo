@@ -4494,6 +4494,8 @@ async def html_index(request: Request):
                         'list_id': t.list_id,
                         'list_name': lm.get(t.list_id),
                         'modified_at': (t.modified_at.isoformat() if getattr(t, 'modified_at', None) else None),
+                        'priority': getattr(t, 'priority', None),
+                        'override_priority': getattr(t, 'override_priority', None) if hasattr(t, 'override_priority') else None,
                     }
                     for t in pin_rows
                 ]
