@@ -4962,6 +4962,12 @@ async def api_exec_fn(request: Request, payload: ExecFnRequest, current_user: Us
         if not token or not verify_csrf_token(token, current_user.username):
             raise HTTPException(status_code=403, detail='invalid csrf token')
 
+    # debug log incoming exec requests
+    try:
+        logger.debug('api_exec_fn payload received', extra={'user': getattr(current_user, 'username', None), 'payload': payload.dict()})
+    except Exception:
+        logger.debug('api_exec_fn payload received (unable to serialize payload)')
+
     name = (payload.name or '').strip()
     args = payload.args or {}
 
@@ -4976,8 +4982,17 @@ async def api_exec_fn(request: Request, payload: ExecFnRequest, current_user: Us
         # normalize tags using existing helper; reject invalid tags
         norm_tags: list[str] = []
         for t in tags:
+            # allow quoted tags or tags with spaces by normalizing internal whitespace to underscores
+            tt = t
+            if isinstance(tt, str):
+                tt = tt.strip()
+                if (tt.startswith('"') and tt.endswith('"')) or (tt.startswith("'") and tt.endswith("'")):
+                    tt = tt[1:-1]
+                # replace runs of whitespace by removing them so tag becomes alphanumeric
+                if re.search(r"\s", tt):
+                    tt = re.sub(r"\s+", '', tt)
             try:
-                nt = normalize_hashtag(t)
+                nt = normalize_hashtag(tt)
             except Exception:
                 raise HTTPException(status_code=400, detail=f'invalid tag: {t}')
             norm_tags.append(nt)
