@@ -214,7 +214,19 @@
       fetch('/html_no_js/lists/' + encodeURIComponent(id) + '/edit', { method: 'POST', body: fd, credentials: 'same-origin' })
         .then(function(res){ if (!res.ok) throw new Error('Rename failed'); return res.json().catch(function(){ return null; }); })
         .then(function(data){
-          try{ if (window.__ft_onListRenamed) window.__ft_onListRenamed(id, name); } catch(e){}
+          try{
+            var newName = (data && data.name) ? data.name : name;
+            var tags = (data && data.hashtags) ? data.hashtags : null;
+            if (window.__ft_onListRenamed) {
+              /* NOTE: Do NOT remove existing tags from the DOM here.
+                 List rename operations must only add new tags. Removals of
+                 existing tags are handled by dedicated tag-remove endpoints
+                 elsewhere in the app. The client-side rename helper will
+                 merge server-returned tags with any existing visible tag
+                 chips rather than clearing them. */
+              try{ if (tags) window.__ft_onListRenamed(id, newName, tags); else window.__ft_onListRenamed(id, newName); } catch(e){}
+            }
+          } catch(e){}
         })
         .catch(function(){ alert('Rename failed'); });
     }
@@ -446,7 +458,9 @@
         // priority glyph map (declare before use)
         var circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'};
         var titleHtml;
-        if (HIDE_ICONS) {
+  // Determine hide-icons state from the current DOM at insertion time
+  var currentHide = !!(document.querySelector('.todos-list') && document.querySelector('.todos-list').classList && document.querySelector('.todos-list').classList.contains('hide-icons'));
+  if (currentHide) {
           // Match server-rendered structure: outer span.wrap-text containing an inner anchor for the text,
           // then an inline priority marker and the magnifier link.
           titleHtml = '<span class="wrap-text"' + titleAttr + dataAttr + '>' +
@@ -454,7 +468,7 @@
                       (todo.priority ? (' <span class="meta priority-inline"><span class="priority-circle">' + (circ[todo.priority] || todo.priority) + '</span></span>') : '') +
                       ' <a href="/html_no_js/todos/' + todo.id + '" class="todo-open-link" aria-label="View todo ' + todo.id + '" style="margin-left:0.25rem; text-decoration:none;">🔎</a>' +
                       '</span>';
-        } else {
+  } else {
           titleHtml = '<a class="wrap-text' + (todo.completed ? ' done' : '') + '" href="/html_no_js/todos/' + todo.id + '"' + titleAttr + dataAttr + '>' + escapeHtml(todo.text) + (todo.priority ? (' <span class="meta priority-inline"><span class="priority-circle">' + (circ[todo.priority] || todo.priority) + '</span></span>') : '') + '</a>';
         }
         var noteHtml = todo.note ? (HIDE_ICONS ? ('<p class="note-text"><span class="note-body">' + escapeHtml(todo.note) + '</span></p>') : ('<div class="meta line-clamp-1 wrap-text">' + escapeHtml(todo.note) + '</div>')) : '';
@@ -462,7 +476,30 @@
         if (todo.priority) {
           priHtml = '<span class="meta priority-inline"><span class="priority-circle">' + (circ[todo.priority] || todo.priority) + '</span></span>';
         }
-  li.innerHTML = (HIDE_ICONS ? '<div class="controls-left controls-left-wide"><div class="hide-icon" aria-hidden="true">' + (todo.completed ? '<span class="todo-hide-icon">✅</span>' : '&nbsp;') + '</div></div>' : '') + '<div class="todo-content"><div class="todo-main"><div class="todo-title-inline">' + titleHtml + '</div>' + noteHtml + priHtml + '</div></div>';
+        // Build left-controls markup to mirror server-rendered structure.
+        var controlsHtml = '';
+        if (currentHide) {
+          controlsHtml = '<div class="controls-left controls-left-wide"><div class="hide-icon" aria-hidden="true">' + (todo.completed ? '<span class="todo-hide-icon">✅</span>' : '&nbsp;') + '</div></div>';
+        } else {
+          // Minimal non-Jinja forms — JS will rely on cookies for CSRF as server accepts that.
+          var doneVal = todo.completed ? 'false' : 'true';
+          var pinVal = todo.pinned ? 'false' : 'true';
+          controlsHtml = '<div class="controls-left controls-left-wide">' +
+                         '<form method="post" action="/html_no_js/todos/' + escapeHtml(todo.id) + '/complete">' +
+                           '<input type="hidden" name="anchor" value="todo-' + escapeHtml(todo.id) + '">' +
+                           '<input type="hidden" name="done" value="' + doneVal + '">' +
+                           '<button type="submit" aria-label="' + (todo.completed ? 'Unmark' : 'Mark') + '" title="' + (todo.completed ? 'Unmark' : 'Mark') + '">' + (todo.completed ? '☑' : '☐') + '</button>' +
+                         '</form>' +
+                         '<form method="post" action="/html_no_js/todos/' + escapeHtml(todo.id) + '/delete">' +
+                           '<button type="submit" aria-label="Delete" title="Delete">🗑</button>' +
+                         '</form>' +
+                         '<form method="post" action="/html_no_js/todos/' + escapeHtml(todo.id) + '/pin">' +
+                           '<input type="hidden" name="pinned" value="' + pinVal + '">' +
+                           '<button type="submit" aria-label="Pin" title="Pin" class="pin-button ' + (todo.pinned ? 'pinned' : '') + '">' + (todo.pinned ? '📌' : '📍') + '</button>' +
+                         '</form>' +
+                         '</div>';
+        }
+        li.innerHTML = controlsHtml + '<div class="todo-content"><div class="todo-main"><div class="todo-title-inline">' + titleHtml + '</div>' + noteHtml + priHtml + '</div></div>';
 
   ul.insertBefore(li, ul.firstChild);
   window.tooltip.debug('[tooltip-debug] create insertion inlineDate ->', inlineDate);

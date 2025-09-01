@@ -27,7 +27,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, Stre
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from .utils import format_server_local, format_in_timezone
-from .utils import extract_hashtags
+from .utils import extract_hashtags, normalize_hashtag
 from .utils import extract_dates
 from .utils import extract_dates_meta
 from .utils import remove_hashtags_from_text
@@ -1031,6 +1031,11 @@ async def create_list(request: Request, name: str = Form(None), current_user: Us
         name = request.query_params.get('name')
     if not name:
         raise HTTPException(status_code=400, detail="name is required")
+    # Preserve the original submitted name so we can extract hashtags from it
+    # before we remove them for the saved list name. This ensures clients that
+    # POST via fetch/JSON or via URLSearchParams still have their typed
+    # hashtags captured and synced to the list-level tags.
+    original_submitted_name = name
     # strip leading whitespace and remove inlined hashtags from saved name
     name = remove_hashtags_from_text(name.lstrip())
     async with async_session() as sess:
@@ -1063,12 +1068,60 @@ async def create_list(request: Request, name: str = Form(None), current_user: Us
             ss2.default_list_id = lst.id
             sess.add(ss2)
             await sess.commit()
-        # Extract hashtags from the original submitted list name and sync list-level hashtags
+        # Allow clients to explicitly provide hashtags via a form/query param named
+        # `hashtags`. Accept either a JSON array, comma-separated string, or space
+        # separated list. If not provided, fall back to extracting hashtags from
+        # the original submitted name (preserves prior behavior).
         try:
-            original = request.query_params.get('name') if request.query_params.get('name') and not request.form else None
-            tags = extract_hashtags(request.query_params.get('name') or name)
+            form = await request.form()
+        except Exception:
+            form = {}
+        tags = []
+        try:
+            explicit = None
+            if form and form.get('hashtags'):
+                explicit = form.get('hashtags')
+            elif request.query_params.get('hashtags'):
+                explicit = request.query_params.get('hashtags')
+
+            if explicit:
+                # try JSON array first
+                try:
+                    import json
+                    parsed = json.loads(explicit)
+                    if isinstance(parsed, (list, tuple)):
+                        cand = [str(x) for x in parsed if x]
+                    else:
+                        # fallback to string processing
+                        raise ValueError('not an array')
+                except Exception:
+                    # split on commas or whitespace
+                    cand = [s for s in re.split(r'[,\s]+', explicit) if s]
+                # normalize and deduplicate
+                seen = set()
+                for c in cand:
+                    try:
+                        # allow clients to pass tags with or without leading '#'
+                        norm = normalize_hashtag(c if c.startswith('#') else ('#' + c))
+                    except Exception:
+                        continue
+                    if norm not in seen:
+                        seen.add(norm)
+                        tags.append(norm)
+            else:
+                source_for_tags = request.query_params.get('name') or original_submitted_name or ''
+                tags = extract_hashtags(source_for_tags)
         except Exception:
             tags = []
+        # Persist extracted or explicit tags to the created list
+        try:
+            if tags:
+                # open a new session and sync tags for the created list
+                async with async_session() as sess2:
+                    await _sync_list_hashtags(sess2, lst.id, tags)
+        except Exception:
+            # best-effort: tagging shouldn't block list creation
+            pass
     # return the created list object (API clients expect the new list)
     return lst
 
@@ -5265,7 +5318,19 @@ async def html_edit_list(request: Request, list_id: int, name: str = Form(...), 
     # respond with redirect for normal browsers or 200 for fetch
     accept = request.headers.get('accept','')
     if 'application/json' in accept.lower():
-        return {'id': list_id, 'name': name}
+        # return canonical stored name and the current list hashtags
+        try:
+            qh = select(Hashtag.tag).join(ListHashtag, ListHashtag.hashtag_id == Hashtag.id).where(ListHashtag.list_id == list_id)
+            r = await sess.exec(qh)
+            rows = r.all()
+            list_tags: list[str] = []
+            for row in rows:
+                val = row[0] if isinstance(row, (tuple, list)) else row
+                if isinstance(val, str) and val:
+                    list_tags.append(val)
+        except Exception:
+            list_tags = []
+        return {'id': list_id, 'name': name, 'hashtags': list_tags}
     return RedirectResponse(url='/html_no_js/', status_code=303)
 
 

@@ -116,6 +116,50 @@
   <input name="name" placeholder="List name" required>
     <button type="submit">Create</button>
   </form>
+
+    <script>
+    // Ensure hashtags typed inline in the list name are sent explicitly as a
+    // `hashtags` value (comma-separated) so server-side create_list can persist them.
+    (function(){
+      try {
+        var form = document.querySelector('form[action="/html_no_js/lists/create"]');
+        if (!form) return;
+        form.addEventListener('submit', function(ev){
+       /* NOTE: When creating or renaming lists, client-side code must not
+         remove existing tag chips from the DOM. Tag removals are handled
+         by dedicated endpoints and UI controls elsewhere. This submit
+         handler only extracts inline hashtags and appends them as an
+         explicit `hashtags` form value so the server can persist them. */
+          try {
+            var nameInput = form.querySelector('input[name="name"]');
+            if (!nameInput) return;
+            var v = nameInput.value || '';
+            // find hashtag tokens like #tag (letter then alnum)
+                // Extract hashtags without using lookbehind to maximize browser support.
+                var re = /(^|\s)#([A-Za-z][A-Za-z0-9]*)(?=\s|$)/g;
+                var seen = {};
+                var out = [];
+                var mm;
+                while ((mm = re.exec(v)) !== null) {
+                  var body = mm[2] || '';
+                  var t = body.toLowerCase();
+                  if (!t) continue;
+                  if (!/^[a-z][a-z0-9]*$/.test(t)) continue;
+                  if (!seen[t]) { seen[t] = true; out.push('#' + t); }
+                }
+                if (out.length === 0) return;
+            if (out.length === 0) return;
+            // attach hidden input named `hashtags` with comma-separated tags
+            var existing = form.querySelector('input[name="hashtags"]');
+            if (existing) existing.value = out.join(',');
+            else {
+              var hi = document.createElement('input'); hi.type = 'hidden'; hi.name = 'hashtags'; hi.value = out.join(','); form.appendChild(hi);
+            }
+          } catch(e) { console && console.debug && console.debug('create-list hashtags extract failed', e); }
+        }, false);
+      } catch(e){}
+    })();
+    </script>
   
   {% if cursors %}
     <nav class="pagination" aria-label="Pages">

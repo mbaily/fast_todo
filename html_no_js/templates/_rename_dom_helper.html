@@ -38,11 +38,120 @@
       if (editBtn) editBtn.setAttribute('data-list-name', name);
     }catch(e){}
   }
-  window.__ft_onListRenamed = function(listId, name){
+  function extractTagsFromName(name){
     try{
-      updateAnchors(listId, name);
-      updateListTitles(listId, name);
-      updateEditButtons(listId, name);
+      var re = /(^|\s)#([A-Za-z][A-Za-z0-9]*)(?=\s|$)/g;
+      var out = [];
+      var seen = {};
+      var m;
+      while ((m = re.exec(name)) !== null){
+        var body = (m[2] || '').toLowerCase();
+        if (!body) continue;
+        if (!/^[a-z][a-z0-9]*$/.test(body)) continue;
+        if (!seen[body]){ seen[body] = true; out.push('#' + body); }
+      }
+      return out;
+    }catch(e){ return []; }
+  }
+
+  function renderTagsInto(container, tags){
+    try{
+      // Do not remove existing tag chips here — renames must not remove previously
+      // visible tags. Instead merge: collect existing tag-chip texts and only
+      // append tags that are not already present.
+      var existing = Array.from(container.querySelectorAll && container.querySelectorAll('.tag-chip') || []).map(function(el){ return (el.textContent || '').trim(); });
+      var seen = {};
+      existing.forEach(function(t){ if (t) seen[t] = true; });
+      // If no tags provided, leave existing DOM unchanged (don't clear it).
+      if (!tags || !tags.length){
+        // set aria-hidden appropriately
+        if (existing.length === 0) container.setAttribute('aria-hidden','true'); else container.setAttribute('aria-hidden','false');
+        return;
+      }
+      tags.forEach(function(tag){
+        if (!tag) return;
+        if (seen[tag]) return; // already present
+        seen[tag] = true;
+        var a = document.createElement('a'); a.className = 'tag-chip'; a.href = '/html_no_js/search?q=' + encodeURIComponent(tag); a.textContent = tag;
+        container.appendChild(a);
+        container.appendChild(document.createTextNode(' '));
+      });
+      // If there were neither existing nor appended tags, mark hidden
+      var any = Object.keys(seen).length > 0;
+      container.setAttribute('aria-hidden', any ? 'false' : 'true');
+    }catch(e){}
+  }
+
+  function updateListTags(listId, name, providedTags){
+    try{
+      var tags = Array.isArray(providedTags) ? providedTags : extractTagsFromName(name);
+      // 1) Update inline index/category containers which use .all-tags-inline[data-list-id]
+      var allInline = document.querySelectorAll('.all-tags-inline[data-list-id="' + listId + '"]');
+      allInline.forEach(function(c){ try{ renderTagsInto(c, tags); }catch(e){} });
+
+      // 2) Update any explicit `.tags` or `.tags-inline` block inside .list-main or .list-item that is near the given listId
+      var selector = '[data-list-id="' + listId + '"]';
+      // find any element that carries the list id (list-item or wrapper)
+      var wrappers = document.querySelectorAll(selector);
+      wrappers.forEach(function(w){
+        try{
+          var tagsBlock = w.querySelector('.tags') || w.querySelector('.tags-inline') || w.querySelector('.all-tags-inline');
+          if (tagsBlock) { renderTagsInto(tagsBlock, tags); }
+        }catch(e){}
+      });
+
+      // 3) Update the list page header tags (if present) by finding .list-main that contains the edit button for this id
+      var editBtn = document.querySelector('.edit-list-btn[data-list-id="' + listId + '"]');
+      if (editBtn){
+        try{
+          var lm = editBtn.closest && editBtn.closest('.list-main');
+          if (lm){
+            var headerTags = lm.querySelector('.tags') || lm.querySelector('.tags-inline') || lm.querySelector('.all-tags-inline');
+            if (headerTags) renderTagsInto(headerTags, tags);
+          }
+        }catch(e){}
+      }
+    }catch(e){ /* ignore */ }
+  }
+
+  // Fetch authoritative tags from server for a list and render into containers.
+  function fetchAndRenderListTags(listId){
+    try{
+      fetch('/lists/' + encodeURIComponent(listId) + '/hashtags?include_todo_tags=0&combine=0', { credentials: 'same-origin' })
+        .then(function(res){ if (!res.ok) throw new Error('fetch tags failed'); return res.json(); })
+        .then(function(data){
+          try{
+            var tags = (data && data.hashtags) ? data.hashtags : [];
+            // render into any inline containers
+            var containers = document.querySelectorAll('.all-tags-inline[data-list-id="' + listId + '"]');
+            containers.forEach(function(c){ try{ renderTagsInto(c, tags); }catch(e){} });
+            // also update nearby .tags or .tags-inline blocks
+            var wrappers = document.querySelectorAll('[data-list-id="' + listId + '"]');
+            wrappers.forEach(function(w){ try{ var tb = w.querySelector('.tags') || w.querySelector('.tags-inline') || w.querySelector('.all-tags-inline'); if (tb) renderTagsInto(tb, tags); }catch(e){} });
+          }catch(e){}
+        })
+        .catch(function(){ /* ignore fetch errors */ });
+    }catch(e){}
+  }
+  window.__ft_onListRenamed = function(listId, name, tags){
+    try{
+      // If server provided tags, prefer them; otherwise derive from name
+      var effectiveTags = Array.isArray(tags) ? tags : extractTagsFromName(name || '');
+      // strip inline hashtags from displayed title
+      var displayName = (name || '').replace(/(^|\s)#([A-Za-z][A-Za-z0-9]*)(?=\s|$)/g, '').replace(/\s+/g,' ').trim();
+      updateAnchors(listId, displayName);
+      updateListTitles(listId, displayName);
+      updateEditButtons(listId, displayName);
+      // Update visible tag chips based on explicit/effective tags; prefer server-provided `effectiveTags` when present
+      try { updateListTags(listId, displayName, effectiveTags); } catch(e){}
+      try {
+        // if server returned no explicit tags and updateListTags couldn't render any (containers absent), fetch authoritative tags
+        var anyInline = document.querySelectorAll('.all-tags-inline[data-list-id="' + listId + '"]');
+        var anyTagsRendered = (anyInline && anyInline.length > 0);
+        if ((!effectiveTags || !effectiveTags.length) && !anyTagsRendered) {
+          try{ fetchAndRenderListTags(listId); } catch(e){}
+        }
+      } catch(e){}
     }catch(e){ /* ignore */ }
   };
 })();
