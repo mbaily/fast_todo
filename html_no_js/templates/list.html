@@ -443,17 +443,23 @@
   var titleAttr = inlineDate ? (' title="' + escapeHtml(inlineDate) + '"') : '';
   var dataAttr = inlineDate ? (' data-date="' + escapeHtml(inlineDate) + '"') : '';
 
+        // priority glyph map (declare before use)
+        var circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'};
         var titleHtml;
         if (HIDE_ICONS) {
-          // wrap text in a span with tooltip and include magnifier inside the span
-          titleHtml = '<span class="wrap-text"' + titleAttr + dataAttr + '>' + escapeHtml(todo.text) + (todo.priority ? ('<span class="meta priority-inline"><span class="priority-circle">' + (circ[todo.priority] || todo.priority) + '</span></span>') : '') + ' <a href="/html_no_js/todos/' + todo.id + '" class="todo-open-link" aria-label="View todo ' + todo.id + '" style="margin-left:0.25rem; text-decoration:none;">🔎</a></span>';
+          // Match server-rendered structure: outer span.wrap-text containing an inner anchor for the text,
+          // then an inline priority marker and the magnifier link.
+          titleHtml = '<span class="wrap-text"' + titleAttr + dataAttr + '>' +
+                      '<a class="wrap-text' + (todo.completed ? ' done' : '') + '" href="/html_no_js/todos/' + todo.id + '"' + titleAttr + dataAttr + '>' + escapeHtml(todo.text) + '</a>' +
+                      (todo.priority ? (' <span class="meta priority-inline"><span class="priority-circle">' + (circ[todo.priority] || todo.priority) + '</span></span>') : '') +
+                      ' <a href="/html_no_js/todos/' + todo.id + '" class="todo-open-link" aria-label="View todo ' + todo.id + '" style="margin-left:0.25rem; text-decoration:none;">🔎</a>' +
+                      '</span>';
         } else {
-          titleHtml = '<a class="wrap-text" href="/html_no_js/todos/' + todo.id + '"' + titleAttr + dataAttr + '>' + escapeHtml(todo.text) + (todo.priority ? ('<span class="meta priority-inline"><span class="priority-circle">' + (circ[todo.priority] || todo.priority) + '</span></span>') : '') + '</a>';
+          titleHtml = '<a class="wrap-text' + (todo.completed ? ' done' : '') + '" href="/html_no_js/todos/' + todo.id + '"' + titleAttr + dataAttr + '>' + escapeHtml(todo.text) + (todo.priority ? (' <span class="meta priority-inline"><span class="priority-circle">' + (circ[todo.priority] || todo.priority) + '</span></span>') : '') + '</a>';
         }
         var noteHtml = todo.note ? (HIDE_ICONS ? ('<p class="note-text"><span class="note-body">' + escapeHtml(todo.note) + '</span></p>') : ('<div class="meta line-clamp-1 wrap-text">' + escapeHtml(todo.note) + '</div>')) : '';
         var priHtml = '';
         if (todo.priority) {
-          var circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'};
           priHtml = '<span class="meta priority-inline"><span class="priority-circle">' + (circ[todo.priority] || todo.priority) + '</span></span>';
         }
   li.innerHTML = (HIDE_ICONS ? '<div class="controls-left controls-left-wide"><div class="hide-icon" aria-hidden="true">' + (todo.completed ? '<span class="todo-hide-icon">✅</span>' : '&nbsp;') + '</div></div>' : '') + '<div class="todo-content"><div class="todo-main"><div class="todo-title-inline">' + titleHtml + '</div>' + noteHtml + priHtml + '</div></div>';
@@ -808,18 +814,126 @@
           var cb = document.getElementById('hide-icons-checkbox-{{ list.id }}');
           var hidden = document.getElementById('hide-icons-hidden-{{ list.id }}');
           var form = document.getElementById('hide-icons-form-{{ list.id }}');
-          if (!cb || !hidden || !form) return;
+          if (!cb || !hidden || !form) {
+            console && console.debug && console.debug('[hide-icons] missing element:', { cb: !!cb, hidden: !!hidden, form: !!form });
+            return;
+          }
+
+          // Simple escaper for user text when building innerHTML for dynamic updates
+          function esc(s){ return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+          // Update a single todo <li> to match hide-icons state. Tries to preserve created-at/data-date attributes.
+          function updateTodoRow(li, hide){
+            try {
+              if (!li) return;
+              var id = li.id && li.id.replace(/^todo-/, '') || '';
+              // determine completed and pinned states from existing DOM
+              var completed = !!li.querySelector('.todo-title-inline .wrap-text.done, .todo-title-inline .wrap-text a.done');
+              var pinBtn = li.querySelector('.pin-button');
+              var pinned = pinBtn && pinBtn.classList && pinBtn.classList.contains('pinned');
+
+              // controls-left area
+              var controls = li.querySelector('.controls-left');
+              if (controls) {
+                if (hide) {
+                  // replace with hide-icon block
+                  controls.innerHTML = '<div class="hide-icon" aria-hidden="true">' + (completed ? '<span class="todo-hide-icon">✅</span>' : '&nbsp;') + '</div>';
+                } else {
+                  // build regular forms (no csrf inputs — JS fetch handlers append cookie if needed)
+                  var doneVal = completed ? 'false' : 'true';
+                  var completeForm = '<form method="post" action="/html_no_js/todos/' + esc(id) + '/complete">' +
+                                      '<input type="hidden" name="anchor" value="todo-' + esc(id) + '">' +
+                                      '<input type="hidden" name="done" value="' + doneVal + '">' +
+                                      '<button type="submit" aria-label="' + (completed ? 'Unmark' : 'Mark') + '" title="' + (completed ? 'Unmark' : 'Mark') + '">' + (completed ? '☑' : '☐') + '</button>' +
+                                      '</form>';
+                  var deleteForm = '<form method="post" action="/html_no_js/todos/' + esc(id) + '/delete">' +
+                                      '<button type="submit" aria-label="Delete" title="Delete">🗑</button>' +
+                                   '</form>';
+                  var pinForm = '<form method="post" action="/html_no_js/todos/' + esc(id) + '/pin">' +
+                                  '<input type="hidden" name="pinned" value="' + (pinned ? 'false' : 'true') + '">' +
+                                  '<button type="submit" aria-label="Pin" title="Pin" class="pin-button ' + (pinned ? 'pinned' : '') + '">' + (pinned ? '📌' : '📍') + '</button>' +
+                                '</form>';
+                  controls.innerHTML = completeForm + deleteForm + pinForm;
+                }
+              }
+
+              // title area
+              var titleInline = li.querySelector('.todo-title-inline');
+              if (titleInline) {
+                // find existing text and attributes
+                var existingWrap = titleInline.querySelector('.wrap-text') || titleInline.querySelector('a.wrap-text');
+                var createdAt = existingWrap && (existingWrap.getAttribute('data-created-at') || existingWrap.getAttribute('data-created_at') || existingWrap.getAttribute('data-created-at'));
+                var dataDate = existingWrap && (existingWrap.getAttribute('data-date') || existingWrap.getAttribute('data-date'));
+                var noteNode = li.querySelector('.note-text .note-body') || li.querySelector('.meta.line-clamp-1.wrap-text');
+                var noteText = noteNode ? noteNode.textContent : '';
+                var text = '';
+                // prefer anchor text if present
+                var textEl = titleInline.querySelector('a.wrap-text') || titleInline.querySelector('.wrap-text');
+                if (textEl) text = textEl.textContent || '';
+
+                // Build new inner HTML for titleInline depending on hide
+                var titleHtml = '';
+                var titleAttr = createdAt ? (' title="' + esc(dataDate || '') + '"') : '';
+                var dataAttr = createdAt ? (' data-date="' + esc(dataDate || '') + '" data-created-at="' + esc(createdAt || '') + '"') : '';
+                if (hide) {
+                  titleHtml = '<span class="wrap-text"' + titleAttr + dataAttr + '>' +
+                              '<a class="wrap-text' + (completed ? ' done' : '') + '" href="/html_no_js/todos/' + esc(id) + '"' + titleAttr + dataAttr + '>' + esc(text) + '</a>' +
+                              (noteText ? ' <span class="meta priority-inline"></span>' : '') +
+                              ' <a href="/html_no_js/todos/' + esc(id) + '" class="todo-open-link" aria-label="View todo ' + esc(id) + '" style="margin-left:0.25rem; text-decoration:none;">🔎</a>' +
+                              '</span>';
+                } else {
+                  titleHtml = '<a class="wrap-text' + (completed ? ' done' : '') + '" href="/html_no_js/todos/' + esc(id) + '"' + titleAttr + dataAttr + '>' + esc(text) + '</a>';
+                }
+                titleInline.innerHTML = titleHtml;
+
+                // note area: swap between <p class="note-text"><span class="note-body">..</span></p> and <div class="meta line-clamp-1 wrap-text">..
+                var noteContainer = li.querySelector('.note-text') || li.querySelector('.meta.line-clamp-1.wrap-text');
+                if (noteContainer) {
+                  if (hide) {
+                    // replace with p.note-text
+                    var p = document.createElement('p'); p.className = 'note-text'; var span = document.createElement('span'); span.className = 'note-body'; span.textContent = noteText; p.appendChild(span);
+                    noteContainer.parentNode.replaceChild(p, noteContainer);
+                  } else {
+                    var div = document.createElement('div'); div.className = 'meta line-clamp-1 wrap-text'; div.textContent = noteText;
+                    noteContainer.parentNode.replaceChild(div, noteContainer);
+                  }
+                }
+              }
+            } catch(e) { console && console.error && console.error('[hide-icons] updateTodoRow error', e); }
+          }
+
+          function updateTodosForHideIcons(hide){
+            var lis = document.querySelectorAll('li.todo');
+            lis.forEach(function(li){ updateTodoRow(li, hide); });
+          }
+
+          console && console.debug && console.debug('[hide-icons] attaching listener to checkbox id=', cb.id, 'form action=', form.getAttribute('action'));
           cb.addEventListener('change', function(){
+            console && console.debug && console.debug('[hide-icons] change event fired, checked=', cb.checked);
             hidden.value = cb.checked ? 'true' : 'false';
             try {
               var fd = new FormData(); fd.append('hide_icons', hidden.value);
+              // append _csrf if present in DOM, otherwise rely on cookie (server handlers accept cookie)
               var csrf = document.querySelector('input[name="_csrf"]'); if (csrf && csrf.value) fd.append('_csrf', csrf.value);
-              fetch(form.getAttribute('action') || window.location.href, { method: 'POST', body: fd, credentials: 'same-origin' }).then(function(res){ if (!res.ok) console && console.error && console.error('hide-icons update failed'); else {
-                // toggle DOM class immediately so UI reflects choice
-                var ul = document.querySelector('.todos-list'); if (ul) { if (cb.checked) ul.classList.add('hide-icons'); else ul.classList.remove('hide-icons'); }
-              });
-            } catch(e){}
+              var actionUrl = form.getAttribute('action') || window.location.href;
+              console && console.debug && console.debug('[hide-icons] fetch', actionUrl, 'body hide_icons=', hidden.value, 'csrf_present=', !!(csrf && csrf.value));
+              fetch(actionUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
+                .then(function(res){
+                  console && console.debug && console.debug('[hide-icons] fetch response ok=', !!res && res.ok, 'status=', res && res.status);
+                  if (!res.ok) console && console.error && console.error('hide-icons update failed', res && res.status);
+                  else {
+                    // toggle DOM class immediately so UI reflects choice
+                    var ul = document.querySelector('.todos-list'); if (ul) { if (cb.checked) ul.classList.add('hide-icons'); else ul.classList.remove('hide-icons'); }
+                    // update each todo row to match server-rendered markup
+                    updateTodosForHideIcons(cb.checked);
+                  }
+                })
+                .catch(function(err){ console && console.error && console.error('[hide-icons] fetch exception', err); });
+            } catch(e){ console && console.error && console.error('[hide-icons] handler exception', e); }
           });
+
+          // If page initially rendered with hide-icons, ensure rows are in the expected state
+          try { if (cb.checked) updateTodosForHideIcons(true); } catch(e){}
         })();
       </script>
     </form>
