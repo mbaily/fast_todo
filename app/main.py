@@ -228,6 +228,138 @@ def linkify(text: str | None) -> Markup:
 TEMPLATES.env.filters['linkify'] = linkify
 
 
+def render_fn_tags(text: str | None) -> Markup:
+    """Render {{fn:...}} tags into safe HTML buttons with data attributes.
+
+    Recognizes tags of the form:
+      {{fn:identifier arg1=val1,arg2=val2 | Label ?confirm="Are you sure?"}}
+
+    Produces HTML like:
+      <button data-fn="identifier" data-args='{"arg1":"val1"}'>Label</button>
+
+    Malformed tags are returned escaped.
+    """
+    if not text:
+        return Markup("")
+
+    # Regex to find {{fn: ... }} non-greedy
+    tag_re = re.compile(r"\{\{\s*fn:([^\}]+?)\s*\}\}")
+
+    def _render_match(m: re.Match) -> str:
+        body = m.group(1).strip()
+        try:
+            # Split off a label part after a '|' if present
+            label = None
+            confirm = None
+            if '|' in body:
+                before, after = body.split('|', 1)
+                body = before.strip()
+                label_part = after.strip()
+                # label may include ?confirm="..."
+                if '?confirm=' in label_part:
+                    lp, conf = label_part.split('?confirm=', 1)
+                    label = lp.strip()
+                    # strip optional surrounding quotes
+                    conf = conf.strip()
+                    if (conf.startswith('"') and conf.endswith('"')) or (conf.startswith("'") and conf.endswith("'")):
+                        conf = conf[1:-1]
+                    confirm = conf
+                else:
+                    label = label_part
+
+            # Now parse identifier and arg list
+            parts = body.split(None, 1)
+            identifier = parts[0].strip()
+            args_text = parts[1].strip() if len(parts) > 1 else ''
+
+            args = {}
+            if args_text:
+                # Support comma-separated key=val pairs, values may be quoted
+                # Simple parser: split on commas not inside quotes
+                cur = ''
+                in_q = None
+                pairs = []
+                for ch in args_text:
+                    if ch in ('"', "'"):
+                        if in_q is None:
+                            in_q = ch
+                        elif in_q == ch:
+                            in_q = None
+                        cur += ch
+                    elif ch == ',' and in_q is None:
+                        pairs.append(cur)
+                        cur = ''
+                    else:
+                        cur += ch
+                if cur.strip():
+                    pairs.append(cur)
+
+                for p in pairs:
+                    if '=' in p:
+                        k, v = p.split('=', 1)
+                        k = k.strip()
+                        v = v.strip()
+                        # strip quotes
+                        if (v.startswith('"') and v.endswith('"')) or (v.startswith("'") and v.endswith("'")):
+                            v = v[1:-1]
+                        # normalize tags into a list
+                        if k == 'tags':
+                            # allow tags="#a,#b" or tags=#a,#b (we split earlier on commas so handle single value)
+                            if isinstance(v, str) and ',' in v:
+                                args[k] = [t.strip() for t in v.split(',') if t.strip()]
+                            else:
+                                args[k] = [v]
+                        else:
+                            args[k] = v
+                    else:
+                        # positional tag-like argument, e.g., #tag -> collect into tags list
+                        val = p.strip()
+                        if val:
+                            if 'tags' in args and isinstance(args['tags'], str):
+                                # convert stray string to list
+                                args['tags'] = [args['tags']]
+                            args.setdefault('tags', []).append(val)
+
+            # Final normalization: ensure tags is a list when present
+            if 'tags' in args and not isinstance(args['tags'], list):
+                if isinstance(args['tags'], str):
+                    args['tags'] = [t.strip() for t in args['tags'].split(',') if t.strip()]
+                else:
+                    args['tags'] = [args['tags']]
+
+            # Build data-args JSON safely
+            data_args = json.dumps(args, ensure_ascii=False)
+
+            btn_label = (label or identifier)
+
+            # Escape label for HTML
+            esc_label = escape(btn_label)
+            esc_ident = escape(identifier)
+            esc_args = escape(data_args)
+
+            attrs = f'data-fn="{esc_ident}" data-args="{esc_args}"'
+            if confirm:
+                attrs += f' data-confirm="{escape(confirm)}"'
+
+            return f'<button type="button" class="fn-button" {attrs}>{esc_label}</button>'
+        except Exception:
+            # On any parse error, return the original text escaped
+            return escape(m.group(0))
+
+    # First escape the whole text to avoid HTML injection, then un-escape/replace tags
+    esc = escape(text)
+
+    # We need to run tag replacement on the raw text, not the escaped one, to preserve parsing
+    try:
+        out = tag_re.sub(lambda m: _render_match(m), str(text))
+        return Markup(out)
+    except Exception:
+        return Markup(escape(text))
+
+
+TEMPLATES.env.filters['render_fn_tags'] = render_fn_tags
+
+
 # Helper to broadcast lightweight debug events to SSE queues when available.
 def _sse_debug(event: str, payload: dict):
     try:
@@ -4799,6 +4931,155 @@ async def api_get_categories(request: Request, current_user: User = Depends(requ
             return {'categories': [{'id': c.id, 'name': c.name, 'position': c.position, 'sort_alphanumeric': getattr(c, 'sort_alphanumeric', False)} for c in cats]}
         except Exception:
             return {'categories': []}
+
+
+class ExecFnRequest(BaseModel):
+    name: str
+    args: Optional[dict] = None
+    context: Optional[dict] = None
+
+
+@app.post('/api/exec-fn')
+async def api_exec_fn(request: Request, payload: ExecFnRequest, current_user: User = Depends(require_login)):
+    """Execute a small, server-registered function by name.
+
+    Currently supports: 'search.multi' which accepts args: {
+        tags: list[str] | str (comma-separated),
+        mode: 'and'|'or' (default 'and'),
+        include_list_todos: bool,
+        exclude_completed: bool (default True)
+    }
+    """
+    # Allow bearer-token API clients (Authorization header) without CSRF.
+    auth_hdr = request.headers.get('authorization')
+    if not auth_hdr:
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        token = body.get('_csrf') or request.cookies.get('csrf_token')
+        from .auth import verify_csrf_token
+        if not token or not verify_csrf_token(token, current_user.username):
+            raise HTTPException(status_code=403, detail='invalid csrf token')
+
+    name = (payload.name or '').strip()
+    args = payload.args or {}
+
+    # Implement search.multi
+    if name == 'search.multi':
+        # parse tags
+        tags = args.get('tags') or []
+        if isinstance(tags, str):
+            tags = [t.strip() for t in tags.split(',') if t.strip()]
+        if not isinstance(tags, list):
+            raise HTTPException(status_code=400, detail='tags must be a list or comma-separated string')
+        # normalize tags using existing helper; reject invalid tags
+        norm_tags: list[str] = []
+        for t in tags:
+            try:
+                nt = normalize_hashtag(t)
+            except Exception:
+                raise HTTPException(status_code=400, detail=f'invalid tag: {t}')
+            norm_tags.append(nt)
+
+        mode = str(args.get('mode', 'and') or 'and').lower()
+        include_list_todos = bool(args.get('include_list_todos', False))
+        exclude_completed = True if ('exclude_completed' not in args) else bool(args.get('exclude_completed'))
+
+        results = {'lists': [], 'todos': []}
+        async with async_session() as sess:
+            owner_id = current_user.id
+            # Lists matching tags
+            lists_acc: dict[int, ListState] = {}
+            if norm_tags:
+                # For each tag, collect matching list ids, then combine per mode
+                per_tag_lists: list[set[int]] = []
+                for tag in norm_tags:
+                    q = (
+                        select(ListState)
+                        .join(ListHashtag, ListHashtag.list_id == ListState.id)
+                        .join(Hashtag, Hashtag.id == ListHashtag.hashtag_id)
+                        .where(ListState.owner_id == owner_id)
+                        .where(Hashtag.tag == tag)
+                    )
+                    rows = (await sess.exec(q)).all()
+                    per_tag_lists.append({int(r.id) for r in rows})
+                    for r in rows:
+                        lists_acc.setdefault(int(r.id), r)
+                if per_tag_lists:
+                    if mode == 'and':
+                        ids = set.intersection(*per_tag_lists) if per_tag_lists else set()
+                    else:
+                        ids = set.union(*per_tag_lists) if per_tag_lists else set()
+                    # prune lists_acc to only selected ids
+                    lists_acc = {i: lists_acc[i] for i in ids if i in lists_acc}
+            # prepare lists result
+            results['lists'] = [
+                {'id': l.id, 'name': l.name, 'completed': getattr(l, 'completed', False)}
+                for l in lists_acc.values()
+                if not (exclude_completed and getattr(l, 'completed', False))
+            ]
+
+            # Todos matching tags
+            # Determine visible list ids (same as html_search)
+            qvis = select(ListState).where((ListState.owner_id == owner_id) | (ListState.owner_id == None))
+            rvis = await sess.exec(qvis)
+            vis_ids = [l.id for l in rvis.all()]
+            todos_acc: dict[int, Todo] = {}
+            if vis_ids and norm_tags:
+                # For each tag, collect matching todo ids and combine per mode
+                per_tag_todos: list[set[int]] = []
+                for tag in norm_tags:
+                    q = (
+                        select(Todo)
+                        .join(TodoHashtag, TodoHashtag.todo_id == Todo.id)
+                        .join(Hashtag, Hashtag.id == TodoHashtag.hashtag_id)
+                        .where(Todo.list_id.in_(vis_ids))
+                        .where(Hashtag.tag == tag)
+                    )
+                    rows = (await sess.exec(q)).all()
+                    per_tag_todos.append({int(t.id) for t in rows})
+                    for t in rows:
+                        todos_acc.setdefault(int(t.id), t)
+                if per_tag_todos:
+                    if mode == 'and':
+                        todo_ids = set.intersection(*per_tag_todos) if per_tag_todos else set()
+                    else:
+                        todo_ids = set.union(*per_tag_todos) if per_tag_todos else set()
+                    todos_acc = {i: todos_acc[i] for i in todo_ids if i in todos_acc}
+
+            # Optionally include all todos from matching lists
+            if include_list_todos and lists_acc:
+                list_ids_match = list(lists_acc.keys())
+                qall = select(Todo).where(Todo.list_id.in_(list_ids_match))
+                for t in (await sess.exec(qall)).all():
+                    todos_acc.setdefault(int(t.id), t)
+
+            # Compute completion status (reuse same logic as html_search)
+            lm = {l.id: l.name for l in (await sess.exec(select(ListState).where(ListState.id.in_(vis_ids)))).all()} if vis_ids else {}
+            todo_list_ids = list({t.list_id for t in todos_acc.values()})
+            default_ct_ids: dict[int, int] = {}
+            if todo_list_ids:
+                qct = select(CompletionType).where(CompletionType.list_id.in_(todo_list_ids)).where(CompletionType.name == 'default')
+                for ct in (await sess.exec(qct)).all():
+                    default_ct_ids[int(ct.list_id)] = int(ct.id)
+            todo_ids = list(todos_acc.keys())
+            completed_ids: set[int] = set()
+            if todo_ids and default_ct_ids:
+                qdone = select(TodoCompletion.todo_id, TodoCompletion.done, TodoCompletion.completion_type_id).where(TodoCompletion.todo_id.in_(todo_ids)).where(TodoCompletion.completion_type_id.in_(list(default_ct_ids.values())))
+                for tid, done_val, ctid in (await sess.exec(qdone)).all():
+                    if done_val:
+                        completed_ids.add(int(tid))
+
+            results['todos'] = [
+                {'id': t.id, 'text': t.text, 'note': t.note, 'list_id': t.list_id, 'list_name': lm.get(t.list_id), 'completed': (int(t.id) in completed_ids)}
+                for t in todos_acc.values() if not (exclude_completed and (int(t.id) in completed_ids))
+            ]
+
+        return {'ok': True, 'results': results}
+
+    # Unknown function
+    raise HTTPException(status_code=404, detail='function not found')
 
 
 

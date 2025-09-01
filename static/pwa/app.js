@@ -719,7 +719,36 @@ function showTodoDetail(todo) {
   sec.style.display = 'block';
   box.innerHTML = '';
   const title = document.createElement('h3'); title.textContent = `#${todo.id} — ${todo.text}`;
-  const note = document.createElement('div'); note.className = 'note-text'; note.textContent = todo.note || '';
+  const note = document.createElement('div'); note.className = 'note-text';
+  // Render fn-tags client-side so PWA users see buttons. Keep it safe by HTML-escaping
+  function escapeHtml(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function renderFnTagsToHtml(text){
+    if(!text) return '';
+    // find {{fn:...}} tags non-greedy
+    return text.replace(/\{\{\s*fn:([^\}]+?)\s*\}\}/g, function(_, body){
+      try{
+        var parts = body.split('|');
+        var left = parts[0].trim();
+        var label = parts[1] ? parts[1].trim() : null;
+        var identifier = left.split(/\s+/,1)[0];
+        var args_text = left.slice(identifier.length).trim();
+        var args = {};
+        if(args_text){
+          var pairs = []; var cur=''; var in_q=null;
+          for(var i=0;i<args_text.length;i++){ var ch=args_text.charAt(i); if((ch==='"' || ch==="'") ){ if(in_q===null) in_q=ch; else if(in_q===ch) in_q=null; cur+=ch; } else if(ch===',' && in_q===null){ pairs.push(cur); cur=''; } else { cur+=ch; } }
+          if(cur.trim()) pairs.push(cur);
+          pairs.forEach(function(p){ if(p.indexOf('=')!==-1){ var kv=p.split('='); var k=kv[0].trim(); var v=kv.slice(1).join('=').trim(); if((v.charAt(0)==='"'&&v.charAt(v.length-1)==='"')||(v.charAt(0)==="'"&&v.charAt(v.length-1)==="'")){ v=v.slice(1,-1); } args[k]=v; } else { var v=p.trim(); if(v) { args.tags = args.tags || []; args.tags.push(v); } } });
+          pairs.forEach(function(p){ if(p.indexOf('=')!==-1){ var kv=p.split('='); var k=kv[0].trim(); var v=kv.slice(1).join('=').trim(); if((v.charAt(0)==='"'&&v.charAt(v.length-1)==='"')||(v.charAt(0)==="'"&&v.charAt(v.length-1)==="'")){ v=v.slice(1,-1); } if(k==='tags'){ if(v.indexOf(',')!==-1){ args[k]=v.split(',').map(function(x){return x.trim();}).filter(Boolean); } else { args[k]=[v]; } } else { args[k]=v; } } else { var v=p.trim(); if(v) { args.tags = args.tags || []; args.tags.push(v); } } });
+        }
+        var dataArgs = JSON.stringify(args);
+        var escLabel = escapeHtml(label || identifier);
+        var escIdent = escapeHtml(identifier);
+        var escArgs = escapeHtml(dataArgs);
+        return '<button type="button" class="fn-button" data-fn="'+escIdent+'" data-args="'+escArgs+'">'+escLabel+'</button>';
+      }catch(e){ return escapeHtml('{{fn:'+body+'}}'); }
+    }).replace(/\n/g,'<br>');
+  }
+  note.innerHTML = renderFnTagsToHtml(todo.note || '');
   const meta = document.createElement('div'); meta.className = 'meta'; meta.textContent = `Created: ${todo.created_at || 'unknown'} Modified: ${todo.modified_at || 'unknown'}`;
   const actions = document.createElement('div'); actions.style.marginTop = '.5rem'; actions.style.display = 'flex'; actions.style.gap = '.5rem';
   const editBtn = document.createElement('button'); editBtn.textContent = 'Edit';

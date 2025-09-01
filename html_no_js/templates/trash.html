@@ -21,7 +21,7 @@
             <div class="todo-main">
               <a class="todo-title-inline" href="/html_no_js/todos/{{ todo.id }}">{{ todo.text }}</a>
               {% if todo.note %}
-                <div class="note-text">{{ todo.note|linkify }}</div>
+                <div class="note-text">{{ todo.note|render_fn_tags|linkify }}</div>
               {% endif %}
             </div>
             <div class="todo-action-right meta">Modified: {{ todo.modified_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</div>
