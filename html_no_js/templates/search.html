@@ -5,7 +5,10 @@
   <form method="get" action="/html_no_js/search" style="margin-bottom:0.75rem">
     <input type="text" name="q" value="{{ q }}" placeholder="Search" style="min-width:16rem">
     <label style="margin-left:0.5rem"><input type="checkbox" name="include_list_todos" value="1" {% if include_list_todos %}checked{% endif %}> include todos from matching lists</label>
-  <label style="margin-left:0.5rem"><input type="checkbox" name="exclude_completed" value="1" {% if exclude_completed %}checked{% endif %}> exclude completed</label>
+  <label style="margin-left:0.5rem">
+    <input type="hidden" name="exclude_completed" value="0">
+    <input type="checkbox" name="exclude_completed" value="1" {% if exclude_completed is not defined %}checked{% elif exclude_completed %}checked{% endif %}> exclude completed
+  </label>
     <button type="submit" style="margin-left:0.5rem">Search</button>
   </form>
   {% if results.lists and results.lists|length > 0 %}

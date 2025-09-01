@@ -5072,7 +5072,11 @@ async def html_search(request: Request):
         return RedirectResponse(url='/html_no_js/login', status_code=303)
     qparam = request.query_params.get('q', '').strip()
     include_list_todos = str(request.query_params.get('include_list_todos', '')).lower() in ('1','true','yes','on')
-    exclude_completed = str(request.query_params.get('exclude_completed', '')).lower() in ('1','true','yes','on')
+    # Default to excluding completed when the parameter is not supplied (so UI default is respected)
+    if 'exclude_completed' in request.query_params:
+        exclude_completed = str(request.query_params.get('exclude_completed', '')).lower() in ('1','true','yes','on')
+    else:
+        exclude_completed = True
     results = {'lists': [], 'todos': []}
     if qparam:
         # Search across names/text/notes AND hashtags extracted from the query.
