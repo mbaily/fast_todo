@@ -7,9 +7,9 @@ set -euo pipefail
 #  Local deploy to default path (run on server):
 #    sudo ./scripts/deploy.sh
 #  Local deploy to custom path:
-#    sudo ./scripts/deploy.sh /opt/gpt5_fast_todo
+#    sudo ./scripts/deploy.sh /opt/fast_todo
 #  Remote deploy from a checkout to remote host:
-#    ./scripts/deploy.sh deploy@server.example.com /opt/gpt5_fast_todo
+#    ./scripts/deploy.sh deploy@server.example.com /opt/fast_todo
 # Options:
 #    --dry-run            show what would be copied
 #    --owner=user:group   owner to apply (default: www-data:www-data)
@@ -48,11 +48,11 @@ MODE="local"
 if [ $# -ge 1 ] && [[ "$1" == *"@"* ]]; then
   MODE="remote"
   TARGET="$1"
-  REMOTE_PATH="${2:-/opt/gpt5_fast_todo}"
+  REMOTE_PATH="${2:-/opt/fast_todo}"
   shift 2 || true
 else
   MODE="local"
-  REMOTE_PATH="${1:-/opt/gpt5_fast_todo}"
+  REMOTE_PATH="${1:-/opt/fast_todo}"
   shift || true
 fi
 

@@ -89,7 +89,7 @@ else
 fi
 
 
-ENV_FILE="/etc/default/gpt5_fast_todo"
+ENV_FILE="/etc/default/fast_todo"
 echo hello1
 
 # Load SECRET_KEY only, ignore the rest (avoid sourcing untrusted code)

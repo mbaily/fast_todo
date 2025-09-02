@@ -4,7 +4,7 @@ Use the './test.db' SQLite database for debugging this issue.
 
 First issue is the scripts/add_user.py script. It requires the PYTHONPATH to be set. Can you clarify how PYTHONPATH is working. I get an error:
 Traceback (most recent call last):
-  File "/home/mbaily/fast_todo_gpt5_mini/./scripts/add_user.py", line 16, in <module>
+  File "/home/mbaily/fast_todo/./scripts/add_user.py", line 16, in <module>
     from app.db import init_db, async_session
 ModuleNotFoundError: No module named 'app'
 

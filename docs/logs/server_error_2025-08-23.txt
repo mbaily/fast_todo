@@ -12,86 +12,86 @@ INFO:     127.0.0.1:56390 - "GET /html_no_js/todos/189 HTTP/1.1" 200 OK
 INFO:     127.0.0.1:56390 - "POST /html_no_js/todos/189/edit HTTP/1.1" 500 Internal Server Error
 ERROR:    Exception in ASGI application
 Traceback (most recent call last):
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
     result = await app(  # type: ignore[func-returns-value]
              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
         self.scope, self.receive, self.send
         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     )
     ^
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
     return await self.app(scope, receive, send)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/fastapi/applications.py", line 1054, in __call__
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/fastapi/applications.py", line 1054, in __call__
     await super().__call__(scope, receive, send)
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/starlette/applications.py", line 113, in __call__
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/starlette/applications.py", line 113, in __call__
     await self.middleware_stack(scope, receive, send)
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/starlette/middleware/errors.py", line 186, in __call__
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/starlette/middleware/errors.py", line 186, in __call__
     raise exc
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/starlette/middleware/errors.py", line 164, in __call__
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/starlette/middleware/errors.py", line 164, in __call__
     await self.app(scope, receive, _send)
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
     await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
     raise exc
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
     await app(scope, receive, sender)
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/starlette/routing.py", line 716, in __call__
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/starlette/routing.py", line 716, in __call__
     await self.middleware_stack(scope, receive, send)
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/starlette/routing.py", line 736, in app
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/starlette/routing.py", line 736, in app
     await route.handle(scope, receive, send)
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/starlette/routing.py", line 290, in handle
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/starlette/routing.py", line 290, in handle
     await self.app(scope, receive, send)
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/starlette/routing.py", line 78, in app
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/starlette/routing.py", line 78, in app
     await wrap_app_handling_exceptions(app, request)(scope, receive, send)
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
     raise exc
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
     await app(scope, receive, sender)
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/starlette/routing.py", line 75, in app
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/starlette/routing.py", line 75, in app
     response = await f(request)
                ^^^^^^^^^^^^^^^^
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/fastapi/routing.py", line 302, in app
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/fastapi/routing.py", line 302, in app
     raw_response = await run_endpoint_function(
                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     ...<3 lines>...
     )
     ^
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/fastapi/routing.py", line 213, in run_endpoint_function
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/fastapi/routing.py", line 213, in run_endpoint_function
     return await dependant.call(**values)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/mbaily/fast_todo_gpt5_mini/app/main.py", line 1857, in html_edit_todo
+  File "/home/mbaily/fast_todo/app/main.py", line 1857, in html_edit_todo
     result = await update_todo(todo_id=todo_id, text=text, note=note, current_user=current_user)
              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/mbaily/fast_todo_gpt5_mini/app/main.py", line 841, in update_todo
+  File "/home/mbaily/fast_todo/app/main.py", line 841, in update_todo
     await _sync_todo_hashtags(sess, todo.id, seen)
-  File "/home/mbaily/fast_todo_gpt5_mini/app/main.py", line 1084, in _sync_todo_hashtags
+  File "/home/mbaily/fast_todo/app/main.py", line 1084, in _sync_todo_hashtags
     hid = existing[tag].id
           ^^^^^^^^^^^^^^^^
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/sqlalchemy/orm/attributes.py", line 569, in __get__
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/sqlalchemy/orm/attributes.py", line 569, in __get__
     return self.impl.get(state, dict_)  # type: ignore[no-any-return]
            ~~~~~~~~~~~~~^^^^^^^^^^^^^^
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/sqlalchemy/orm/attributes.py", line 1096, in get
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/sqlalchemy/orm/attributes.py", line 1096, in get
     value = self._fire_loader_callables(state, key, passive)
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/sqlalchemy/orm/attributes.py", line 1126, in _fire_loader_callables
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/sqlalchemy/orm/attributes.py", line 1126, in _fire_loader_callables
     return state._load_expired(state, passive)
            ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/sqlalchemy/orm/state.py", line 803, in _load_expired
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/sqlalchemy/orm/state.py", line 803, in _load_expired
     self.manager.expired_attribute_loader(self, toload, passive)
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/sqlalchemy/orm/loading.py", line 1674, in load_scalar_attributes
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/sqlalchemy/orm/loading.py", line 1674, in load_scalar_attributes
     result = load_on_ident(
         session,
     ...<4 lines>...
         no_autoflush=no_autoflush,
     )
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/sqlalchemy/orm/loading.py", line 510, in load_on_ident
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/sqlalchemy/orm/loading.py", line 510, in load_on_ident
     return load_on_pk_identity(
         session,
     ...<11 lines>...
         is_user_refresh=is_user_refresh,
     )
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/sqlalchemy/orm/loading.py", line 695, in load_on_pk_identity
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/sqlalchemy/orm/loading.py", line 695, in load_on_pk_identity
     session.execute(
     ~~~~~~~~~~~~~~~^
         q,
@@ -101,7 +101,7 @@ Traceback (most recent call last):
         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     )
     ^
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/sqlmodel/orm/session.py", line 127, in execute
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/sqlmodel/orm/session.py", line 127, in execute
     return super().execute(
            ~~~~~~~~~~~~~~~^
         statement,
@@ -111,7 +111,7 @@ Traceback (most recent call last):
         ^^^^^^^^^^^^^^^^^^^^^^
     )
     ^
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
     return self._execute_internal(
            ~~~~~~~~~~~~~~~~~~~~~~^
         statement,
@@ -121,29 +121,29 @@ Traceback (most recent call last):
         ^^^^^^^^^^^^^^^^^^^^^^
     )
     ^
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2241, in _execute_internal
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2241, in _execute_internal
     conn = self._connection_for_bind(bind)
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2110, in _connection_for_bind
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2110, in _connection_for_bind
     return trans._connection_for_bind(engine, execution_options)
            ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
   File "<string>", line 2, in _connection_for_bind
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/sqlalchemy/orm/state_changes.py", line 137, in _go
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/sqlalchemy/orm/state_changes.py", line 137, in _go
     ret_value = fn(self, *arg, **kw)
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 1189, in _connection_for_bind
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 1189, in _connection_for_bind
     conn = bind.connect()
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3277, in connect
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3277, in connect
     return self._connection_cls(self)
            ~~~~~~~~~~~~~~~~~~~~^^^^^^
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 143, in __init__
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 143, in __init__
     self._dbapi_connection = engine.raw_connection()
                              ~~~~~~~~~~~~~~~~~~~~~^^
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3301, in raw_connection
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3301, in raw_connection
     return self.pool.connect()
            ~~~~~~~~~~~~~~~~~^^
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 447, in connect
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 447, in connect
     return _ConnectionFairy._checkout(self)
            ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
-  File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 1264, in _checkout
+  File "/home/mbaily/fast_todo/.venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 1264, in _checkout
     fairy = _ConnectionRecord.checkout(pool)
   File "/home/mbaily/fast_todo_gpt5_mini/.venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 711, in checkout
     rec = pool._do_get()

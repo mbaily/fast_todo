@@ -273,9 +273,9 @@ class TracedAsyncSession(AsyncSession):
                             # also record a single caller frame outside of this db module
                             caller = None
                             for line in stack.splitlines():
-                                if '/home/mbaily/fast_todo_gpt5_mini/app/db.py' in line:
+                                if '/home/mbaily/fast_todo/app/db.py' in line:
                                     continue
-                                if '/home/mbaily/fast_todo_gpt5_mini/' in line:
+                                if '/home/mbaily/fast_todo/' in line:
                                     caller = line.strip()
                                     break
                             if caller:
@@ -412,9 +412,9 @@ class TracedSyncSession(SyncSession):
                         # record a single caller frame outside of this db module
                         caller = None
                         for line in stack.splitlines():
-                            if '/home/mbaily/fast_todo_gpt5_mini/app/db.py' in line:
+                            if '/home/mbaily/fast_todo/app/db.py' in line:
                                 continue
-                            if '/home/mbaily/fast_todo_gpt5_mini/' in line:
+                            if '/home/mbaily/fast_todo/' in line:
                                 caller = line.strip()
                                 break
                         if caller:
