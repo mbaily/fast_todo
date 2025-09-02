@@ -1,0 +1,41 @@
+Rules for list.html fixing up, namely the todo list (HTML table). 
+
+1. Remove all server fragment extraction, including for 'hide icons' toggling, I think it's not working very easily.
+
+2. The browser client is supposed to add new todos really fast and not fetch anything from the server for adding new todos (only use the endpoint to send the new note only). It is supposed to update the DOM when adding a new todo itself, not fetch anything from the server.
+
+3. When adding a new todo, it should look exactly like the server-side rendering (from jinja on page reload) but it isn't allowed to fetch from the server. You have to make sure it adds it in a way that looks exactly like the server-side rendering.
+
+4. The hide-only toggling should look exactly like the server-side rendered, on both of the 2 togglable states of 'hide-only' checkbox (checked and unchecked)
+
+5. Use puppeteer to compare the updated-DOM with the server-sider rendering (save updated dom, do a page reload, after doing the update dom, then compare). Remember rule 2, though.
+
+6. Report once the update DOM gives the exact same output as the server-sided rendering for both adding new todos and both toggled states of hide-only.
+
+toggle hide icons twice then add a new todo in non-hide icons mode - different updated dom to server rendered page.
+You need to fiddle around with add new todo on this page (list.html) and hide-icons, in different combinations and multiple times.
+
+Then always compare the client update dom with a fetch of the server and achieve parity (using puppeteer script) to compare doms. Always run the server fetch AFTER the JS client-side DOM update as it should be the same afterwards. Wait for 2 secs after doing the DOM update to fetch the server-side rendered DOM.
+
+
+still missing completion types heading row when double toggling hide-icons. use puppeteer updated dom to server-side render. Basically check for equality in the portion of HTML that the table begins
+
+I've added two comment markers in list.html for DOM Comparison start and end. Use puppeteer. Find out the top nodes in the DOM that are within these comment markers. Use puppeteer to fiddle around with 'hide icons' and 'add new' todo multiple times, each time compare the DOM nodes of the updated DOM with a freshly fetched server-rendered page (look at DOM nodes). Find out from the DOM how to change the client update DOM to get the DOM to be the same (it should pretty much be exactly the same).
+
+
+
+You need to use puppeteer to launch two browser instances, one to login if needed, intially load the page, list ID 175, then toggle hide icons twice or more until 'hide icons' is OFF. Then another browser instance to login if needed, load the page from server, list ID 175. Then use puppeteer to compare the two DOM's in between the start and end markers and find out how they are different in betweeen the markers. The two markers are COMMMENT_NODE in the DOM. I have put them as HTML comments:
+
+<!-- DOM_COMPARISON_START -->
+<!-- DOM_COMPARISON_END -->
+
+username mbaily
+password mypas
+
+login first
+https://0.0.0.0:10443/html_no_js/
+
+use list ID 175
+https://0.0.0.0:10443/html_no_js/lists/175
+
+Start a new puppeteer script to accomplish this.
