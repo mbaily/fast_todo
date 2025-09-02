@@ -456,7 +456,7 @@
           if (todo.priority != null) tr.setAttribute('data-priority', String(todo.priority));
           // default completion cell
           var tdDef = document.createElement('td'); tdDef.className = 'icon';
-          tdDef.innerHTML = '<form method="post" action="/html_no_js/todos/' + todo.id + '/complete">' +
+          tdDef.innerHTML = '<form method="post" action="/html_no_js/todos/' + todo.id + '/complete" data-default-completion="true">' +
                             '<input type="hidden" name="anchor" value="todo-' + todo.id + '">' +
                             '<input type="hidden" name="done" value="' + (todo.completed ? 'false' : 'true') + '">' +
                             '<button type="submit" aria-label="' + (todo.completed ? 'Unmark' : 'Mark') + '" title="' + (todo.completed ? 'Unmark' : 'Mark') + '">' + (todo.completed ? '☑' : '☐') + '</button>' +
@@ -522,14 +522,14 @@
           var noteHtml = todo.note ? (HIDE_ICONS ? ('<p class="note-text"><span class="note-body">' + escapeHtml(todo.note) + '</span></p>') : ('<div class="meta line-clamp-1 wrap-text">' + escapeHtml(todo.note) + '</div>')) : '';
           var priHtml = '';
           if (todo.priority) { priHtml = '<span class="meta priority-inline"><span class="priority-circle">' + (circ[todo.priority] || todo.priority) + '</span></span>'; }
-          var controlsHtml = '';
+            var controlsHtml = '';
           if (currentHide) {
             controlsHtml = '<div class="controls-left controls-left-wide"><div class="hide-icon" aria-hidden="true">' + (todo.completed ? '<span class="todo-hide-icon">✅</span>' : '&nbsp;') + '</div></div>';
           } else {
             var doneVal = todo.completed ? 'false' : 'true';
             var pinVal = todo.pinned ? 'false' : 'true';
             controlsHtml = '<div class="controls-left controls-left-wide">' +
-                           '<form method="post" action="/html_no_js/todos/' + escapeHtml(todo.id) + '/complete">' +
+                           '<form method="post" action="/html_no_js/todos/' + escapeHtml(todo.id) + '/complete" data-default-completion="true">' +
                            '<input type="hidden" name="anchor" value="todo-' + escapeHtml(todo.id) + '">' +
                            '<input type="hidden" name="done" value="' + doneVal + '">' +
                            '<button type="submit" aria-label="' + (todo.completed ? 'Unmark' : 'Mark') + '" title="' + (todo.completed ? 'Unmark' : 'Mark') + '">' + (todo.completed ? '☑' : '☐') + '</button>' +
@@ -569,7 +569,7 @@
         if (todo.priority) {
           priHtml = '<span class="meta priority-inline"><span class="priority-circle">' + (circ[todo.priority] || todo.priority) + '</span></span>';
         }
-        // Build left-controls markup to mirror server-rendered structure.
+          // Build left-controls markup to mirror server-rendered structure.
         var controlsHtml = '';
         if (currentHide) {
           controlsHtml = '<div class="controls-left controls-left-wide"><div class="hide-icon" aria-hidden="true">' + (todo.completed ? '<span class="todo-hide-icon">✅</span>' : '&nbsp;') + '</div></div>';
@@ -578,7 +578,7 @@
           var doneVal = todo.completed ? 'false' : 'true';
           var pinVal = todo.pinned ? 'false' : 'true';
           controlsHtml = '<div class="controls-left controls-left-wide">' +
-                         '<form method="post" action="/html_no_js/todos/' + escapeHtml(todo.id) + '/complete">' +
+                         '<form method="post" action="/html_no_js/todos/' + escapeHtml(todo.id) + '/complete" data-default-completion="true">' +
                            '<input type="hidden" name="anchor" value="todo-' + escapeHtml(todo.id) + '">' +
                            '<input type="hidden" name="done" value="' + doneVal + '">' +
                            '<button type="submit" aria-label="' + (todo.completed ? 'Unmark' : 'Mark') + '" title="' + (todo.completed ? 'Unmark' : 'Mark') + '">' + (todo.completed ? '☑' : '☐') + '</button>' +
@@ -879,7 +879,7 @@
                 </form>
               </td>
               <td>
-                <form method="post" action="/html_no_js/todos/{{ t.id }}/complete">
+                <form method="post" action="/html_no_js/todos/{{ t.id }}/complete" data-default-completion="true">
                   {{ csrf_field() }}
                   <input type="hidden" name="anchor" value="todo-{{ t.id }}">
                   <input type="hidden" name="done" value="{{ 'false' if t.completed else 'true' }}">
@@ -1444,7 +1444,10 @@
                 var isChecked = btn.textContent && btn.textContent.indexOf('☑') !== -1;
                 btn.textContent = isChecked ? '☐' : '☑';
               }
-              if (li) {
+              // Only swap the text/font (done class) for default completion toggles.
+              // Extra completion types should not change the todo's text decoration.
+              var isDefault = form.getAttribute && form.getAttribute('data-default-completion') === 'true';
+              if (isDefault && li) {
                 // toggle done class on any title elements inside the todo
                 var titleElems = li.querySelectorAll('.todo-title-inline .wrap-text, .wrap-text a, .todo-title-inline');
                 titleElems.forEach(function(el){ try{ if (el.classList && el.classList.contains('done')) el.classList.remove('done'); else if (el.classList) el.classList.add('done'); }catch(e){} });
