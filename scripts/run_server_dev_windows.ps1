@@ -108,10 +108,8 @@ else {
 
 if (-not $env:SECRET_KEY) {
     Write-Host "[run_server] SECRET_KEY not set; generating a temporary one for this session"
-    $secret = & $VENV_PY - <<'PY'
-import secrets
-print(secrets.token_hex(32))
-PY
+    # Generate a temporary SECRET_KEY using python -c (here-doc is not valid in PowerShell)
+    $secret = & $VENV_PY -c 'import secrets, sys; sys.stdout.write(secrets.token_hex(32))'
     $env:SECRET_KEY = $secret.Trim()
     Write-Host "[run_server] Generated SECRET_KEY (exported for this process). For production, set SECRET_KEY in the service environment."
 }
@@ -123,7 +121,7 @@ if (-not $env:DATABASE_URL -or $env:DATABASE_URL -eq '') {
 }
 
 # Start uvicorn settings
-$HOST = if ($env:HOST) { $env:HOST } else { '0.0.0.0' }
+$HOST_ADDR = if ($env:HOST) { $env:HOST } else { '0.0.0.0' }
 $PORT = if ($env:PORT) { $env:PORT } else { '10443' }
 $APP_MODULE = if ($env:APP_MODULE) { $env:APP_MODULE } else { 'app.main:app' }
 $LOG_FILE = if ($env:LOG_FILE) { $env:LOG_FILE } else { $null }
@@ -135,25 +133,27 @@ $CERT_DIR = '.certs'
 $CERT_KEY = Join-Path $CERT_DIR 'privkey.pem'
 $CERT_PUB = Join-Path $CERT_DIR 'fullchain.pem'
 
-if (-not (Get-Command openssl -ErrorAction SilentlyContinue)) {
-    Write-Error "ERROR: openssl is required to generate a self-signed certificate for HTTPS. Install OpenSSL and ensure 'openssl' is on PATH."; exit 3
-}
-
 if (-not (Test-Path $CERT_DIR)) { New-Item -ItemType Directory -Path $CERT_DIR -Force | Out-Null }
 if (-not (Test-Path $CERT_KEY) -or -not (Test-Path $CERT_PUB)) {
-    Write-Host "[run_server] Generating self-signed certificate in $CERT_DIR"
-    & openssl req -x509 -nodes -newkey rsa:2048 -days 365 -keyout $CERT_KEY -out $CERT_PUB -subj '/CN=localhost'
+    Write-Host "[run_server] Generating self-signed certificate in $CERT_DIR using repository Python generator"
+    $pyGenerator = Join-Path 'scripts' 'generate_self_signed_cert.py'
+    if (Test-Path $pyGenerator) {
+        & $VENV_PY $pyGenerator -o $CERT_DIR -k (Split-Path $CERT_KEY -Leaf) -c (Split-Path $CERT_PUB -Leaf) -n 'localhost'
+    }
+    else {
+        Write-Error "ERROR: Python cert generator $pyGenerator missing. Ensure scripts/generate_self_signed_cert.py exists."; exit 3
+    }
 }
 
 if ($RELOAD) {
-    Write-Host "[run_server] Starting uvicorn in dev mode (reload) on https://$HOST:$PORT (log_level=$UVICORN_LOG_LEVEL access_log=$UVICORN_ACCESS_LOG)"
+    Write-Host "[run_server] Starting uvicorn in dev mode (reload) on https://$($HOST_ADDR):$($PORT) (log_level=$UVICORN_LOG_LEVEL access_log=$UVICORN_ACCESS_LOG)"
     if ($DEBUGPY) {
         Write-Host "[run_server] Enabling debugpy (wait=$DEBUGPY_WAIT)"
         $env:ENABLE_DEBUGPY = '1'
         if (-not $env:DEBUGPY_PORT) { $env:DEBUGPY_PORT = '5678' }
         if ($DEBUGPY_WAIT) { $env:DEBUGPY_WAIT = '1' }
     }
-    $uvicornArgs = @('-m', 'uvicorn', $APP_MODULE, '--host', $HOST, '--port', $PORT, '--reload', '--ssl-keyfile', $CERT_KEY, '--ssl-certfile', $CERT_PUB, '--log-level', $UVICORN_LOG_LEVEL)
+    $uvicornArgs = @('-m', 'uvicorn', $APP_MODULE, '--host', $HOST_ADDR, '--port', $PORT, '--reload', '--ssl-keyfile', $CERT_KEY, '--ssl-certfile', $CERT_PUB, '--log-level', $UVICORN_LOG_LEVEL)
     if ($UVICORN_ACCESS_LOG -ne 'true') { $uvicornArgs += '--access-log'; $uvicornArgs += 'false' }
     if ($LOG_FILE) {
         $logDir = Split-Path $LOG_FILE -Parent
@@ -166,8 +166,8 @@ if ($RELOAD) {
     }
 }
 else {
-    Write-Host "[run_server] Starting uvicorn on https://$HOST:$PORT (log_level=$UVICORN_LOG_LEVEL access_log=$UVICORN_ACCESS_LOG)"
-    $uvicornArgs = @('-m', 'uvicorn', $APP_MODULE, '--host', $HOST, '--port', $PORT, '--workers', '1', '--ssl-keyfile', $CERT_KEY, '--ssl-certfile', $CERT_PUB, '--log-level', $UVICORN_LOG_LEVEL)
+    Write-Host "[run_server] Starting uvicorn on https://$($HOST_ADDR):$($PORT) (log_level=$UVICORN_LOG_LEVEL access_log=$UVICORN_ACCESS_LOG)"
+    $uvicornArgs = @('-m', 'uvicorn', $APP_MODULE, '--host', $HOST_ADDR, '--port', $PORT, '--workers', '1', '--ssl-keyfile', $CERT_KEY, '--ssl-certfile', $CERT_PUB, '--log-level', $UVICORN_LOG_LEVEL)
     if ($UVICORN_ACCESS_LOG -ne 'true') { $uvicornArgs += '--access-log'; $uvicornArgs += 'false' }
     if ($LOG_FILE) {
         $logDir = Split-Path $LOG_FILE -Parent
