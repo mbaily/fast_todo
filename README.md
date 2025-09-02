@@ -28,7 +28,7 @@ This project can run either as a local app on Windows or as a server on a Linux 
   - The script creates a Python virtual environment (by default in `.venv`), installs required packages from `requirements.txt` (or a sensible fallback), generates or loads a `SECRET_KEY`, optionally generates a self-signed certificate, and starts the server (uvicorn) on HTTPS.
   - The script will also create a repository env file named `gpt5_fast_todo.env` containing a generated `SECRET_KEY` when one is not already present. That file is used for the JWT access token signing key.
 
-  - Here are the steps in window
+  - Here are the steps in windows
 ```
 Windows steps from windows powershell prompt
 
@@ -40,7 +40,7 @@ pip install -r requirements.txt
 python .\scripts\add_user.py your_username
 .\scripts\run_server_dev_windows.ps1
 
-browse to https://localhost:10443/html_no_js/login
+browse to https://localhost:10443/html_no_js
 
 to change the password
 python .\scripts\change_user_password.py --username mbaily
