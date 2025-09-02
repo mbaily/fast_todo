@@ -260,6 +260,27 @@ Notes and tips
   - When creating recurring todos, prefer explicit recurrence phrasing (e.g. "every Monday" or RFC-style rrules) to improve parsing accuracy.
   - If you see unexpected occurrences, check the todo's `recurrence_meta` and `recurrence_dtstart` fields (via the API or DB) to understand how the parser interpreted the text.
 
+## Completion types in list view
+
+The list view supports one or more "completion types" in addition to the built-in default completion state. Completion types are intended as lightweight, per-list markers (for example: "Done", "Reviewed", "QA", "Deployed") that you can mark on individual todos.
+
+Key behavior
+- Normal todo view (icons not hidden) view:
+  - The list is rendered as a table with one column for the default completion control and one additional column for each extra completion type defined on the list (ordered by creation time).
+  - Each extra completion type is shown as a small checkbox-like control in its own column. You can click the control to mark or unmark that completion type for the todo.
+  - A header row is shown when there are extra completion types so the column meaning is visible.
+
+- Hide-icons view:
+  - The list switches to a compact, linear layout (no per-row icon columns). In this mode the extra completion types are not shown as separate columns. Instead the row keeps a compact indicator (a green check glyph for completed items) and the todo text flows inline with fewer controls.
+  - The hide-icons mode is useful when you prefer a notes-like layout or want fewer interactive controls on the page.
+
+Important notes about semantics
+- Completion types are reference-only metadata for each todo. They do not change how priorities, recurrence, or other server-side logic behaves.
+- Marking a completion type does not re-order or re-prioritize todos automatically. Priority numbers and the app's priority-derived behaviors are independent of completion type flags.
+- Completion types are stored per-list and ordered by creation time; when extra completion types are shown in the table they follow that creation order so their columns are stable and predictable.
+
+If you want to change how completion types behave (for example, to make them affect ordering or filter results), that would need a server-side behavior change and is not the current behavior.
+
 ## Final notes and references
 
 This README section documents the common workflows for local and small-server deployments. For production, replace self-signed certs with CA-signed certs, secure `SECRET_KEY` storage, and run the server under a service manager (systemd) with proper logging and rotation.
