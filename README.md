@@ -176,6 +176,29 @@ This is for using a todo list a bit more like a notes app, or you can't accident
 
 Deleted items will go into the trashcan. From there you can recover them or permanently delete them.
 
+## Calendar and recurring occurrences
+
+The app extracts calendar occurrences from todo/list text by parsing dates and recurrence descriptions found in the title and note text. Detected occurrences are exposed via the calendar endpoints (for example `/calendar/occurrences`) so the UI and external tools can render a calendar view.
+
+How occurrences are extracted
+  - The server scans todo text and list titles for date-like text and recurrence hints. It builds a normalized date/dtstart and (when present) an RRULE-like recurrence string and stores recurrence metadata on the todo/list record.
+  - Recurrence metadata is stored in the database with fields such as `recurrence_rrule`, `recurrence_meta`, and `recurrence_dtstart` (see tools/migrate_add_recurrence.sh and tools/backfill_recurrence.py for details).
+  - A separate parsing heuristic attempts to resolve ambiguous dates (yearless dates, windows, and created-at fallback) so occurrences fall into the expected calendar window.
+
+Recurring occurrences behavior
+  - When a todo has recurrence metadata the calendar endpoint will expand that recurrence into concrete occurrence instances within the requested date window. The expansion respects the stored `dtstart` and rrule-like definition.
+  - Recurring lists (a list that itself has a recurrence rule) generate occurrences representing the list instance dates and can be used to pre-populate list contents on those dates.
+  - The UI and API return occurrence objects that include the `occurrence_dt`, item type (`todo` or `list`), the source item id, and any display metadata required by the client.
+
+Ignore and completion controls
+  - Ignore completely: mark an item or list as ignored for calendar generation. Ignored items do not produce calendar occurrences and will be excluded from calendar queries.
+  - Ignore from date: set an ignore-from date so occurrences before (or after, depending on semantics) a cutoff are suppressed. This is useful when you want to stop showing older occurrences without deleting recurrence metadata.
+  - Task complete: completing a recurring todo typically only affects a single occurrence instance. The recurrence metadata remains so subsequent occurrences still appear in the calendar unless the item is explicitly marked to be ignored.
+
+Notes and tips
+  - When creating recurring todos, prefer explicit recurrence phrasing (e.g. "every Monday" or RFC-style rrules) to improve parsing accuracy.
+  - If you see unexpected occurrences, check the todo's `recurrence_meta` and `recurrence_dtstart` fields (via the API or DB) to understand how the parser interpreted the text.
+
 ## Final notes and references
 
 This README section documents the common workflows for local and small-server deployments. For production, replace self-signed certs with CA-signed certs, secure `SECRET_KEY` storage, and run the server under a service manager (systemd) with proper logging and rotation.
