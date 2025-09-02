@@ -163,6 +163,48 @@ Usage
 Notes
   - Ensure the script can import the project package (running from the project root or setting PYTHONPATH appropriately). The `scripts/` folder contains the helper script but the project root needs to be on Python's import path.
 
+## Change user password scripts
+
+There are two helper scripts under `scripts/` for updating a user's password:
+
+- `scripts/change_password.py`
+  - Non-interactive: requires `--username` and `--password` on the command line.
+  - Accepts `--db` (defaults to `./test.db`). If you pass a path it will be converted into a `sqlite+aiosqlite:///` URL and set as `DATABASE_URL` for the script.
+  - Intended for automation or scripted workflows where you already have the new password available.
+  - Example (non-interactive):
+
+```powershell
+python scripts/change_password.py --db ./test.db --username alice --password 'newpass'
+```
+
+- `scripts/change_user_password.py`
+  - Interactive and flexible: if `--password` is omitted the script prompts for the new password twice (confirmation).
+  - Accepts a full SQLAlchemy URL (e.g. `postgres://...` or `sqlite+aiosqlite:///./test.db`) via `--db`, so it works for non-sqlite deployments as well.
+  - Recommended for manual administrative use because of the prompt/confirm flow and broader DB support.
+  - Example (interactive):
+
+```powershell
+python scripts/change_user_password.py --username alice
+# prompts for new password and confirmation
+```
+
+Example (non-interactive with explicit DB URL):
+
+```powershell
+python scripts/change_user_password.py --db sqlite+aiosqlite:///./test.db --username alice --password 'newpass'
+```
+
+Recommendation
+
+- For manual, interactive password changes use `scripts/change_user_password.py` (safer: prompts and supports full DB URLs).
+- For automation (CI, deploy scripts, bulk updates) use `scripts/change_password.py` because it's explicitly non-interactive and meant for scripted invocation.
+
+Notes common to both
+
+- Both scripts reuse the app's password hashing (`pwd_context`) so hashes are compatible with the running app.
+- Run them from the project root (or ensure the project root is on `PYTHONPATH`) so the scripts can import `app` modules.
+- Both set `DATABASE_URL` in the environment for the script run; you can also export `DATABASE_URL` yourself before running if you prefer.
+
 ## Auto-save behavior in the UI
 
 Auto-save applies to the editable text fields for todo items and notes while editing a todo. Key points:
