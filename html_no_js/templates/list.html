@@ -412,8 +412,12 @@
     var todo = await res.json();
   window.tooltip.debug('[tooltip-debug] createTodoClick API response:', todo);
 
-  var ul = document.querySelector('.todos-list');
-        if (!ul) {
+        // Detect table mode (icons shown) or UL mode (hide-icons)
+  // find table by data attribute or any table inside this area
+  var table = document.querySelector('table[data-extra-type-ids]') || document.querySelector('table');
+        var ul = document.querySelector('.todos-list');
+        if (!table && !ul) {
+          // fall back to creating UL if neither exists
           ul = document.createElement('ul');
           ul.className = 'todos-list' + (HIDE_ICONS ? ' hide-icons' : '');
           var p = form.parentNode && form.parentNode.querySelector('p');
@@ -425,11 +429,105 @@
           }
         }
 
-        var li = document.createElement('li');
-        li.id = 'todo-' + todo.id;
-        li.className = 'todo';
-        if (todo.priority !== undefined && todo.priority !== null) {
-          li.setAttribute('data-priority', String(todo.priority));
+        // Build DOM for insertion based on mode
+        var circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'};
+        if (table) {
+          var tbody = table.querySelector('tbody') || table;
+          var tr = document.createElement('tr');
+          tr.id = 'todo-' + todo.id;
+          tr.className = 'todo';
+          if (todo.priority != null) tr.setAttribute('data-priority', String(todo.priority));
+          // default completion cell
+          var tdDef = document.createElement('td'); tdDef.className = 'icon';
+          tdDef.innerHTML = '<form method="post" action="/html_no_js/todos/' + todo.id + '/complete">' +
+                            '<input type="hidden" name="anchor" value="todo-' + todo.id + '">' +
+                            '<input type="hidden" name="done" value="' + (todo.completed ? 'false' : 'true') + '">' +
+                            '<button type="submit" aria-label="' + (todo.completed ? 'Unmark' : 'Mark') + '" title="' + (todo.completed ? 'Unmark' : 'Mark') + '">' + (todo.completed ? '☑' : '☐') + '</button>' +
+                            '</form>';
+          tr.appendChild(tdDef);
+          // extra completion cells per header order
+          var idsAttr = table.getAttribute('data-extra-type-ids') || '';
+          var extraIds = idsAttr ? idsAttr.split(',').map(function(s){ return s.trim(); }).filter(Boolean) : [];
+          extraIds.forEach(function(cid){
+            var td = document.createElement('td'); td.className = 'icon';
+            td.innerHTML = '<form method="post" action="/html_no_js/todos/' + todo.id + '/complete_type" style="display:inline">' +
+                           '<input type="hidden" name="anchor" value="todo-' + todo.id + '">' +
+                           '<input type="hidden" name="completion_type_id" value="' + cid + '">' +
+                           '<input type="hidden" name="done" value="true">' +
+                           '<button type="submit" aria-label="Mark" title="Mark">☐</button>' +
+                           '</form>';
+            tr.appendChild(td);
+          });
+          // title cell
+          var tdTitle = document.createElement('td'); tdTitle.className = 'title';
+          tdTitle.innerHTML = '<div class="todo-title-inline' + (todo.completed ? ' done' : '') + '">' +
+                              '<a class="wrap-text' + (todo.completed ? ' done' : '') + '" href="/html_no_js/todos/' + todo.id + '"' + titleAttr + dataAttr + '>' + escapeHtml(todo.text) + '</a>' +
+                              (todo.priority ? (' <span class="meta priority-inline"><span class="priority-circle">' + (circ[todo.priority] || todo.priority) + '</span></span>') : '') +
+                              '</div>' +
+                              (todo.note ? ('<div class="meta line-clamp-1 wrap-text">' + escapeHtml(todo.note) + '</div><div class="meta"><a href="/html_no_js/todos/' + todo.id + '">view full</a></div>') : '') ;
+          tr.appendChild(tdTitle);
+          // pin cell
+          var tdPin = document.createElement('td'); tdPin.className = 'action';
+          tdPin.innerHTML = '<form method="post" action="/html_no_js/todos/' + todo.id + '/pin">' +
+                            '<input type="hidden" name="pinned" value="' + (todo.pinned ? 'false' : 'true') + '">' +
+                            '<button type="submit" aria-label="Pin" title="Pin" class="pin-button ' + (todo.pinned ? 'pinned' : '') + '">' + (todo.pinned ? '📌' : '📍') + '</button>' +
+                            '</form>';
+          tr.appendChild(tdPin);
+          // delete cell
+          var tdDel = document.createElement('td'); tdDel.className = 'action';
+          tdDel.innerHTML = '<form method="post" action="/html_no_js/todos/' + todo.id + '/delete">' +
+                            '<input type="hidden" name="anchor" value="todo-' + todo.id + '">' +
+                            '<button type="submit" aria-label="Delete" title="Delete">🗑</button>' +
+                            '</form>';
+          tr.appendChild(tdDel);
+          // insert at top
+          var body = table.querySelector('tbody') || table;
+          if (body.firstChild) body.insertBefore(tr, body.firstChild); else body.appendChild(tr);
+        } else {
+          var li = document.createElement('li');
+          li.id = 'todo-' + todo.id;
+          li.className = 'todo';
+          if (todo.priority !== undefined && todo.priority !== null) {
+            li.setAttribute('data-priority', String(todo.priority));
+          }
+          // Simple innerHTML assembly (escaped) to match visible structure.
+          var titleHtml;
+          var currentHide = !!(document.querySelector('.todos-list') && document.querySelector('.todos-list').classList && document.querySelector('.todos-list').classList.contains('hide-icons'));
+          if (currentHide) {
+            titleHtml = '<span class="wrap-text"' + titleAttr + dataAttr + '>' +
+                        '<a class="wrap-text' + (todo.completed ? ' done' : '') + '" href="/html_no_js/todos/' + todo.id + '"' + titleAttr + dataAttr + '>' + escapeHtml(todo.text) + '</a>' +
+                        (todo.priority ? (' <span class="meta priority-inline"><span class="priority-circle">' + (circ[todo.priority] || todo.priority) + '</span></span>') : '') +
+                        ' <a href="/html_no_js/todos/' + todo.id + '" class="todo-open-link" aria-label="View todo ' + todo.id + '" style="margin-left:0.25rem; text-decoration:none;">🔎</a>' +
+                        '</span>';
+          } else {
+            titleHtml = '<a class="wrap-text' + (todo.completed ? ' done' : '') + '" href="/html_no_js/todos/' + todo.id + '"' + titleAttr + dataAttr + '>' + escapeHtml(todo.text) + (todo.priority ? (' <span class="meta priority-inline"><span class="priority-circle">' + (circ[todo.priority] || todo.priority) + '</span></span>') : '') + '</a>';
+          }
+          var noteHtml = todo.note ? (HIDE_ICONS ? ('<p class="note-text"><span class="note-body">' + escapeHtml(todo.note) + '</span></p>') : ('<div class="meta line-clamp-1 wrap-text">' + escapeHtml(todo.note) + '</div>')) : '';
+          var priHtml = '';
+          if (todo.priority) { priHtml = '<span class="meta priority-inline"><span class="priority-circle">' + (circ[todo.priority] || todo.priority) + '</span></span>'; }
+          var controlsHtml = '';
+          if (currentHide) {
+            controlsHtml = '<div class="controls-left controls-left-wide"><div class="hide-icon" aria-hidden="true">' + (todo.completed ? '<span class="todo-hide-icon">✅</span>' : '&nbsp;') + '</div></div>';
+          } else {
+            var doneVal = todo.completed ? 'false' : 'true';
+            var pinVal = todo.pinned ? 'false' : 'true';
+            controlsHtml = '<div class="controls-left controls-left-wide">' +
+                           '<form method="post" action="/html_no_js/todos/' + escapeHtml(todo.id) + '/complete">' +
+                           '<input type="hidden" name="anchor" value="todo-' + escapeHtml(todo.id) + '">' +
+                           '<input type="hidden" name="done" value="' + doneVal + '">' +
+                           '<button type="submit" aria-label="' + (todo.completed ? 'Unmark' : 'Mark') + '" title="' + (todo.completed ? 'Unmark' : 'Mark') + '">' + (todo.completed ? '☑' : '☐') + '</button>' +
+                           '</form>' +
+                           '<form method="post" action="/html_no_js/todos/' + escapeHtml(todo.id) + '/delete">' +
+                           '<button type="submit" aria-label="Delete" title="Delete">🗑</button>' +
+                           '</form>' +
+                           '<form method="post" action="/html_no_js/todos/' + escapeHtml(todo.id) + '/pin">' +
+                           '<input type="hidden" name="pinned" value="' + pinVal + '">' +
+                           '<button type="submit" aria-label="Pin" title="Pin" class="pin-button ' + (todo.pinned ? 'pinned' : '') + '">' + (todo.pinned ? '📌' : '📍') + '</button>' +
+                           '</form>' +
+                           '</div>';
+          }
+          li.innerHTML = controlsHtml + '<div class="todo-content"><div class="todo-main"><div class="todo-title-inline">' + titleHtml + '</div>' + noteHtml + priHtml + '</div></div>';
+          if (ul) { ul.insertBefore(li, ul.firstChild); }
         }
         // Simple innerHTML assembly (escaped) to match visible structure.
         // format date/time for tooltip: D/MM H:MMAM (day no leading zero, month zero-padded, hour 12-hour no leading zero)
@@ -501,7 +599,7 @@
         }
         li.innerHTML = controlsHtml + '<div class="todo-content"><div class="todo-main"><div class="todo-title-inline">' + titleHtml + '</div>' + noteHtml + priHtml + '</div></div>';
 
-  ul.insertBefore(li, ul.firstChild);
+  // insertion done above based on mode
   window.tooltip.debug('[tooltip-debug] create insertion inlineDate ->', inlineDate);
   window.tooltip.debug('[tooltip-debug] inserted li outerHTML:', li.outerHTML);
         input.value = '';
@@ -731,78 +829,139 @@
 
 
   {% if todos %}
-  <ul class="todos-list{% if list.hide_icons %} hide-icons{% endif %}">
-    {% for t in todos %}
-      <li id="todo-{{ t.id }}" class="todo" data-priority="{{ t.priority if t.priority is not none else '' }}">
-          <div class="controls-left controls-left-wide">
-            {% if list.hide_icons %}
-              <div class="hide-icon" aria-hidden="true">{% if t.completed %}<span class="todo-hide-icon">✅</span>{% else %}&nbsp;{% endif %}</div>
-            {% endif %}
-            {% if not list.hide_icons %}
-            <form method="post" action="/html_no_js/todos/{{ t.id }}/complete">
-              {{ csrf_field() }}
-              <input type="hidden" name="anchor" value="todo-{{ t.id }}">
-              <input type="hidden" name="done" value="{{ 'false' if t.completed else 'true' }}">
-              <button type="submit" aria-label="{{ 'Unmark' if t.completed else 'Mark' }}" title="{{ 'Unmark' if t.completed else 'Mark' }}">{{ '☑' if t.completed else '☐' }}</button>
-            </form>
-            {# Extra completion type toggles #}
-            {% if t.extra_completions and t.extra_completions|length > 0 %}
-              {% for ec in t.extra_completions %}
-                <form method="post" action="/html_no_js/todos/{{ t.id }}/complete_type" style="display:inline">
+    {% set extra_types = completion_types | selectattr('name','ne','default') | list %}
+    {% if not list.hide_icons %}
+      <div>
+        <style>
+          /* Remove rounded boxes and default borders for icon buttons inside the table */
+          table td button, table td form button {
+            background: transparent !important;
+            border: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            border-radius: 0 !important;
+            line-height: 1 !important;
+            font-size: 1rem !important;
+          }
+          /* Ensure forms inside table cells render inline */
+          table td form { display: inline; }
+          /* table cells top + left align when this class is applied to <table> */
+          .table-top-left td, .table-top-left th {
+            vertical-align: top;
+            text-align: left;
+          }
+        </style>
+        <table class="table-top-left" data-extra-type-ids="{% if extra_types and extra_types|length>0 %}{% for ct in extra_types %}{{ ct.id }}{% if not loop.last %},{% endif %}{% endfor %}{% endif %}">
+          {% if extra_types and extra_types|length > 0 %}
+          <thead>
+            <tr>
+              <th scope="col" title="Default completion">Done</th>
+              {% for ct in extra_types %}
+                <th scope="col" title="{{ ct.name }}">{{ ct.name }}</th>
+              {% endfor %}
+              <th scope="col">Todo</th>
+              <!-- spacer headers so columns align with row cells (Pin, Delete) -->
+              <th scope="col" aria-hidden="true"></th>
+              <th scope="col" aria-hidden="true"></th>
+            </tr>
+          </thead>
+          {% endif %}
+          <tbody>
+          {% for t in todos %}
+            <tr id="todo-{{ t.id }}" data-priority="{{ t.priority if t.priority is not none else '' }}">
+              <td>
+                <form method="post" action="/html_no_js/todos/{{ t.id }}/pin">
+                  {{ csrf_field() }}
+                  <input type="hidden" name="pinned" value="{{ 'false' if t.pinned|default(false) else 'true' }}">
+                  <button type="submit" aria-label="Pin" title="Pin" class="pin-button {% if t.pinned|default(false) %}pinned{% endif %}">{{ '📌' if t.pinned|default(false) else '📍' }}</button>
+                </form>
+              </td>
+              <td>
+                <form method="post" action="/html_no_js/todos/{{ t.id }}/delete">
                   {{ csrf_field() }}
                   <input type="hidden" name="anchor" value="todo-{{ t.id }}">
-                  <input type="hidden" name="completion_type_id" value="{{ ec.id }}">
-                  <input type="hidden" name="done" value="{{ 'false' if ec.done else 'true' }}">
-                  <button type="submit" aria-label="{{ 'Unmark ' + ec.name if ec.done else 'Mark ' + ec.name }}" title="{{ ec.name }}">{{ '☑' if ec.done else '☐' }}</button>
+                  <button type="submit" aria-label="Delete" title="Delete">🗑</button>
                 </form>
+              </td>
+              <td>
+                <form method="post" action="/html_no_js/todos/{{ t.id }}/complete">
+                  {{ csrf_field() }}
+                  <input type="hidden" name="anchor" value="todo-{{ t.id }}">
+                  <input type="hidden" name="done" value="{{ 'false' if t.completed else 'true' }}">
+                  <button type="submit" aria-label="{{ 'Unmark' if t.completed else 'Mark' }}" title="{{ 'Unmark' if t.completed else 'Mark' }}">{{ '☑' if t.completed else '☐' }}</button>
+                </form>
+              </td>
+              {% for ct in extra_types %}
+                {% set ec = (t.extra_completions | selectattr('id','equalto',ct.id) | list | first) %}
+                <td>
+                  <form method="post" action="/html_no_js/todos/{{ t.id }}/complete_type" style="display:inline">
+                    {{ csrf_field() }}
+                    <input type="hidden" name="anchor" value="todo-{{ t.id }}">
+                    <input type="hidden" name="completion_type_id" value="{{ ct.id }}">
+                    <input type="hidden" name="done" value="{{ 'false' if ec and ec.done else 'true' }}">
+                    <button type="submit" aria-label="{{ 'Unmark ' + ct.name if ec and ec.done else 'Mark ' + ct.name }}" title="{{ ct.name }}">{{ '☑' if ec and ec.done else '☐' }}</button>
+                  </form>
+                </td>
               {% endfor %}
-            {% endif %}
-            <form method="post" action="/html_no_js/todos/{{ t.id }}/delete">
-              {{ csrf_field() }}
-              <input type="hidden" name="anchor" value="todo-{{ t.id }}">
-              <button type="submit" aria-label="Delete" title="Delete">🗑</button>
-            </form>
-            <form method="post" action="/html_no_js/todos/{{ t.id }}/pin">
-              {{ csrf_field() }}
-              <input type="hidden" name="pinned" value="{{ 'false' if t.pinned|default(false) else 'true' }}">
-              <button type="submit" aria-label="Pin" title="Pin" class="pin-button {% if t.pinned|default(false) %}pinned{% endif %}">{{ '📌' if t.pinned|default(false) else '📍' }}</button>
-            </form>
-            {% endif %}
-          </div>
-          <div class="todo-content">
-            <div class="todo-main">
-              <div class="todo-title-inline {% if t.completed and not list.hide_icons %}done{% endif %}">
-                  {% set dt_iso = t.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') %}
-                  {% set dt_fmt = t.created_at|in_tz(client_tz, '%-d/%m %-I:%M%p') %}
-                  {% if list.hide_icons %}
-                    <span class="wrap-text"{% if dt_iso %} data-created-at="{{ dt_iso }}"{% endif %}{% if dt_fmt %} data-date="{{ dt_fmt }}"{% endif %}>
-                      <a class="wrap-text{% if t.completed %} done{% endif %}" href="/html_no_js/todos/{{ t.id }}"{% if dt_iso %} data-created-at="{{ dt_iso }}"{% endif %}{% if dt_fmt %} data-date="{{ dt_fmt }}"{% endif %}>{{ t.text }}</a>{% if t.priority %} {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}<span class="meta priority-inline"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>{% endif %} <a href="/html_no_js/todos/{{ t.id }}" class="todo-open-link" aria-label="View todo {{ t.id }}" style="margin-left:0.25rem; text-decoration:none;">🔎</a>
-                    </span>
-                  {% else %}
-                    <a class="wrap-text{% if t.completed %} done{% endif %}" href="/html_no_js/todos/{{ t.id }}"{% if dt_iso %} data-created-at="{{ dt_iso }}"{% endif %}{% if dt_fmt %} data-date="{{ dt_fmt }}"{% endif %}>{{ t.text }}</a>{% if t.priority %} {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}<span class="meta priority-inline"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>{% endif %}
-                  {% endif %}
-              </div>
-              {% if t.note %}
-                {% if list.hide_icons %}
-                  <p class="note-text"><span class="note-body">{{ t.note | linkify }}</span></p>
-                {% else %}
+              <td>
+                {% set dt_iso = t.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') %}
+                {% set dt_fmt = t.created_at|in_tz(client_tz, '%-d/%m %-I:%M%p') %}
+                {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
+                <div class="todo-title-inline {% if t.completed %}done{% endif %}">
+                  <a class="wrap-text{% if t.completed %} done{% endif %}" href="/html_no_js/todos/{{ t.id }}"{% if dt_iso %} data-created-at="{{ dt_iso }}"{% endif %}{% if dt_fmt %} data-date="{{ dt_fmt }}"{% endif %}>{{ t.text }}</a>{% if t.priority %} <span class="meta priority-inline"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>{% endif %}
+                </div>
+                {% if t.note %}
                   <div class="meta line-clamp-1 wrap-text">{{ t.note }}</div>
                   <div class="meta"><a href="/html_no_js/todos/{{ t.id }}">view full</a></div>
                 {% endif %}
-              {% endif %}
-        {% if t.tags and t.tags|length > 0 %}
-                <div class="tags meta">
-          {% for tag in (t.tags | sort) %}
-                    <a class="tag-chip" href="/html_no_js/search?q={{ tag|urlencode }}">{{ tag }}</a>
-                  {% endfor %}
-                </div>
-              {% endif %}
-              {# priority is rendered inline inside the title to avoid newlines #}
+                {% if t.tags and t.tags|length > 0 %}
+                  <div class="tags meta">
+                    {% for tag in (t.tags | sort) %}
+                      <a class="tag-chip" href="/html_no_js/search?q={{ tag|urlencode }}">{{ tag }}</a>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+              </td>
+              
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <ul class="todos-list hide-icons">
+        {% for t in todos %}
+          <li id="todo-{{ t.id }}" class="todo" data-priority="{{ t.priority if t.priority is not none else '' }}">
+            <div class="controls-left controls-left-wide">
+              <div class="hide-icon" aria-hidden="true">{% if t.completed %}<span class="todo-hide-icon">✅</span>{% else %}&nbsp;{% endif %}</div>
             </div>
-          </div>
-        </li>
-    {% endfor %}
-    </ul>
+            <div class="todo-content">
+              <div class="todo-main">
+                <div class="todo-title-inline">
+                  {% set dt_iso = t.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') %}
+                  {% set dt_fmt = t.created_at|in_tz(client_tz, '%-d/%m %-I:%M%p') %}
+                  {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
+                  <span class="wrap-text"{% if dt_iso %} data-created-at="{{ dt_iso }}"{% endif %}{% if dt_fmt %} data-date="{{ dt_fmt }}"{% endif %}>
+                    <a class="wrap-text{% if t.completed %} done{% endif %}" href="/html_no_js/todos/{{ t.id }}"{% if dt_iso %} data-created-at="{{ dt_iso }}"{% endif %}{% if dt_fmt %} data-date="{{ dt_fmt }}"{% endif %}>{{ t.text }}</a>{% if t.priority %} <span class="meta priority-inline"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>{% endif %}
+                    <a href="/html_no_js/todos/{{ t.id }}" class="todo-open-link" aria-label="View todo {{ t.id }}" style="margin-left:0.25rem; text-decoration:none;">🔎</a>
+                  </span>
+                </div>
+                {% if t.note %}
+                  <p class="note-text"><span class="note-body">{{ t.note | linkify }}</span></p>
+                {% endif %}
+                {% if t.tags and t.tags|length > 0 %}
+                  <div class="tags meta">
+                    {% for tag in (t.tags | sort) %}
+                      <a class="tag-chip" href="/html_no_js/search?q={{ tag|urlencode }}">{{ tag }}</a>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
   {% else %}
     <p>No todos yet.</p>
   {% endif %}
@@ -959,10 +1118,8 @@
                   console && console.debug && console.debug('[hide-icons] fetch response ok=', !!res && res.ok, 'status=', res && res.status);
                   if (!res.ok) console && console.error && console.error('hide-icons update failed', res && res.status);
                   else {
-                    // toggle DOM class immediately so UI reflects choice
-                    var ul = document.querySelector('.todos-list'); if (ul) { if (cb.checked) ul.classList.add('hide-icons'); else ul.classList.remove('hide-icons'); }
-                    // update each todo row to match server-rendered markup
-                    updateTodosForHideIcons(cb.checked);
+                    // Reload to switch between table and UL layouts reliably
+                    try { window.location.reload(); } catch(e) {}
                   }
                 })
                 .catch(function(err){ console && console.error && console.error('[hide-icons] fetch exception', err); });
@@ -996,10 +1153,10 @@
 
     var initialized = false;
 
-    function attachOnce(ul){
+    function attachOnce(container){
       if (initialized) return; initialized = true;
-      // capture original server-provided order by id
-      var initialItems = Array.from(ul.querySelectorAll('li.todo'));
+      var isTable = !!container.closest('table');
+      var initialItems = Array.from(container.querySelectorAll(isTable ? 'tr.todo' : 'li.todo'));
       var originalOrder = initialItems.map(function(it){ return it.id; });
 
       // init checkbox from cookie (namespaced per-list)
@@ -1008,7 +1165,7 @@
       cb.checked = v === '1';
 
       function isCompletedElem(it){
-        var chk = it.querySelector('.controls-left form[action*="/complete"] button');
+        var chk = it.querySelector('form[action*="/complete"] button');
         if (chk && chk.textContent && chk.textContent.indexOf('☑') !== -1) return true;
         if (it.querySelector('.todo-title-inline.done')) return true;
         return false;
@@ -1016,14 +1173,14 @@
 
       function reorder(){
         try {
-          var currentItems = Array.from(ul.querySelectorAll('li.todo'));
+          var currentItems = Array.from(container.querySelectorAll(isTable ? 'tr.todo' : 'li.todo'));
           var map = {};
           currentItems.forEach(function(it){ if (it.id) map[it.id] = it; });
 
           if (!cb.checked) {
             // restore original server order (for items present) then append any new items in their current order
-            originalOrder.forEach(function(id){ var el = map[id]; if (el) ul.appendChild(el); });
-            currentItems.forEach(function(it){ if (!it.id || originalOrder.indexOf(it.id) === -1) ul.appendChild(it); });
+            originalOrder.forEach(function(id){ var el = map[id]; if (el) container.appendChild(el); });
+            currentItems.forEach(function(it){ if (!it.id || originalOrder.indexOf(it.id) === -1) container.appendChild(it); });
             return;
           }
 
@@ -1031,7 +1188,7 @@
           // iterate originalOrder first so we preserve server ordering within groups
           var orderedIds = originalOrder.concat(currentItems.map(function(it){ return it.id; }).filter(function(id){ return originalOrder.indexOf(id) === -1; }));
           orderedIds.forEach(function(id){ var el = map[id]; if (!el) return; if (isCompletedElem(el)) completed.push(el); else incomplete.push(el); });
-          incomplete.concat(completed).forEach(function(el){ ul.appendChild(el); });
+          incomplete.concat(completed).forEach(function(el){ container.appendChild(el); });
         } catch(e){ /* ignore */ }
       }
 
@@ -1041,12 +1198,12 @@
     }
 
     function findOrWaitForUl(){
-      var ul = document.querySelector('.todos-list');
-      if (ul) return attachOnce(ul);
+  var container = document.querySelector('table[data-extra-type-ids] tbody') || document.querySelector('table tbody') || document.querySelector('.todos-list');
+      if (container) return attachOnce(container);
       // wait for UL to appear (e.g., template renders after this script or a partial renders)
       var ro = new MutationObserver(function(mutations, obs){
-        var u = document.querySelector('.todos-list');
-        if (u) { obs.disconnect(); attachOnce(u); }
+  var u = document.querySelector('table[data-extra-type-ids] tbody') || document.querySelector('table tbody') || document.querySelector('.todos-list');
+  if (u) { obs.disconnect(); attachOnce(u); }
       });
       try { ro.observe(document.body || document.documentElement, { childList: true, subtree: true }); } catch(e){ /* ignore */ }
     }
