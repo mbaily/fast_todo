@@ -58,10 +58,9 @@
     .todos-list.hide-icons .controls-left .hide-icon { width: 100% !important; display: flex !important; align-items: center !important; justify-content: center !important; }
   }
 
-  /* show a small custom tooltip on hover using data-date to avoid relying on native title
-     (some environments or JS libraries suppress native tooltips). Applies to the title wrapper. */
-  .wrap-text[data-date]:not([data-date=""]) { position: relative; display: inline-block; }
-  /* ensure parent containers don't clip the tooltip */
+  /* Use the native browser tooltip via the title attribute instead of a custom
+    pseudo-element. Keep data-date/data-created-at on elements for compatibility
+    with existing JS, but rely on title for the UX. */
   .todos-list .todo-content, .todos-list .todo-main { overflow: visible; }
   /* Ensure completed sublists are struck-through (match index/todo pages) */
   .lists-list .list-title.done { text-decoration: line-through; color: #6b7280; }
@@ -73,22 +72,7 @@
     @media (max-width: 480px) {
       .lists-list .list-item > .list-action-left { width: 6.5rem; flex-basis: 6.5rem; }
     }
-  .wrap-text[data-date]:not([data-date=""]):hover::after {
-    content: attr(data-date);
-    position: absolute;
-    left: 0;
-    top: calc(100% + 6px);
-    background: rgba(0,0,0,0.85);
-    color: #fff;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 0.85rem;
-    white-space: nowrap;
-    z-index: 99999;
-    pointer-events: none;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.25);
-    transform-origin: top left;
-  }
+  /* custom pseudo-element tooltip removed in favor of native title attribute */
 
   /* Create-todo form: make the input expand to fill the row and keep the Add button to the right.
      On very small screens the controls stack vertically. */
@@ -108,7 +92,7 @@
         {{ csrf_field() }}
         <input type="hidden" name="completed" value="{{ 'false' if list.completed else 'true' }}">
         <button type="submit" class="list-action-btn" title="{{ 'Unmark list complete' if list.completed else 'Mark list complete' }}" aria-label="Toggle list complete">{{ '☑' if list.completed else '☐' }}</button>
-      </form>
+      </form>can you remove the 
       <script>
       (function(){
         try {
@@ -412,6 +396,29 @@
     var todo = await res.json();
   window.tooltip.debug('[tooltip-debug] createTodoClick API response:', todo);
 
+        // format date/time for tooltip: D/MM H:MMAM (day no leading zero, month zero-padded, hour 12-hour no leading zero)
+        function formatInlineDateTime(ts){
+          try {
+            window.tooltip.debug('[tooltip-debug] formatInlineDateTime input:', ts);
+            if (!ts) { window.tooltip.debug('[tooltip-debug] formatInlineDateTime: no ts'); return null; }
+            var d = new Date(ts);
+            if (isNaN(d.getTime())) { window.tooltip.debug('[tooltip-debug] formatInlineDateTime: invalid date for', ts); return null; }
+            var day = String(d.getDate());
+            var month = String(d.getMonth() + 1).padStart(2,'0');
+            var hh = d.getHours();
+            var ampm = hh >= 12 ? 'PM' : 'AM';
+            var hour12 = hh % 12; if (hour12 === 0) hour12 = 12;
+            var min = String(d.getMinutes()).padStart(2,'0');
+            var out = day + '/' + month + ' ' + String(hour12) + ':' + min + ampm;
+            window.tooltip.debug('[tooltip-debug] formatInlineDateTime ->', out);
+            return out;
+          } catch(err) { window.tooltip.debug('[tooltip-debug] formatInlineDateTime exception', err); return null; }
+        }
+
+  var inlineDate = formatInlineDateTime(todo.created_at || todo.createdAt || todo.created || null);
+  var titleAttr = inlineDate ? (' title="' + escapeHtml(inlineDate) + '"') : '';
+  var dataAttr = inlineDate ? (' data-date="' + escapeHtml(inlineDate) + '"') : '';
+
         // Detect table mode (icons shown) or UL mode (hide-icons)
   // find table by data attribute or any table inside this area
   var table = document.querySelector('table[data-extra-type-ids]') || document.querySelector('table');
@@ -530,28 +537,6 @@
           if (ul) { ul.insertBefore(li, ul.firstChild); }
         }
         // Simple innerHTML assembly (escaped) to match visible structure.
-        // format date/time for tooltip: D/MM H:MMAM (day no leading zero, month zero-padded, hour 12-hour no leading zero)
-        function formatInlineDateTime(ts){
-          try {
-            window.tooltip.debug('[tooltip-debug] formatInlineDateTime input:', ts);
-            if (!ts) { window.tooltip.debug('[tooltip-debug] formatInlineDateTime: no ts'); return null; }
-            var d = new Date(ts);
-            if (isNaN(d.getTime())) { window.tooltip.debug('[tooltip-debug] formatInlineDateTime: invalid date for', ts); return null; }
-            var day = String(d.getDate());
-            var month = String(d.getMonth() + 1).padStart(2,'0');
-            var hh = d.getHours();
-            var ampm = hh >= 12 ? 'PM' : 'AM';
-            var hour12 = hh % 12; if (hour12 === 0) hour12 = 12;
-            var min = String(d.getMinutes()).padStart(2,'0');
-            var out = day + '/' + month + ' ' + String(hour12) + ':' + min + ampm;
-            window.tooltip.debug('[tooltip-debug] formatInlineDateTime ->', out);
-            return out;
-          } catch(err) { window.tooltip.debug('[tooltip-debug] formatInlineDateTime exception', err); return null; }
-        }
-
-  var inlineDate = formatInlineDateTime(todo.created_at || todo.createdAt || todo.created || null);
-  var titleAttr = inlineDate ? (' title="' + escapeHtml(inlineDate) + '"') : '';
-  var dataAttr = inlineDate ? (' data-date="' + escapeHtml(inlineDate) + '"') : '';
 
         // priority glyph map (declare before use)
         var circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'};
@@ -669,7 +654,7 @@
               return;
             }
             window.tooltip.debug('[tooltip-debug] applyAll setting ddm ->', ddm);
-            el.setAttribute('data-date', ddm);
+            // only set native title; preserve any existing data-date for compatibility
             el.setAttribute('title', ddm);
           } catch(e) { window.tooltip.debug('[tooltip-debug] applyAll element error', e); }
         });
@@ -855,14 +840,14 @@
           {% if extra_types and extra_types|length > 0 %}
           <thead>
             <tr>
+              <th scope="col" aria-hidden="true"></th>
+              <th scope="col" aria-hidden="true"></th>
               <th scope="col" title="Default completion">Done</th>
               {% for ct in extra_types %}
                 <th scope="col" title="{{ ct.name }}">{{ ct.name }}</th>
               {% endfor %}
               <th scope="col">Todo</th>
               <!-- spacer headers so columns align with row cells (Pin, Delete) -->
-              <th scope="col" aria-hidden="true"></th>
-              <th scope="col" aria-hidden="true"></th>
             </tr>
           </thead>
           {% endif %}
@@ -908,7 +893,7 @@
                 {% set dt_fmt = t.created_at|in_tz(client_tz, '%-d/%m %-I:%M%p') %}
                 {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
                 <div class="todo-title-inline {% if t.completed %}done{% endif %}">
-                  <a class="wrap-text{% if t.completed %} done{% endif %}" href="/html_no_js/todos/{{ t.id }}"{% if dt_iso %} data-created-at="{{ dt_iso }}"{% endif %}{% if dt_fmt %} data-date="{{ dt_fmt }}"{% endif %}>{{ t.text }}</a>{% if t.priority %} <span class="meta priority-inline"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>{% endif %}
+                  <a class="wrap-text{% if t.completed %} done{% endif %}" href="/html_no_js/todos/{{ t.id }}"{% if dt_iso %} data-created-at="{{ dt_iso }}"{% endif %}{% if dt_fmt %} data-date="{{ dt_fmt }}" title="{{ dt_fmt }}"{% endif %}>{{ t.text }}</a>{% if t.priority %} <span class="meta priority-inline"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>{% endif %}
                 </div>
                 {% if t.note %}
                   <div class="meta line-clamp-1 wrap-text">{{ t.note }}</div>
@@ -941,8 +926,8 @@
                   {% set dt_iso = t.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') %}
                   {% set dt_fmt = t.created_at|in_tz(client_tz, '%-d/%m %-I:%M%p') %}
                   {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
-                  <span class="wrap-text"{% if dt_iso %} data-created-at="{{ dt_iso }}"{% endif %}{% if dt_fmt %} data-date="{{ dt_fmt }}"{% endif %}>
-                    <a class="wrap-text{% if t.completed %} done{% endif %}" href="/html_no_js/todos/{{ t.id }}"{% if dt_iso %} data-created-at="{{ dt_iso }}"{% endif %}{% if dt_fmt %} data-date="{{ dt_fmt }}"{% endif %}>{{ t.text }}</a>{% if t.priority %} <span class="meta priority-inline"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>{% endif %}
+                  <span class="wrap-text"{% if dt_iso %} data-created-at="{{ dt_iso }}"{% endif %}{% if dt_fmt %} data-date="{{ dt_fmt }}" title="{{ dt_fmt }}"{% endif %}>
+                    <a class="wrap-text{% if t.completed %} done{% endif %}" href="/html_no_js/todos/{{ t.id }}"{% if dt_iso %} data-created-at="{{ dt_iso }}"{% endif %}{% if dt_fmt %} data-date="{{ dt_fmt }}" title="{{ dt_fmt }}"{% endif %}>{{ t.text }}</a>{% if t.priority %} <span class="meta priority-inline"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>{% endif %}
                     <a href="/html_no_js/todos/{{ t.id }}" class="todo-open-link" aria-label="View todo {{ t.id }}" style="margin-left:0.25rem; text-decoration:none;">🔎</a>
                   </span>
                 </div>
