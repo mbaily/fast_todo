@@ -62,6 +62,16 @@
     pseudo-element. Keep data-date/data-created-at on elements for compatibility
     with existing JS, but rely on title for the UX. */
   .todos-list .todo-content, .todos-list .todo-main { overflow: visible; }
+  /* Ensure completed todos are visually struck-through to match other pages */
+  .todos-list .wrap-text.done,
+  .todos-list .todo-title-inline .wrap-text.done,
+  .todos-list .todo-title-inline a.done,
+  table .wrap-text.done,
+  table a.wrap-text.done,
+  table tr.todo .title a.done {
+    text-decoration: line-through;
+    color: #6b7280; /* slightly muted to match completed styling elsewhere */
+  }
   /* Ensure completed sublists are struck-through (match index/todo pages) */
   .lists-list .list-title.done { text-decoration: line-through; color: #6b7280; }
     /* Sublists layout (mirror todo.html fix): keep action buttons from overlapping titles */
