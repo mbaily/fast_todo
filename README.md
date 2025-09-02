@@ -70,13 +70,13 @@ For local testing and small home deployments the helper scripts can generate a s
 
 ## Debian ./scripts/deploy.sh
 
-The `scripts/deploy.sh` helper is intended to perform a simple install on a Debian server. It is typically run as root (or via `sudo`) and will:
+The `scripts/deploy.sh` helper is intended to perform a simple install on a Debian server. It is typically run as root (or via `sudo`).
 
-- copy or install the project into `/opt/fast_todo` (matching the example systemd unit),
-- create a Python virtual environment under `/opt/fast_todo/.venv` and install required packages,
-- create an environment file for services (for example `/etc/default/fast_todo` or similar) containing `SECRET_KEY` and other runtime vars,
-- generate self-signed certificates under `/opt/fast_todo/.certs` when needed,
-- install and enable a systemd service unit so the app runs as a managed service and starts on boot.
+- deploy.sh will copy or install the project into `/opt/fast_todo` (matching the example systemd unit),
+- you now need to cd to /opt/fast_todo and create a python venv using the command 'python -m venv .venv'
+- deploy.sh will create an environment file for services (for example `/etc/default/fast_todo` or similar) containing `SECRET_KEY` and other runtime vars,
+- deploy.sh will generate self-signed certificates under `/opt/fast_todo/.certs` when needed,
+- deploy.sh install and enable a systemd service unit so the app runs as a managed service and starts on boot.
 
 Assumption: this description matches the repository's systemd example (WorkingDirectory `/opt/fast_todo`, `EnvironmentFile=/etc/default/fast_todo`, and `.certs` under `/opt/fast_todo`). Adjust paths if your deploy script writes elsewhere.
 

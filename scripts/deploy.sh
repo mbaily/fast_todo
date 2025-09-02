@@ -107,15 +107,24 @@ if [ "$MODE" = "local" ]; then
     if [ -f "$REMOTE_PATH/requirements.txt" ]; then
       echo "Installing Python packages from $REMOTE_PATH/requirements.txt"
       if [ "$DRY_RUN" -eq 1 ]; then
-        echo "pip install -r $REMOTE_PATH/requirements.txt"
+        echo "# Would create venv if missing: python3 -m venv $REMOTE_PATH/.venv"
+        echo "# Would install: $REMOTE_PATH/.venv/bin/python -m pip install -r $REMOTE_PATH/requirements.txt"
       else
         # Try to use system python3; prefer a venv in the project if present
         if [ -d "$REMOTE_PATH/.venv" ]; then
           echo "Using existing venv at $REMOTE_PATH/.venv to install requirements"
           "$REMOTE_PATH/.venv/bin/python" -m pip install -r "$REMOTE_PATH/requirements.txt"
         else
-          echo "Error: virtualenv not found at $REMOTE_PATH/.venv. Aborting deploy.\nCreate a venv at that location or run a deploy that provisions one." >&2
-          exit 5
+          echo "No venv found at $REMOTE_PATH/.venv — creating one now"
+          if command -v python3 >/dev/null 2>&1; then
+            python3 -m venv "$REMOTE_PATH/.venv"
+            # ensure pip/setuptools/wheel are up-to-date then install requirements
+            "$REMOTE_PATH/.venv/bin/python" -m pip install --upgrade pip setuptools wheel
+            "$REMOTE_PATH/.venv/bin/python" -m pip install -r "$REMOTE_PATH/requirements.txt"
+          else
+            echo "Error: python3 not available to create virtualenv at $REMOTE_PATH/.venv. Aborting deploy." >&2
+            exit 5
+          fi
         fi
       fi
     else
@@ -138,15 +147,23 @@ else
     fi
     # Install Python dependencies on remote target if requirements.txt exists
     if [ "$DRY_RUN" -eq 1 ]; then
-      echo "ssh $SSH_OPTS $TARGET 'test -f "$REMOTE_PATH/requirements.txt" && echo pip install -r $REMOTE_PATH/requirements.txt || echo no requirements'"
+      echo "# Remote dry-run: would ensure venv then install requirements on $TARGET:$REMOTE_PATH"
+      echo "ssh $SSH_OPTS $TARGET \"test -f '$REMOTE_PATH/requirements.txt' && ( test -d '$REMOTE_PATH/.venv' || python3 -m venv '$REMOTE_PATH/.venv' ) && '$REMOTE_PATH/.venv/bin/python' -m pip install -r '$REMOTE_PATH/requirements.txt' || echo no requirements\""
     else
       ssh $SSH_OPTS "$TARGET" "if [ -f '$REMOTE_PATH/requirements.txt' ]; then
         if [ -d '$REMOTE_PATH/.venv' ]; then
           echo 'Using venv at $REMOTE_PATH/.venv to install requirements'
           '$REMOTE_PATH/.venv/bin/python' -m pip install -r '$REMOTE_PATH/requirements.txt'
         else
-          echo 'Error: virtualenv not found at $REMOTE_PATH/.venv on remote host. Aborting deploy.' >&2
-          exit 5
+          echo 'No venv at $REMOTE_PATH/.venv on remote host — creating one now'
+          if command -v python3 >/dev/null 2>&1; then
+            python3 -m venv '$REMOTE_PATH/.venv'
+            '$REMOTE_PATH/.venv/bin/python' -m pip install --upgrade pip setuptools wheel
+            '$REMOTE_PATH/.venv/bin/python' -m pip install -r '$REMOTE_PATH/requirements.txt'
+          else
+            echo 'Error: python3 not found on remote host. Cannot create venv.' >&2
+            exit 5
+          fi
         fi
       else
         echo 'No requirements.txt at $REMOTE_PATH; skipping pip install'
