@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Compute calendar occurrences directly against a DB file (test.db.server_copy) for dev_user
+Compute calendar occurrences directly against a DB file (fast_todo.db.server_copy) for dev_user
 and check seeded recurrence phrases across specified months.
 
-Usage: python3 scripts/local_check_recurrences.py --db test.db.server_copy --months 2025-08,2025-09,2025-10 --out report.json
+Usage: python3 scripts/local_check_recurrences.py --db fast_todo.db.server_copy --months 2025-08,2025-09,2025-10 --out report.json
 """
 import asyncio, os, json
 from datetime import datetime, timezone
@@ -133,7 +133,7 @@ async def main(db, months_csv, out_path):
 if __name__ == '__main__':
     import argparse
     p = argparse.ArgumentParser()
-    p.add_argument('--db', default='test.db.server_copy')
+    p.add_argument('--db', default='fast_todo.db.server_copy')
     p.add_argument('--months', default='2025-08,2025-09,2025-10')
     p.add_argument('--out', default='scripts/local_recurrence_report.json')
     args = p.parse_args()

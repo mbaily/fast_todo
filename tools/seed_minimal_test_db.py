@@ -1,11 +1,11 @@
 """Minimal deterministic test DB seeder.
 
-Creates a small, deterministic `test.db` suitable for unit tests that
+Creates a small, deterministic `fast_todo.db` suitable for unit tests that
 exercise yearless-date resolution without flooding the calendar with
 recurring occurrences.
 
 Usage:
-  export DATABASE_URL="sqlite+aiosqlite:///./test.db"
+  export DATABASE_URL="sqlite+aiosqlite:///./fast_todo.db"
   python3 tools/seed_minimal_test_db.py
 """
 import asyncio

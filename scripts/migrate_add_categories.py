@@ -3,8 +3,8 @@
 Add Category table and category_id column on liststate if missing.
 
 Usage:
-  PYTHONPATH=. .venv/bin/python scripts/migrate_add_categories.py --db sqlite+aiosqlite:///./test.db.server_copy
-  PYTHONPATH=. .venv/bin/python scripts/migrate_add_categories.py --db sqlite+aiosqlite:///./test.db.server_copy --commit
+  PYTHONPATH=. .venv/bin/python scripts/migrate_add_categories.py --db sqlite+aiosqlite:///./fast_todo.db.server_copy
+  PYTHONPATH=. .venv/bin/python scripts/migrate_add_categories.py --db sqlite+aiosqlite:///./fast_todo.db.server_copy --commit
 
 The script will import `app.models` so the SQLModel metadata includes the new Category model.
 If the `category` table is missing it will create it. If `liststate` lacks the
@@ -24,7 +24,7 @@ def _sync_sqlite_url(db_url: str) -> str:
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('--db', required=True, help='DATABASE_URL (e.g. sqlite+aiosqlite:///./test.db)')
+    p.add_argument('--db', required=True, help='DATABASE_URL (e.g. sqlite+aiosqlite:///./fast_todo.db)')
     p.add_argument('--commit', action='store_true', help='apply schema changes')
     args = p.parse_args()
 

@@ -2,7 +2,7 @@
 """
 Fetch calendar occurrences by calling the application handler directly (no HTTP).
 Usage:
-  DATABASE_URL="sqlite+aiosqlite:///./test.db.server_copy" PYTHONPATH=$(pwd) .venv/bin/python scripts/fetch_calendar_occurrences.py --start 2025-08-01T00:00:00Z --end 2025-08-31T23:59:59Z
+  DATABASE_URL="sqlite+aiosqlite:///./fast_todo.db.server_copy" PYTHONPATH=$(pwd) .venv/bin/python scripts/fetch_calendar_occurrences.py --start 2025-08-01T00:00:00Z --end 2025-08-31T23:59:59Z
 
 This will print occurrences JSON and allow grepping for a todo id or text.
 """

@@ -3,7 +3,7 @@
 create_list handler would.
 
 Usage:
-    export DATABASE_URL="sqlite+aiosqlite:///test.db"
+    export DATABASE_URL="sqlite+aiosqlite:///fast_todo.db"
     python tools/seed_test_db.py --count 3000 [--owner-id 42]
 
 The script will:

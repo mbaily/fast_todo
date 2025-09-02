@@ -3,7 +3,7 @@
 Search the SQLite database for a regex and print matching rows.
 
 Usage:
-  PYTHONPATH=$(pwd) .venv/bin/python scripts/search_db.py --db ./test.db --regex "starfield 22/8" --ignore-case
+  PYTHONPATH=$(pwd) .venv/bin/python scripts/search_db.py --db ./fast_todo.db --regex "starfield 22/8" --ignore-case
 
 By default this will inspect common text columns across these tables:
   todo(text, note), liststate(name), hashtag(tag), completiontype(name), user(username)
@@ -90,7 +90,7 @@ def search_db(db_path: Path, pattern: re.Pattern, tables=None, limit_per_table: 
 
 def main(argv=None):
     p = argparse.ArgumentParser(description="Regex search across common tables in the SQLite DB")
-    p.add_argument('--db', '-d', default='./test.db', help='Path to sqlite DB file')
+    p.add_argument('--db', '-d', default='./fast_todo.db', help='Path to sqlite DB file')
     p.add_argument('--regex', '-r', required=True, help='Regex or literal text to search for')
     p.add_argument('--ignore-case', action='store_true', help='Case-insensitive search')
     p.add_argument('--literal', action='store_true', help='Treat the pattern as literal text (not a regex)')

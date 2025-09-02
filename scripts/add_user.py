@@ -67,7 +67,7 @@ def parse_args(argv):
     # make password optional; if omitted we'll prompt securely
     p.add_argument("password", nargs="?", help="password for the user (omit to prompt)")
     p.add_argument("--admin", action="store_true", help="mark user as admin")
-    p.add_argument("--db", default="./test.db", help="path to sqlite file to use (default ./test.db)")
+    p.add_argument("--db", default="./fast_todo.db", help="path to sqlite file to use (default ./fast_todo.db)")
     return p.parse_args(argv)
 
 

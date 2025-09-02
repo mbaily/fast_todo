@@ -4,9 +4,9 @@ Add ListState.parent_todo_id (nullable INTEGER) and an index.
 
 Usage:
   # dry-run
-  PYTHONPATH=. .venv/bin/python scripts/migrate_add_parent_todo_id.py --db sqlite+aiosqlite:///./test.db
+  PYTHONPATH=. .venv/bin/python scripts/migrate_add_parent_todo_id.py --db sqlite+aiosqlite:///./fast_todo.db
   # apply
-  PYTHONPATH=. .venv/bin/python scripts/migrate_add_parent_todo_id.py --db sqlite+aiosqlite:///./test.db --commit
+  PYTHONPATH=. .venv/bin/python scripts/migrate_add_parent_todo_id.py --db sqlite+aiosqlite:///./fast_todo.db --commit
 
 Notes:
 - Safe for SQLite and Postgres: simple ALTER TABLE ADD COLUMN and CREATE INDEX IF NOT EXISTS.
@@ -20,7 +20,7 @@ from sqlalchemy import text
 
 async def main():
     p = argparse.ArgumentParser()
-    p.add_argument('--db', required=True, help='SQLAlchemy DB URL, e.g. sqlite+aiosqlite:///./test.db')
+    p.add_argument('--db', required=True, help='SQLAlchemy DB URL, e.g. sqlite+aiosqlite:///./fast_todo.db')
     p.add_argument('--commit', action='store_true', help='apply schema changes')
     args = p.parse_args()
 

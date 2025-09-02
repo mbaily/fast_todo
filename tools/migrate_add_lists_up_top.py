@@ -2,7 +2,7 @@
 
 This script mirrors other simple migration helpers in `tools/` and is safe to
 run multiple times. It checks the schema first then issues ALTER TABLE when
-needed. It expects DATABASE_URL to be set (sqlite:///./test.db or similar).
+needed. It expects DATABASE_URL to be set (sqlite:///./fast_todo.db or similar).
 """
 import sqlite3
 import sys
@@ -12,7 +12,7 @@ from pathlib import Path
 
 def _sqlite_path_from_database_url(url: str | None) -> Path | None:
     if not url:
-        return Path('./test.db').resolve()
+        return Path('./fast_todo.db').resolve()
     if url.startswith('sqlite'):
         parts = url.split(':///')
         if len(parts) == 2:

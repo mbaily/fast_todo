@@ -4,10 +4,10 @@ Check and optionally create DB tables for occurrence hash persistence models.
 
 Usage examples:
   # dry-run (default)
-  PYTHONPATH=. .venv/bin/python scripts/migrate_add_occurrence_hashes.py --db sqlite+aiosqlite:///./test.db.server_copy
+  PYTHONPATH=. .venv/bin/python scripts/migrate_add_occurrence_hashes.py --db sqlite+aiosqlite:///./fast_todo.db.server_copy
 
   # actually create missing tables
-  PYTHONPATH=. .venv/bin/python scripts/migrate_add_occurrence_hashes.py --db sqlite+aiosqlite:///./test.db.server_copy --commit
+  PYTHONPATH=. .venv/bin/python scripts/migrate_add_occurrence_hashes.py --db sqlite+aiosqlite:///./fast_todo.db.server_copy --commit
 
 The script imports `app.models` to register SQLModel metadata, then inspects the
 target DB and lists missing tables. If --commit is given it will call
@@ -27,7 +27,7 @@ def _sync_sqlite_url(db_url: str) -> str:
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('--db', required=True, help='DATABASE_URL (e.g. sqlite+aiosqlite:///./test.db)')
+    p.add_argument('--db', required=True, help='DATABASE_URL (e.g. sqlite+aiosqlite:///./fast_todo.db)')
     p.add_argument('--commit', action='store_true', help='create missing tables')
     args = p.parse_args()
 

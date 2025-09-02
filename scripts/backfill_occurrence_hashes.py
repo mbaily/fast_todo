@@ -5,7 +5,7 @@ Dry-run by default (no DB writes). Use --commit to actually insert rows (not imp
 this script currently only reports and can be extended to write into a table).
 
 Usage:
-  PYTHONPATH=. .venv/bin/python scripts/backfill_occurrence_hashes.py --db sqlite+aiosqlite:///./test.db.server_copy --user mbaily --start 2025-07-01 --end 2025-09-30 --output /tmp/backfill_dryrun.json
+  PYTHONPATH=. .venv/bin/python scripts/backfill_occurrence_hashes.py --db sqlite+aiosqlite:///./fast_todo.db.server_copy --user mbaily --start 2025-07-01 --end 2025-09-30 --output /tmp/backfill_dryrun.json
 """
 import argparse
 import asyncio

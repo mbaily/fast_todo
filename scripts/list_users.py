@@ -2,7 +2,7 @@
 """List users in the database.
 
 Usage:
-  DATABASE_URL="sqlite+aiosqlite:///./test.db" python scripts/list_users.py
+  DATABASE_URL="sqlite+aiosqlite:///./fast_todo.db" python scripts/list_users.py
 
 This script reads DATABASE_URL from the environment (falls back to app default),
 initializes the DB schema (best-effort), and prints username and password_hash.

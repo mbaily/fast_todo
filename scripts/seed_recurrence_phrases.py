@@ -1,7 +1,7 @@
 """Seed the dev DB with todos from tests/recurrence_phrases.json.
 
 Usage:
-  .venv/bin/python scripts/seed_recurrence_phrases.py --db-url sqlite+aiosqlite:///./test.db
+  .venv/bin/python scripts/seed_recurrence_phrases.py --db-url sqlite+aiosqlite:///./fast_todo.db
 
 The script will:
 - create (or reuse) a list named 'recurrence-test' owned by a special local user

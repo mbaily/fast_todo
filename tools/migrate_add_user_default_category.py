@@ -1,7 +1,7 @@
 """Migration helper: add default_category_id integer column to user if missing.
 
 Safe to run multiple times. Detects the SQLite DB via DATABASE_URL or falls back
-to ./test.db. Uses PRAGMA table_info to check for the column and issues
+to ./fast_todo.db. Uses PRAGMA table_info to check for the column and issues
 ALTER TABLE when necessary.
 """
 import sqlite3
@@ -12,7 +12,7 @@ from pathlib import Path
 
 def _sqlite_path_from_database_url(url: str | None) -> Path | None:
     if not url:
-        return Path('./test.db').resolve()
+        return Path('./fast_todo.db').resolve()
     if url.startswith('sqlite'):
         parts = url.split(':///')
         if len(parts) == 2:

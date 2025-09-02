@@ -12,7 +12,7 @@ if [[ -z "$cmd" || -z "$user" ]]; then
   exit 2
 fi
 # If DATABASE_URL is not set, prefer a system-installed path when available
-# so admin scripts don't create test.db in the repo root by accident.
+# so admin scripts don't create fast_todo.db in the repo root by accident.
 if [ -z "${DATABASE_URL:-}" ]; then
     if [ -d "/opt/gpt5_fast_todo" ]; then
         export DATABASE_URL="sqlite+aiosqlite:///opt/gpt5_fast_todo/fast_todo.db"

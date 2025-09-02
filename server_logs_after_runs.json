@@ -1475,7 +1475,7 @@
       "ts": "2025-08-26T06:07:53.643663+00:00",
       "level": "INFO",
       "logger": "app.main",
-      "message": "2025-08-26 16:07:53,643 INFO:app.main: starting server using DATABASE_URL=sqlite+aiosqlite:///./test.db"
+      "message": "2025-08-26 16:07:53,643 INFO:app.main: starting server using DATABASE_URL=sqlite+aiosqlite:///./fast_todo.db"
     }
   ]
 }

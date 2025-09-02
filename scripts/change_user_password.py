@@ -4,7 +4,7 @@ Change a user's password interactively or via CLI args.
 
 Usage:
   scripts/change_user_password.py --username mbaily
-  scripts/change_user_password.py --username mbaily --password 'newpass' --db ./test.db
+  scripts/change_user_password.py --username mbaily --password 'newpass' --db ./fast_todo.db
 
 The script sets DATABASE_URL so it uses the same DB as the app and
 reuses the app's password hashing (pwd_context) to keep compatibility.
@@ -18,7 +18,7 @@ import sys
 from importlib import import_module
 
 parser = argparse.ArgumentParser(description='Change a user password in the DB')
-parser.add_argument('--db', required=False, default='./test.db', help='SQLite DB path or a full SQLAlchemy URL (sqlite+aiosqlite:///<path>)')
+parser.add_argument('--db', required=False, default='./fast_todo.db', help='SQLite DB path or a full SQLAlchemy URL (sqlite+aiosqlite:///<path>)')
 parser.add_argument('--username', required=True, help='username to update')
 parser.add_argument('--password', required=False, help='new plaintext password')
 args = parser.parse_args()

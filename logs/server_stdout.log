@@ -3,7 +3,7 @@ INFO:     Uvicorn running on https://0.0.0.0:10443 (Press CTRL+C to quit)
 INFO:     Started reloader process [852082] using WatchFiles
 INFO:     Started server process [852155]
 INFO:     Waiting for application startup.
-2025-08-25 17:49:57,340 INFO:app.main: starting server using DATABASE_URL=sqlite+aiosqlite:///./test.db.server.copy.db
+2025-08-25 17:49:57,340 INFO:app.main: starting server using DATABASE_URL=sqlite+aiosqlite:///./fast_todo.db.server.copy.db
 2025-08-25 17:49:57,340 INFO:app.main: seeded DateDataParser initialized for languages=["en"]
 INFO:     Application startup complete.
 INFO:     Will watch for changes in these directories: ['/home/mbaily/fast_todo_gpt5_mini']
@@ -31,7 +31,7 @@ INFO:     Application shutdown complete.
 INFO:     Finished server process [852155]
 INFO:     Started server process [852586]
 INFO:     Waiting for application startup.
-2025-08-25 17:53:42,435 INFO:app.main: starting server using DATABASE_URL=sqlite+aiosqlite:///./test.db.server.copy.db
+2025-08-25 17:53:42,435 INFO:app.main: starting server using DATABASE_URL=sqlite+aiosqlite:///./fast_todo.db.server.copy.db
 2025-08-25 17:53:42,436 INFO:app.main: seeded DateDataParser initialized for languages=["en"]
 INFO:     Application startup complete.
 WARNING:  WatchFiles detected changes in 'scripts/change_user_password.py'. Reloading...

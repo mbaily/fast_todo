@@ -100,7 +100,7 @@ try:
 except Exception:
     pass
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./test.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./fast_todo.db")
 
 # Best-effort import-time safeguard: if using a local SQLite file and the
 # database already exists with an older schema, add new lightweight columns

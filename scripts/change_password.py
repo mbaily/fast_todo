@@ -3,7 +3,7 @@
 Change a user's password in the specified SQLite DB.
 
 Usage:
-  ./scripts/change_password.py --db ./test.db --username alice --password 'newpass'
+  ./scripts/change_password.py --db ./fast_todo.db --username alice --password 'newpass'
 
 This script uses the project's async DB session and the same password
 hashing (passlib CryptContext) as the app so password hashes are compatible.
@@ -16,7 +16,7 @@ import sys
 from importlib import import_module
 
 parser = argparse.ArgumentParser(description='Change a user password in the DB')
-parser.add_argument('--db', required=False, default='./test.db', help='SQLAlchemy DATABASE_URL (sqlite+aiosqlite:///./test.db) or path')
+parser.add_argument('--db', required=False, default='./fast_todo.db', help='SQLAlchemy DATABASE_URL (sqlite+aiosqlite:///./fast_todo.db) or path')
 parser.add_argument('--username', required=True, help='username to update')
 parser.add_argument('--password', required=True, help='new plaintext password')
 args = parser.parse_args()

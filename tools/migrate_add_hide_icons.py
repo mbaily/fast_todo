@@ -8,11 +8,11 @@ import sys
 import os
 from pathlib import Path
 
-# Determine SQLite file from DATABASE_URL if present, else default to ./test.db
+# Determine SQLite file from DATABASE_URL if present, else default to ./fast_todo.db
 def _sqlite_path_from_database_url(url: str | None) -> Path | None:
     if not url:
-        return Path('./test.db').resolve()
-    # expect forms like sqlite+aiosqlite:///./test.db or sqlite:///./test.db
+        return Path('./fast_todo.db').resolve()
+    # expect forms like sqlite+aiosqlite:///./fast_todo.db or sqlite:///./fast_todo.db
     if url.startswith('sqlite'):
         # split on :/// and take trailing path
         parts = url.split(':///')

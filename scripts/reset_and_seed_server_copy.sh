@@ -2,8 +2,8 @@
 set -euo pipefail
 ROOT=$(dirname "$0")/..
 ROOT=$(cd "$ROOT" && pwd)
-DB_COPY="$ROOT/test.db.server_copy"
-DB_SRC="$ROOT/test.db"
+DB_COPY="$ROOT/fast_todo.db.server_copy"
+DB_SRC="$ROOT/fast_todo.db"
 if [ -f "$DB_COPY" ]; then
   echo "Deleting existing $DB_COPY"
   rm -f "$DB_COPY"

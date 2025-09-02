@@ -114,9 +114,9 @@ if (-not $env:SECRET_KEY) {
     Write-Host "[run_server] Generated SECRET_KEY (exported for this process). For production, set SECRET_KEY in the service environment."
 }
 
-# Ensure DATABASE_URL is set (default to local test.db with aiosqlite)
+# Ensure DATABASE_URL is set (default to local fast_todo.db with aiosqlite)
 if (-not $env:DATABASE_URL -or $env:DATABASE_URL -eq '') {
-    $env:DATABASE_URL = 'sqlite+aiosqlite:///./test.db'
+    $env:DATABASE_URL = 'sqlite+aiosqlite:///./fast_todo.db'
     Write-Host "[run_server] DATABASE_URL not set; defaulting to $($env:DATABASE_URL)"
 }
 

@@ -116,11 +116,11 @@ PY
   echo "[run_server] Generated SECRET_KEY (exported for this process). For production, set SECRET_KEY in the service environment."
 fi
 
-# Ensure DATABASE_URL is set (default to local test.db with aiosqlite)
-#export DATABASE_URL="sqlite+aiosqlite:///./test.db.server_copy"
-export DATABASE_URL="sqlite+aiosqlite:///./test.db"
+# Ensure DATABASE_URL is set (default to local fast_todo.db with aiosqlite)
+#export DATABASE_URL="sqlite+aiosqlite:///./fast_todo.db.server_copy"
+export DATABASE_URL="sqlite+aiosqlite:///./fast_todo.db"
 if [ -z "${DATABASE_URL-}" ]; then
-  #export DATABASE_URL="sqlite+aiosqlite:///./test.db.server_copy"
+  #export DATABASE_URL="sqlite+aiosqlite:///./fast_todo.db.server_copy"
   echo "[run_server] DATABASE_URL not set; defaulting to $DATABASE_URL"
 fi
 

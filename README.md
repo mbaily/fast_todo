@@ -189,17 +189,17 @@ There are two helper scripts under `scripts/` for updating a user's password:
 
 - `scripts/change_password.py`
   - Non-interactive: requires `--username` and `--password` on the command line.
-  - Accepts `--db` (defaults to `./test.db`). If you pass a path it will be converted into a `sqlite+aiosqlite:///` URL and set as `DATABASE_URL` for the script.
+  - Accepts `--db` (defaults to `./fast_do.db`). If you pass a path it will be converted into a `sqlite+aiosqlite:///` URL and set as `DATABASE_URL` for the script.
   - Intended for automation or scripted workflows where you already have the new password available.
   - Example (non-interactive):
 
 ```powershell
-python scripts/change_password.py --db ./test.db --username alice --password 'newpass'
+python scripts/change_password.py --db ./fast_todo.db --username alice --password 'newpass'
 ```
 
 - `scripts/change_user_password.py`
   - Interactive and flexible: if `--password` is omitted the script prompts for the new password twice (confirmation).
-  - Accepts a full SQLAlchemy URL (e.g. `postgres://...` or `sqlite+aiosqlite:///./test.db`) via `--db`, so it works for non-sqlite deployments as well.
+  - Accepts a full SQLAlchemy URL (e.g. `postgres://...` or `sqlite+aiosqlite:///./fast_todo.db`) via `--db`, so it works for non-sqlite deployments as well.
   - Recommended for manual administrative use because of the prompt/confirm flow and broader DB support.
   - Example (interactive):
 
@@ -211,7 +211,7 @@ python scripts/change_user_password.py --username alice
 Example (non-interactive with explicit DB URL):
 
 ```powershell
-python scripts/change_user_password.py --db sqlite+aiosqlite:///./test.db --username alice --password 'newpass'
+python scripts/change_user_password.py --db sqlite+aiosqlite:///./fast_todo.db --username alice --password 'newpass'
 ```
 
 Recommendation

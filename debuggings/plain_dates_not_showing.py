@@ -2,7 +2,7 @@
 """Seed a list and 20 todos containing plain date phrases for debugging.
 
 Usage:
-  python debuggings/plain_dates_not_showing.py [--db ./test.db]
+  python debuggings/plain_dates_not_showing.py [--db ./fast_todo.db]
 
 This script uses user 'dev_user' with password 'dev'.
 It will ensure the DB URL is pointed at the provided sqlite file by setting
@@ -57,7 +57,7 @@ LIST_NAME = 'Debug Plain Dates'
 
 def parse_args(argv=None):
     p = argparse.ArgumentParser(description='Seed test todos with plain dates')
-    p.add_argument('--db', default='./test.db', help='path to sqlite file to use (default ./test.db)')
+    p.add_argument('--db', default='./fast_todo.db', help='path to sqlite file to use (default ./test.db)')
     p.add_argument('--verify', action='store_true', help='after seeding, verify rows directly in sqlite and print them')
     p.add_argument('--wipe-db', action='store_true', help='delete the target sqlite file before seeding (USE WITH CAUTION)')
     p.add_argument('--extract', action='store_true', help='run app.utils.extract_dates on each seeded phrase and print results')
@@ -346,7 +346,7 @@ def main(argv=None):
                 print('Server /calendar/occurrences returned: (no data)')
 
 
-def get_seeded_todos(db_path='./test.db', list_name=LIST_NAME):
+def get_seeded_todos(db_path='./fast_todo.db', list_name=LIST_NAME):
     """Query the sqlite DB directly for todos in the seeded list and return rows.
 
     Returns list of tuples: (todo.id, todo.text, liststate.id, liststate.name)
