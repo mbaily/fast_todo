@@ -121,6 +121,11 @@ if [ "$MODE" = "local" ]; then
             # ensure pip/setuptools/wheel are up-to-date then install requirements
             "$REMOTE_PATH/.venv/bin/python" -m pip install --upgrade pip setuptools wheel
             "$REMOTE_PATH/.venv/bin/python" -m pip install -r "$REMOTE_PATH/requirements.txt"
+            # ensure venv files are owned by desired owner
+            if [ -n "$OWNER" ]; then
+              echo "Setting owner to $OWNER for $REMOTE_PATH/.venv"
+              chown -R "$OWNER" "$REMOTE_PATH/.venv"
+            fi
           else
             echo "Error: python3 not available to create virtualenv at $REMOTE_PATH/.venv. Aborting deploy." >&2
             exit 5
@@ -150,7 +155,7 @@ else
       echo "# Remote dry-run: would ensure venv then install requirements on $TARGET:$REMOTE_PATH"
       echo "ssh $SSH_OPTS $TARGET \"test -f '$REMOTE_PATH/requirements.txt' && ( test -d '$REMOTE_PATH/.venv' || python3 -m venv '$REMOTE_PATH/.venv' ) && '$REMOTE_PATH/.venv/bin/python' -m pip install -r '$REMOTE_PATH/requirements.txt' || echo no requirements\""
     else
-      ssh $SSH_OPTS "$TARGET" "if [ -f '$REMOTE_PATH/requirements.txt' ]; then
+          ssh $SSH_OPTS "$TARGET" "if [ -f '$REMOTE_PATH/requirements.txt' ]; then
         if [ -d '$REMOTE_PATH/.venv' ]; then
           echo 'Using venv at $REMOTE_PATH/.venv to install requirements'
           '$REMOTE_PATH/.venv/bin/python' -m pip install -r '$REMOTE_PATH/requirements.txt'
@@ -160,6 +165,10 @@ else
             python3 -m venv '$REMOTE_PATH/.venv'
             '$REMOTE_PATH/.venv/bin/python' -m pip install --upgrade pip setuptools wheel
             '$REMOTE_PATH/.venv/bin/python' -m pip install -r '$REMOTE_PATH/requirements.txt'
+            if [ -n "'$OWNER'" ]; then
+              echo 'Setting owner to $OWNER for $REMOTE_PATH/.venv on remote host'
+              chown -R "'$OWNER'" '$REMOTE_PATH/.venv'
+            fi
           else
             echo 'Error: python3 not found on remote host. Cannot create venv.' >&2
             exit 5
