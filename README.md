@@ -28,7 +28,27 @@ This project can run either as a local app on Windows or as a server on a Linux 
   - The script creates a Python virtual environment (by default in `.venv`), installs required packages from `requirements.txt` (or a sensible fallback), generates or loads a `SECRET_KEY`, optionally generates a self-signed certificate, and starts the server (uvicorn) on HTTPS.
   - The script will also create a repository env file named `gpt5_fast_todo.env` containing a generated `SECRET_KEY` when one is not already present. That file is used for the JWT access token signing key.
 
+  - Here are the steps in window
+```
+Windows steps from windows powershell prompt
+
+git clone xxxxxxxxxxxx - find out url
+cd fast_todo
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python .\scripts\add_user.py your_username
+.\scripts\run_server_dev_windows.ps1
+
+browse to https://localhost:10443/html_no_js/login
+
+to change the password
+python .\scripts\change_user_password.py --username mbaily
+```
+
+
 - Debian / Linux
+  - Follow similar steps to windows just above. git clone, cd to dir, create venv in .venv, activate venv, pip install -r requirements.txt, run add_user.py, run ./scripts/run_server_dev_debian.sh
   - Use the shell helper: `scripts/run_server_dev_debian.sh` (or `scripts/run_server_debian.sh` where present for production-style runs).
   - The script will create a `.venv` virtualenv, install packages with `pip`, generate/load `SECRET_KEY`, optionally produce a self-signed certificate, and run the server using `uvicorn` (dev reload or production mode depending on flags).
   - For a permanent public-facing server, install on a small Linux box and expose it via your router (DMZ or IP forwarding). Access the app from any browser (tested with iOS Safari and Android Chrome, plus desktop Chrome).
