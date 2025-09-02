@@ -92,7 +92,7 @@
         {{ csrf_field() }}
         <input type="hidden" name="completed" value="{{ 'false' if list.completed else 'true' }}">
         <button type="submit" class="list-action-btn" title="{{ 'Unmark list complete' if list.completed else 'Mark list complete' }}" aria-label="Toggle list complete">{{ '☑' if list.completed else '☐' }}</button>
-      </form>can you remove the 
+      </form>
       <script>
       (function(){
         try {
@@ -840,8 +840,8 @@
           {% if extra_types and extra_types|length > 0 %}
           <thead>
             <tr>
-              <th scope="col" aria-hidden="true"></th>
-              <th scope="col" aria-hidden="true"></th>
+              <th style="padding-left: 20px; padding-right: 20px;"scope="col" aria-hidden="true"></th>
+              <th style="padding-left: 20px; padding-right: 20px;"scope="col" aria-hidden="true"></th>
               <th scope="col" title="Default completion">Done</th>
               {% for ct in extra_types %}
                 <th scope="col" title="{{ ct.name }}">{{ ct.name }}</th>
@@ -861,7 +861,7 @@
                   <button type="submit" aria-label="Pin" title="Pin" class="pin-button {% if t.pinned|default(false) %}pinned{% endif %}">{{ '📌' if t.pinned|default(false) else '📍' }}</button>
                 </form>
               </td>
-              <td>
+              <td style="padding-left: 20px; padding-right: 20px;">
                 <form method="post" action="/html_no_js/todos/{{ t.id }}/delete">
                   {{ csrf_field() }}
                   <input type="hidden" name="anchor" value="todo-{{ t.id }}">
