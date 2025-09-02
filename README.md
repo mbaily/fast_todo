@@ -8,6 +8,16 @@ Copyright
 
 Copyright (c) 2025 Mark Baily
 
+## Purpose
+
+This app is for quick notes, tasks with priorities, and task management, and also small to medium size notes. You can use it like a filofax or to avoid using portable paper notepads when you own a smartphone. You can store lists of notes or todos recursively (infinite depth).
+
+You can use it instead of other apps where you have to position the cursor on a smartphone at the end of your note text to add a new todo item to the list, which may be difficult or slow when out and about. Or it might be quicker to use for some tasks (with numeric priorities support), even on your PC.
+
+I use it on client windows and linux PCs (with Google Chrome), and my ipad and iphone.
+
+If you need to write or store more extensive documentation, I recommend dokuwiki (open-source).
+
 
 ## Quick server usage (Windows and Debian)
 
@@ -145,6 +155,8 @@ Auto-save applies to the editable text fields for todo items and notes while edi
 The data model supports nested structures:
   - A list can contain sublists. Those sublists can themselves contain todos and further sublists (recursive nesting).
   - A todo can be the child of a list or a sublist. This allows representing tasks grouped into nested categories and subtasks.
+
+If you mainly use a particular todo or list for a notes storage folder, you can use the "Up Top" option for sublists. Then the sublists of the todo or list will be nearer the top of the page for convenience.
 
 ## Priority numbers and colored indicators
 
