@@ -3059,7 +3059,8 @@ async def get_completion_types(list_id: int, current_user: User = Depends(requir
             raise HTTPException(status_code=404, detail="list not found")
         if lst.owner_id != current_user.id:
             raise HTTPException(status_code=403, detail="forbidden")
-        qc = await sess.exec(select(CompletionType).where(CompletionType.list_id == list_id))
+        # Return completion types in creation order (id ASC) for a stable UI order
+        qc = await sess.exec(select(CompletionType).where(CompletionType.list_id == list_id).order_by(CompletionType.id.asc()))
         return qc.all()
 
 
@@ -6315,8 +6316,12 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
         if lst.owner_id != current_user.id:
             raise HTTPException(status_code=403, detail="forbidden")
 
-        # fetch completion types for this list
-        qct = await sess.exec(select(CompletionType).where(CompletionType.list_id == list_id).order_by(CompletionType.name.asc()))
+        # fetch completion types for this list in creation order (id ASC)
+        qct = await sess.exec(
+            select(CompletionType)
+            .where(CompletionType.list_id == list_id)
+            .order_by(CompletionType.id.asc())
+        )
         ctypes = qct.all()
 
         # load todos and completion states in batch
