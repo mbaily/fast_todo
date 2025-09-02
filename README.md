@@ -26,7 +26,7 @@ This project can run either as a local app on Windows or as a server on a Linux 
 - Windows
   - Use the included PowerShell helper: `scripts/run_server_dev_windows.ps1`.
   - The script creates a Python virtual environment (by default in `.venv`), installs required packages from `requirements.txt` (or a sensible fallback), generates or loads a `SECRET_KEY`, optionally generates a self-signed certificate, and starts the server (uvicorn) on HTTPS.
-  - The script will also create a repository env file named `gpt5_fast_todo.env` containing a generated `SECRET_KEY` when one is not already present. That file is used for the JWT access token signing key.
+  - The script will also create a repository env file named `fast_todo.env` containing a generated `SECRET_KEY` when one is not already present. That file is used for the JWT access token signing key.
 
   - Here are the steps in windows
 ```
@@ -72,17 +72,17 @@ For local testing and small home deployments the helper scripts can generate a s
 
 The `scripts/deploy.sh` helper is intended to perform a simple install on a Debian server. It is typically run as root (or via `sudo`) and will:
 
-- copy or install the project into `/opt/gpt5_fast_todo` (matching the example systemd unit),
-- create a Python virtual environment under `/opt/gpt5_fast_todo/.venv` and install required packages,
-- create an environment file for services (for example `/etc/default/gpt5_fast_todo` or similar) containing `SECRET_KEY` and other runtime vars,
-- generate self-signed certificates under `/opt/gpt5_fast_todo/.certs` when needed,
+- copy or install the project into `/opt/fast_todo` (matching the example systemd unit),
+- create a Python virtual environment under `/opt/fast_todo/.venv` and install required packages,
+- create an environment file for services (for example `/etc/default/fast_todo` or similar) containing `SECRET_KEY` and other runtime vars,
+- generate self-signed certificates under `/opt/fast_todo/.certs` when needed,
 - install and enable a systemd service unit so the app runs as a managed service and starts on boot.
 
-Assumption: this description matches the repository's systemd example (WorkingDirectory `/opt/gpt5_fast_todo`, `EnvironmentFile=/etc/default/gpt5_fast_todo`, and `.certs` under `/opt/gpt5_fast_todo`). Adjust paths if your deploy script writes elsewhere.
+Assumption: this description matches the repository's systemd example (WorkingDirectory `/opt/fast_todo`, `EnvironmentFile=/etc/default/fast_todo`, and `.certs` under `/opt/fast_todo`). Adjust paths if your deploy script writes elsewhere.
 
 ## Example systemd service file - taken from my server, change to suit your needs
 ```
-testuser@server:/etc/systemd/system/multi-user.target.wants$ cat gpt5_fast_todo.service
+testuser@server:/etc/systemd/system/multi-user.target.wants$ cat fast_todo.service
 [Unit]
 Description=Fast Todo FastAPI service
 After=network.target
@@ -93,16 +93,16 @@ User=www-data
 Group=www-data
 
 # Path where the app lives
-WorkingDirectory=/opt/gpt5_fast_todo
+WorkingDirectory=/opt/fast_todo
 
 # Optional environment file (created by deploy script)
-# The installer will write /etc/default/gpt5_fast_todo
-EnvironmentFile=/etc/default/gpt5_fast_todo
-Environment="PYTHONPATH=/opt/gpt5_fast_todo"
+# The installer will write /etc/default/fast_todo
+EnvironmentFile=/etc/default/fast_todo
+Environment="PYTHONPATH=/opt/fast_todo"
 
 # ExecStart runs uvicorn from the virtualenv. Adjust venv path if needed.
-ExecStart=/opt/gpt5_fast_todo/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 10443 \
-  --ssl-keyfile /opt/gpt5_fast_todo/.certs/privkey.pem --ssl-certfile /opt/gpt5_fast_todo/.certs/fullchain.pem
+ExecStart=/opt/fast_todo/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 10443 \
+  --ssl-keyfile /opt/fast_todo/.certs/privkey.pem --ssl-certfile /opt/fast_todo/.certs/fullchain.pem
 
 Restart=always
 RestartSec=5
@@ -116,15 +116,15 @@ WantedBy=multi-user.target
 The app uses a `SECRET_KEY` to sign JWT access tokens. Keep this key private and persistent between server restarts unless you intentionally want to invalidate sessions.
 
 - Windows (development/local)
-  - The PowerShell startup script will create `gpt5_fast_todo.env` in the project root and write a generated `SECRET_KEY` into it if one is not found. That file will be loaded for the running process when you start the server via the script.
-  - Example: `gpt5_fast_todo.env` will contain a line like `SECRET_KEY=...`.
+  - The PowerShell startup script will create `fast_todo.env` in the project root and write a generated `SECRET_KEY` into it if one is not found. That file will be loaded for the running process when you start the server via the script.
+  - Example: `fast_todo.env` will contain a line like `SECRET_KEY=...`.
 
 - Debian / Linux (server)
-  - For a durable server place the secret in a system location that your service can read. A common pattern is a file under `/etc/` (for example `/etc/gpt5_fast_todo/env`) or as an environment variable in your systemd service unit. The scripts accept an externally-provided `SECRET_KEY` (e.g. `SECRET_KEY=yourkey scripts/run_server_debian.sh`).
+  - For a durable server place the secret in a system location that your service can read. A common pattern is a file under `/etc/` (for example `/etc/fast_todo/env`) or as an environment variable in your systemd service unit. The scripts accept an externally-provided `SECRET_KEY` (e.g. `SECRET_KEY=yourkey scripts/run_server_debian.sh`).
   - Rotating the `SECRET_KEY` will invalidate previously issued JWTs. Users may need to log out and log back in after rotation.
 
 Security notes
-  - Do not commit `gpt5_fast_todo.env` or any file containing `SECRET_KEY` to version control. Treat it like a secret.
+  - Do not commit `fast_todo.env` or any file containing `SECRET_KEY` to version control. Treat it like a secret.
 
 ## Hashtags in names and todos
 
