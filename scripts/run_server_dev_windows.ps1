@@ -83,8 +83,8 @@ else {
 }
 
 # Environment file (Windows fallback): look in ProgramData, then repo root
-$envFile1 = Join-Path $env:ProgramData 'gpt5_fast_todo\gpt5_fast_todo.env'
-$envFile2 = Join-Path (Get-Location) 'gpt5_fast_todo.env'
+$envFile1 = Join-Path $env:ProgramData 'fast_todo\fast_todo.env'
+$envFile2 = Join-Path (Get-Location) 'fast_todo.env'
 $envFile = $null
 if (Test-Path $envFile1) { $envFile = $envFile1 }
 elseif (Test-Path $envFile2) { $envFile = $envFile2 }

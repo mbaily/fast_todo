@@ -7,7 +7,7 @@ Windows You can use it on windows as a local app (or access it while running fro
 Explain self-signed certs
 
 explain SECRET_KEY env var and env files under debian and then find out how to do it in windows 11
-On windows the powershell script should setup an env file for SECRET_KEY, in gpt5_fast_todo.env containing a new SECRET_KEY. This is for the JWT security access token the client stores (received from server). On a more permanent server on Linux, set up the secret key env file in /etc/....., rotate it if you want (or not if you can't be bothered). When you rotate the SECRET_KEY, you may have to logout and log back in again.
+On windows the powershell script should setup an env file for SECRET_KEY, in fast_todo.env containing a new SECRET_KEY. This is for the JWT security access token the client stores (received from server). On a more permanent server on Linux, set up the secret key env file in /etc/....., rotate it if you want (or not if you can't be bothered). When you rotate the SECRET_KEY, you may have to logout and log back in again.
 
 explain hash tags (especially the bit about you can type them into a list name or todo name and they get extracted and added)
 
