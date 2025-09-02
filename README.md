@@ -115,6 +115,25 @@ Behavior details
   - The visible title will not retain the hashtags you typed; tags are stored as structured metadata for searches and filters.
   - You can also put hashtags in the note text of a todo. These hashtags are retained in the note text.
 
+## Multi-tag search markup (in-note clickable links)
+
+You can create quick multi-hashtag searches by typing a small inline markup into a todo's note text. The client recognizes the pattern and renders it as a clickable link that runs a search combining multiple tags.
+
+This is useful for shopping, for example. You can make hashtags for each shop you go to then list them all at once so you know which shops to go to while you are out.
+
+Example multi-tag search (put in todo note):
+
+```
+Supermarket {{fn:search.multi tags=#supermarket,#coles,#woolworths,#aldi | Supermarket }}
+
+Your regular shops {{fn:search.multi tags=#bunnings,#mitre10,#officeworks,#kmart,#target,#bigw,#myer | Shops }}
+
+Your houses or work places {{fn:search.multi tags=#wilsonst,#edwardst | Houses or Places }}
+
+Your Suburbs {{fn:search.multi tags=#newyork,#london,#tokyo,#nottinghill | Suburbs }}
+```
+
+
 ## Scripts: run server and create venv
 
 Both the Windows and Debian scripts perform these steps automatically:
