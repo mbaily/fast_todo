@@ -34,3 +34,4 @@ jinja2
 # - SQLAlchemy & alembic: core ORM and migrations (alembic optional but useful)
 # - python-dotenv: load environment variables from a .env file (optional)
 # - pytest: test runner for unit tests
+
