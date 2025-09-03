@@ -1,0 +1,70 @@
+List of JavaScript functions and script blocks used in `html_tailwind/index.html`
+
+This file documents the client-side JavaScript I implemented or repaired while working on the Tailwind-styled `index.html` template. Each section contains the script block purpose and a short English description of the functions and behaviors implemented.
+
+1) Persist <details> open/closed per-category and combined-tags fetch
+- Purpose: Persist whether each category `<details>` is open or closed using `localStorage`. When the "Show all tags" global checkbox is toggled on, fetch combined hashtags for all lists and append deduplicated tag chips client-side.
+- Key functions and behaviors:
+  - setLocal(name, value): Try/catch wrapper to write JSON values to `localStorage`.
+  - getLocal(name, def): Try/catch wrapper to read JSON values from `localStorage`, returning a default if missing or parse fails.
+  - Initialization loop over `.category-section` elements: reads `data-category-id`, restores the saved open state for each section's `<details>`, and attaches `toggle` event listeners to persist the state whenever the `<details>` toggles.
+  - Global "Show all tags" handling:
+    - Reads `tw_show_all_tags` from `localStorage` and sets `#show-all-tags-checkbox` accordingly.
+    - On checkbox change (checked -> true): finds all `.combined-tags[data-list-id]` containers, sets them to "Loading...", fetches `/lists/<id>/hashtags?include_todo_tags=1&combine=1` for each list in parallel, receives JSON with `{ hashtags: [...] }` and appends tag chips.
+    - Deduplication: creates a Set of existing server-rendered `.tag-chip` textContent for each list and avoids appending tags already present.
+    - On uncheck: clears the `.combined-tags` containers.
+    - Uses `fetch` with `credentials: 'same-origin'` and safe try/catch around network operations.
+
+2) Server-categories JSON hydration block
+- Purpose: Embed `categories` server data into the page as JSON inside a `<script type="application/json">` element and parse it into `window.categories` for client-side use.
+- Key behaviors:
+  - Script reads the element with id `server-categories`, extracts and trims its textContent, `JSON.parse` it inside try/catch, and assigns to `window.categories` (or `[]` on error).
+
+3) Combined-tags per-list fetch trigger (when checkbox toggles)
+- Purpose: appended into the Persist script above but logically a separate behavior: responsible for fetching and rendering combined tags for each list when user chooses "Show all tags".
+- Key behaviors:
+  - For each `.combined-tags[data-list-id]` container, perform a GET request to `/lists/<id>/hashtags?include_todo_tags=1&combine=1`.
+  - Parse JSON, dedupe against existing `.tag-chip` elements, create anchor elements with `class="tag-chip"`, `href="/html_no_js/search?q=<tag>"`, and append them to the container.
+
+4) Optimistic create-list behavior
+- Purpose: When the user creates a new list from the input + Create button, optimistically add a placeholder `<li>` into the appropriate list container, then POST to `/client/json/lists`. On success, replace the placeholder with the returned rendered list (or navigate) and on failure remove the placeholder and show an error.
+- Key behaviors:
+  - Create placeholder element with `data-list-id="tmp-list-<timestamp>"` to identify it.
+  - POST the new list name as JSON via `fetch('/client/json/lists', { method: 'POST', body: JSON.stringify({ name: ... }), headers: { 'Content-Type': 'application/json' } })`.
+  - On successful response with JSON containing the new list id, either reload or replace the placeholder DOM node with the server-rendered markup returned (if server returns HTML fragment) or fetch updated lists.
+  - On failure, remove the placeholder and show a temporary error indicator.
+
+5) Sorting functions (applySort, sortUl, sortTable)
+- Purpose: Sort lists within each category by `created` or `modified` date and update displayed human-readable dates.
+- Key functions and behaviors:
+  - parseISO(v): safe parse of ISO timestamps to comparable numbers (ms since epoch).
+  - parsePri(el): extract numeric priority from `data-priority` attribute (skipping items marked `.done`).
+  - sortUl(ul, mode): sorts the `li` children of a `ul` by the chosen mode (created/modified) using `data-created-at`/`data-modified-at` attributes.
+  - sortTable(tbody, mode): similar for table rows if present elsewhere.
+  - applySort(): iterate categories and call `sortUl()` with currently selected `#list-sort-order` and update `.list-date` display text.
+
+6) Hide Completed (applyHide, updateCategoryCounts)
+- Purpose: Allow toggling of hiding completed lists; persist the setting and update category counts based on the setting.
+- Key functions and behaviors:
+  - applyHide(): reads the `hide-completed` flag (from a checkbox or localStorage), and for each `.list-title` with `.done` hides or shows its parent `li`.
+  - updateCategoryCounts(): For each `.category-section` finds `.cat-count` elements (or equivalent) and computes visible counts depending on whether hide-completed is enabled; updates the displayed count.
+  - Persists checkbox state in `localStorage` and initializes UI on page load.
+
+7) Tag deduplication helper behavior
+- Purpose: Small utility code used by combined-tags fetch to ensure tags appended client-side don't duplicate existing tag chips.
+- Behavior: create a `Set()` from existing `.tag-chip` textContent and use it to filter fetched tags before creating DOM anchors.
+
+8) Small UI wiring (search input, create button handlers, show-all-tags initial dispatch)
+- Purpose: Bind `#tw-search-input` to live filtering or search navigation, `#tw-create-list` to the optimistic-create flow, and initialize controls from saved settings.
+- Behavior: basic event listeners, `addEventListener('click', ...)` and `addEventListener('change', ...)`, safe try/catch wrappers.
+
+Notes and assumptions
+- Exact function names were often inline and wrapped in IIFE closures; above I'm describing each logical script block and its main helper functions.
+- Network endpoints used: `/lists/<id>/hashtags?include_todo_tags=1&combine=1` for combined tags, and `/client/json/lists` for list creation. These are the client-side routes used by the scripts.
+- Persistence keys used in `localStorage`: `tw_cat_open_<categoryId>`, `tw_show_all_tags`, `hide_completed`, and `list_sort_order` (cookie or localStorage depending on template).
+
+If you'd like, I can also:
+- Add this list into a README section or as comments inside `html_tailwind/index.html`.
+- Produce a minimal JS file that extracts and centralizes these IIFEs into named functions for easier testing.
+
+File saved: `docs/html_tailwind_js_functions.txt`

@@ -61,9 +61,8 @@
                 {% endif %}
               </div>
               <div class="text-xs text-slate-400">{% if t.priority %}P:{{ t.priority }}{% endif %}</div>
-            </li>
-            {% endfor %}
-          </ul>
+                          </li>
+                        </ul>
         </section>
         {% endif %}
         
@@ -84,73 +83,69 @@
         {# pagination controls (cursor-based) #}
         {% if cursors %}
         <nav class="mb-1 flex gap-1" aria-label="Pages">
-          {% if cursors.has_prev %}
-          <a href="?dir=prev&cursor_created_at={{ cursors.prev_cursor_created_at|urlencode }}&cursor_id={{ cursors.prev_cursor_id }}" class="px-1 py-1 bg-slate-800 text-slate-100 rounded">« Newer</a>
-          {% endif %}
-          {% if cursors.has_next %}
-          <a href="?dir=next&cursor_created_at={{ cursors.next_cursor_created_at|urlencode }}&cursor_id={{ cursors.next_cursor_id }}" class="px-1 py-1 bg-slate-800 text-slate-100 rounded">Older »</a>
-          {% endif %}
-        </nav>
-        {% endif %}
+          <script>
+          // Persist <details> open/closed per-category and handle combined tags fetch
+          (function(){
+            function setLocal(name, value){ try{ localStorage.setItem(name, JSON.stringify(value)); }catch(e){} }
+            function getLocal(name, def){ try{ var v = localStorage.getItem(name); return v ? JSON.parse(v) : def; }catch(e){ return def; } }
 
-        {# Lists grouped by category; uncategorized first #}
-        <section class="lists-by-category space-y-1">
-          {% set uncats = lists_by_category.get(0, []) %}
-          {% if uncats and uncats|length > 0 %}
-          <div class="category-section" data-category-id="uncategorized">
-            <details class="group bg-black border border-slate-700 rounded-lg" open>
-                <summary class="flex items-center justify-between px-1 py-1 cursor-pointer text-lg font-semibold text-slate-100">
-                  <span>Uncategorized <span class="text-sm text-slate-400">(<span class="cat-count">{{ uncats|length }}</span>)</span></span>
-                <svg class="w-4 h-4 text-slate-300 transform transition-transform duration-150" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M5.23 7.21a.75.75 0 011.06-.02L10 10.67l3.71-3.48a.75.75 0 111.02 1.1l-4.2 3.94a.75.75 0 01-1.04 0L5.25 8.29a.75.75 0 01-.02-1.08z"/></svg>
-              </summary>
-              <div class="px-1 pb-1 pt-1">
-                <div>
-                  <ul class="space-y-0 mt-0">
-                    {% for lst in uncats %}
-                    {% set eff = lst.override_priority if (lst.override_priority is not none and (lst.priority is none or lst.override_priority > lst.priority)) else lst.priority %}
-                      <li class="bg-black border-b border-slate-700 px-0 py-1" data-list-id="{{ lst.id }}"{% if lst.created_at %} data-created-at="{{ lst.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') }}" data-created-hum="{{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}"{% endif %}{% if lst.modified_at %} data-modified-at="{{ lst.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') }}" data-modified-hum="{{ lst.modified_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}"{% endif %} data-priority="{{ eff if eff is not none else '' }}">
-                        {% set un = (lst.uncompleted_count if (lst.uncompleted_count is defined) else (lst.uncompleted if (lst.uncompleted is defined) else None)) %}
-                        <a class="list-title font-medium {% if lst.completed %}text-slate-400{% else %}text-blue-600{% endif %} hover:underline{% if lst.completed %} line-through done{% endif %}" href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>{% if un is not none and not (lst.hide_icons|default(false)) and (un|int) > 0 %}<span class="text-red-400 ml-1">{{ un }}</span>{% endif %}
-                        {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
-                        {% if lst.priority is not none %}
-                          <span class="muted priority-inline"><span class="priority-circle text-slate-300">{{ circ.get(lst.priority, lst.priority) }}</span></span>
-                        {% endif %}
-                        {% if lst.override_priority and (lst.priority is none or lst.override_priority > lst.priority) %}
-                          <span class="muted priority-inline priority-override"><span class="priority-circle text-amber-300">{{ circ.get(lst.override_priority, lst.override_priority) }}</span></span>
-                        {% endif %}
-                        <span class="text-xs text-slate-400 list-date ml-1">{% if lst.modified_at %}mod. {{ lst.modified_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}{% elif lst.created_at %}cr. {{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}{% endif %}</span>
-                        {% if lst.hashtags and lst.hashtags|length > 0 %}
-                          <div class="inline-block ml-1">
-                            {% for tag in (lst.hashtags | sort) %}
-                              <a href="/html_no_js/search?q={{ tag|urlencode }}" class="tag-chip">{{ tag }}</a>
-                            {% endfor %}
-                          </div>
-                        {% endif %}
-                        <div class="combined-tags mt-0 inline-block ml-1" data-list-id="{{ lst.id }}" aria-live="polite"></div>
-                      </li>
-                    {% endfor %}
-                  </ul>
-                </div>
-              </div>
-            </details>
-          </div>
-          {% endif %}
+            // restore details open state
+            document.querySelectorAll('.category-section').forEach(function(sec){
+              try{
+                var cat = sec.getAttribute('data-category-id') || 'cat';
+                var key = 'tw_cat_open_' + String(cat);
+                var det = sec.querySelector('details');
+                if (!det) return;
+                var saved = getLocal(key, det.hasAttribute('open'));
+                if (saved) det.setAttribute('open',''); else det.removeAttribute('open');
+                det.addEventListener('toggle', function(){ setLocal(key, !!det.open); });
+              }catch(e){}
+            });
 
-          {% for cat in categories %}
-          {% set cat_lists = lists_by_category.get(cat.id, []) %}
-            {% if cat_lists and cat_lists|length > 0 %}
-            <div class="category-section" data-category-id="{{ cat.id }}">
-              <details class="group bg-black border border-slate-700 rounded-lg">
-                <summary class="flex items-center justify-between px-1 py-1 cursor-pointer text-lg font-semibold text-slate-100">
-                  <span>{{ cat.name }} <span class="text-sm text-slate-400">(<span class="cat-count">{{ cat_lists|length }}</span>)</span></span>
-                  <svg class="w-1 h-1 text-slate-300 transform transition-transform duration-150" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M5.23 7.21a.75.75 0 011.06-.02L10 10.67l3.71-3.48a.75.75 0 111.02 1.1l-4.2 3.94a.75.75 0 01-1.04 0L5.25 8.29a.75.75 0 01-.02-1.08z"/></svg>
-                </summary>
-                <div class="px-1 pb-1 pt-1">
-                  <div>
-                    <ul class="space-y-1 mt-1">
-                      {% for lst in cat_lists %}
-                      {% set eff = lst.override_priority if (lst.override_priority is not none and (lst.priority is none or lst.override_priority > lst.priority)) else lst.priority %}
-                        <li class="bg-black border-b border-slate-700 px-1 py-1" data-list-id="{{ lst.id }}"{% if lst.created_at %} data-created-at="{{ lst.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') }}" data-created-hum="{{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}"{% endif %}{% if lst.modified_at %} data-modified-at="{{ lst.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') }}" data-modified-hum="{{ lst.modified_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}"{% endif %} data-priority="{{ eff if eff is not none else '' }}">
+            // show-all-tags global checkbox persistence and combined-tags fetch
+            var globalShow = getLocal('tw_show_all_tags', false);
+            var globalBox = document.getElementById('show-all-tags-checkbox');
+            if (globalBox){
+              globalBox.checked = !!globalShow;
+              globalBox.addEventListener('change', async function(){
+                try{
+                  setLocal('tw_show_all_tags', !!globalBox.checked);
+                  const containers = Array.from(document.querySelectorAll('.combined-tags[data-list-id]'));
+                  if (!containers || containers.length === 0) return;
+                  if (globalBox.checked){
+                    // fetch for all lists in parallel
+                    containers.forEach(function(c){ c.textContent = 'Loading...'; });
+                    await Promise.all(containers.map(async function(c){
+                      try{
+                        const lid = c.getAttribute('data-list-id');
+                        const url = '/lists/' + encodeURIComponent(lid) + '/hashtags?include_todo_tags=1&combine=1';
+                        const res = await fetch(url, { credentials: 'same-origin' });
+                        if (!res.ok) { c.innerHTML = ''; return; }
+                        const j = await res.json();
+                        const tags = j && j.hashtags ? j.hashtags : null;
+                        c.innerHTML = '';
+                        if (tags && tags.length){
+                          // collect existing tags already rendered server-side for this list to avoid duplicates
+                          var existing = new Set();
+                          try{
+                            var parentLi = c.closest && c.closest('li');
+                            if (parentLi){ parentLi.querySelectorAll('.tag-chip').forEach(function(el){ if (el && el.textContent) existing.add(String(el.textContent).trim()); }); }
+                          }catch(e){}
+                          // append unique tags only
+                          tags.forEach(function(t){ try{ var txt = String(t).trim(); if (!txt) return; if (existing.has(txt)) return; existing.add(txt); var a = document.createElement('a'); a.href = '/html_no_js/search?q=' + encodeURIComponent(txt); a.className = 'tag-chip'; a.textContent = txt; c.appendChild(a); }catch(e){} });
+                        }
+                      }catch(e){ c.innerHTML = ''; }
+                    }));
+                  } else {
+                    containers.forEach(function(c){ c.innerHTML = ''; });
+                  }
+                }catch(e){ /* noop */ }
+              });
+              // initialize from saved state: trigger change to load tags if needed
+              if (globalBox.checked){ globalBox.dispatchEvent(new Event('change')); }
+            }
+          })();
+          </script>
                           {% set un = (lst.uncompleted_count if (lst.uncompleted_count is defined) else (lst.uncompleted if (lst.uncompleted is defined) else None)) %}
                           <a class="list-title font-medium {% if lst.completed %}text-slate-400{% else %}text-blue-600{% endif %} hover:underline{% if lst.completed %} line-through done{% endif %}" href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>{% if un is not none and not (lst.hide_icons|default(false)) and (un|int) > 0 %}<span class="text-red-400 ml-1">{{ un }}</span>{% endif %}
                           {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
@@ -177,11 +172,50 @@
               </details>
             </div>
             {% endif %}
-          {% endfor %}
         </section>
 
         <!-- embed server-provided categories as JSON for client-side enhancements -->
         <script type="application/json" id="server-categories">{{ categories | default([]) | tojson | safe }}</script>
+  {# Render each category section in category.position order #}
+  {% for cat in categories %}
+  {% set cat_lists = lists_by_category.get(cat.id, []) %}
+    {% if cat_lists and cat_lists|length > 0 %}
+      <li class="category-section" data-category-id="{{ cat.id }}">
+        <h3 class="category-header" data-target="cat-{{ cat.id }}" style="cursor:pointer; user-select:none;">
+          <span class="twisty" aria-hidden="true">▾</span>
+          <span class="category-name">{{ cat.name }}</span>
+          <span class="count muted"> ({{ cat_lists|length }})</span>
+        </h3>
+        <ul id="cat-{{ cat.id }}" class="category-lists">
+          {% for lst in cat_lists %}
+            {% set created_iso = lst.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') %}
+            {% set modified_iso = lst.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') if lst.modified_at else None %}
+            {# effective priority: use override_priority when present and higher than list.priority #}
+            {% set eff = lst.override_priority if (lst.override_priority is not none and (lst.priority is none or lst.override_priority > lst.priority)) else lst.priority %}
+            <li class="list-item"{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %} data-priority="{{ eff if eff is not none else '' }}">
+              <div class="list-main">
+                <a class="list-title {% if lst.completed %}done{% endif %}" href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>
+                {% set circ = {0:'⓪',1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
+                {% if lst.priority %}
+                  <span class="meta priority-inline"><span class="priority-circle">{{ circ.get(lst.priority, lst.priority) }}</span></span>
+                {% endif %}
+                {% if lst.override_priority and (lst.priority is none or lst.override_priority > lst.priority) %}
+                  <span class="meta priority-inline priority-override" title="Highest uncompleted todo priority"><span class="priority-circle">{{ circ.get(lst.override_priority, lst.override_priority) }}</span></span>
+                {% endif %}
+                {% if lst.uncompleted_count is not none and not (lst.hide_icons|default(false)) %}
+                  <span class="count-circle colour" aria-hidden="false" title="{{ circ.get(lst.uncompleted_count, lst.uncompleted_count) }} uncompleted todos">{{ lst.uncompleted_count }}</span>
+                {% endif %}
+                {% if lst.created_at %}
+                  <div class="meta">cr. {{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</div>
+                {% endif %}
+                <div class="all-tags-inline" data-list-id="{{ lst.id }}" data-list-tags='{{ lst.hashtags | tojson }}' aria-hidden="true"></div>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      </li>
+    {% endif %}
+  {% endfor %}
         <script>
           (function(){
             try{ var el = document.getElementById('server-categories'); var txt = el ? (el.textContent || el.innerText || '').trim() : '[]'; window.categories = txt ? JSON.parse(txt) : []; } catch(e) { window.categories = []; }
@@ -206,278 +240,7 @@
             </label>
           </div>
         </div>
-
       </main>
-
-      <script>
-      // Hydration: sorting within categories and hide-completed control (persisted in localStorage)
-      (function(){
-        function setLocal(name, value){ try{ localStorage.setItem(name, JSON.stringify(value)); }catch(e){} }
-        function getLocal(name, def){ try{ var v = localStorage.getItem(name); return v ? JSON.parse(v) : def; }catch(e){ return def; } }
-
-        // parse ISO safely
-        function parseISO(v){ try { return v ? new Date(v).getTime() : 0; } catch(_) { return 0; } }
-
-        // priority extraction from data attribute
-        function parsePri(el){ try { if (!el) return null; if (el.querySelector && el.querySelector('.done')) return null; var v = el.getAttribute('data-priority'); if (v==null || v==='') return null; var n = parseInt(v,10); return isNaN(n) ? null : n; } catch(e) { return null; } }
-
-        function sortUl(ul, mode){
-          var lis = Array.from(ul.querySelectorAll(':scope > li'));
-          lis.sort(function(a,b){
-            var pa = parsePri(a), pb = parsePri(b);
-            var aHas = (pa !== null), bHas = (pb !== null);
-            if (aHas && !bHas) return -1;
-            if (!aHas && bHas) return 1;
-            if (aHas && bHas && pa !== pb) return pb - pa; // higher first
-            if (mode === 'modified'){
-              var ad = parseISO(a.getAttribute('data-modified-at')) || parseISO(a.getAttribute('data-created-at'));
-              var bd = parseISO(b.getAttribute('data-modified-at')) || parseISO(b.getAttribute('data-created-at'));
-              return bd - ad;
-            }
-            var ad = parseISO(a.getAttribute('data-created-at'));
-            var bd = parseISO(b.getAttribute('data-created-at'));
-            return bd - ad;
-          });
-          lis.forEach(function(li){ ul.appendChild(li); });
-        }
-
-        // sort table rows (tbody > tr) by priority/date similar to sortUl
-        function sortTable(tbody, mode){
-          var rows = Array.from(tbody.querySelectorAll(':scope > tr'));
-          rows.sort(function(a,b){
-            var pa = parsePri(a), pb = parsePri(b);
-            var aHas = (pa !== null), bHas = (pb !== null);
-            if (aHas && !bHas) return -1;
-            if (!aHas && bHas) return 1;
-            if (aHas && bHas && pa !== pb) return pb - pa;
-            if (mode === 'modified'){
-              var ad = parseISO(a.getAttribute('data-modified-at')) || parseISO(a.getAttribute('data-created-at'));
-              var bd = parseISO(b.getAttribute('data-modified-at')) || parseISO(b.getAttribute('data-created-at'));
-              return bd - ad;
-            }
-            var ad = parseISO(a.getAttribute('data-created-at'));
-            var bd = parseISO(b.getAttribute('data-created-at'));
-            return bd - ad;
-          });
-          rows.forEach(function(r){ tbody.appendChild(r); });
-        }
-
-        function applySort(){
-          var mode = document.getElementById('list-sort-order') ? document.getElementById('list-sort-order').value : 'created';
-          // legacy UL lists
-          document.querySelectorAll('ul').forEach(function(ul){ if (ul.classList && ul.classList.contains('mt-1')) { sortUl(ul, mode); } });
-          // new table tbody rows
-          document.querySelectorAll('table').forEach(function(tbl){ var tb = tbl.querySelector('tbody'); if (tb) sortTable(tb, mode); });
-          // update date columns to reflect chosen mode
-          document.querySelectorAll('.list-date').forEach(function(td){ try{
-            var row = td.closest && (td.closest('tr') || td.closest('li'));
-            if (!row) return;
-            if (mode === 'modified'){
-              var mod = row.getAttribute('data-modified-hum'); if (mod) td.textContent = 'mod. ' + mod; else { var cr = row.getAttribute('data-created-hum'); td.textContent = cr ? 'cr. ' + cr : ''; }
-            } else {
-              var cr = row.getAttribute('data-created-hum'); if (cr) td.textContent = 'cr. ' + cr; else { var mod = row.getAttribute('data-modified-hum'); td.textContent = mod ? 'mod. ' + mod : ''; }
-            }
-          }catch(e){} });
-        }
-
-        // restore UI state
-        var hideCompleted = !!getLocal('hide_completed', false);
-        var sortOrder = getLocal('list_sort_order', 'created');
-        var hideBox = document.getElementById('hide-completed-checkbox');
-        if (hideBox) {
-          hideBox.checked = hideCompleted;
-          // update UI to reflect stored value immediately
-          try { applyHide(); updateCategoryCounts(); } catch(e) {}
-          // listen for both input and change for broader compatibility
-          var onHideChange = function(){ try{ setLocal('hide_completed', !!hideBox.checked); applyHide(); }catch(e){} };
-          hideBox.addEventListener('change', onHideChange);
-          hideBox.addEventListener('input', onHideChange);
-        }
-        var sel = document.getElementById('list-sort-order'); if (sel){ sel.value = sortOrder; sel.addEventListener('change', function(){ setLocal('list_sort_order', sel.value); applySort(); }); }
-
-  function applyHide(){ var checked = document.getElementById('hide-completed-checkbox') ? document.getElementById('hide-completed-checkbox').checked : false; document.querySelectorAll('a.list-title, a.list-title.done').forEach(function(at){ /* noop */ }); var listItems = document.querySelectorAll('.lists-by-category li'); if (!listItems || listItems.length === 0) listItems = document.querySelectorAll('li[data-list-id]'); listItems.forEach(function(li){ try{ var title = li.querySelector && li.querySelector('.list-title'); var isDone = title && title.classList && title.classList.contains('done'); li.style.display = (checked && isDone) ? 'none' : ''; }catch(e){} }); updateCategoryCounts(); }
-
-        // initial apply
-        applySort(); applyHide();
-
-        // update category counts to reflect hidden/completed state
-        function updateCategoryCounts(){ try{
-          document.querySelectorAll('.category-section').forEach(function(sec){ try{
-            var total = 0, visible = 0;
-            var lis = sec.querySelectorAll('ul > li');
-            total = lis.length;
-            lis.forEach(function(li){ if (li.style && li.style.display === 'none') return; visible += 1; });
-            var span = sec.querySelector('.cat-count');
-            if (span) span.textContent = (document.getElementById('hide-completed-checkbox') && document.getElementById('hide-completed-checkbox').checked) ? String(visible) : String(total);
-          }catch(e){} });
-        }catch(e){}
-        updateCategoryCounts();
-
-        // allow external updates via localStorage event
-        window.addEventListener && window.addEventListener('storage', function(ev){ try{ if (!ev || !ev.key) return; if (ev.key === 'list_sort_order'){ applySort(); } if (ev.key === 'hide_completed'){ applyHide(); } }catch(e){} });
-      })();
-      </script>
-
-      <script>
-      // Persist <details> open/closed per-category and handle combined tags fetch
-      (function(){
-        function setLocal(name, value){ try{ localStorage.setItem(name, JSON.stringify(value)); }catch(e){} }
-        function getLocal(name, def){ try{ var v = localStorage.getItem(name); return v ? JSON.parse(v) : def; }catch(e){ return def; } }
-
-        // restore details open state
-        document.querySelectorAll('.category-section').forEach(function(sec){
-          try{
-            var cat = sec.getAttribute('data-category-id') || 'cat';
-            var key = 'tw_cat_open_' + String(cat);
-            var det = sec.querySelector('details');
-            if (!det) return;
-            var saved = getLocal(key, det.hasAttribute('open'));
-            if (saved) det.setAttribute('open',''); else det.removeAttribute('open');
-            det.addEventListener('toggle', function(){ setLocal(key, !!det.open); });
-          }catch(e){}
-        });
-
-        // show-all-tags global checkbox persistence
-        var globalShow = getLocal('tw_show_all_tags', false);
-        var globalBox = document.getElementById('show-all-tags-checkbox');
-        if (globalBox){
-          globalBox.checked = !!globalShow;
-          globalBox.addEventListener('change', async function(){
-            setLocal('tw_show_all_tags', !!globalBox.checked);
-            // when enabled, fetch combined tags for all visible lists; when disabled, clear them
-            const containers = Array.from(document.querySelectorAll('.combined-tags[data-list-id]'));
-            if (!containers || containers.length === 0) return;
-            if (globalBox.checked){
-              // fetch for all lists in parallel but cap concurrency if needed (simple parallel here)
-              containers.forEach(function(c){ c.textContent = 'Loading...'; });
-              await Promise.all(containers.map(async function(c){
-                try{
-                  const lid = c.getAttribute('data-list-id');
-                  const url = '/lists/' + encodeURIComponent(lid) + '/hashtags?include_todo_tags=1&combine=1';
-                  const res = await fetch(url, { credentials: 'same-origin' });
-                  if (!res.ok) { c.innerHTML = ''; return; }
-                  const j = await res.json();
-                  const tags = j && j.hashtags ? j.hashtags : null;
-                  c.innerHTML = '';
-                  if (tags && tags.length){
-                    // collect existing tags already rendered server-side for this list to avoid duplicates
-                    var existing = new Set();
-                    try{
-                      var parentLi = c.closest && c.closest('li');
-                      if (parentLi){ parentLi.querySelectorAll('.tag-chip').forEach(function(el){ if (el && el.textContent) existing.add(String(el.textContent).trim()); }); }
-                    }catch(e){}
-                    // append unique tags only
-                    tags.forEach(function(t){ try{ var txt = String(t).trim(); if (!txt) return; if (existing.has(txt)) return; existing.add(txt); var a = document.createElement('a'); a.href = '/html_no_js/search?q=' + encodeURIComponent(txt); a.className = 'tag-chip'; a.textContent = txt; c.appendChild(a); }catch(e){} });
-                  }
-                }catch(e){ c.innerHTML = ''; }
-          })();
-
-          <script>
-            }
-          });
-          // initialize from saved state: trigger change to load tags if needed
-          if (globalBox.checked){ globalBox.dispatchEvent(new Event('change')); }
-        }
-      })();
-      </script>
-
-      </div>
-
-      </div>
-
-      <script>
-        (function(){
-          // search handler: on Enter or after small debounce
-          const searchInput = document.getElementById('tw-search-input');
-          let searchTimer = null;
-          if (searchInput) {
-            searchInput.addEventListener('keydown', (e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                doSearch(searchInput.value);
-              }
-            });
-            searchInput.addEventListener('input', (e) => {
-              if (searchTimer) clearTimeout(searchTimer);
-              searchTimer = setTimeout(() => { doSearch(searchInput.value); }, 500);
-            });
-          }
-
-          async function doSearch(q) {
-            try {
-              const url = '/client/json/search?q=' + encodeURIComponent(q);
-              const res = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' }, credentials: 'same-origin' });
-              if (!res.ok) return;
-              const j = await res.json();
-              if (j && j.ok) {
-                // For now redirect to the tailwind index with q param so server-side
-                // rendering or a later client render can display results.
-                window.location.href = '/html_tailwind?q=' + encodeURIComponent(q);
-              }
-            } catch (e) {
-              // noop
-            }
-          }
-
-          // create-list handler
-          const createBtn = document.getElementById('tw-create-list');
-          if (createBtn) {
-            createBtn.addEventListener('click', async () => {
-              const nameEl = document.getElementById('tw-newlist-name');
-              if (!nameEl) return;
-              const name = nameEl.value && String(nameEl.value).trim();
-              if (!name) { alert('Please enter a list name'); return; }
-              try {
-                // Optimistic UI: insert a temporary placeholder row immediately
-                createBtn.disabled = true;
-                const placeholderId = 'tmp-list-' + String(Date.now());
-                const uncategorizedUl = document.querySelector('.category-section[data-category-id="uncategorized"] ul');
-                let placeholderLi = null;
-                if (uncategorizedUl) {
-                  placeholderLi = document.createElement('li');
-                  placeholderLi.className = 'bg-black border-b border-slate-700 px-0 py-1 opacity-80';
-                  placeholderLi.setAttribute('data-list-id', placeholderId);
-                  placeholderLi.innerHTML = '<span class="list-title font-medium text-slate-400">' + (name.replace(/</g, '&lt;')) + '</span>';
-                  uncategorizedUl.insertBefore(placeholderLi, uncategorizedUl.firstChild);
-                }
-
-                const res = await fetch('/client/json/lists', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, credentials: 'same-origin', body: JSON.stringify({ name }) });
-                if (!res.ok) {
-                  // remove placeholder and restore
-                  if (placeholderLi && placeholderLi.parentNode) placeholderLi.parentNode.removeChild(placeholderLi);
-                  createBtn.disabled = false;
-                  alert('Failed to create list');
-                  return;
-                }
-                const j = await res.json();
-                if (j && j.ok) {
-                  // if server provided id, navigate to the list page; otherwise reload so server renders it
-                  if (placeholderLi && j.id) {
-                    // replace placeholder with a proper link element
-                    const a = document.createElement('a');
-                    a.className = (j.completed ? 'list-title font-medium text-slate-400 line-through done' : 'list-title font-medium text-blue-600 hover:underline');
-                    a.href = '/html_no_js/lists/' + j.id;
-                    a.textContent = j.name || name;
-                    placeholderLi.innerHTML = '';
-                    placeholderLi.appendChild(a);
-                    placeholderLi.setAttribute('data-list-id', j.id);
-                    createBtn.disabled = false;
-                    // navigate to the new list page to be consistent with prior behavior
-                    window.location.href = '/html_no_js/lists/' + j.id;
-                    return;
-                  }
-                  if (j.id) window.location.href = '/html_no_js/lists/' + j.id; else window.location.reload();
-                } else {
-                  if (placeholderLi && placeholderLi.parentNode) placeholderLi.parentNode.removeChild(placeholderLi);
-                  createBtn.disabled = false;
-                  alert('Create failed');
-                }
-              } catch (e) { alert('Network error'); }
-            });
-          }
-        })();
-      </script>
-
     </div>
   </body>
 </html>
