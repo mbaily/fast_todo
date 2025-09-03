@@ -47,7 +47,7 @@
           <ul class="space-y-1">
             {# sort pinned_todos by modified_at (newest first) #}
             {% for t in (pinned_todos | sort(attribute='modified_at') | reverse) %}
-            <li class="flex items-start gap-1 bg-slate-800 rounded p-1">
+            <li class="flex items-start gap-1 bg-black-800 rounded p-1">
               <div class="mt-0.5 text-sky-400">📌</div>
               <div class="flex-1">
                 <a class="font-medium text-slate-100 hover:underline" href="/html_no_js/todos/{{ t.id }}">{{ t.text }}</a>
@@ -72,9 +72,12 @@
           <h3 class="text-sm font-semibold mb-1">Calendar</h3>
           <ul class="space-y-1">
             {% for ev in calendar_occurrences %}
-            <li class="flex items-center gap-1 bg-slate-800 rounded p-1">
-              <div class="text-xs text-slate-300 font-medium">{{ ev.occurrence_date or ev.occurrence_dt[:10] }}</div>
-              <div class="flex-1 text-slate-100"><a class="hover:underline" href="{% if ev.item_type == 'todo' %}/html_no_js/todos/{{ ev.id }}{% else %}/html_no_js/lists/{{ ev.id }}{% endif %}">{{ ev.title or (ev.rrule or '')[:80] }}</a>{% if ev.is_recurring %} <span class="text-xs text-slate-400">(recurring)</span>{% endif %}</div>
+            <li class="bg-black-800 rounded p-1">
+              <div class="text-slate-100">
+                <span class="text-slate-300 font-medium mr-2">{{ ev.occurrence_date or ev.occurrence_dt[:10] }}</span>
+                <a class="hover:underline" href="{% if ev.item_type == 'todo' %}/html_no_js/todos/{{ ev.id }}{% else %}/html_no_js/lists/{{ ev.id }}{% endif %}">{{ ev.title or (ev.rrule or '')[:80] }}</a>
+                {% if ev.is_recurring %}<span class="text-xs text-slate-400 ml-2">(recurring)</span>{% endif %}
+              </div>
             </li>
             {% endfor %}
           </ul>
@@ -189,7 +192,8 @@
         </script>
 
         <!-- controls: pill-group compact styling -->
-        <div class="mt-1">
+        <!-- Desktop / tablet: show inline -->
+        <div class="mt-1 hidden sm:block">
           <div class="flex items-center gap-2">
             <label class="inline-flex items-center gap-2 px-2 py-1 bg-black-800 border border-slate-700 rounded-md text-sm">
               <input type="checkbox" id="hide-completed-checkbox" class="mr-1"> Hide Completed
@@ -201,8 +205,28 @@
                 <option value="modified">by modification date</option>
               </select>
             </div>
-            <label class="inline-flex items-center gap-2 px-2 py-1 bg-black-800 border border-slate-700 rounded-md text-sm">
-              <input type="checkbox" id="show-all-tags-checkbox" class="mr-1"> Show all tags
+            <div class="ml-2">
+              <label class="inline-flex items-center gap-2 px-2 py-1 bg-black-800 border border-slate-700 rounded-md text-sm">
+                <input type="checkbox" id="show-all-tags-checkbox" class="mr-1"> Show all tags
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mobile: pill stack (flows with content) -->
+        <div class="sm:hidden mt-4">
+          <div class="flex flex-col items-center gap-2 max-w-lg mx-auto px-3">
+            <label class="w-full inline-flex items-center justify-center gap-2 px-3 py-2 bg-black-800 border border-slate-700 rounded-md text-sm">
+              <input type="checkbox" id="hide-completed-checkbox-mobile" class="mr-1" onclick="document.getElementById('hide-completed-checkbox').click()"> Hide Completed
+            </label>
+            <div class="w-full inline-flex items-center justify-center gap-2 px-3 py-2 bg-black-800 border border-slate-700 rounded-md text-sm">
+              <select id="list-sort-order-mobile" class="bg-transparent text-sm text-slate-100 border-none focus:outline-none" onchange="document.getElementById('list-sort-order').value=this.value; document.getElementById('list-sort-order').dispatchEvent(new Event('change'));">
+                <option value="created">by created</option>
+                <option value="modified">by modified</option>
+              </select>
+            </div>
+            <label class="w-full inline-flex items-center justify-center gap-2 px-3 py-2 bg-black-800 border border-slate-700 rounded-md text-sm">
+              <input type="checkbox" id="show-all-tags-checkbox-mobile" class="mr-1" onclick="document.getElementById('show-all-tags-checkbox').click()"> Show all tags
             </label>
           </div>
         </div>
