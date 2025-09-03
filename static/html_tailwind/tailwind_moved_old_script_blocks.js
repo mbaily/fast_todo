@@ -99,6 +99,7 @@
             if (span) span.textContent = (document.getElementById('hide-completed-checkbox') && document.getElementById('hide-completed-checkbox').checked) ? String(visible) : String(total);
         }catch(e){} });
     }catch(e){}
+    }
         updateCategoryCounts();
 
         // allow external updates via localStorage event
@@ -159,7 +160,7 @@
                             tags.forEach(function(t){ try{ var txt = String(t).trim(); if (!txt) return; if (existing.has(txt)) return; existing.add(txt); var a = document.createElement('a'); a.href = '/html_no_js/search?q=' + encodeURIComponent(txt); a.className = 'tag-chip'; a.textContent = txt; c.appendChild(a); }catch(e){} });
                         }
                     }catch(e){ c.innerHTML = ''; }
-                }))();
+                }));
 
             }
         });
