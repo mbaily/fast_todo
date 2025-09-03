@@ -281,9 +281,18 @@
         }
 
         // restore UI state
-        var hideCompleted = getLocal('hide_completed', false);
+        var hideCompleted = !!getLocal('hide_completed', false);
         var sortOrder = getLocal('list_sort_order', 'created');
-        var hideBox = document.getElementById('hide-completed-checkbox'); if (hideBox) { hideBox.checked = !!hideCompleted; hideBox.addEventListener('change', function(){ setLocal('hide_completed', hideBox.checked); applyHide(); }); }
+        var hideBox = document.getElementById('hide-completed-checkbox');
+        if (hideBox) {
+          hideBox.checked = hideCompleted;
+          // update UI to reflect stored value immediately
+          try { applyHide(); updateCategoryCounts(); } catch(e) {}
+          // listen for both input and change for broader compatibility
+          var onHideChange = function(){ try{ setLocal('hide_completed', !!hideBox.checked); applyHide(); }catch(e){} };
+          hideBox.addEventListener('change', onHideChange);
+          hideBox.addEventListener('input', onHideChange);
+        }
         var sel = document.getElementById('list-sort-order'); if (sel){ sel.value = sortOrder; sel.addEventListener('change', function(){ setLocal('list_sort_order', sel.value); applySort(); }); }
 
   function applyHide(){ var checked = document.getElementById('hide-completed-checkbox') ? document.getElementById('hide-completed-checkbox').checked : false; document.querySelectorAll('a.list-title, a.list-title.done').forEach(function(at){ /* noop */ }); var listItems = document.querySelectorAll('.lists-by-category li'); if (!listItems || listItems.length === 0) listItems = document.querySelectorAll('li[data-list-id]'); listItems.forEach(function(li){ try{ var title = li.querySelector && li.querySelector('.list-title'); var isDone = title && title.classList && title.classList.contains('done'); li.style.display = (checked && isDone) ? 'none' : ''; }catch(e){} }); updateCategoryCounts(); }
@@ -361,9 +370,9 @@
                     tags.forEach(function(t){ try{ var txt = String(t).trim(); if (!txt) return; if (existing.has(txt)) return; existing.add(txt); var a = document.createElement('a'); a.href = '/html_no_js/search?q=' + encodeURIComponent(txt); a.className = 'tag-chip'; a.textContent = txt; c.appendChild(a); }catch(e){} });
                   }
                 }catch(e){ c.innerHTML = ''; }
-              }));
-            } else {
-              containers.forEach(function(c){ c.innerHTML = ''; });
+          })();
+
+          <script>
             }
           });
           // initialize from saved state: trigger change to load tags if needed
