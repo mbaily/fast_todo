@@ -41,141 +41,9 @@
       <!-- server-rendered content: pinned, calendar, lists grouped by category -->
       <main class="mt-1">
 
-        {% if pinned_todos and pinned_todos|length > 0 %}
-        <section class="pinned-todos mb-1">
-          <h3 class="text-sm font-semibold mb-1">Pinned</h3>
-          <ul class="space-y-1">
-            {# sort pinned_todos by modified_at (newest first) #}
-            {% for t in (pinned_todos | sort(attribute='modified_at') | reverse) %}
-            <li class="flex items-start gap-1 bg-slate-800 rounded p-1">
-              <div class="mt-0.5 text-sky-400">📌</div>
-              <div class="flex-1">
-                <a class="font-medium text-slate-100 hover:underline" href="/html_no_js/todos/{{ t.id }}">{{ t.text }}</a>
-                <div class="text-xs text-slate-400">in <a class="text-sky-300 hover:underline" href="/html_no_js/lists/{{ t.list_id }}">{{ t.list_name or t.list_id }}</a></div>
-                {% if t.tags and t.tags|length > 0 %}
-                <div class="mt-1 flex flex-wrap gap-1">
-                  {% for tag in (t.tags | sort) %}
-                  <a href="/html_no_js/search?q={{ tag|urlencode }}" class="tag-chip">{{ tag }}</a>
-                  {% endfor %}
-                </div>
-                {% endif %}
-              </div>
-              <div class="text-xs text-slate-400">{% if t.priority %}P:{{ t.priority }}{% endif %}</div>
-                          </li>
-                        </ul>
-        </section>
-        {% endif %}
         
-        {% if calendar_occurrences and calendar_occurrences|length > 0 %}
-        <section class="calendar-summary mb-1">
-          <h3 class="text-sm font-semibold mb-1">Calendar</h3>
-          <ul class="space-y-1">
-            {% for ev in calendar_occurrences %}
-            <li class="flex items-center gap-1 bg-slate-800 rounded p-1">
-              <div class="text-xs text-slate-300 font-medium">{{ ev.occurrence_date or ev.occurrence_dt[:10] }}</div>
-              <div class="flex-1 text-slate-100"><a class="hover:underline" href="{% if ev.item_type == 'todo' %}/html_no_js/todos/{{ ev.id }}{% else %}/html_no_js/lists/{{ ev.id }}{% endif %}">{{ ev.title or (ev.rrule or '')[:80] }}</a>{% if ev.is_recurring %} <span class="text-xs text-slate-400">(recurring)</span>{% endif %}</div>
-            </li>
-            {% endfor %}
-          </ul>
-        </section>
-        {% endif %}
 
-        {# pagination controls (cursor-based) #}
-        {% if cursors %}
-        <nav class="mb-1 flex gap-1" aria-label="Pages">
-          <script>
-          // Persist <details> open/closed per-category and handle combined tags fetch
-          (function(){
-            function setLocal(name, value){ try{ localStorage.setItem(name, JSON.stringify(value)); }catch(e){} }
-            function getLocal(name, def){ try{ var v = localStorage.getItem(name); return v ? JSON.parse(v) : def; }catch(e){ return def; } }
 
-            // restore details open state
-            document.querySelectorAll('.category-section').forEach(function(sec){
-              try{
-                var cat = sec.getAttribute('data-category-id') || 'cat';
-                var key = 'tw_cat_open_' + String(cat);
-                var det = sec.querySelector('details');
-                if (!det) return;
-                var saved = getLocal(key, det.hasAttribute('open'));
-                if (saved) det.setAttribute('open',''); else det.removeAttribute('open');
-                det.addEventListener('toggle', function(){ setLocal(key, !!det.open); });
-              }catch(e){}
-            });
-
-            // show-all-tags global checkbox persistence and combined-tags fetch
-            var globalShow = getLocal('tw_show_all_tags', false);
-            var globalBox = document.getElementById('show-all-tags-checkbox');
-            if (globalBox){
-              globalBox.checked = !!globalShow;
-              globalBox.addEventListener('change', async function(){
-                try{
-                  setLocal('tw_show_all_tags', !!globalBox.checked);
-                  const containers = Array.from(document.querySelectorAll('.combined-tags[data-list-id]'));
-                  if (!containers || containers.length === 0) return;
-                  if (globalBox.checked){
-                    // fetch for all lists in parallel
-                    containers.forEach(function(c){ c.textContent = 'Loading...'; });
-                    await Promise.all(containers.map(async function(c){
-                      try{
-                        const lid = c.getAttribute('data-list-id');
-                        const url = '/lists/' + encodeURIComponent(lid) + '/hashtags?include_todo_tags=1&combine=1';
-                        const res = await fetch(url, { credentials: 'same-origin' });
-                        if (!res.ok) { c.innerHTML = ''; return; }
-                        const j = await res.json();
-                        const tags = j && j.hashtags ? j.hashtags : null;
-                        c.innerHTML = '';
-                        if (tags && tags.length){
-                          // collect existing tags already rendered server-side for this list to avoid duplicates
-                          var existing = new Set();
-                          try{
-                            var parentLi = c.closest && c.closest('li');
-                            if (parentLi){ parentLi.querySelectorAll('.tag-chip').forEach(function(el){ if (el && el.textContent) existing.add(String(el.textContent).trim()); }); }
-                          }catch(e){}
-                          // append unique tags only
-                          tags.forEach(function(t){ try{ var txt = String(t).trim(); if (!txt) return; if (existing.has(txt)) return; existing.add(txt); var a = document.createElement('a'); a.href = '/html_no_js/search?q=' + encodeURIComponent(txt); a.className = 'tag-chip'; a.textContent = txt; c.appendChild(a); }catch(e){} });
-                        }
-                      }catch(e){ c.innerHTML = ''; }
-                    }));
-                  } else {
-                    containers.forEach(function(c){ c.innerHTML = ''; });
-                  }
-                }catch(e){ /* noop */ }
-              });
-              // initialize from saved state: trigger change to load tags if needed
-              if (globalBox.checked){ globalBox.dispatchEvent(new Event('change')); }
-            }
-          })();
-          </script>
-                          {% set un = (lst.uncompleted_count if (lst.uncompleted_count is defined) else (lst.uncompleted if (lst.uncompleted is defined) else None)) %}
-                          <a class="list-title font-medium {% if lst.completed %}text-slate-400{% else %}text-blue-600{% endif %} hover:underline{% if lst.completed %} line-through done{% endif %}" href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>{% if un is not none and not (lst.hide_icons|default(false)) and (un|int) > 0 %}<span class="text-red-400 ml-1">{{ un }}</span>{% endif %}
-                          {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
-                          {% if lst.priority is not none %}
-                            <span class="muted priority-inline"><span class="priority-circle text-slate-300">{{ circ.get(lst.priority, lst.priority) }}</span></span>
-                          {% endif %}
-                            {% if lst.override_priority and (lst.priority is none or lst.override_priority > lst.priority) %}
-                              <span class="muted priority-inline priority-override"><span class="priority-circle text-amber-300">{{ circ.get(lst.override_priority, lst.override_priority) }}</span></span>
-                            {% endif %}
-                          <span class="text-xs text-slate-400 list-date ml-1">{% if lst.modified_at %}mod. {{ lst.modified_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}{% elif lst.created_at %}cr. {{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}{% endif %}</span>
-                          {% if lst.hashtags and lst.hashtags|length > 0 %}
-                            <div class="inline-block ml-1">
-                              {% for tag in (lst.hashtags | sort) %}
-                                <a href="/html_no_js/search?q={{ tag|urlencode }}" class="tag-chip">{{ tag }}</a>
-                              {% endfor %}
-                            </div>
-                          {% endif %}
-                          <div class="combined-tags mt-0 inline-block ml-1" data-list-id="{{ lst.id }}" aria-live="polite"></div>
-                        </li>
-                      {% endfor %}
-                    </ul>
-                  </div>
-                </div>
-              </details>
-            </div>
-            {% endif %}
-        </section>
-
-        <!-- embed server-provided categories as JSON for client-side enhancements -->
-        <script type="application/json" id="server-categories">{{ categories | default([]) | tojson | safe }}</script>
   {# Render each category section in category.position order #}
   {% for cat in categories %}
   {% set cat_lists = lists_by_category.get(cat.id, []) %}
@@ -216,12 +84,6 @@
       </li>
     {% endif %}
   {% endfor %}
-        <script>
-          (function(){
-            try{ var el = document.getElementById('server-categories'); var txt = el ? (el.textContent || el.innerText || '').trim() : '[]'; window.categories = txt ? JSON.parse(txt) : []; } catch(e) { window.categories = []; }
-          })();
-        </script>
-
         <!-- controls: pill-group compact styling -->
         <div class="mt-1">
           <div class="flex items-center gap-2">
