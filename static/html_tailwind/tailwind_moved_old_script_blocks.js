@@ -52,8 +52,8 @@
 
     function applySort(){
         var mode = document.getElementById('list-sort-order') ? document.getElementById('list-sort-order').value : 'created';
-        // legacy UL lists
-        document.querySelectorAll('ul').forEach(function(ul){ if (ul.classList && ul.classList.contains('mt-1')) { sortUl(ul, mode); } });
+    // legacy UL lists: target ULs rendered inside the lists-by-category section
+    document.querySelectorAll('.lists-by-category ul').forEach(function(ul){ sortUl(ul, mode); });
         // new table tbody rows
         document.querySelectorAll('table').forEach(function(tbl){ var tb = tbl.querySelector('tbody'); if (tb) sortTable(tb, mode); });
         // update date columns to reflect chosen mode
@@ -157,7 +157,7 @@
                                 if (parentLi){ parentLi.querySelectorAll('.tag-chip').forEach(function(el){ if (el && el.textContent) existing.add(String(el.textContent).trim()); }); }
                             }catch(e){}
                             // append unique tags only
-                            tags.forEach(function(t){ try{ var txt = String(t).trim(); if (!txt) return; if (existing.has(txt)) return; existing.add(txt); var a = document.createElement('a'); a.href = '/html_no_js/search?q=' + encodeURIComponent(txt); a.className = 'tag-chip'; a.textContent = txt; c.appendChild(a); }catch(e){} });
+                            tags.forEach(function(t){ try{ var txt = String(t).trim(); if (!txt) return; if (existing.has(txt)) return; existing.add(txt); var a = document.createElement('a'); a.href = '/html_no_js/search?q=' + encodeURIComponent(txt); a.className = 'tag-chip'; a.textContent = txt; a.setAttribute('data-appended','1'); c.appendChild(a); }catch(e){} });
                         }
                     }catch(e){ c.innerHTML = ''; }
                 }));
@@ -166,6 +166,10 @@
         });
         // initialize from saved state: trigger change to load tags if needed
         if (globalBox.checked){ globalBox.dispatchEvent(new Event('change')); }
+    }
+    // when unchecked, remove only appended combined tags
+    if (globalBox){
+        globalBox.addEventListener('change', function(){ if (!globalBox.checked){ try{ document.querySelectorAll('.combined-tags').forEach(function(c){ Array.from(c.querySelectorAll('[data-appended="1"]')).forEach(function(el){ el.parentNode && el.parentNode.removeChild(el); }); }); }catch(e){} } });
     }
 })();
 
