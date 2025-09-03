@@ -735,6 +735,273 @@ async def html_tailwind_index(request: Request):
     return TEMPLATES_TAILWIND.TemplateResponse('index.html', ctx)
 
 
+@app.get('/html_tailwind/list', response_class=HTMLResponse)
+async def html_tailwind_view_list(request: Request):
+    """Render a single list using the Tailwind templates.
+
+    Accepts query param `id=<list_id>`. Mirrors the data prepared by the
+    no-JS list view so templates receive the same keys, but renders the
+    `html_tailwind/list.html` template.
+    """
+    id_str = request.query_params.get('id')
+    try:
+        list_id = int(id_str) if id_str is not None else None
+    except Exception:
+        list_id = None
+
+    try:
+        from .auth import get_current_user as _gcu
+        current_user = await _gcu(token=None, request=request)
+    except Exception:
+        current_user = None
+
+    if not current_user:
+        return RedirectResponse(url='/html_tailwind/login', status_code=303)
+
+    if list_id is None:
+        raise HTTPException(status_code=404, detail='list id required')
+
+    # Reuse the same list-loading logic as the html_no_js handler so
+    # templates get consistent context. This duplicates the data-fetching
+    # but intentionally keeps behaviour identical.
+    async with async_session() as sess:
+        q = await sess.exec(select(ListState).where(ListState.id == list_id))
+        lst = q.first()
+        if not lst:
+            raise HTTPException(status_code=404, detail="list not found")
+        if lst.owner_id != current_user.id:
+            raise HTTPException(status_code=403, detail="forbidden")
+
+        # completion types
+        qct = await sess.exec(
+            select(CompletionType)
+            .where(CompletionType.list_id == list_id)
+            .order_by(CompletionType.id.asc())
+        )
+        ctypes = qct.all()
+
+        # todos and completion states
+        try:
+            q2 = await sess.exec(select(Todo).where(Todo.list_id == list_id).order_by(Todo.priority.desc().nullslast(), Todo.created_at.desc()))
+        except Exception:
+            q2 = await sess.exec(select(Todo).where(Todo.list_id == list_id).order_by(Todo.created_at.desc()))
+        todos = q2.all()
+        todo_ids = [t.id for t in todos]
+        ctype_ids = [c.id for c in ctypes]
+        status_map: dict[tuple[int, int], bool] = {}
+        if todo_ids and ctype_ids:
+            qtc = select(TodoCompletion.todo_id, TodoCompletion.completion_type_id, TodoCompletion.done).where(TodoCompletion.todo_id.in_(todo_ids)).where(TodoCompletion.completion_type_id.in_(ctype_ids))
+            r = await sess.exec(qtc)
+            for tid, cid, done_val in r.all():
+                status_map[(tid, cid)] = bool(done_val)
+
+        default_ct = next((c for c in ctypes if c.name == 'default'), None)
+        default_id = default_ct.id if default_ct else None
+
+        todo_rows = []
+        for t in todos:
+            completed_default = False
+            if default_id is not None:
+                completed_default = status_map.get((t.id, default_id), False)
+            extra = []
+            for c in ctypes:
+                if c.name == 'default':
+                    continue
+                extra.append({'id': c.id, 'name': c.name, 'done': status_map.get((t.id, c.id), False)})
+
+            todo_rows.append({
+                "id": t.id,
+                "text": t.text,
+                "note": t.note,
+                "created_at": t.created_at,
+                "modified_at": t.modified_at,
+                "completed": completed_default,
+                "pinned": getattr(t, 'pinned', False),
+                "priority": getattr(t, 'priority', None),
+                "extra_completions": extra,
+            })
+
+        def _todo_display_sort_key(row):
+            p = row.get('priority') if not row.get('completed') else None
+            has_p = 1 if p is not None else 0
+            pr_val = p if p is not None else -999
+            return (has_p, pr_val, row.get('created_at').timestamp() if row.get('created_at') else 0)
+
+        todo_rows.sort(key=_todo_display_sort_key, reverse=True)
+
+        # fetch hashtags for todos
+        todo_ids = [r['id'] for r in todo_rows]
+        tags_map = {}
+        if todo_ids:
+            qth = select(TodoHashtag.todo_id, Hashtag.tag).join(Hashtag, Hashtag.id == TodoHashtag.hashtag_id).where(TodoHashtag.todo_id.in_(todo_ids))
+            tres = await sess.exec(qth)
+            for tid, tag in tres.all():
+                tags_map.setdefault(tid, []).append(tag)
+        for r in todo_rows:
+            r['tags'] = tags_map.get(r['id'], [])
+
+        # list-level hashtags
+        ql = select(Hashtag.tag).join(ListHashtag, ListHashtag.hashtag_id == Hashtag.id).where(ListHashtag.list_id == list_id)
+        lres = await sess.exec(ql)
+        _rows = lres.all()
+        list_tags: list[str] = []
+        for row in _rows:
+            if isinstance(row, (tuple, list)):
+                val = row[0]
+            else:
+                val = row
+            if isinstance(val, str) and val:
+                list_tags.append(val)
+
+        list_row = {
+            "id": lst.id,
+            "name": lst.name,
+            "completed": lst.completed,
+            "hashtags": list_tags,
+            "hide_icons": getattr(lst, 'hide_icons', False),
+            "category_id": getattr(lst, 'category_id', None),
+            "list_id": lst.id,
+            "lists_up_top": getattr(lst, 'lists_up_top', False),
+            "priority": getattr(lst, 'priority', None),
+            "parent_todo_id": getattr(lst, 'parent_todo_id', None),
+            "parent_list_id": getattr(lst, 'parent_list_id', None),
+        }
+
+        if getattr(lst, 'parent_todo_id', None):
+            try:
+                qpt = await sess.exec(select(Todo.text).where(Todo.id == lst.parent_todo_id))
+                row = qpt.first()
+                todo_text = row[0] if isinstance(row, (tuple, list)) else row
+                if isinstance(todo_text, str):
+                    list_row["parent_todo_text"] = todo_text
+            except Exception:
+                list_row["parent_todo_text"] = None
+
+        if getattr(lst, 'parent_list_id', None):
+            try:
+                qpl = await sess.exec(select(ListState.name).where(ListState.id == lst.parent_list_id))
+                row = qpl.first()
+                parent_list_name = row[0] if isinstance(row, (tuple, list)) else row
+                if isinstance(parent_list_name, str):
+                    list_row["parent_list_name"] = parent_list_name
+            except Exception:
+                list_row["parent_list_name"] = None
+
+        completion_types = [{'id': c.id, 'name': c.name} for c in ctypes]
+
+        # gather user hashtags
+        owner_id_val = current_user.id
+        q_user_list_tags = (
+            select(Hashtag.tag)
+            .distinct()
+            .join(ListHashtag, ListHashtag.hashtag_id == Hashtag.id)
+            .join(ListState, ListState.id == ListHashtag.list_id)
+            .where(ListState.owner_id == owner_id_val)
+        )
+        r_user_list_tags = await sess.exec(q_user_list_tags)
+        q_user_todo_tags = (
+            select(Hashtag.tag)
+            .distinct()
+            .join(TodoHashtag, TodoHashtag.hashtag_id == Hashtag.id)
+            .join(Todo, Todo.id == TodoHashtag.todo_id)
+            .join(ListState, ListState.id == Todo.list_id)
+            .where(ListState.owner_id == owner_id_val)
+        )
+        r_user_todo_tags = await sess.exec(q_user_todo_tags)
+        _all_rows = list(r_user_list_tags.all()) + list(r_user_todo_tags.all())
+        all_hashtags: list[str] = []
+        for row in _all_rows:
+            val = row[0] if isinstance(row, (tuple, list)) else row
+            if isinstance(val, str) and val and val not in all_hashtags:
+                all_hashtags.append(val)
+
+        # categories
+        try:
+            qcat = select(Category).order_by(Category.position.asc())
+            cres = await sess.exec(qcat)
+            categories = [{'id': c.id, 'name': c.name, 'position': c.position} for c in cres.all()]
+        except Exception:
+            categories = []
+
+        # sublists
+        sublists = []
+        try:
+            qsubs = select(ListState).where(ListState.parent_list_id == list_id)
+            rsubs = await sess.exec(qsubs)
+            rows = rsubs.all()
+            def _sort_key(l):
+                pos = getattr(l, 'parent_list_position', None)
+                created = getattr(l, 'created_at', None)
+                return (0 if pos is not None else 1, pos if pos is not None else 0, created or now_utc())
+            rows.sort(key=_sort_key)
+            sub_ids = [l.id for l in rows if l.id is not None]
+            tag_map: dict[int, list[str]] = {}
+            if sub_ids:
+                qlh = select(ListHashtag.list_id, Hashtag.tag).join(Hashtag, Hashtag.id == ListHashtag.hashtag_id).where(ListHashtag.list_id.in_(sub_ids))
+                rlh = await sess.exec(qlh)
+                for lid, tag in rlh.all():
+                    tag_map.setdefault(lid, []).append(tag)
+            for l in rows:
+                sublists.append({
+                    'id': l.id,
+                    'name': l.name,
+                    'completed': getattr(l, 'completed', False),
+                    'created_at': getattr(l, 'created_at', None),
+                    'modified_at': getattr(l, 'modified_at', None),
+                    'hashtags': tag_map.get(l.id, []),
+                    'parent_list_position': getattr(l, 'parent_list_position', None),
+                    'override_priority': None,
+                    'priority': getattr(l, 'priority', None),
+                })
+            try:
+                if sub_ids:
+                    todo_q = await sess.exec(select(Todo.id, Todo.list_id, Todo.priority).where(Todo.list_id.in_(sub_ids)).where(Todo.priority != None))
+                    todo_id_rows = todo_q.all()
+                    todo_map: dict[int, list[tuple[int,int]]] = {}
+                    todo_ids = []
+                    for tid, lid, pri in todo_id_rows:
+                        todo_map.setdefault(lid, []).append((tid, pri))
+                        todo_ids.append(tid)
+                    completed_ids = set()
+                    if todo_ids:
+                        try:
+                            qcomp = select(TodoCompletion.todo_id).join(CompletionType, CompletionType.id == TodoCompletion.completion_type_id).where(TodoCompletion.todo_id.in_(todo_ids)).where(CompletionType.name == 'default').where(TodoCompletion.done == True)
+                            cres = await sess.exec(qcomp)
+                            completed_ids = set(r[0] if isinstance(r, tuple) else r for r in cres.all())
+                        except Exception:
+                            completed_ids = set()
+                    for sub in sublists:
+                        lid = sub.get('id')
+                        candidates = todo_map.get(lid, [])
+                        max_p = None
+                        for tid, pri in candidates:
+                            if tid in completed_ids:
+                                continue
+                            try:
+                                if pri is None:
+                                    continue
+                                pv = int(pri)
+                            except Exception:
+                                continue
+                            if max_p is None or pv > max_p:
+                                max_p = pv
+                        if max_p is not None:
+                            sub['override_priority'] = max_p
+            except Exception:
+                pass
+        except Exception:
+            sublists = []
+
+    from .auth import create_csrf_token
+    csrf_token = create_csrf_token(current_user.username)
+    try:
+        await record_list_visit(list_id=list_id, current_user=current_user)
+    except Exception:
+        logger.exception('failed to record list visit for list %s', list_id)
+    client_tz = await get_session_timezone(request)
+    return TEMPLATES_TAILWIND.TemplateResponse(request, "list.html", {"request": request, "list": list_row, "todos": todo_rows, "csrf_token": csrf_token, "client_tz": client_tz, "completion_types": completion_types, "all_hashtags": all_hashtags, "categories": categories, "sublists": sublists, "current_user": current_user})
+
+
 @app.get('/html_tailwind/login', response_class=HTMLResponse)
 async def html_tailwind_login_get(request: Request):
     client_tz = await get_session_timezone(request)
@@ -3201,6 +3468,14 @@ async def add_list_hashtag(list_id: int, tag: str, current_user: User = Depends(
         return {"list_id": list_id, "tag": tag}
 
 
+@app.post("/lists/{list_id}/hashtags/json")
+async def add_list_hashtag_json(list_id: int, body: dict, current_user: User = Depends(require_login)):
+    tag = body.get('tag') if isinstance(body, dict) else None
+    if not tag:
+        raise HTTPException(status_code=400, detail='tag is required')
+    return await add_list_hashtag(list_id=list_id, tag=tag, current_user=current_user)
+
+
 @app.get("/lists/{list_id}/hashtags")
 async def get_list_hashtags(
     list_id: int,
@@ -3393,6 +3668,14 @@ async def _remove_list_hashtag_core(sess, list_id: int, tag: str, current_user: 
     await sess.delete(link)
     await sess.commit()
     return {"removed": tag}
+
+
+@app.delete("/lists/{list_id}/hashtags/json")
+async def remove_list_hashtag_json(list_id: int, body: dict, current_user: User = Depends(require_login)):
+    tag = body.get('tag') if isinstance(body, dict) else None
+    if not tag:
+        raise HTTPException(status_code=400, detail='tag is required')
+    return await remove_list_hashtag(list_id=list_id, tag=tag, current_user=current_user)
 
 
 @app.post('/html_no_js/lists/{list_id}/hashtags/remove')
@@ -3591,6 +3874,50 @@ async def set_list_icons(list_id: int, hide_icons: Optional[bool] = None, curren
             raise HTTPException(status_code=403, detail="forbidden")
         if hide_icons is not None:
             lst.hide_icons = hide_icons
+            sess.add(lst)
+            await sess.commit()
+            await sess.refresh(lst)
+        return lst
+
+
+@app.patch("/lists/{list_id}")
+async def patch_list(list_id: int, payload: dict, current_user: User = Depends(require_login)):
+    """Patch list fields via JSON. Accepts optional keys: name (str), priority (int|null), completed (bool)."""
+    async with async_session() as sess:
+        q = await sess.exec(select(ListState).where(ListState.id == list_id))
+        lst = q.first()
+        if not lst:
+            raise HTTPException(status_code=404, detail="list not found")
+        if lst.owner_id != current_user.id:
+            raise HTTPException(status_code=403, detail="forbidden")
+        changed = False
+        if 'name' in payload:
+            name = payload.get('name')
+            if not isinstance(name, str):
+                raise HTTPException(status_code=400, detail='invalid name')
+            lst.name = name
+            changed = True
+        if 'priority' in payload:
+            pr = payload.get('priority')
+            if pr is None:
+                lst.priority = None
+                changed = True
+            else:
+                try:
+                    pr_int = int(pr)
+                except Exception:
+                    raise HTTPException(status_code=400, detail='invalid priority')
+                if pr_int < 1 or pr_int > 10:
+                    raise HTTPException(status_code=400, detail='priority out of range')
+                lst.priority = pr_int
+                changed = True
+        if 'completed' in payload:
+            comp = payload.get('completed')
+            if not isinstance(comp, bool):
+                raise HTTPException(status_code=400, detail='invalid completed value')
+            lst.completed = comp
+            changed = True
+        if changed:
             sess.add(lst)
             await sess.commit()
             await sess.refresh(lst)

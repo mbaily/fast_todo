@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}Fast Todo - Tailwind{% endblock %}</title>
+    {% block head %}{% endblock %}
+  </head>
+  <body class="dark bg-black text-slate-100 min-h-screen" style="scrollbar-gutter: stable;">
+    {% include 'navbar.html' %}
+  {% block body %}{% endblock %}
+
+  <!-- Toast container: holds transient notifications for user actions -->
+  <div id="toast-container" aria-live="polite" class="fixed z-50 bottom-4 right-4 flex flex-col items-end space-y-2 pointer-events-none"></div>
+
+  {% block scripts %}{% endblock %}
+  </body>
+</html>

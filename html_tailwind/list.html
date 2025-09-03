@@ -1,0 +1,111 @@
+{% extends "layout.html" %}
+
+{% block head %}
+<script src="https://cdn.tailwindcss.com"></script>
+{% endblock %}
+
+{% block body %}
+<div class="mx-auto py-1 px-1">
+  <!-- index-only search/create controls removed: this is a per-list page -->
+
+  <main class="mt-1">
+    <div id="list-root" class="mx-auto py-1 px-1">
+      <!-- List header: name, completed toggle, edit, priority, tags -->
+      <header class="bg-black-900 rounded-lg p-1 mb-1">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-1">
+          <div class="flex items-center gap-1 min-w-0">
+            <!-- Completed toggle -->
+            <label class="flex items-center gap-1">
+              <input id="list-complete-toggle" data-list-id="{{ list.id if list is defined else '' }}" type="checkbox" class="h-4 w-4 rounded text-blue-400 focus:ring-blue-300" {% if list is defined and list.complete %}checked{% endif %} />
+            </label>
+
+            <!-- List name (display + inline edit) -->
+            <div class="min-w-0">
+              <h1 id="list-name-display" class="text-xl md:text-2xl font-semibold text-slate-50 truncate" title="{{ list.name if list is defined else 'List' }}">{{ list.name if list is defined else 'Untitled List' }}</h1>
+              <div id="list-name-edit" class="hidden mt-1">
+                <input id="list-name-input" type="text" class="w-full bg-slate-800 text-slate-100 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-400" value="{{ list.name if list is defined else '' }}" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Right side: priority and tags -->
+          <div class="flex items-center gap-3">
+            <!-- Priority select (server model: nullable int 1..10) -->
+            <div class="flex items-center gap-2">
+              <label for="list-priority-select" class="text-sm text-slate-400">Priority</label>
+              <select id="list-priority-select" data-list-id="{{ list.id if list is defined else '' }}" class="bg-slate-800 text-slate-100 text-sm rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-400">
+                <option value="" {% if list is defined and list.priority is none %}selected{% endif %}>None</option>
+                {% for p in range(1,11) %}
+                  <option value="{{ p }}" {% if list is defined and list.priority == p %}selected{% endif %}>{{ p }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <!-- Hashtag chips -->
+            <div class="flex items-center gap-2">
+          <!-- Tags row: place tags and add-input on their own line below header -->
+          <div class="mt-3">
+            <div class="flex items-center gap-2">
+              <span class="text-sm text-slate-400">Tags</span>
+              <div class="flex items-center gap-2">
+                <div id="list-tags" class="flex flex-wrap gap-2">
+                  {% if list is defined and list.tags %}
+                    {% for t in list.tags %}
+                      <span class="tag-chip inline-flex items-center text-xs px-2 py-1 rounded-full bg-slate-700 text-slate-200">
+                        <a href="/html_tailwind/index?tag={{ t }}" class="mr-2 hover:underline">#{{ t }}</a>
+                        <button data-tag="{{ t }}" class="remove-tag-btn text-xs text-slate-400 hover:text-red-400">&times;</button>
+                      </span>
+                    {% endfor %}
+                  {% else %}
+                    <!-- placeholder when no server tags; client can populate -->
+                    <span id="no-tags-placeholder" class="text-xs text-slate-500">No tags</span>
+                  {% endif %}
+                </div>
+                <!-- Add tag input -->
+                <div class="flex items-center gap-2">
+                  <input id="add-tag-input" type="text" placeholder="#tag" class="text-xs bg-slate-800 text-slate-100 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                  <button id="add-tag-btn" class="text-sm px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-500">Add</button>
+                </div>
+              </div>
+            </div>
+          </div>
+              <span class="text-sm text-slate-400">Tags</span>
+              <div class="flex items-center gap-2">
+                <div id="list-tags" class="flex flex-wrap gap-2">
+                  {% if list is defined and list.tags %}
+                    {% for t in list.tags %}
+                      <span class="tag-chip inline-flex items-center text-xs px-2 py-1 rounded-full bg-slate-700 text-slate-200">
+                        <a href="/html_tailwind/index?tag={{ t }}" class="mr-2 hover:underline">#{{ t }}</a>
+                        <button data-tag="{{ t }}" class="remove-tag-btn text-xs text-slate-400 hover:text-red-400">&times;</button>
+                      </span>
+                    {% endfor %}
+                  {% else %}
+                    <!-- placeholder when no server tags; client can populate -->
+                    <span id="no-tags-placeholder" class="text-xs text-slate-500">No tags</span>
+                  {% endif %}
+                </div>
+                <!-- Add tag input -->
+                <div class="flex items-center gap-2">
+                  <input id="add-tag-input" type="text" placeholder="#tag" class="text-xs bg-slate-800 text-slate-100 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                  <button id="add-tag-btn" class="text-sm px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-500">Add</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Edit controls row (save/cancel) -->
+        <div id="list-edit-controls" class="hidden mt-3 flex items-center gap-2">
+          <button id="list-save-btn" class="text-sm px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-500">Save</button>
+          <button id="list-cancel-btn" class="text-sm px-3 py-1 rounded bg-slate-700 text-slate-200 hover:bg-slate-600">Cancel</button>
+        </div>
+      </header>
+
+      <!-- list content placeholder -->
+    </div>
+  </main>
+
+  </div>
+
+<script src="/static/html_tailwind/tailwind_list.js"></script>
+{% endblock %}

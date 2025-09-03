@@ -5,8 +5,24 @@
       <div class="flex items-center gap-4">
         <a href="/html_tailwind" class="flex items-center gap-2">
           <svg class="w-6 h-6 text-slate-200" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 12l9-9 9 9v8a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-4H9v4a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2v-8z"></path></svg>
-          <span class="text-sm font-semibold text-slate-100">Fast Todo</span>
+          <span class="hidden sm:inline text-sm font-semibold text-slate-100">Fast Todo</span>
         </a>
+  <!-- mobile/tablet quick nav buttons (hidden from md and up) -->
+  <div class="flex md:hidden items-center gap-2 ml-2">
+          <!-- increased padding and min-width for larger tap targets -->
+          <a href="/html_no_js/recent" aria-label="Recent" class="px-3 py-1 rounded hover:bg-slate-800 text-slate-300 hover:text-slate-100 min-w-[40px] flex items-center justify-center">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 3a9 9 0 1 0 9 9h-2a7 7 0 1 1-7-7V3z"></path></svg>
+          </a>
+          <a href="/html_no_js/calendar" aria-label="Calendar" class="px-3 py-1 rounded hover:bg-slate-800 text-slate-300 hover:text-slate-100 min-w-[40px] flex items-center justify-center">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 10h5v5H7z"></path><path d="M19 4h-1V2h-2v2H8V2H6v2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zM19 18H5V9h14v9z"></path></svg>
+          </a>
+          <a href="/html_no_js/trash" aria-label="Trash" class="px-3 py-1 rounded hover:bg-slate-800 text-slate-300 hover:text-slate-100 min-w-[40px] flex items-center justify-center">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 3h6l1 1h5v2H3V4h5l1-1z"></path><path d="M6 7h12l-1 12a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 7z"></path></svg>
+          </a>
+          <a href="/html_no_js/priorities" aria-label="Priorities" class="px-3 py-1 rounded hover:bg-slate-800 text-slate-300 hover:text-slate-100 min-w-[40px] flex items-center justify-center">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z"></path></svg>
+          </a>
+        </div>
       </div>
 
       <!-- center: primary nav -->
@@ -24,7 +40,7 @@
         <div class="relative">
           <button id="account-btn-nav" aria-haspopup="true" aria-expanded="false" class="flex items-center gap-2 px-2 py-1 rounded-md hover:bg-slate-800 focus:outline-none">
             <svg class="w-8 h-8 text-slate-200" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12c2.7 0 4.9-2.2 4.9-4.9S14.7 2.2 12 2.2 7.1 4.4 7.1 7.1 9.3 12 12 12zm0 2.2c-3.3 0-9.8 1.7-9.8 5v1.6h19.6V19.2c0-3.3-6.5-5-9.8-5z"></path></svg>
-            <span id="nav-username" class="hidden sm:inline text-sm text-slate-200">{{ current_user.username if current_user else 'Guest' }}</span>
+            <span id="nav-username" class="hidden sm:inline ml-1 text-sm text-slate-200">{{ current_user.username if current_user else 'Guest' }}</span>
           </button>
 
           <div id="account-dropdown-nav" class="hidden absolute right-0 mt-2 w-56 bg-slate-800 border border-slate-700 rounded shadow-md z-20">

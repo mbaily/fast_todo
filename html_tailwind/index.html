@@ -7,8 +7,10 @@
   <script src="https://cdn.tailwindcss.com"></script>
   </head>
   <body class="dark bg-black text-slate-100 min-h-screen">
-    <div class="mx-auto py-1 px-1">
-      <header class="mb-1">
+    <!-- include navbar outside the page wrapper to match layout.html -->
+    {% include 'navbar.html' %}
+    <div class="mx-auto py-0 px-0">
+      <header class="mb-0">
       </header>
       <style>
         /* rotate the chevron icon when details is open */
@@ -26,10 +28,7 @@
   /* list-title anchors use Tailwind utilities (keep styling consistent with rest of UI) */
       </style>
 
-      <!-- include navbar -->
-      {% include 'navbar.html' %}
-
-      <!-- client search + create-list area (placed below navbar). Search on first line, create on second line -->
+  <!-- client search + create-list area (placed below navbar). Search on first line, create on second line -->
       <div class="mt-1 mb-1 flex flex-col gap-1">
         <div class="relative">
           <input id="tw-search-input" type="search" placeholder="Search lists & todos" class="w-80 px-1 py-1 rounded-md border border-slate-700 bg-slate-800 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-slate-600" />
@@ -51,7 +50,7 @@
               <div class="mt-0.5 text-sky-400">📌</div>
               <div class="flex-1">
                 <a class="font-medium text-slate-100 hover:underline" href="/html_no_js/todos/{{ t.id }}">{{ t.text }}</a>
-                <div class="text-xs text-slate-400">in <a class="text-sky-300 hover:underline" href="/html_no_js/lists/{{ t.list_id }}">{{ t.list_name or t.list_id }}</a></div>
+                <div class="text-xs text-slate-400">in <a class="text-sky-300 hover:underline" href="/html_tailwind/list?id={{ t.list_id }}">{{ t.list_name or t.list_id }}</a></div>
                 {% if t.tags and t.tags|length > 0 %}
                 <div class="mt-1 flex flex-wrap gap-1">
                   {% for tag in (t.tags | sort) %}
@@ -75,7 +74,7 @@
             <li class="bg-black-800 rounded p-1">
               <div class="text-slate-100">
                 <span class="text-slate-300 font-medium mr-2">{{ ev.occurrence_date or ev.occurrence_dt[:10] }}</span>
-                <a class="hover:underline" href="{% if ev.item_type == 'todo' %}/html_no_js/todos/{{ ev.id }}{% else %}/html_no_js/lists/{{ ev.id }}{% endif %}">{{ ev.title or (ev.rrule or '')[:80] }}</a>
+                <a class="hover:underline" href="{% if ev.item_type == 'todo' %}/html_no_js/todos/{{ ev.id }}{% else %}/html_tailwind/list?id={{ ev.id }}{% endif %}">{{ ev.title or (ev.rrule or '')[:80] }}</a>
                 {% if ev.is_recurring %}<span class="text-xs text-slate-400 ml-2">(recurring)</span>{% endif %}
               </div>
             </li>
@@ -113,7 +112,7 @@
                     {% set eff = lst.override_priority if (lst.override_priority is not none and (lst.priority is none or lst.override_priority > lst.priority)) else lst.priority %}
                       <li class="bg-black border-b border-slate-700 px-0 py-0" data-list-id="{{ lst.id }}"{% if lst.created_at %} data-created-at="{{ lst.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') }}" data-created-hum="{{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}"{% endif %}{% if lst.modified_at %} data-modified-at="{{ lst.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') }}" data-modified-hum="{{ lst.modified_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}"{% endif %} data-priority="{{ eff if eff is not none else '' }}">
                         {% set un = (lst.uncompleted_count if (lst.uncompleted_count is defined) else (lst.uncompleted if (lst.uncompleted is defined) else None)) %}
-                        <a class="list-title font-medium {% if lst.completed %}text-slate-400{% else %}text-blue-600{% endif %} hover:underline{% if lst.completed %} line-through done{% endif %}" href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>{% if un is not none and not (lst.hide_icons|default(false)) and (un|int) > 0 %}<span class="text-red-400 ml-1">{{ un }}</span>{% endif %}
+                        <a class="list-title font-medium {% if lst.completed %}text-slate-400{% else %}text-blue-600{% endif %} hover:underline{% if lst.completed %} line-through done{% endif %}" href="/html_tailwind/list?id={{ lst.id }}">{{ lst.name }}</a>{% if un is not none and not (lst.hide_icons|default(false)) and (un|int) > 0 %}<span class="text-red-400 ml-1">{{ un }}</span>{% endif %}
                         {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
                         {% if lst.priority is not none %}
                           <span class="muted priority-inline"><span class="priority-circle text-slate-300">{{ circ.get(lst.priority, lst.priority) }}</span></span>
@@ -155,7 +154,7 @@
                       {% set eff = lst.override_priority if (lst.override_priority is not none and (lst.priority is none or lst.override_priority > lst.priority)) else lst.priority %}
                         <li class="bg-black border-b border-slate-700 px-0 py-0" data-list-id="{{ lst.id }}"{% if lst.created_at %} data-created-at="{{ lst.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') }}" data-created-hum="{{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}"{% endif %}{% if lst.modified_at %} data-modified-at="{{ lst.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') }}" data-modified-hum="{{ lst.modified_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}"{% endif %} data-priority="{{ eff if eff is not none else '' }}">
                           {% set un = (lst.uncompleted_count if (lst.uncompleted_count is defined) else (lst.uncompleted if (lst.uncompleted is defined) else None)) %}
-                          <a class="list-title font-medium {% if lst.completed %}text-slate-400{% else %}text-blue-600{% endif %} hover:underline{% if lst.completed %} line-through done{% endif %}" href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>{% if un is not none and not (lst.hide_icons|default(false)) and (un|int) > 0 %}<span class="text-red-400 ml-1">{{ un }}</span>{% endif %}
+                          <a class="list-title font-medium {% if lst.completed %}text-slate-400{% else %}text-blue-600{% endif %} hover:underline{% if lst.completed %} line-through done{% endif %}" href="/html_tailwind/list?id={{ lst.id }}">{{ lst.name }}</a>{% if un is not none and not (lst.hide_icons|default(false)) and (un|int) > 0 %}<span class="text-red-400 ml-1">{{ un }}</span>{% endif %}
                           {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
                           {% if lst.priority is not none %}
                             <span class="muted priority-inline"><span class="priority-circle text-slate-300">{{ circ.get(lst.priority, lst.priority) }}</span></span>
