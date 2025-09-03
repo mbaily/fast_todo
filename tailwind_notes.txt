@@ -1,0 +1,17 @@
+[ ] Make it a dark mode default
+
+[ ] Move search and create to be not in navbar but below in body
+
+[ ] Move all new JSON endpoints for tailwind into a seperate py file and wire up, and rename them as they can be generic JSON endpoints for any client.
+
+[ ] In tailwind pagination support, is pagination done by server or by tailwind by itself, or by both
+
+[ ] look at server.log file in this workspace for exception
+
+[ ] automatic optimistic updates for create list in html_tailwind/index.html
+
+[C] use a tailwind list container for each category in html_tailwind/index.html since the todo lists are grouped by category. Give each category container a tailwind heading with the name of the category.
+
+[ ] get rid of table colum width size JS functions
+
+[ ] remove 'Loading..' in index for JS hashtag update DOM

@@ -7,8 +7,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
   </head>
   <body class="dark bg-black text-slate-100 min-h-screen">
-    <div class="mx-auto py-0 px-1">
-      <header class="mb-0">
+    <div class="mx-auto py-1 px-1">
+      <header class="mb-1">
       </header>
       <style>
         /* rotate the chevron icon when details is open */
@@ -23,41 +23,37 @@
   .tag-chip:focus { outline: none; }
   .tag-chip:focus-visible { box-shadow: 0 0 0 3px rgba(88,166,255,0.45); }
   .tag-chip .label { font-weight: 600; font-size: 0.9rem; }
-  /* Render list-title anchors with classic HTML link styling (blue, underlined)
-    Override Tailwind text color so these appear as normal browser links. */
-  a.list-title { color: #0000EE !important; text-decoration: underline !important; }
-  a.list-title:visited { color: #551A8B !important; }
-  a.list-title:hover { color: #0000EE !important; }
+  /* list-title anchors use Tailwind utilities (keep styling consistent with rest of UI) */
       </style>
 
       <!-- include navbar -->
       {% include 'navbar.html' %}
 
       <!-- client search + create-list area (placed below navbar). Search on first line, create on second line -->
-      <div class="mt-4 mb-6 flex flex-col gap-3">
+      <div class="mt-1 mb-1 flex flex-col gap-1">
         <div class="relative">
-          <input id="tw-search-input" type="search" placeholder="Search lists & todos" class="w-80 px-3 py-2 rounded-md border border-slate-700 bg-slate-800 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-slate-600" />
+          <input id="tw-search-input" type="search" placeholder="Search lists & todos" class="w-80 px-1 py-1 rounded-md border border-slate-700 bg-slate-800 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-slate-600" />
         </div>
-        <div class="flex items-center gap-2">
-          <input id="tw-newlist-name" type="text" placeholder="New list name" class="px-2 py-2 rounded-md border border-slate-700 bg-slate-800 text-sm text-slate-100" />
-          <button id="tw-create-list" class="px-3 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-md text-sm">Create</button>
+        <div class="flex items-center gap-1">
+          <input id="tw-newlist-name" type="text" placeholder="New list name" class="px-1 py-1 rounded-md border border-slate-700 bg-slate-800 text-sm text-slate-100" />
+          <button id="tw-create-list" class="px-1 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded-md text-sm">Create</button>
         </div>
       <!-- server-rendered content: pinned, calendar, lists grouped by category -->
-      <main class="mt-4">
+      <main class="mt-1">
 
         {% if pinned_todos and pinned_todos|length > 0 %}
-        <section class="pinned-todos mb-6">
-          <h3 class="text-sm font-semibold mb-2">Pinned</h3>
-          <ul class="space-y-2">
+        <section class="pinned-todos mb-1">
+          <h3 class="text-sm font-semibold mb-1">Pinned</h3>
+          <ul class="space-y-1">
             {# sort pinned_todos by modified_at (newest first) #}
             {% for t in (pinned_todos | sort(attribute='modified_at') | reverse) %}
-            <li class="flex items-start gap-3 bg-slate-800 rounded p-3">
+            <li class="flex items-start gap-1 bg-slate-800 rounded p-1">
               <div class="mt-0.5 text-sky-400">📌</div>
               <div class="flex-1">
                 <a class="font-medium text-slate-100 hover:underline" href="/html_no_js/todos/{{ t.id }}">{{ t.text }}</a>
                 <div class="text-xs text-slate-400">in <a class="text-sky-300 hover:underline" href="/html_no_js/lists/{{ t.list_id }}">{{ t.list_name or t.list_id }}</a></div>
                 {% if t.tags and t.tags|length > 0 %}
-                <div class="mt-2 flex flex-wrap gap-2">
+                <div class="mt-1 flex flex-wrap gap-1">
                   {% for tag in (t.tags | sort) %}
                   <a href="/html_no_js/search?q={{ tag|urlencode }}" class="tag-chip">{{ tag }}</a>
                   {% endfor %}
@@ -72,11 +68,11 @@
         {% endif %}
         
         {% if calendar_occurrences and calendar_occurrences|length > 0 %}
-        <section class="calendar-summary mb-6">
-          <h3 class="text-sm font-semibold mb-2">Calendar</h3>
-          <ul class="space-y-2">
+        <section class="calendar-summary mb-1">
+          <h3 class="text-sm font-semibold mb-1">Calendar</h3>
+          <ul class="space-y-1">
             {% for ev in calendar_occurrences %}
-            <li class="flex items-center gap-3 bg-slate-800 rounded p-3">
+            <li class="flex items-center gap-1 bg-slate-800 rounded p-1">
               <div class="text-xs text-slate-300 font-medium">{{ ev.occurrence_date or ev.occurrence_dt[:10] }}</div>
               <div class="flex-1 text-slate-100"><a class="hover:underline" href="{% if ev.item_type == 'todo' %}/html_no_js/todos/{{ ev.id }}{% else %}/html_no_js/lists/{{ ev.id }}{% endif %}">{{ ev.title or (ev.rrule or '')[:80] }}</a>{% if ev.is_recurring %} <span class="text-xs text-slate-400">(recurring)</span>{% endif %}</div>
             </li>
@@ -87,33 +83,34 @@
 
         {# pagination controls (cursor-based) #}
         {% if cursors %}
-        <nav class="mb-4 flex gap-2" aria-label="Pages">
+        <nav class="mb-1 flex gap-1" aria-label="Pages">
           {% if cursors.has_prev %}
-          <a href="?dir=prev&cursor_created_at={{ cursors.prev_cursor_created_at|urlencode }}&cursor_id={{ cursors.prev_cursor_id }}" class="px-3 py-1 bg-slate-800 text-slate-100 rounded">« Newer</a>
+          <a href="?dir=prev&cursor_created_at={{ cursors.prev_cursor_created_at|urlencode }}&cursor_id={{ cursors.prev_cursor_id }}" class="px-1 py-1 bg-slate-800 text-slate-100 rounded">« Newer</a>
           {% endif %}
           {% if cursors.has_next %}
-          <a href="?dir=next&cursor_created_at={{ cursors.next_cursor_created_at|urlencode }}&cursor_id={{ cursors.next_cursor_id }}" class="px-3 py-1 bg-slate-800 text-slate-100 rounded">Older »</a>
+          <a href="?dir=next&cursor_created_at={{ cursors.next_cursor_created_at|urlencode }}&cursor_id={{ cursors.next_cursor_id }}" class="px-1 py-1 bg-slate-800 text-slate-100 rounded">Older »</a>
           {% endif %}
         </nav>
         {% endif %}
 
         {# Lists grouped by category; uncategorized first #}
-        <section class="lists-by-category space-y-6">
+        <section class="lists-by-category space-y-1">
           {% set uncats = lists_by_category.get(0, []) %}
           {% if uncats and uncats|length > 0 %}
           <div class="category-section" data-category-id="uncategorized">
             <details class="group bg-black border border-slate-700 rounded-lg" open>
-              <summary class="flex items-center justify-between px-4 py-3 cursor-pointer text-lg font-semibold text-slate-100">
-                <span>Uncategorized <span class="text-sm text-slate-400">({{ uncats|length }})</span></span>
+                <summary class="flex items-center justify-between px-1 py-1 cursor-pointer text-lg font-semibold text-slate-100">
+                  <span>Uncategorized <span class="text-sm text-slate-400">(<span class="cat-count">{{ uncats|length }}</span>)</span></span>
                 <svg class="w-4 h-4 text-slate-300 transform transition-transform duration-150" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M5.23 7.21a.75.75 0 011.06-.02L10 10.67l3.71-3.48a.75.75 0 111.02 1.1l-4.2 3.94a.75.75 0 01-1.04 0L5.25 8.29a.75.75 0 01-.02-1.08z"/></svg>
               </summary>
-              <div class="px-4 pb-4 pt-2">
+              <div class="px-1 pb-1 pt-1">
                 <div>
-                  <ul class="space-y-1 mt-2">
+                  <ul class="space-y-0 mt-0">
                     {% for lst in uncats %}
                     {% set eff = lst.override_priority if (lst.override_priority is not none and (lst.priority is none or lst.override_priority > lst.priority)) else lst.priority %}
-                      <li class="bg-black border-b border-slate-700 px-3 py-3" data-list-id="{{ lst.id }}"{% if lst.created_at %} data-created-at="{{ lst.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') }}" data-created-hum="{{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}"{% endif %}{% if lst.modified_at %} data-modified-at="{{ lst.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') }}" data-modified-hum="{{ lst.modified_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}"{% endif %} data-priority="{{ eff if eff is not none else '' }}">
-                        <a class="list-title font-medium text-slate-100 hover:underline{% if lst.completed %} done{% endif %}" href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}{% set un = (lst.uncompleted_count if (lst.uncompleted_count is defined) else (lst.uncompleted if (lst.uncompleted is defined) else None)) %}{% if un is not none and not (lst.hide_icons|default(false)) and (un|int) > 0 %} <span class="text-red-400">{{ un }}</span>{% endif %}</a>
+                      <li class="bg-black border-b border-slate-700 px-0 py-1" data-list-id="{{ lst.id }}"{% if lst.created_at %} data-created-at="{{ lst.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') }}" data-created-hum="{{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}"{% endif %}{% if lst.modified_at %} data-modified-at="{{ lst.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') }}" data-modified-hum="{{ lst.modified_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}"{% endif %} data-priority="{{ eff if eff is not none else '' }}">
+                        {% set un = (lst.uncompleted_count if (lst.uncompleted_count is defined) else (lst.uncompleted if (lst.uncompleted is defined) else None)) %}
+                        <a class="list-title font-medium {% if lst.completed %}text-slate-400{% else %}text-blue-600{% endif %} hover:underline{% if lst.completed %} line-through done{% endif %}" href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>{% if un is not none and not (lst.hide_icons|default(false)) and (un|int) > 0 %}<span class="text-red-400 ml-1">{{ un }}</span>{% endif %}
                         {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
                         {% if lst.priority is not none %}
                           <span class="muted priority-inline"><span class="priority-circle text-slate-300">{{ circ.get(lst.priority, lst.priority) }}</span></span>
@@ -121,15 +118,15 @@
                         {% if lst.override_priority and (lst.priority is none or lst.override_priority > lst.priority) %}
                           <span class="muted priority-inline priority-override"><span class="priority-circle text-amber-300">{{ circ.get(lst.override_priority, lst.override_priority) }}</span></span>
                         {% endif %}
-                        <span class="text-xs text-slate-400 list-date ml-3">{% if lst.modified_at %}mod. {{ lst.modified_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}{% elif lst.created_at %}cr. {{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}{% endif %}</span>
+                        <span class="text-xs text-slate-400 list-date ml-1">{% if lst.modified_at %}mod. {{ lst.modified_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}{% elif lst.created_at %}cr. {{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}{% endif %}</span>
                         {% if lst.hashtags and lst.hashtags|length > 0 %}
-                          <div class="inline-block ml-3">
+                          <div class="inline-block ml-1">
                             {% for tag in (lst.hashtags | sort) %}
                               <a href="/html_no_js/search?q={{ tag|urlencode }}" class="tag-chip">{{ tag }}</a>
                             {% endfor %}
                           </div>
                         {% endif %}
-                        <div class="combined-tags mt-2 inline-block ml-3" data-list-id="{{ lst.id }}" aria-live="polite"></div>
+                        <div class="combined-tags mt-0 inline-block ml-1" data-list-id="{{ lst.id }}" aria-live="polite"></div>
                       </li>
                     {% endfor %}
                   </ul>
@@ -145,16 +142,17 @@
             <div class="category-section" data-category-id="{{ cat.id }}">
               <details class="group bg-black border border-slate-700 rounded-lg">
                 <summary class="flex items-center justify-between px-1 py-1 cursor-pointer text-lg font-semibold text-slate-100">
-                  <span>{{ cat.name }} <span class="text-sm text-slate-400">({{ cat_lists|length }})</span></span>
-                  <svg class="w-4 h-4 text-slate-300 transform transition-transform duration-150" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M5.23 7.21a.75.75 0 011.06-.02L10 10.67l3.71-3.48a.75.75 0 111.02 1.1l-4.2 3.94a.75.75 0 01-1.04 0L5.25 8.29a.75.75 0 01-.02-1.08z"/></svg>
+                  <span>{{ cat.name }} <span class="text-sm text-slate-400">(<span class="cat-count">{{ cat_lists|length }}</span>)</span></span>
+                  <svg class="w-1 h-1 text-slate-300 transform transition-transform duration-150" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M5.23 7.21a.75.75 0 011.06-.02L10 10.67l3.71-3.48a.75.75 0 111.02 1.1l-4.2 3.94a.75.75 0 01-1.04 0L5.25 8.29a.75.75 0 01-.02-1.08z"/></svg>
                 </summary>
-                <div class="px-4 pb-4 pt-2">
+                <div class="px-1 pb-1 pt-1">
                   <div>
-                    <ul class="space-y-1 mt-2">
+                    <ul class="space-y-1 mt-1">
                       {% for lst in cat_lists %}
                       {% set eff = lst.override_priority if (lst.override_priority is not none and (lst.priority is none or lst.override_priority > lst.priority)) else lst.priority %}
                         <li class="bg-black border-b border-slate-700 px-1 py-1" data-list-id="{{ lst.id }}"{% if lst.created_at %} data-created-at="{{ lst.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') }}" data-created-hum="{{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}"{% endif %}{% if lst.modified_at %} data-modified-at="{{ lst.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') }}" data-modified-hum="{{ lst.modified_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}"{% endif %} data-priority="{{ eff if eff is not none else '' }}">
-                          <a class="list-title font-medium text-slate-100 hover:underline{% if lst.completed %} done{% endif %}" href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}{% set un = (lst.uncompleted_count if (lst.uncompleted_count is defined) else (lst.uncompleted if (lst.uncompleted is defined) else None)) %}{% if un is not none and not (lst.hide_icons|default(false)) and (un|int) > 0 %} <span class="text-red-400">{{ un }}</span>{% endif %}</a>
+                          {% set un = (lst.uncompleted_count if (lst.uncompleted_count is defined) else (lst.uncompleted if (lst.uncompleted is defined) else None)) %}
+                          <a class="list-title font-medium {% if lst.completed %}text-slate-400{% else %}text-blue-600{% endif %} hover:underline{% if lst.completed %} line-through done{% endif %}" href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>{% if un is not none and not (lst.hide_icons|default(false)) and (un|int) > 0 %}<span class="text-red-400 ml-1">{{ un }}</span>{% endif %}
                           {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
                           {% if lst.priority is not none %}
                             <span class="muted priority-inline"><span class="priority-circle text-slate-300">{{ circ.get(lst.priority, lst.priority) }}</span></span>
@@ -162,15 +160,15 @@
                             {% if lst.override_priority and (lst.priority is none or lst.override_priority > lst.priority) %}
                               <span class="muted priority-inline priority-override"><span class="priority-circle text-amber-300">{{ circ.get(lst.override_priority, lst.override_priority) }}</span></span>
                             {% endif %}
-                          <span class="text-xs text-slate-400 list-date ml-3">{% if lst.modified_at %}mod. {{ lst.modified_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}{% elif lst.created_at %}cr. {{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}{% endif %}</span>
+                          <span class="text-xs text-slate-400 list-date ml-1">{% if lst.modified_at %}mod. {{ lst.modified_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}{% elif lst.created_at %}cr. {{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}{% endif %}</span>
                           {% if lst.hashtags and lst.hashtags|length > 0 %}
-                            <div class="inline-block ml-3">
+                            <div class="inline-block ml-1">
                               {% for tag in (lst.hashtags | sort) %}
                                 <a href="/html_no_js/search?q={{ tag|urlencode }}" class="tag-chip">{{ tag }}</a>
                               {% endfor %}
                             </div>
                           {% endif %}
-                          <div class="combined-tags mt-2 inline-block ml-3" data-list-id="{{ lst.id }}" aria-live="polite"></div>
+                          <div class="combined-tags mt-0 inline-block ml-1" data-list-id="{{ lst.id }}" aria-live="polite"></div>
                         </li>
                       {% endfor %}
                     </ul>
@@ -190,11 +188,23 @@
           })();
         </script>
 
-        <!-- controls retained from old UI: hide completed and sorting (simple placeholders) -->
-        <div class="mt-6 flex items-center gap-4">
-          <label class="text-sm"><input type="checkbox" id="hide-completed-checkbox" class="mr-2"> Hide Completed</label>
-          <label class="text-sm">Sort lists: <select id="list-sort-order" class="ml-2 bg-slate-800 text-slate-100 border border-slate-700 rounded px-2 py-1"><option value="created">by creation date</option><option value="modified">by modification date</option></select></label>
-          <label class="text-sm"><input type="checkbox" id="show-all-tags-checkbox" class="mr-2"> Show all tags</label>
+        <!-- controls: pill-group compact styling -->
+        <div class="mt-1">
+          <div class="flex items-center gap-2">
+            <label class="inline-flex items-center gap-2 px-2 py-1 bg-black-800 border border-slate-700 rounded-md text-sm">
+              <input type="checkbox" id="hide-completed-checkbox" class="mr-1"> Hide Completed
+            </label>
+            <div class="inline-flex items-center gap-2 px-2 py-1 bg-black-800 border border-slate-700 rounded-md text-sm">
+              <span class="text-sm">Sort lists:</span>
+              <select id="list-sort-order" class="ml-1 bg-transparent text-sm text-slate-100 border-none focus:outline-none">
+                <option value="created">by creation date</option>
+                <option value="modified">by modification date</option>
+              </select>
+            </div>
+            <label class="inline-flex items-center gap-2 px-2 py-1 bg-black-800 border border-slate-700 rounded-md text-sm">
+              <input type="checkbox" id="show-all-tags-checkbox" class="mr-1"> Show all tags
+            </label>
+          </div>
         </div>
 
       </main>
@@ -255,7 +265,7 @@
         function applySort(){
           var mode = document.getElementById('list-sort-order') ? document.getElementById('list-sort-order').value : 'created';
           // legacy UL lists
-          document.querySelectorAll('ul').forEach(function(ul){ if (ul.classList && ul.classList.contains('mt-2')) { sortUl(ul, mode); } });
+          document.querySelectorAll('ul').forEach(function(ul){ if (ul.classList && ul.classList.contains('mt-1')) { sortUl(ul, mode); } });
           // new table tbody rows
           document.querySelectorAll('table').forEach(function(tbl){ var tb = tbl.querySelector('tbody'); if (tb) sortTable(tb, mode); });
           // update date columns to reflect chosen mode
@@ -276,10 +286,23 @@
         var hideBox = document.getElementById('hide-completed-checkbox'); if (hideBox) { hideBox.checked = !!hideCompleted; hideBox.addEventListener('change', function(){ setLocal('hide_completed', hideBox.checked); applyHide(); }); }
         var sel = document.getElementById('list-sort-order'); if (sel){ sel.value = sortOrder; sel.addEventListener('change', function(){ setLocal('list_sort_order', sel.value); applySort(); }); }
 
-        function applyHide(){ var checked = document.getElementById('hide-completed-checkbox') ? document.getElementById('hide-completed-checkbox').checked : false; document.querySelectorAll('a.list-title, a.list-title.done').forEach(function(at){ /* noop */ }); document.querySelectorAll('li[data-priority]').forEach(function(li){ var title = li.querySelector && li.querySelector('.list-title'); var isDone = title && title.classList && title.classList.contains('done'); li.style.display = (checked && isDone) ? 'none' : ''; }); }
+  function applyHide(){ var checked = document.getElementById('hide-completed-checkbox') ? document.getElementById('hide-completed-checkbox').checked : false; document.querySelectorAll('a.list-title, a.list-title.done').forEach(function(at){ /* noop */ }); var listItems = document.querySelectorAll('.lists-by-category li'); if (!listItems || listItems.length === 0) listItems = document.querySelectorAll('li[data-list-id]'); listItems.forEach(function(li){ try{ var title = li.querySelector && li.querySelector('.list-title'); var isDone = title && title.classList && title.classList.contains('done'); li.style.display = (checked && isDone) ? 'none' : ''; }catch(e){} }); updateCategoryCounts(); }
 
         // initial apply
         applySort(); applyHide();
+
+        // update category counts to reflect hidden/completed state
+        function updateCategoryCounts(){ try{
+          document.querySelectorAll('.category-section').forEach(function(sec){ try{
+            var total = 0, visible = 0;
+            var lis = sec.querySelectorAll('ul > li');
+            total = lis.length;
+            lis.forEach(function(li){ if (li.style && li.style.display === 'none') return; visible += 1; });
+            var span = sec.querySelector('.cat-count');
+            if (span) span.textContent = (document.getElementById('hide-completed-checkbox') && document.getElementById('hide-completed-checkbox').checked) ? String(visible) : String(total);
+          }catch(e){} });
+        }catch(e){}
+        updateCategoryCounts();
 
         // allow external updates via localStorage event
         window.addEventListener && window.addEventListener('storage', function(ev){ try{ if (!ev || !ev.key) return; if (ev.key === 'list_sort_order'){ applySort(); } if (ev.key === 'hide_completed'){ applyHide(); } }catch(e){} });
@@ -327,7 +350,16 @@
                   const j = await res.json();
                   const tags = j && j.hashtags ? j.hashtags : null;
                   c.innerHTML = '';
-                  if (tags && tags.length){ tags.forEach(function(t){ var a = document.createElement('a'); a.href = '/html_no_js/search?q=' + encodeURIComponent(t); a.className = 'tag-chip'; a.textContent = t; c.appendChild(a); }); }
+                  if (tags && tags.length){
+                    // collect existing tags already rendered server-side for this list to avoid duplicates
+                    var existing = new Set();
+                    try{
+                      var parentLi = c.closest && c.closest('li');
+                      if (parentLi){ parentLi.querySelectorAll('.tag-chip').forEach(function(el){ if (el && el.textContent) existing.add(String(el.textContent).trim()); }); }
+                    }catch(e){}
+                    // append unique tags only
+                    tags.forEach(function(t){ try{ var txt = String(t).trim(); if (!txt) return; if (existing.has(txt)) return; existing.add(txt); var a = document.createElement('a'); a.href = '/html_no_js/search?q=' + encodeURIComponent(txt); a.className = 'tag-chip'; a.textContent = txt; c.appendChild(a); }catch(e){} });
+                  }
                 }catch(e){ c.innerHTML = ''; }
               }));
             } else {
@@ -387,13 +419,50 @@
               const name = nameEl.value && String(nameEl.value).trim();
               if (!name) { alert('Please enter a list name'); return; }
               try {
+                // Optimistic UI: insert a temporary placeholder row immediately
+                createBtn.disabled = true;
+                const placeholderId = 'tmp-list-' + String(Date.now());
+                const uncategorizedUl = document.querySelector('.category-section[data-category-id="uncategorized"] ul');
+                let placeholderLi = null;
+                if (uncategorizedUl) {
+                  placeholderLi = document.createElement('li');
+                  placeholderLi.className = 'bg-black border-b border-slate-700 px-0 py-1 opacity-80';
+                  placeholderLi.setAttribute('data-list-id', placeholderId);
+                  placeholderLi.innerHTML = '<span class="list-title font-medium text-slate-400">' + (name.replace(/</g, '&lt;')) + '</span>';
+                  uncategorizedUl.insertBefore(placeholderLi, uncategorizedUl.firstChild);
+                }
+
                 const res = await fetch('/client/json/lists', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, credentials: 'same-origin', body: JSON.stringify({ name }) });
-                if (!res.ok) { alert('Failed to create list'); return; }
+                if (!res.ok) {
+                  // remove placeholder and restore
+                  if (placeholderLi && placeholderLi.parentNode) placeholderLi.parentNode.removeChild(placeholderLi);
+                  createBtn.disabled = false;
+                  alert('Failed to create list');
+                  return;
+                }
                 const j = await res.json();
                 if (j && j.ok) {
-                  if (j.id) window.location.href = '/html_no_js/lists/' + j.id;
-                  else window.location.reload();
-                } else alert('Create failed');
+                  // if server provided id, navigate to the list page; otherwise reload so server renders it
+                  if (placeholderLi && j.id) {
+                    // replace placeholder with a proper link element
+                    const a = document.createElement('a');
+                    a.className = (j.completed ? 'list-title font-medium text-slate-400 line-through done' : 'list-title font-medium text-blue-600 hover:underline');
+                    a.href = '/html_no_js/lists/' + j.id;
+                    a.textContent = j.name || name;
+                    placeholderLi.innerHTML = '';
+                    placeholderLi.appendChild(a);
+                    placeholderLi.setAttribute('data-list-id', j.id);
+                    createBtn.disabled = false;
+                    // navigate to the new list page to be consistent with prior behavior
+                    window.location.href = '/html_no_js/lists/' + j.id;
+                    return;
+                  }
+                  if (j.id) window.location.href = '/html_no_js/lists/' + j.id; else window.location.reload();
+                } else {
+                  if (placeholderLi && placeholderLi.parentNode) placeholderLi.parentNode.removeChild(placeholderLi);
+                  createBtn.disabled = false;
+                  alert('Create failed');
+                }
               } catch (e) { alert('Network error'); }
             });
           }
