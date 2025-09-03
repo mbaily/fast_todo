@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ title | default('Fast Todo - Tailwind') }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="dark bg-black text-slate-100 min-h-screen">
+    <div class="mx-auto py-0 px-1">
+      <header class="mb-0">
+      </header>
+      <style>
+        /* rotate the chevron icon when details is open */
+        details[open] summary svg { transform: rotate(180deg); }
+  /* priority glyph sizing and inline spacing (match html_no_js look) */
+  .priority-inline { display:inline-block; margin-left:0.35rem; vertical-align:middle; }
+  .priority-circle { font-size:2rem; line-height:1; }
+  .priority-override .priority-circle { color:#ffb86b; }
+  /* tag-chip styles copied from html_no_js/base.html (dark mode friendly) */
+  .tag-chip { display:inline-flex; align-items:center; gap:0.35rem; background: rgba(30,64,175,0.4); border: 1px solid rgba(96,165,250,0.7); padding: 0.2rem 0.6rem; border-radius: 999px; color: #fff; text-decoration: none; margin: 0.12rem 0.35rem 0.12rem 0; transition: transform 120ms ease, box-shadow 120ms ease, background-color 120ms ease, color 120ms ease, border-color 120ms ease; cursor: pointer; }
+  .tag-chip:hover { box-shadow: 0 6px 18px rgba(0,0,0,0.5); background: rgba(37,99,235,0.55); border-color: rgba(147,197,253,0.9); color: #fff; }
+  .tag-chip:focus { outline: none; }
+  .tag-chip:focus-visible { box-shadow: 0 0 0 3px rgba(88,166,255,0.45); }
+  .tag-chip .label { font-weight: 600; font-size: 0.9rem; }
+  /* Render list-title anchors with classic HTML link styling (blue, underlined)
+    Override Tailwind text color so these appear as normal browser links. */
+  a.list-title { color: #0000EE !important; text-decoration: underline !important; }
+  a.list-title:visited { color: #551A8B !important; }
+  a.list-title:hover { color: #0000EE !important; }
+      </style>
+
+      <!-- include navbar -->
+      {% include 'navbar.html' %}
+
+      <!-- client search + create-list area (placed below navbar). Search on first line, create on second line -->
+      <div class="mt-4 mb-6 flex flex-col gap-3">
+        <div class="relative">
+          <input id="tw-search-input" type="search" placeholder="Search lists & todos" class="w-80 px-3 py-2 rounded-md border border-slate-700 bg-slate-800 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-slate-600" />
+        </div>
+        <div class="flex items-center gap-2">
+          <input id="tw-newlist-name" type="text" placeholder="New list name" class="px-2 py-2 rounded-md border border-slate-700 bg-slate-800 text-sm text-slate-100" />
+          <button id="tw-create-list" class="px-3 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-md text-sm">Create</button>
+        </div>
+      <!-- server-rendered content: pinned, calendar, lists grouped by category -->
+      <main class="mt-4">
+
+        {% if pinned_todos and pinned_todos|length > 0 %}
+        <section class="pinned-todos mb-6">
+          <h3 class="text-sm font-semibold mb-2">Pinned</h3>
+          <ul class="space-y-2">
+            {# sort pinned_todos by modified_at (newest first) #}
+            {% for t in (pinned_todos | sort(attribute='modified_at') | reverse) %}
+            <li class="flex items-start gap-3 bg-slate-800 rounded p-3">
+              <div class="mt-0.5 text-sky-400">📌</div>
+              <div class="flex-1">
+                <a class="font-medium text-slate-100 hover:underline" href="/html_no_js/todos/{{ t.id }}">{{ t.text }}</a>
+                <div class="text-xs text-slate-400">in <a class="text-sky-300 hover:underline" href="/html_no_js/lists/{{ t.list_id }}">{{ t.list_name or t.list_id }}</a></div>
+                {% if t.tags and t.tags|length > 0 %}
+                <div class="mt-2 flex flex-wrap gap-2">
+                  {% for tag in (t.tags | sort) %}
+                  <a href="/html_no_js/search?q={{ tag|urlencode }}" class="tag-chip">{{ tag }}</a>
+                  {% endfor %}
+                </div>
+                {% endif %}
+              </div>
+              <div class="text-xs text-slate-400">{% if t.priority %}P:{{ t.priority }}{% endif %}</div>
+            </li>
+            {% endfor %}
+          </ul>
+        </section>
+        {% endif %}
+        
+        {% if calendar_occurrences and calendar_occurrences|length > 0 %}
+        <section class="calendar-summary mb-6">
+          <h3 class="text-sm font-semibold mb-2">Calendar</h3>
+          <ul class="space-y-2">
+            {% for ev in calendar_occurrences %}
+            <li class="flex items-center gap-3 bg-slate-800 rounded p-3">
+              <div class="text-xs text-slate-300 font-medium">{{ ev.occurrence_date or ev.occurrence_dt[:10] }}</div>
+              <div class="flex-1 text-slate-100"><a class="hover:underline" href="{% if ev.item_type == 'todo' %}/html_no_js/todos/{{ ev.id }}{% else %}/html_no_js/lists/{{ ev.id }}{% endif %}">{{ ev.title or (ev.rrule or '')[:80] }}</a>{% if ev.is_recurring %} <span class="text-xs text-slate-400">(recurring)</span>{% endif %}</div>
+            </li>
+            {% endfor %}
+          </ul>
+        </section>
+        {% endif %}
+
+        {# pagination controls (cursor-based) #}
+        {% if cursors %}
+        <nav class="mb-4 flex gap-2" aria-label="Pages">
+          {% if cursors.has_prev %}
+          <a href="?dir=prev&cursor_created_at={{ cursors.prev_cursor_created_at|urlencode }}&cursor_id={{ cursors.prev_cursor_id }}" class="px-3 py-1 bg-slate-800 text-slate-100 rounded">« Newer</a>
+          {% endif %}
+          {% if cursors.has_next %}
+          <a href="?dir=next&cursor_created_at={{ cursors.next_cursor_created_at|urlencode }}&cursor_id={{ cursors.next_cursor_id }}" class="px-3 py-1 bg-slate-800 text-slate-100 rounded">Older »</a>
+          {% endif %}
+        </nav>
+        {% endif %}
+
+        {# Lists grouped by category; uncategorized first #}
+        <section class="lists-by-category space-y-6">
+          {% set uncats = lists_by_category.get(0, []) %}
+          {% if uncats and uncats|length > 0 %}
+          <div class="category-section" data-category-id="uncategorized">
+            <details class="group bg-black border border-slate-700 rounded-lg" open>
+              <summary class="flex items-center justify-between px-4 py-3 cursor-pointer text-lg font-semibold text-slate-100">
+                <span>Uncategorized <span class="text-sm text-slate-400">({{ uncats|length }})</span></span>
+                <svg class="w-4 h-4 text-slate-300 transform transition-transform duration-150" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M5.23 7.21a.75.75 0 011.06-.02L10 10.67l3.71-3.48a.75.75 0 111.02 1.1l-4.2 3.94a.75.75 0 01-1.04 0L5.25 8.29a.75.75 0 01-.02-1.08z"/></svg>
+              </summary>
+              <div class="px-4 pb-4 pt-2">
+                <div>
+                  <ul class="space-y-1 mt-2">
+                    {% for lst in uncats %}
+                    {% set eff = lst.override_priority if (lst.override_priority is not none and (lst.priority is none or lst.override_priority > lst.priority)) else lst.priority %}
+                      <li class="bg-black border-b border-slate-700 px-3 py-3" data-list-id="{{ lst.id }}"{% if lst.created_at %} data-created-at="{{ lst.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') }}" data-created-hum="{{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}"{% endif %}{% if lst.modified_at %} data-modified-at="{{ lst.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') }}" data-modified-hum="{{ lst.modified_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}"{% endif %} data-priority="{{ eff if eff is not none else '' }}">
+                        <a class="list-title font-medium text-slate-100 hover:underline{% if lst.completed %} done{% endif %}" href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}{% set un = (lst.uncompleted_count if (lst.uncompleted_count is defined) else (lst.uncompleted if (lst.uncompleted is defined) else None)) %}{% if un is not none and not (lst.hide_icons|default(false)) and (un|int) > 0 %} <span class="text-red-400">{{ un }}</span>{% endif %}</a>
+                        {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
+                        {% if lst.priority is not none %}
+                          <span class="muted priority-inline"><span class="priority-circle text-slate-300">{{ circ.get(lst.priority, lst.priority) }}</span></span>
+                        {% endif %}
+                        {% if lst.override_priority and (lst.priority is none or lst.override_priority > lst.priority) %}
+                          <span class="muted priority-inline priority-override"><span class="priority-circle text-amber-300">{{ circ.get(lst.override_priority, lst.override_priority) }}</span></span>
+                        {% endif %}
+                        <span class="text-xs text-slate-400 list-date ml-3">{% if lst.modified_at %}mod. {{ lst.modified_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}{% elif lst.created_at %}cr. {{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}{% endif %}</span>
+                        {% if lst.hashtags and lst.hashtags|length > 0 %}
+                          <div class="inline-block ml-3">
+                            {% for tag in (lst.hashtags | sort) %}
+                              <a href="/html_no_js/search?q={{ tag|urlencode }}" class="tag-chip">{{ tag }}</a>
+                            {% endfor %}
+                          </div>
+                        {% endif %}
+                        <div class="combined-tags mt-2 inline-block ml-3" data-list-id="{{ lst.id }}" aria-live="polite"></div>
+                      </li>
+                    {% endfor %}
+                  </ul>
+                </div>
+              </div>
+            </details>
+          </div>
+          {% endif %}
+
+          {% for cat in categories %}
+          {% set cat_lists = lists_by_category.get(cat.id, []) %}
+            {% if cat_lists and cat_lists|length > 0 %}
+            <div class="category-section" data-category-id="{{ cat.id }}">
+              <details class="group bg-black border border-slate-700 rounded-lg">
+                <summary class="flex items-center justify-between px-1 py-1 cursor-pointer text-lg font-semibold text-slate-100">
+                  <span>{{ cat.name }} <span class="text-sm text-slate-400">({{ cat_lists|length }})</span></span>
+                  <svg class="w-4 h-4 text-slate-300 transform transition-transform duration-150" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M5.23 7.21a.75.75 0 011.06-.02L10 10.67l3.71-3.48a.75.75 0 111.02 1.1l-4.2 3.94a.75.75 0 01-1.04 0L5.25 8.29a.75.75 0 01-.02-1.08z"/></svg>
+                </summary>
+                <div class="px-4 pb-4 pt-2">
+                  <div>
+                    <ul class="space-y-1 mt-2">
+                      {% for lst in cat_lists %}
+                      {% set eff = lst.override_priority if (lst.override_priority is not none and (lst.priority is none or lst.override_priority > lst.priority)) else lst.priority %}
+                        <li class="bg-black border-b border-slate-700 px-1 py-1" data-list-id="{{ lst.id }}"{% if lst.created_at %} data-created-at="{{ lst.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') }}" data-created-hum="{{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}"{% endif %}{% if lst.modified_at %} data-modified-at="{{ lst.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') }}" data-modified-hum="{{ lst.modified_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}"{% endif %} data-priority="{{ eff if eff is not none else '' }}">
+                          <a class="list-title font-medium text-slate-100 hover:underline{% if lst.completed %} done{% endif %}" href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}{% set un = (lst.uncompleted_count if (lst.uncompleted_count is defined) else (lst.uncompleted if (lst.uncompleted is defined) else None)) %}{% if un is not none and not (lst.hide_icons|default(false)) and (un|int) > 0 %} <span class="text-red-400">{{ un }}</span>{% endif %}</a>
+                          {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
+                          {% if lst.priority is not none %}
+                            <span class="muted priority-inline"><span class="priority-circle text-slate-300">{{ circ.get(lst.priority, lst.priority) }}</span></span>
+                          {% endif %}
+                            {% if lst.override_priority and (lst.priority is none or lst.override_priority > lst.priority) %}
+                              <span class="muted priority-inline priority-override"><span class="priority-circle text-amber-300">{{ circ.get(lst.override_priority, lst.override_priority) }}</span></span>
+                            {% endif %}
+                          <span class="text-xs text-slate-400 list-date ml-3">{% if lst.modified_at %}mod. {{ lst.modified_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}{% elif lst.created_at %}cr. {{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}{% endif %}</span>
+                          {% if lst.hashtags and lst.hashtags|length > 0 %}
+                            <div class="inline-block ml-3">
+                              {% for tag in (lst.hashtags | sort) %}
+                                <a href="/html_no_js/search?q={{ tag|urlencode }}" class="tag-chip">{{ tag }}</a>
+                              {% endfor %}
+                            </div>
+                          {% endif %}
+                          <div class="combined-tags mt-2 inline-block ml-3" data-list-id="{{ lst.id }}" aria-live="polite"></div>
+                        </li>
+                      {% endfor %}
+                    </ul>
+                  </div>
+                </div>
+              </details>
+            </div>
+            {% endif %}
+          {% endfor %}
+        </section>
+
+        <!-- embed server-provided categories as JSON for client-side enhancements -->
+        <script type="application/json" id="server-categories">{{ categories | default([]) | tojson | safe }}</script>
+        <script>
+          (function(){
+            try{ var el = document.getElementById('server-categories'); var txt = el ? (el.textContent || el.innerText || '').trim() : '[]'; window.categories = txt ? JSON.parse(txt) : []; } catch(e) { window.categories = []; }
+          })();
+        </script>
+
+        <!-- controls retained from old UI: hide completed and sorting (simple placeholders) -->
+        <div class="mt-6 flex items-center gap-4">
+          <label class="text-sm"><input type="checkbox" id="hide-completed-checkbox" class="mr-2"> Hide Completed</label>
+          <label class="text-sm">Sort lists: <select id="list-sort-order" class="ml-2 bg-slate-800 text-slate-100 border border-slate-700 rounded px-2 py-1"><option value="created">by creation date</option><option value="modified">by modification date</option></select></label>
+          <label class="text-sm"><input type="checkbox" id="show-all-tags-checkbox" class="mr-2"> Show all tags</label>
+        </div>
+
+      </main>
+
+      <script>
+      // Hydration: sorting within categories and hide-completed control (persisted in localStorage)
+      (function(){
+        function setLocal(name, value){ try{ localStorage.setItem(name, JSON.stringify(value)); }catch(e){} }
+        function getLocal(name, def){ try{ var v = localStorage.getItem(name); return v ? JSON.parse(v) : def; }catch(e){ return def; } }
+
+        // parse ISO safely
+        function parseISO(v){ try { return v ? new Date(v).getTime() : 0; } catch(_) { return 0; } }
+
+        // priority extraction from data attribute
+        function parsePri(el){ try { if (!el) return null; if (el.querySelector && el.querySelector('.done')) return null; var v = el.getAttribute('data-priority'); if (v==null || v==='') return null; var n = parseInt(v,10); return isNaN(n) ? null : n; } catch(e) { return null; } }
+
+        function sortUl(ul, mode){
+          var lis = Array.from(ul.querySelectorAll(':scope > li'));
+          lis.sort(function(a,b){
+            var pa = parsePri(a), pb = parsePri(b);
+            var aHas = (pa !== null), bHas = (pb !== null);
+            if (aHas && !bHas) return -1;
+            if (!aHas && bHas) return 1;
+            if (aHas && bHas && pa !== pb) return pb - pa; // higher first
+            if (mode === 'modified'){
+              var ad = parseISO(a.getAttribute('data-modified-at')) || parseISO(a.getAttribute('data-created-at'));
+              var bd = parseISO(b.getAttribute('data-modified-at')) || parseISO(b.getAttribute('data-created-at'));
+              return bd - ad;
+            }
+            var ad = parseISO(a.getAttribute('data-created-at'));
+            var bd = parseISO(b.getAttribute('data-created-at'));
+            return bd - ad;
+          });
+          lis.forEach(function(li){ ul.appendChild(li); });
+        }
+
+        // sort table rows (tbody > tr) by priority/date similar to sortUl
+        function sortTable(tbody, mode){
+          var rows = Array.from(tbody.querySelectorAll(':scope > tr'));
+          rows.sort(function(a,b){
+            var pa = parsePri(a), pb = parsePri(b);
+            var aHas = (pa !== null), bHas = (pb !== null);
+            if (aHas && !bHas) return -1;
+            if (!aHas && bHas) return 1;
+            if (aHas && bHas && pa !== pb) return pb - pa;
+            if (mode === 'modified'){
+              var ad = parseISO(a.getAttribute('data-modified-at')) || parseISO(a.getAttribute('data-created-at'));
+              var bd = parseISO(b.getAttribute('data-modified-at')) || parseISO(b.getAttribute('data-created-at'));
+              return bd - ad;
+            }
+            var ad = parseISO(a.getAttribute('data-created-at'));
+            var bd = parseISO(b.getAttribute('data-created-at'));
+            return bd - ad;
+          });
+          rows.forEach(function(r){ tbody.appendChild(r); });
+        }
+
+        function applySort(){
+          var mode = document.getElementById('list-sort-order') ? document.getElementById('list-sort-order').value : 'created';
+          // legacy UL lists
+          document.querySelectorAll('ul').forEach(function(ul){ if (ul.classList && ul.classList.contains('mt-2')) { sortUl(ul, mode); } });
+          // new table tbody rows
+          document.querySelectorAll('table').forEach(function(tbl){ var tb = tbl.querySelector('tbody'); if (tb) sortTable(tb, mode); });
+          // update date columns to reflect chosen mode
+          document.querySelectorAll('.list-date').forEach(function(td){ try{
+            var row = td.closest && (td.closest('tr') || td.closest('li'));
+            if (!row) return;
+            if (mode === 'modified'){
+              var mod = row.getAttribute('data-modified-hum'); if (mod) td.textContent = 'mod. ' + mod; else { var cr = row.getAttribute('data-created-hum'); td.textContent = cr ? 'cr. ' + cr : ''; }
+            } else {
+              var cr = row.getAttribute('data-created-hum'); if (cr) td.textContent = 'cr. ' + cr; else { var mod = row.getAttribute('data-modified-hum'); td.textContent = mod ? 'mod. ' + mod : ''; }
+            }
+          }catch(e){} });
+        }
+
+        // restore UI state
+        var hideCompleted = getLocal('hide_completed', false);
+        var sortOrder = getLocal('list_sort_order', 'created');
+        var hideBox = document.getElementById('hide-completed-checkbox'); if (hideBox) { hideBox.checked = !!hideCompleted; hideBox.addEventListener('change', function(){ setLocal('hide_completed', hideBox.checked); applyHide(); }); }
+        var sel = document.getElementById('list-sort-order'); if (sel){ sel.value = sortOrder; sel.addEventListener('change', function(){ setLocal('list_sort_order', sel.value); applySort(); }); }
+
+        function applyHide(){ var checked = document.getElementById('hide-completed-checkbox') ? document.getElementById('hide-completed-checkbox').checked : false; document.querySelectorAll('a.list-title, a.list-title.done').forEach(function(at){ /* noop */ }); document.querySelectorAll('li[data-priority]').forEach(function(li){ var title = li.querySelector && li.querySelector('.list-title'); var isDone = title && title.classList && title.classList.contains('done'); li.style.display = (checked && isDone) ? 'none' : ''; }); }
+
+        // initial apply
+        applySort(); applyHide();
+
+        // allow external updates via localStorage event
+        window.addEventListener && window.addEventListener('storage', function(ev){ try{ if (!ev || !ev.key) return; if (ev.key === 'list_sort_order'){ applySort(); } if (ev.key === 'hide_completed'){ applyHide(); } }catch(e){} });
+      })();
+      </script>
+
+      <script>
+      // Persist <details> open/closed per-category and handle combined tags fetch
+      (function(){
+        function setLocal(name, value){ try{ localStorage.setItem(name, JSON.stringify(value)); }catch(e){} }
+        function getLocal(name, def){ try{ var v = localStorage.getItem(name); return v ? JSON.parse(v) : def; }catch(e){ return def; } }
+
+        // restore details open state
+        document.querySelectorAll('.category-section').forEach(function(sec){
+          try{
+            var cat = sec.getAttribute('data-category-id') || 'cat';
+            var key = 'tw_cat_open_' + String(cat);
+            var det = sec.querySelector('details');
+            if (!det) return;
+            var saved = getLocal(key, det.hasAttribute('open'));
+            if (saved) det.setAttribute('open',''); else det.removeAttribute('open');
+            det.addEventListener('toggle', function(){ setLocal(key, !!det.open); });
+          }catch(e){}
+        });
+
+        // show-all-tags global checkbox persistence
+        var globalShow = getLocal('tw_show_all_tags', false);
+        var globalBox = document.getElementById('show-all-tags-checkbox');
+        if (globalBox){
+          globalBox.checked = !!globalShow;
+          globalBox.addEventListener('change', async function(){
+            setLocal('tw_show_all_tags', !!globalBox.checked);
+            // when enabled, fetch combined tags for all visible lists; when disabled, clear them
+            const containers = Array.from(document.querySelectorAll('.combined-tags[data-list-id]'));
+            if (!containers || containers.length === 0) return;
+            if (globalBox.checked){
+              // fetch for all lists in parallel but cap concurrency if needed (simple parallel here)
+              containers.forEach(function(c){ c.textContent = 'Loading...'; });
+              await Promise.all(containers.map(async function(c){
+                try{
+                  const lid = c.getAttribute('data-list-id');
+                  const url = '/lists/' + encodeURIComponent(lid) + '/hashtags?include_todo_tags=1&combine=1';
+                  const res = await fetch(url, { credentials: 'same-origin' });
+                  if (!res.ok) { c.innerHTML = ''; return; }
+                  const j = await res.json();
+                  const tags = j && j.hashtags ? j.hashtags : null;
+                  c.innerHTML = '';
+                  if (tags && tags.length){ tags.forEach(function(t){ var a = document.createElement('a'); a.href = '/html_no_js/search?q=' + encodeURIComponent(t); a.className = 'tag-chip'; a.textContent = t; c.appendChild(a); }); }
+                }catch(e){ c.innerHTML = ''; }
+              }));
+            } else {
+              containers.forEach(function(c){ c.innerHTML = ''; });
+            }
+          });
+          // initialize from saved state: trigger change to load tags if needed
+          if (globalBox.checked){ globalBox.dispatchEvent(new Event('change')); }
+        }
+      })();
+      </script>
+
+      </div>
+
+      </div>
+
+      <script>
+        (function(){
+          // search handler: on Enter or after small debounce
+          const searchInput = document.getElementById('tw-search-input');
+          let searchTimer = null;
+          if (searchInput) {
+            searchInput.addEventListener('keydown', (e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                doSearch(searchInput.value);
+              }
+            });
+            searchInput.addEventListener('input', (e) => {
+              if (searchTimer) clearTimeout(searchTimer);
+              searchTimer = setTimeout(() => { doSearch(searchInput.value); }, 500);
+            });
+          }
+
+          async function doSearch(q) {
+            try {
+              const url = '/client/json/search?q=' + encodeURIComponent(q);
+              const res = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' }, credentials: 'same-origin' });
+              if (!res.ok) return;
+              const j = await res.json();
+              if (j && j.ok) {
+                // For now redirect to the tailwind index with q param so server-side
+                // rendering or a later client render can display results.
+                window.location.href = '/html_tailwind?q=' + encodeURIComponent(q);
+              }
+            } catch (e) {
+              // noop
+            }
+          }
+
+          // create-list handler
+          const createBtn = document.getElementById('tw-create-list');
+          if (createBtn) {
+            createBtn.addEventListener('click', async () => {
+              const nameEl = document.getElementById('tw-newlist-name');
+              if (!nameEl) return;
+              const name = nameEl.value && String(nameEl.value).trim();
+              if (!name) { alert('Please enter a list name'); return; }
+              try {
+                const res = await fetch('/client/json/lists', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, credentials: 'same-origin', body: JSON.stringify({ name }) });
+                if (!res.ok) { alert('Failed to create list'); return; }
+                const j = await res.json();
+                if (j && j.ok) {
+                  if (j.id) window.location.href = '/html_no_js/lists/' + j.id;
+                  else window.location.reload();
+                } else alert('Create failed');
+              } catch (e) { alert('Network error'); }
+            });
+          }
+        })();
+      </script>
+
+    </div>
+  </body>
+</html>

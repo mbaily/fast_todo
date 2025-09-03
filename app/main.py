@@ -375,6 +375,7 @@ def render_fn_tags(text: str | None) -> Markup:
 
 
 TEMPLATES.env.filters['render_fn_tags'] = render_fn_tags
+ 
 
 
 # Helper to broadcast lightweight debug events to SSE queues when available.
@@ -677,6 +678,108 @@ app = FastAPI(lifespan=lifespan)
 
 # serve static assets (manifest, service-worker, icons, pwa helper JS, etc.)
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# include JSON API router for web clients
+try:
+    from .client_json_api import router as json_api_router
+    app.include_router(json_api_router)
+except Exception:
+    # importing the router is best-effort during static analysis; runtime import errors
+    # will surface when the server is run in the proper environment.
+    pass
+
+
+# Templates for Tailwind client (minimal, separate directory)
+TEMPLATES_TAILWIND = Jinja2Templates(directory="html_tailwind")
+TEMPLATES_TAILWIND.env.auto_reload = True
+# Ensure the Tailwind templates have the same helper filters as the no-JS templates
+try:
+    TEMPLATES_TAILWIND.env.filters['server_local_dt'] = format_server_local
+    TEMPLATES_TAILWIND.env.filters['in_tz'] = format_in_timezone
+    TEMPLATES_TAILWIND.env.filters['linkify'] = linkify
+    TEMPLATES_TAILWIND.env.filters['render_fn_tags'] = render_fn_tags
+except Exception:
+    # Best-effort only; template rendering will raise if critical filters missing
+    logger.exception('failed to register filters on TEMPLATES_TAILWIND')
+
+
+@app.get('/html_tailwind', response_class=HTMLResponse)
+async def html_tailwind_index(request: Request):
+    """Serve the minimal Tailwind-based client.
+
+    This route intentionally keeps data minimal. If a logged-in user is
+    available we try to fetch them (non-fatal); otherwise we render a
+    simple page with an empty todos list. Extend as needed.
+    """
+    # attempt to detect current_user; if not present redirect to login
+    try:
+        from .auth import get_current_user as _gcu
+        current_user = await _gcu(token=None, request=request)
+    except Exception:
+        current_user = None
+
+    if not current_user:
+        return RedirectResponse(url='/html_tailwind/login', status_code=303)
+
+    # Use shared data-prep so Tailwind and no-js clients render consistent data.
+    try:
+        ctx = await _prepare_index_context(request, current_user)
+    except Exception:
+        # Fallback to safe defaults to avoid rendering errors
+        try:
+            client_tz = await get_session_timezone(request)
+        except Exception:
+            client_tz = None
+        ctx = {"request": request, "title": "Fast Todo Tailwind", "todos": [], "current_user": current_user, "lists_by_category": {}, "categories": [], "pinned_todos": [], "calendar_occurrences": [], "cursors": None, "client_tz": client_tz}
+
+    return TEMPLATES_TAILWIND.TemplateResponse('index.html', ctx)
+
+
+@app.get('/html_tailwind/login', response_class=HTMLResponse)
+async def html_tailwind_login_get(request: Request):
+    client_tz = await get_session_timezone(request)
+    return TEMPLATES_TAILWIND.TemplateResponse(request, 'login.html', {"request": request, "client_tz": client_tz})
+
+
+@app.post('/html_tailwind/login')
+async def html_tailwind_login(request: Request):
+    """JSON login endpoint for the Tailwind client.
+
+    Expects a JSON body: {"username": "...", "password": "..."}.
+    On success returns {'ok': True, 'session_token': ..., 'access_token': ..., 'csrf_token': ...}
+    and sets the same cookies as the existing login flow so browser clients
+    receive session cookies.
+    """
+    try:
+        payload = await request.json()
+    except Exception:
+        return JSONResponse({'ok': False, 'error': 'invalid_json'}, status_code=400)
+
+    username = payload.get('username')
+    password = payload.get('password')
+    if not username or not password:
+        return JSONResponse({'ok': False, 'error': 'missing_credentials'}, status_code=400)
+
+    from .auth import authenticate_user, create_access_token, get_user_by_username, verify_password
+    user = await get_user_by_username(username)
+    ok = False
+    if user:
+        ok = await verify_password(password, user.password_hash)
+    if not user or not ok:
+        return JSONResponse({'ok': False, 'error': 'invalid_credentials'}, status_code=401)
+
+    token = create_access_token({"sub": user.username})
+    from .auth import create_session_for_user, create_csrf_token
+    client_tz = request.cookies.get('tz')
+    session_token = await create_session_for_user(user, session_timezone=client_tz)
+    csrf = create_csrf_token(user.username)
+
+    # Return JSON and set cookies on the response so browsers persist them.
+    resp = JSONResponse({'ok': True, 'session_token': session_token, 'access_token': token, 'csrf_token': csrf})
+    resp.set_cookie('session_token', session_token, httponly=True, samesite='lax', secure=COOKIE_SECURE)
+    resp.set_cookie('access_token', token, httponly=True, samesite='lax', secure=COOKIE_SECURE)
+    resp.set_cookie('csrf_token', csrf, httponly=False, samesite='lax', secure=COOKIE_SECURE)
+    return resp
 
 
 # Simple ASGI middleware: set `_sse_origin` contextvar for the scope of each
@@ -1169,6 +1272,125 @@ async def __debug_echo(request: Request):
         "client": client_info,
         "forwarded_client_cert": forwarded_client_cert,
     }
+    return JSONResponse(payload)
+
+
+
+@app.get('/html_tailwind/search', response_class=JSONResponse)
+async def html_tailwind_search(request: Request):
+    """JSON search API for the Tailwind client. Mirrors /html_no_js/search logic but returns JSON."""
+    from .auth import get_current_user as _gcu
+    try:
+        current_user = await _gcu(token=None, request=request)
+    except HTTPException:
+        raise HTTPException(status_code=401, detail='authentication required')
+
+    qparam = request.query_params.get('q', '').strip()
+    include_list_todos = str(request.query_params.get('include_list_todos', '')).lower() in ('1','true','yes','on')
+    if 'exclude_completed' in request.query_params:
+        exclude_completed = str(request.query_params.get('exclude_completed', '')).lower() in ('1','true','yes','on')
+    else:
+        exclude_completed = True
+    results = {'lists': [], 'todos': []}
+    if qparam:
+        like = f"%{qparam}%"
+        try:
+            search_tags = extract_hashtags(qparam)
+        except Exception:
+            search_tags = []
+        async with async_session() as sess:
+            owner_id = current_user.id
+            qlists = select(ListState).where(ListState.owner_id == owner_id).where(ListState.name.ilike(like))
+            rlists = await sess.exec(qlists)
+            lists_by_id: dict[int, ListState] = {l.id: l for l in rlists.all()}
+            if search_tags:
+                qlh = (
+                    select(ListState)
+                    .join(ListHashtag, ListHashtag.list_id == ListState.id)
+                    .join(Hashtag, Hashtag.id == ListHashtag.hashtag_id)
+                    .where(ListState.owner_id == owner_id)
+                    .where(Hashtag.tag.in_(search_tags))
+                )
+                rlh = await sess.exec(qlh)
+                for l in rlh.all():
+                    lists_by_id.setdefault(l.id, l)
+            results['lists'] = [
+                {'id': l.id, 'name': l.name, 'completed': getattr(l, 'completed', False)}
+                for l in lists_by_id.values()
+                if not (exclude_completed and getattr(l, 'completed', False))
+            ]
+            # todos
+            qvis = select(ListState).where((ListState.owner_id == owner_id) | (ListState.owner_id == None))
+            rvis = await sess.exec(qvis)
+            vis_ids = [l.id for l in rvis.all()]
+            todos_acc: dict[int, Todo] = {}
+            if vis_ids:
+                qtodos = select(Todo).where(Todo.list_id.in_(vis_ids)).where((Todo.text.ilike(like)) | (Todo.note.ilike(like)))
+                for t in (await sess.exec(qtodos)).all():
+                    todos_acc.setdefault(t.id, t)
+                if search_tags:
+                    qth = (
+                        select(Todo)
+                        .join(TodoHashtag, TodoHashtag.todo_id == Todo.id)
+                        .join(Hashtag, Hashtag.id == TodoHashtag.hashtag_id)
+                        .where(Todo.list_id.in_(vis_ids))
+                        .where(Hashtag.tag.in_(search_tags))
+                    )
+                    for t in (await sess.exec(qth)).all():
+                        todos_acc.setdefault(t.id, t)
+                if include_list_todos and lists_by_id:
+                    list_ids_match = list(lists_by_id.keys())
+                    qall = select(Todo).where(Todo.list_id.in_(list_ids_match))
+                    for t in (await sess.exec(qall)).all():
+                        todos_acc.setdefault(t.id, t)
+                lm = {l.id: l.name for l in (await sess.exec(select(ListState).where(ListState.id.in_(vis_ids)))).all()}
+                todo_list_ids = list({t.list_id for t in todos_acc.values()})
+                default_ct_ids: dict[int, int] = {}
+                if todo_list_ids:
+                    qct = select(CompletionType).where(CompletionType.list_id.in_(todo_list_ids)).where(CompletionType.name == 'default')
+                    for ct in (await sess.exec(qct)).all():
+                        default_ct_ids[int(ct.list_id)] = int(ct.id)
+                todo_ids = list(todos_acc.keys())
+                completed_ids: set[int] = set()
+                if todo_ids and default_ct_ids:
+                    qdone = select(TodoCompletion.todo_id, TodoCompletion.done, TodoCompletion.completion_type_id).where(TodoCompletion.todo_id.in_(todo_ids)).where(TodoCompletion.completion_type_id.in_(list(default_ct_ids.values())))
+                    for tid, done_val, ctid in (await sess.exec(qdone)).all():
+                        if done_val:
+                            completed_ids.add(int(tid))
+                results['todos'] = [
+                    {'id': t.id, 'text': t.text, 'note': t.note, 'list_id': t.list_id, 'list_name': lm.get(t.list_id), 'completed': (int(t.id) in completed_ids)}
+                    for t in todos_acc.values() if not (exclude_completed and (int(t.id) in completed_ids))
+                ]
+    return JSONResponse({'ok': True, 'q': qparam, 'results': results})
+
+
+@app.post('/html_tailwind/lists', response_class=JSONResponse)
+async def html_tailwind_create_list(request: Request):
+    """Create a list via JSON for the Tailwind client. Reuses create_list logic.
+    Accepts JSON body {name: string, hashtags?: [...], category_id?: int} and returns created list id/name.
+    """
+    from .auth import get_current_user as _gcu
+    try:
+        current_user = await _gcu(token=None, request=request)
+    except HTTPException:
+        raise HTTPException(status_code=401, detail='authentication required')
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    name = body.get('name') or request.query_params.get('name')
+    if not name:
+        raise HTTPException(status_code=400, detail='name is required')
+    # emulate form/query behavior of create_list by setting query param fallback
+    # call existing create_list helper
+    new_list = await create_list(request, name=name, current_user=current_user)
+    payload = {'ok': True}
+    try:
+        if new_list is not None:
+            payload.update({'id': getattr(new_list, 'id', None), 'name': getattr(new_list, 'name', None)})
+    except Exception:
+        pass
     return JSONResponse(payload)
 
 
@@ -4969,6 +5191,432 @@ async def html_index(request: Request):
         return TEMPLATES.TemplateResponse(request, "index.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences})
 
 
+async def _prepare_index_context(request: Request, current_user: User | None) -> dict:
+    """Prepare the context dict used by index templates (shared by html_no_js and html_tailwind).
+
+    Returns the same keys used by the existing html_index handler so templates can render.
+    """
+    # Mirror the behavior in html_index: if user missing, return safe defaults
+    if not current_user:
+        try:
+            client_tz = await get_session_timezone(request)
+        except Exception:
+            client_tz = None
+        return {"request": request, "lists": [], "lists_by_category": {}, "csrf_token": None, "client_tz": client_tz, "pinned_todos": [], "cursors": None, "categories": [], "calendar_occurrences": [], "user_default_category_id": None, "current_user": None}
+
+    # Reuse the same per-page/cursor logic as html_index (simplified: one page)
+    per_page = 50
+    dir_param = request.query_params.get('dir', 'next')
+    cursor_created_at_str = request.query_params.get('cursor_created_at')
+    cursor_id_str = request.query_params.get('cursor_id')
+    cursor_dt = None
+    cursor_id = None
+    if cursor_created_at_str and cursor_id_str:
+        try:
+            from datetime import datetime
+            cursor_dt = datetime.fromisoformat(cursor_created_at_str)
+            cursor_id = int(cursor_id_str)
+        except Exception:
+            cursor_dt, cursor_id = None, None
+
+    async with async_session() as sess:
+        owner_id = current_user.id
+        q = select(ListState).where(ListState.owner_id == owner_id).where(ListState.parent_todo_id == None).where(ListState.parent_list_id == None)
+        if cursor_dt is not None and cursor_id is not None:
+            if dir_param == 'prev':
+                q = q.where(or_(ListState.created_at > cursor_dt,
+                                and_(ListState.created_at == cursor_dt, ListState.id > cursor_id)))
+            else:
+                q = q.where(or_(ListState.created_at < cursor_dt,
+                                and_(ListState.created_at == cursor_dt, ListState.id < cursor_id)))
+        q = q.order_by(ListState.created_at.desc(), ListState.id.desc()).limit(per_page)
+        res_page = await sess.exec(q)
+        lists = res_page.all()
+
+        # cursors
+        has_prev = False
+        has_next = False
+        next_cursor_created_at = None
+        next_cursor_id = None
+        prev_cursor_created_at = None
+        prev_cursor_id = None
+        if lists:
+            first = lists[0]
+            last = lists[-1]
+            prev_cursor_created_at, prev_cursor_id = first.created_at, first.id
+            next_cursor_created_at, next_cursor_id = last.created_at, last.id
+            q_prev_exists = select(ListState.id).where(ListState.owner_id == owner_id).where(ListState.parent_todo_id == None).where(ListState.parent_list_id == None).where(
+                or_(ListState.created_at > first.created_at,
+                    and_(ListState.created_at == first.created_at, ListState.id > first.id))
+            ).limit(1)
+            r_prev = await sess.exec(q_prev_exists)
+            has_prev = r_prev.first() is not None
+            q_next_exists = select(ListState.id).where(ListState.owner_id == owner_id).where(ListState.parent_todo_id == None).where(ListState.parent_list_id == None).where(
+                or_(ListState.created_at < last.created_at,
+                    and_(ListState.created_at == last.created_at, ListState.id < last.id))
+            ).limit(1)
+            r_next = await sess.exec(q_next_exists)
+            has_next = r_next.first() is not None
+
+        # convert to dict rows and fill tags/overrides/counts, pinned todos, calendar occurrences
+        list_rows = []
+        list_ids = [l.id for l in lists]
+        tag_map: dict[int, list[str]] = {}
+        if list_ids:
+            qlh = await sess.exec(select(ListHashtag.list_id, Hashtag.tag).where(ListHashtag.list_id.in_(list_ids)).join(Hashtag, Hashtag.id == ListHashtag.hashtag_id))
+            rows = qlh.all()
+            for lid, tag in rows:
+                tag_map.setdefault(lid, []).append(tag)
+        for l in lists:
+            list_rows.append({
+                "id": l.id,
+                "name": l.name,
+                "completed": l.completed,
+                "owner_id": l.owner_id,
+                "created_at": l.created_at,
+                "modified_at": getattr(l, 'modified_at', None),
+                "category_id": l.category_id,
+                "priority": getattr(l, 'priority', None),
+                "override_priority": None,
+                "hashtags": tag_map.get(l.id, []),
+                "uncompleted_count": None,
+                "hide_icons": getattr(l, 'hide_icons', False),
+            })
+
+        # (reuse existing logic: compute override_priority and uncompleted counts)
+        try:
+            todo_q = await sess.exec(select(Todo.id, Todo.list_id, Todo.priority).where(Todo.list_id.in_(list_ids)).where(Todo.priority != None))
+            todo_rows = todo_q.all()
+            todo_map: dict[int, list[tuple[int,int]]] = {}
+            todo_ids = []
+            for tid, lid, pri in todo_rows:
+                todo_map.setdefault(lid, []).append((tid, pri))
+                todo_ids.append(tid)
+            completed_ids = set()
+            if todo_ids:
+                try:
+                    qcomp = select(TodoCompletion.todo_id).join(CompletionType, CompletionType.id == TodoCompletion.completion_type_id).where(TodoCompletion.todo_id.in_(todo_ids)).where(CompletionType.name == 'default').where(TodoCompletion.done == True)
+                    cres = await sess.exec(qcomp)
+                    completed_ids = set(r[0] if isinstance(r, tuple) else r for r in cres.all())
+                except Exception:
+                    completed_ids = set()
+            for row in list_rows:
+                lid = row.get('id')
+                candidates = todo_map.get(lid, [])
+                max_p = None
+                for tid, pri in candidates:
+                    if tid in completed_ids:
+                        continue
+                    try:
+                        if pri is None:
+                            continue
+                        pv = int(pri)
+                    except Exception:
+                        continue
+                    if max_p is None or pv > max_p:
+                        max_p = pv
+                if max_p is not None:
+                    row['override_priority'] = max_p
+        except Exception:
+            pass
+
+        try:
+            qcnt = await sess.exec(select(Todo.list_id, func.count(Todo.id)).where(Todo.list_id.in_(list_ids)).outerjoin(TodoCompletion, TodoCompletion.todo_id == Todo.id).group_by(Todo.list_id))
+            counts = {}
+            for lid, cnt in qcnt.all():
+                counts[lid] = int(cnt or 0)
+            try:
+                qcomp = await sess.exec(select(Todo.id, Todo.list_id).join(TodoCompletion, TodoCompletion.todo_id == Todo.id).join(CompletionType, CompletionType.id == TodoCompletion.completion_type_id).where(Todo.list_id.in_(list_ids)).where(CompletionType.name == 'default').where(TodoCompletion.done == True))
+                for tid, lid in qcomp.all():
+                    counts[lid] = max(0, counts.get(lid, 0) - 1)
+            except Exception:
+                pass
+            for row in list_rows:
+                row['uncompleted_count'] = counts.get(row.get('id'), 0)
+        except Exception:
+            pass
+
+        lists_by_category: dict[int, list[dict]] = {}
+        for row in list_rows:
+            cid = row.get('category_id') or 0
+            lists_by_category.setdefault(cid, []).append(row)
+        for cid, rows in lists_by_category.items():
+            def _list_sort_key(r):
+                lp = r.get('priority') if (r.get('priority') is not None and not r.get('completed')) else None
+                op = r.get('override_priority') if (r.get('override_priority') is not None and not r.get('completed')) else None
+                if lp is None and op is None:
+                    p = None
+                elif lp is None:
+                    p = op
+                elif op is None:
+                    p = lp
+                else:
+                    p = lp if lp >= op else op
+                return (0 if p is not None else 1, p or 0, -(r.get('created_at').timestamp() if r.get('created_at') else 0))
+            rows.sort(key=_list_sort_key)
+
+        categories = []
+        try:
+            qcat = select(Category).order_by(Category.position.asc())
+            cres = await sess.exec(qcat)
+            categories = [{'id': c.id, 'name': c.name, 'position': c.position, 'sort_alphanumeric': getattr(c, 'sort_alphanumeric', False)} for c in cres.all()]
+        except Exception:
+            categories = []
+
+        pinned_todos = []
+        try:
+            qvis = select(ListState).where(((ListState.owner_id == owner_id) | (ListState.owner_id == None))).where(ListState.parent_todo_id == None).where(ListState.parent_list_id == None)
+            rvis = await sess.exec(qvis)
+            vis_lists = rvis.all()
+            vis_ids = [l.id for l in vis_lists]
+            if vis_ids:
+                qp = select(Todo).where(Todo.pinned == True).where(Todo.list_id.in_(vis_ids)).order_by(Todo.modified_at.desc())
+                pres = await sess.exec(qp)
+                pin_rows = pres.all()
+                lm = {l.id: l.name for l in vis_lists}
+                pinned_todos = [
+                    {
+                        'id': t.id,
+                        'text': t.text,
+                        'list_id': t.list_id,
+                        'list_name': lm.get(t.list_id),
+                        'modified_at': (t.modified_at.isoformat() if getattr(t, 'modified_at', None) else None),
+                        'priority': getattr(t, 'priority', None),
+                        'override_priority': getattr(t, 'override_priority', None) if hasattr(t, 'override_priority') else None,
+                    }
+                    for t in pin_rows
+                ]
+                pin_ids = [p['id'] for p in pinned_todos]
+                if pin_ids:
+                    qtp = select(TodoHashtag.todo_id, Hashtag.tag).join(Hashtag, Hashtag.id == TodoHashtag.hashtag_id).where(TodoHashtag.todo_id.in_(pin_ids))
+                    pres2 = await sess.exec(qtp)
+                    pm = {}
+                    for tid, tag in pres2.all():
+                        pm.setdefault(tid, []).append(tag)
+                    for p in pinned_todos:
+                        p['tags'] = pm.get(p['id'], [])
+                try:
+                    if pin_ids:
+                        qcomp = select(TodoCompletion.todo_id).join(CompletionType, CompletionType.id == TodoCompletion.completion_type_id).where(TodoCompletion.todo_id.in_(pin_ids)).where(CompletionType.name == 'default').where(TodoCompletion.done == True)
+                        cres = await sess.exec(qcomp)
+                        completed_ids = set(r[0] if isinstance(r, tuple) else r for r in cres.all())
+                    else:
+                        completed_ids = set()
+                except Exception:
+                    completed_ids = set()
+                for p in pinned_todos:
+                    p['completed'] = p['id'] in completed_ids
+        except Exception:
+            pinned_todos = []
+
+        # calendar occurrences (reuse logic from html_index)
+        calendar_occurrences = []
+        try:
+            from datetime import timedelta as _td
+            from .models import CompletedOccurrence, IgnoredScope
+            from . import models
+            from .utils import occurrence_hash, extract_dates_meta, resolve_yearless_date
+            from .utils import now_utc
+            from dateutil.rrule import rrulestr
+
+            now = now_utc()
+            cal_start = now - _td(days=1)
+            cal_end = now + _td(days=1)
+
+            qc = await sess.exec(select(CompletedOccurrence).where(CompletedOccurrence.user_id == owner_id))
+            done_rows = qc.all()
+            done_set = set(r.occ_hash for r in done_rows)
+            qi = await sess.exec(select(IgnoredScope).where(IgnoredScope.user_id == owner_id).where(IgnoredScope.active == True))
+            ign_rows = qi.all()
+            occ_ignore_hashes = set(r.scope_hash for r in ign_rows if getattr(r, 'scope_type', '') == 'occurrence' and r.scope_hash)
+            list_ignore_ids = set(str(r.scope_key) for r in ign_rows if getattr(r, 'scope_type', '') == 'list')
+            todo_from_scopes = [r for r in ign_rows if getattr(r, 'scope_type', '') == 'todo_from']
+
+            try:
+                qvis = select(models.ListState).where(((models.ListState.owner_id == owner_id) | (models.ListState.owner_id == None))).where(models.ListState.parent_todo_id == None).where(models.ListState.parent_list_id == None)
+                rvis = await sess.exec(qvis)
+                vis_lists = rvis.all()
+            except Exception:
+                vis_lists = []
+            vis_ids = [l.id for l in vis_lists if l.id is not None]
+            vis_todos = []
+            if vis_ids:
+                try:
+                    if hasattr(models.Todo, 'completed'):
+                        qtt = await sess.exec(select(models.Todo).where(models.Todo.list_id.in_(vis_ids)).where(models.Todo.completed == False))
+                    else:
+                        qtt = await sess.exec(select(models.Todo).where(models.Todo.list_id.in_(vis_ids)))
+                    vis_todos = qtt.all()
+                except Exception:
+                    vis_todos = []
+
+            def _occ_allowed(item_type, item_id, occ_dt, rrule_str, title=None, list_id=None):
+                try:
+                    if occ_dt.tzinfo is None:
+                        occ_dt = occ_dt.replace(tzinfo=timezone.utc)
+                    occ_hash = occurrence_hash(item_type, item_id, occ_dt, rrule_str or '', title)
+                    if occ_hash in done_set:
+                        return None
+                    if occ_hash in occ_ignore_hashes:
+                        return None
+                    if item_type == 'list' and str(item_id) in list_ignore_ids:
+                        return None
+                    for r in todo_from_scopes:
+                        try:
+                            if str(item_id) != str(getattr(r, 'scope_key', '')):
+                                continue
+                            r_from = getattr(r, 'from_dt', None)
+                            if r_from is None:
+                                return None
+                            if r_from.tzinfo is None:
+                                r_from = r_from.replace(tzinfo=timezone.utc)
+                            if occ_dt >= r_from:
+                                return None
+                        except Exception:
+                            continue
+                    return occ_hash
+                except Exception:
+                    return None
+
+            for l in vis_lists:
+                rec_rrule = getattr(l, 'recurrence_rrule', None)
+                rec_dtstart = getattr(l, 'recurrence_dtstart', None)
+                if rec_rrule:
+                    try:
+                        if rec_dtstart and rec_dtstart.tzinfo is None:
+                            rec_dtstart = rec_dtstart.replace(tzinfo=timezone.utc)
+                        r = rrulestr(rec_rrule, dtstart=rec_dtstart)
+                        occs = list(r.between(cal_start, cal_end, inc=True))[:3]
+                        for od in occs:
+                            oh = _occ_allowed('list', l.id, od, rec_rrule, title=(l.name or ''), list_id=None)
+                            if oh:
+                                calendar_occurrences.append({'occurrence_dt': od.isoformat(), 'item_type': 'list', 'id': l.id, 'list_id': None, 'title': l.name, 'occ_hash': oh, 'is_recurring': True, 'rrule': rec_rrule})
+                    except Exception:
+                        pass
+                try:
+                    meta = extract_dates_meta(l.name or '')
+                    for m in meta:
+                        try:
+                            if m.get('year_explicit'):
+                                d = m.get('dt')
+                                if d and d >= cal_start and d <= cal_end:
+                                    oh = _occ_allowed('list', l.id, d, '', title=(l.name or ''), list_id=None)
+                                    if oh:
+                                        calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'list', 'id': l.id, 'list_id': None, 'title': l.name, 'occ_hash': oh, 'is_recurring': False, 'rrule': ''})
+                            else:
+                                try:
+                                    created = getattr(l, 'created_at', None) or now
+                                    candidates = resolve_yearless_date(int(m.get('month')), int(m.get('day')), created, window_start=cal_start, window_end=cal_end)
+                                    if isinstance(candidates, list):
+                                        for d in candidates:
+                                            if d and d >= cal_start and d <= cal_end:
+                                                oh = _occ_allowed('list', l.id, d, '', title=(l.name or ''), list_id=None)
+                                                if oh:
+                                                    calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'list', 'id': l.id, 'list_id': None, 'title': l.name, 'occ_hash': oh, 'is_recurring': False, 'rrule': ''})
+                                    else:
+                                        d = candidates
+                                        if d and d >= cal_start and d <= cal_end:
+                                            oh = _occ_allowed('list', l.id, d, '', title=(l.name or ''), list_id=None)
+                                            if oh:
+                                                calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'list', 'id': l.id, 'list_id': None, 'title': l.name, 'occ_hash': oh, 'is_recurring': False, 'rrule': ''})
+                                except Exception:
+                                    pass
+                        except Exception:
+                            continue
+                except Exception:
+                    pass
+
+            for t in vis_todos:
+                rec_rrule = getattr(t, 'recurrence_rrule', None)
+                rec_dtstart = getattr(t, 'recurrence_dtstart', None)
+                if rec_rrule:
+                    try:
+                        if rec_dtstart and rec_dtstart.tzinfo is None:
+                            rec_dtstart = rec_dtstart.replace(tzinfo=timezone.utc)
+                        r = rrulestr(rec_rrule, dtstart=rec_dtstart)
+                        occs = list(r.between(cal_start, cal_end, inc=True))[:3]
+                        for od in occs:
+                            oh = _occ_allowed('todo', t.id, od, rec_rrule, title=(t.text or ''), list_id=t.list_id)
+                            if oh:
+                                calendar_occurrences.append({'occurrence_dt': od.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': True, 'rrule': rec_rrule})
+                    except Exception:
+                        pass
+                else:
+                    try:
+                        from .utils import parse_text_to_rrule, parse_text_to_rrule_string
+                        r_obj, dtstart = parse_text_to_rrule(t.text + '\n' + (t.note or ''))
+                        if r_obj is not None:
+                            if dtstart and dtstart.tzinfo is None:
+                                dtstart = dtstart.replace(tzinfo=timezone.utc)
+                            occs = list(r_obj.between(cal_start, cal_end, inc=True))[:3]
+                            _dt, rrule_str_local = parse_text_to_rrule_string(t.text + '\n' + (t.note or ''))
+                            for od in occs:
+                                oh = _occ_allowed('todo', t.id, od, rrule_str_local, title=(t.text or ''), list_id=t.list_id)
+                                if oh:
+                                    calendar_occurrences.append({'occurrence_dt': od.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': True, 'rrule': rrule_str_local})
+                    except Exception:
+                        pass
+                try:
+                    meta = extract_dates_meta(t.text + '\n' + (t.note or ''))
+                    for m in meta:
+                        try:
+                            if m.get('year_explicit'):
+                                d = m.get('dt')
+                                if d and d >= cal_start and d <= cal_end:
+                                    oh = _occ_allowed('todo', t.id, d, '', title=(t.text or ''), list_id=t.list_id)
+                                    if oh:
+                                        calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': False, 'rrule': ''})
+                            else:
+                                try:
+                                    created = getattr(t, 'created_at', None) or now
+                                    candidates = resolve_yearless_date(int(m.get('month')), int(m.get('day')), created, window_start=cal_start, window_end=cal_end)
+                                    if isinstance(candidates, list):
+                                        for d in candidates:
+                                            if d and d >= cal_start and d <= cal_end:
+                                                oh = _occ_allowed('todo', t.id, d, '', title=(t.text or ''), list_id=t.list_id)
+                                                if oh:
+                                                    calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': False, 'rrule': ''})
+                                    else:
+                                        d = candidates
+                                        if d and d >= cal_start and d <= cal_end:
+                                            oh = _occ_allowed('todo', t.id, d, '', title=(t.text or ''), list_id=t.list_id)
+                                            if oh:
+                                                calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': False, 'rrule': ''})
+                                except Exception:
+                                    pass
+                        except Exception:
+                            continue
+                except Exception:
+                    pass
+
+            calendar_occurrences.sort(key=lambda x: x.get('occurrence_dt'))
+            calendar_occurrences = calendar_occurrences[:20]
+        except Exception:
+            calendar_occurrences = []
+
+        def _iso(dt):
+            try:
+                return dt.isoformat() if dt else None
+            except Exception:
+                return None
+        cursors = {
+            "has_prev": has_prev,
+            "has_next": has_next,
+            "prev_cursor_created_at": _iso(prev_cursor_created_at),
+            "prev_cursor_id": prev_cursor_id,
+            "next_cursor_created_at": _iso(next_cursor_created_at),
+            "next_cursor_id": next_cursor_id,
+        }
+
+    csrf_token = None
+    if current_user:
+        from .auth import create_csrf_token
+        csrf_token = create_csrf_token(current_user.username)
+    client_tz = await get_session_timezone(request)
+    user_default_cat = getattr(current_user, 'default_category_id', None)
+    return {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "current_user": current_user}
+
+
 @app.get('/html_no_js/categories', response_class=HTMLResponse)
 async def html_categories(request: Request):
     from .auth import get_current_user as _gcu
@@ -6303,6 +6951,46 @@ async def html_logout(request: Request):
     resp.delete_cookie('access_token', path='/', samesite='lax', secure=COOKIE_SECURE)
     resp.delete_cookie('csrf_token', path='/', samesite='lax', secure=COOKIE_SECURE)
     return resp
+
+
+@app.post('/html_tailwind/logout')
+async def html_tailwind_logout(request: Request):
+    # attempt to remove server-side session if present
+    session_token = request.cookies.get('session_token')
+    if session_token:
+        from .auth import delete_session
+        await delete_session(session_token)
+    # respond with JSON and instruct client to remove cookies
+    resp = JSONResponse({'ok': True, 'logged_out': True})
+    resp.delete_cookie('session_token', path='/', samesite='lax', secure=COOKIE_SECURE)
+    resp.delete_cookie('access_token', path='/', samesite='lax', secure=COOKIE_SECURE)
+    resp.delete_cookie('csrf_token', path='/', samesite='lax', secure=COOKIE_SECURE)
+    return resp
+
+
+@app.get('/html_tailwind/whoami')
+async def html_tailwind_whoami(request: Request):
+    """Return current user info as JSON for the Tailwind client.
+
+    Returns {'ok': True, 'user': {...}} when authenticated or
+    {'ok': True, 'user': None} when anonymous.
+    """
+    try:
+        from .auth import get_current_user as _gcu
+        user = await _gcu(token=None, request=request)
+    except Exception:
+        user = None
+
+    if not user:
+        return JSONResponse({'ok': True, 'user': None})
+
+    # sanitize fields
+    data = {
+        'id': getattr(user, 'id', None),
+        'username': getattr(user, 'username', None),
+        'email': getattr(user, 'email', None),
+    }
+    return JSONResponse({'ok': True, 'user': data})
 
 
 @app.get("/html_no_js/lists/{list_id}", response_class=HTMLResponse)

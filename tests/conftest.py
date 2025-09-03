@@ -3,6 +3,7 @@ import pathlib
 import pytest
 import pytest_asyncio
 import httpx
+import os
 from sqlmodel import select
 import warnings
 import os
@@ -14,6 +15,11 @@ try:
 except Exception:
     # If SQLAlchemy not available at import, ignore
     pass
+
+# Ensure a secure SECRET_KEY is available during tests so the app lifespan
+# check in `app.main` doesn't raise. Tests may run in environments where the
+# normal env isn't set; set a deterministic test-only key here.
+os.environ.setdefault('SECRET_KEY', 'test-secret-key-for-unit-tests')
 # Some SQLAlchemy connection cleanup messages are emitted during async teardown
 # in a way that bypasses category-only filters; add a message-based ignore to
 # reduce noisy test output.

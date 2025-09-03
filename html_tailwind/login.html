@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Login - {{ title | default('Fast Todo') }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="min-h-screen dark bg-slate-900 flex items-center justify-center">
+    <div class="w-full max-w-md bg-slate-800 text-slate-100 p-8 rounded shadow">
+      <h1 class="text-2xl font-bold mb-4">Sign in</h1>
+      {% if error %}
+      <div class="mb-4 text-sm text-red-700 bg-red-100 p-2 rounded">{{ error }}</div>
+      {% endif %}
+
+      <form id="login-form" class="space-y-4" onsubmit="return submitJson(event)">
+        <div>
+          <label class="block text-sm font-medium text-slate-200">Username</label>
+          <input id="username" required type="text" autocomplete="username" class="mt-1 block w-full rounded bg-slate-700 border border-slate-600 text-slate-100 shadow-sm focus:ring-sky-500 focus:border-sky-500">
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-slate-200">Password</label>
+          <input id="password" required type="password" autocomplete="current-password" class="mt-1 block w-full rounded bg-slate-700 border border-slate-600 text-slate-100 shadow-sm focus:ring-sky-500 focus:border-sky-500">
+        </div>
+
+        <div class="flex items-center justify-between">
+          <button type="submit" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded">Sign in</button>
+          <a href="/html_tailwind" class="text-sm text-sky-400">Back</a>
+        </div>
+      </form>
+
+      <script>
+        async function submitJson(e) {
+          e.preventDefault();
+          const u = document.getElementById('username').value;
+          const p = document.getElementById('password').value;
+          try {
+            const res = await fetch('/html_tailwind/login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+              body: JSON.stringify({ username: u, password: p }),
+              credentials: 'same-origin'
+            });
+            const j = await res.json();
+            if (j && j.ok) {
+              // On success, navigate to the tailwind index (or location provided)
+              window.location.href = '/html_tailwind';
+            } else {
+              const msg = (j && j.error) ? j.error : 'Login failed';
+              showError(msg);
+            }
+          } catch (err) {
+            showError('Network error');
+          }
+          return false;
+        }
+
+        function showError(msg) {
+          let el = document.getElementById('login-error');
+          if (!el) {
+            el = document.createElement('div');
+            el.id = 'login-error';
+            el.className = 'mb-4 text-sm text-red-700 bg-red-100 p-2 rounded';
+            const form = document.getElementById('login-form');
+            form.parentNode.insertBefore(el, form);
+          }
+          el.textContent = msg;
+        }
+      </script>
+
+  <p class="mt-6 text-xs text-slate-400">This login form posts to <code class="bg-slate-700 px-1 rounded">/html_no_js/login</code> so it works with the server's existing endpoints.</p>
+    </div>
+  </body>
+</html>

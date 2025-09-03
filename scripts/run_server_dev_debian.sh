@@ -132,6 +132,7 @@ APP_MODULE=${APP_MODULE-app.main:app}
 # Logging: optional log file capture. If LOG_FILE is set, stdout/stderr
 # will be redirected to that file. Default: no redirection (prints to console).
 LOG_FILE=${LOG_FILE-}
+LOG_FILE=server.log
 
 # Uvicorn log level and access log control
 UVICORN_LOG_LEVEL=${UVICORN_LOG_LEVEL-info}

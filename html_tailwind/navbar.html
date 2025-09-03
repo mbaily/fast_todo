@@ -1,0 +1,77 @@
+<nav class="w-full bg-slate-900 border-b border-slate-800 shadow-sm">
+  <div class="mx-auto">
+    <div class="flex h-10 items-center justify-between">
+      <!-- left: logo/home -->
+      <div class="flex items-center gap-4">
+        <a href="/html_tailwind" class="flex items-center gap-2">
+          <svg class="w-6 h-6 text-slate-200" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 12l9-9 9 9v8a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-4H9v4a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2v-8z"></path></svg>
+          <span class="text-sm font-semibold text-slate-100">Fast Todo</span>
+        </a>
+      </div>
+
+      <!-- center: primary nav -->
+      <div class="flex items-center gap-4">
+          <div class="hidden md:flex md:space-x-6">
+          <a href="/html_no_js/recent" class="text-sm text-slate-300 hover:text-slate-100">Recent</a>
+          <a href="/html_no_js/calendar" class="text-sm text-slate-300 hover:text-slate-100">Calendar</a>
+          <a href="/html_no_js/trash" class="text-sm text-slate-300 hover:text-slate-100">Trash</a>
+          <a href="/html_no_js/priorities" class="text-sm text-slate-300 hover:text-slate-100">Priorities</a>
+        </div>
+      </div>
+
+      <!-- right: profile / logout -->
+      <div class="flex items-center gap-4">
+        <div class="relative">
+          <button id="account-btn-nav" aria-haspopup="true" aria-expanded="false" class="flex items-center gap-2 px-2 py-1 rounded-md hover:bg-slate-800 focus:outline-none">
+            <svg class="w-8 h-8 text-slate-200" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12c2.7 0 4.9-2.2 4.9-4.9S14.7 2.2 12 2.2 7.1 4.4 7.1 7.1 9.3 12 12 12zm0 2.2c-3.3 0-9.8 1.7-9.8 5v1.6h19.6V19.2c0-3.3-6.5-5-9.8-5z"></path></svg>
+            <span id="nav-username" class="hidden sm:inline text-sm text-slate-200">{{ current_user.username if current_user else 'Guest' }}</span>
+          </button>
+
+          <div id="account-dropdown-nav" class="hidden absolute right-0 mt-2 w-56 bg-slate-800 border border-slate-700 rounded shadow-md z-20">
+            <div class="px-4 py-3 border-b border-slate-700">
+              <div class="text-sm font-medium text-slate-100">{{ current_user.username if current_user else 'Guest' }}</div>
+              <div class="text-xs text-slate-400">Account</div>
+            </div>
+            <ul class="py-1">
+              <li><a href="#" class="block px-4 py-2 text-sm hover:bg-slate-700">Profile</a></li>
+              <li><a href="#" class="block px-4 py-2 text-sm hover:bg-slate-700">Settings</a></li>
+              <li><button id="nav-logout" class="w-full text-left block px-4 py-2 text-sm text-red-400 hover:bg-slate-700">Sign out</button></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<script>
+  (function(){
+    // dropdown toggle
+    const btn = document.getElementById('account-btn-nav');
+    const dd = document.getElementById('account-dropdown-nav');
+    document.addEventListener('click', (e) => {
+      if (!btn || !dd) return;
+      if (btn.contains(e.target)) {
+        const isHidden = dd.classList.contains('hidden');
+        if (isHidden) dd.classList.remove('hidden'); else dd.classList.add('hidden');
+        return;
+      }
+      if (!dd.contains(e.target)) dd.classList.add('hidden');
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && dd) dd.classList.add('hidden'); });
+
+    // logout handler (reuses existing backend)
+    const navOut = document.getElementById('nav-logout');
+    if (navOut) {
+      navOut.addEventListener('click', async () => {
+        try {
+          const res = await fetch('/html_tailwind/logout', { method: 'POST', headers: { 'Accept': 'application/json' }, credentials: 'same-origin' });
+          const j = await res.json();
+          if (j && j.ok) window.location.href = '/html_tailwind/login';
+          else alert('Logout failed');
+        } catch (e) { alert('Network error'); }
+      });
+    }
+  // search/create handlers moved to index.html so they sit outside the navbar
+  })();
+</script>
