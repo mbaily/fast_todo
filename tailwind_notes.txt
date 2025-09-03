@@ -15,3 +15,5 @@
 [ ] get rid of table colum width size JS functions
 
 [ ] remove 'Loading..' in index for JS hashtag update DOM
+
+[ ] put back pinned, calendar section, navigation
