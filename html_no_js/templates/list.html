@@ -456,50 +456,61 @@
           if (todo.priority != null) tr.setAttribute('data-priority', String(todo.priority));
           // default completion cell
           var tdDef = document.createElement('td'); tdDef.className = 'icon';
-          tdDef.innerHTML = '<form method="post" action="/html_no_js/todos/' + todo.id + '/complete" data-default-completion="true">' +
-                            '<input type="hidden" name="anchor" value="todo-' + todo.id + '">' +
-                            '<input type="hidden" name="done" value="' + (todo.completed ? 'false' : 'true') + '">' +
-                            '<button type="submit" aria-label="' + (todo.completed ? 'Unmark' : 'Mark') + '" title="' + (todo.completed ? 'Unmark' : 'Mark') + '">' + (todo.completed ? '☑' : '☐') + '</button>' +
-                            '</form>';
+          try {
+            tdDef.innerHTML = '<form method="post" action="/html_no_js/todos/' + todo.id + '/complete" data-default-completion="true">' +
+                              '<input type="hidden" name="anchor" value="todo-' + todo.id + '">' +
+                              '<input type="hidden" name="done" value="' + (todo.completed ? 'false' : 'true') + '">' +
+                              '<button type="submit" aria-label="' + (todo.completed ? 'Unmark' : 'Mark') + '" title="' + (todo.completed ? 'Unmark' : 'Mark') + '">' + (todo.completed ? '☑' : '☐') + '</button>' +
+                              '</form>';
+          } catch(e) { /* ignored (tdDef build failed) */ }
           tr.appendChild(tdDef);
           // extra completion cells per header order
           var idsAttr = table.getAttribute('data-extra-type-ids') || '';
           var extraIds = idsAttr ? idsAttr.split(',').map(function(s){ return s.trim(); }).filter(Boolean) : [];
           extraIds.forEach(function(cid){
             var td = document.createElement('td'); td.className = 'icon';
-            td.innerHTML = '<form method="post" action="/html_no_js/todos/' + todo.id + '/complete_type" style="display:inline">' +
-                           '<input type="hidden" name="anchor" value="todo-' + todo.id + '">' +
-                           '<input type="hidden" name="completion_type_id" value="' + cid + '">' +
-                           '<input type="hidden" name="done" value="true">' +
-                           '<button type="submit" aria-label="Mark" title="Mark">☐</button>' +
-                           '</form>';
+            try {
+              td.innerHTML = '<form method="post" action="/html_no_js/todos/' + todo.id + '/complete_type" style="display:inline">' +
+                             '<input type="hidden" name="anchor" value="todo-' + todo.id + '">' +
+                             '<input type="hidden" name="completion_type_id" value="' + cid + '">' +
+                             '<input type="hidden" name="done" value="true">' +
+                             '<button type="submit" aria-label="Mark" title="Mark">☐</button>' +
+                             '</form>';
+            } catch(e) { /* ignored (extra td build failed) */ }
             tr.appendChild(td);
           });
           // title cell
           var tdTitle = document.createElement('td'); tdTitle.className = 'title';
-          tdTitle.innerHTML = '<div class="todo-title-inline' + (todo.completed ? ' done' : '') + '">' +
-                              '<a class="wrap-text' + (todo.completed ? ' done' : '') + '" href="/html_no_js/todos/' + todo.id + '"' + titleAttr + dataAttr + '>' + escapeHtml(todo.text) + '</a>' +
-                              (todo.priority ? (' <span class="meta priority-inline"><span class="priority-circle">' + (circ[todo.priority] || todo.priority) + '</span></span>') : '') +
-                              '</div>' +
-                              (todo.note ? ('<div class="meta line-clamp-1 wrap-text">' + escapeHtml(todo.note) + '</div><div class="meta"><a href="/html_no_js/todos/' + todo.id + '">view full</a></div>') : '') ;
+          try {
+            tdTitle.innerHTML = '<div class="todo-title-inline' + (todo.completed ? ' done' : '') + '">' +
+                                '<a class="wrap-text' + (todo.completed ? ' done' : '') + '" href="/html_no_js/todos/' + todo.id + '"' + titleAttr + dataAttr + '>' + escapeHtml(todo.text) + '</a>' +
+                                (todo.priority ? (' <span class="meta priority-inline"><span class="priority-circle">' + (circ[todo.priority] || todo.priority) + '</span></span>') : '') +
+                                '</div>' +
+                                (todo.note ? ('<div class="meta line-clamp-1 wrap-text">' + escapeHtml(todo.note) + '</div><div class="meta"><a href="/html_no_js/todos/' + todo.id + '">view full</a></div>') : '');
+          } catch(e) { /* ignored (tdTitle build failed) */ }
           tr.appendChild(tdTitle);
           // pin cell
           var tdPin = document.createElement('td'); tdPin.className = 'action';
-          tdPin.innerHTML = '<form method="post" action="/html_no_js/todos/' + todo.id + '/pin">' +
-                            '<input type="hidden" name="pinned" value="' + (todo.pinned ? 'false' : 'true') + '">' +
-                            '<button type="submit" aria-label="Pin" title="Pin" class="pin-button ' + (todo.pinned ? 'pinned' : '') + '">' + (todo.pinned ? '📌' : '📍') + '</button>' +
-                            '</form>';
+          try {
+            tdPin.innerHTML = '<form method="post" action="/html_no_js/todos/' + todo.id + '/pin">' +
+                              '<input type="hidden" name="pinned" value="' + (todo.pinned ? 'false' : 'true') + '">' +
+                              '<button type="submit" aria-label="Pin" title="Pin" class="pin-button ' + (todo.pinned ? 'pinned' : '') + '">' + (todo.pinned ? '📌' : '📍') + '</button>' +
+                              '</form>';
+          } catch(e) { /* ignored (tdPin build failed) */ }
           tr.appendChild(tdPin);
           // delete cell
           var tdDel = document.createElement('td'); tdDel.className = 'action';
-          tdDel.innerHTML = '<form method="post" action="/html_no_js/todos/' + todo.id + '/delete">' +
-                            '<input type="hidden" name="anchor" value="todo-' + todo.id + '">' +
-                            '<button type="submit" aria-label="Delete" title="Delete">🗑</button>' +
-                            '</form>';
+          try {
+            tdDel.innerHTML = '<form method="post" action="/html_no_js/todos/' + todo.id + '/delete">' +
+                              '<input type="hidden" name="anchor" value="todo-' + todo.id + '">' +
+                              '<button type="submit" aria-label="Delete" title="Delete">🗑</button>' +
+                              '</form>';
+          } catch(e) { /* ignored (tdDel build failed) */ }
           tr.appendChild(tdDel);
           // insert at top
           var body = table.querySelector('tbody') || table;
           if (body.firstChild) body.insertBefore(tr, body.firstChild); else body.appendChild(tr);
+          var insertedElement = tr;
         } else {
           var li = document.createElement('li');
           li.id = 'todo-' + todo.id;
@@ -543,8 +554,10 @@
                            '</form>' +
                            '</div>';
           }
-          li.innerHTML = controlsHtml + '<div class="todo-content"><div class="todo-main"><div class="todo-title-inline">' + titleHtml + '</div>' + noteHtml + priHtml + '</div></div>';
+          try { li.innerHTML = controlsHtml + '<div class="todo-content"><div class="todo-main"><div class="todo-title-inline">' + titleHtml + '</div>' + noteHtml + priHtml + '</div></div>'; }
+          catch(e) { /* ignored (ul branch insert failed) */ }
           if (ul) { ul.insertBefore(li, ul.firstChild); }
+          var insertedElement = li;
         }
         // Simple innerHTML assembly (escaped) to match visible structure.
 
@@ -592,11 +605,21 @@
                          '</form>' +
                          '</div>';
         }
-        li.innerHTML = controlsHtml + '<div class="todo-content"><div class="todo-main"><div class="todo-title-inline">' + titleHtml + '</div>' + noteHtml + priHtml + '</div></div>';
+  try {
+    var _target = (typeof li !== 'undefined' && li) ? li : (typeof insertedElement !== 'undefined' ? insertedElement : null);
+    if (_target) {
+      _target.innerHTML = controlsHtml + '<div class="todo-content"><div class="todo-main"><div class="todo-title-inline">' + titleHtml + '</div>' + noteHtml + priHtml + '</div></div>';
+    } else {
+  /* no target to set innerHTML (post-mode) */
+    }
+  } catch(e) { /* ignored (setting target.innerHTML failed) */ }
 
   // insertion done above based on mode
   window.tooltip.debug('[tooltip-debug] create insertion inlineDate ->', inlineDate);
-  window.tooltip.debug('[tooltip-debug] inserted li outerHTML:', li.outerHTML);
+  try {
+    if (typeof insertedElement !== 'undefined' && insertedElement && insertedElement.outerHTML) window.tooltip.debug('[tooltip-debug] inserted element outerHTML:', insertedElement.outerHTML);
+    else window.tooltip.debug('[tooltip-debug] inserted element not available', { insertedElement: typeof insertedElement !== 'undefined' ? !!insertedElement : null, li: typeof li !== 'undefined' ? !!li : null, tr: typeof tr !== 'undefined' ? !!tr : null });
+  } catch(e) { window.tooltip.debug('[tooltip-debug] inserted element outerHTML access failed', e); }
         input.value = '';
         if (submitBtn) submitBtn.disabled = false;
         try { input.focus(); } catch(e) {}
