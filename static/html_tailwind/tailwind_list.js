@@ -307,6 +307,13 @@ window.tailwindList = (function () {
 			if (!resp.ok) throw new Error('failed to fetch todos');
 			currentTodos = await resp.json();
 			
+			// Sort todos by creation date in reverse order (newest first)
+			currentTodos.sort((a, b) => {
+				const dateA = new Date(a.created_at || 0);
+				const dateB = new Date(b.created_at || 0);
+				return dateB - dateA; // Reverse chronological order
+			});
+			
 			// Fetch completion types
 			const typesResp = await fetch(`/client/json/lists/${encodeURIComponent(listId)}/completion_types`, { credentials: 'same-origin' });
 			if (typesResp.ok) {
@@ -483,8 +490,16 @@ window.tailwindList = (function () {
 		if (!listId || !text.trim()) return;
 
 		try {
-			const newTodo = await postJson('/client/json/todos', { title: text.trim(), list_id: listId });
+			const newTodo = await postJson('/client/json/todos', { text: text.trim(), list_id: listId });
 			currentTodos.push(newTodo);
+			
+			// Sort todos by creation date in reverse order (newest first) after adding
+			currentTodos.sort((a, b) => {
+				const dateA = new Date(a.created_at || 0);
+				const dateB = new Date(b.created_at || 0);
+				return dateB - dateA; // Reverse chronological order
+			});
+			
 			renderTodos();
 			showToast('Todo added', { type: 'success' });
 		} catch (err) {
