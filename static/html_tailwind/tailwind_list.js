@@ -76,7 +76,7 @@ window.tailwindList = (function () {
 					try {
 						if (!listId) throw new Error('missing list id');
 						await patchJson(`/lists/${encodeURIComponent(listId)}`, { priority: val });
-						showToast('Priority saved', { type: 'success' });
+						// Priority saved - toast disabled
 					} catch (err) {
 						showToast('Failed to save priority: ' + (err?.message || String(err)), { type: 'error' });
 						console.error('failed to save priority', err);
@@ -155,9 +155,9 @@ window.tailwindList = (function () {
 				// Update display from server response if present
 				if (res && res.name) {
 					display.textContent = res.name;
-					showToast('List name updated', { type: 'success' });
+					// List name updated - toast disabled
 				} else {
-					showToast('List name updated', { type: 'success' });
+					// List name updated - toast disabled
 				}
 			} catch (err) {
 				showToast('Failed to update list name: ' + (err?.message || String(err)), { type: 'error' });
@@ -232,7 +232,7 @@ window.tailwindList = (function () {
 								credentials: 'same-origin',
 							}).then(() => fetchAndRenderTags()).catch(e => console.error('undo add tag failed', e));
 						};
-						showToast(`Removed #${tagNorm}`, { type: 'info', undoLabel: 'Undo', undoCallback: undo, timeout: 6000 });
+						// Tag removed - toast disabled
 					} catch (err) {
 						showToast('Failed to remove tag', { type: 'error' });
 						console.error('failed to remove tag', err);
@@ -501,7 +501,7 @@ window.tailwindList = (function () {
 			});
 			
 			renderTodos();
-			showToast('Todo added', { type: 'success' });
+			// Todo added - toast disabled
 		} catch (err) {
 			console.error('failed to add todo', err);
 			showToast('Failed to add todo', { type: 'error' });
@@ -559,8 +559,7 @@ window.tailwindList = (function () {
 			}
 			renderTodos();
 
-			// Show success message
-			showToast(newState ? `${completionType.name} completed` : `${completionType.name} marked incomplete`, { type: 'success' });
+			// Completion status updated - toast disabled
 		} catch (err) {
 			console.error('failed to toggle todo complete', err);
 			// Revert optimistic update on error
@@ -582,7 +581,7 @@ window.tailwindList = (function () {
 			// Update local state
 			todo.pinned = updatedTodo.pinned;
 			renderTodos();
-			showToast(updatedTodo.pinned ? 'Todo pinned' : 'Todo unpinned', { type: 'success' });
+			// Pin status updated - toast disabled
 		} catch (err) {
 			console.error('failed to toggle todo pin', err);
 			showToast('Failed to update todo', { type: 'error' });
