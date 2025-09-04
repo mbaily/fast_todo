@@ -1160,7 +1160,10 @@ def parse_date_and_recurrence(text: str) -> tuple[datetime | None, dict | None]:
         if _contains_generic_anchor(matched_text):
             return None, None
 
-        # find its position in the original text to extract following phrase
+        # find its position in the original text to extract the following phrase
+        # Only examine a short immediate span after the matched date to avoid
+        # accidentally treating unrelated later text (for example notes that
+        # mention a weekday) as a recurrence phrase.
         idx = text.lower().find(matched_text.lower())
         if idx == -1:
             # fallback: can't find span
@@ -1168,12 +1171,22 @@ def parse_date_and_recurrence(text: str) -> tuple[datetime | None, dict | None]:
         else:
             tail = text[idx + len(matched_text):]
 
-        rec = parse_recurrence_phrase(tail)
+        # Normalize and trim leading separators
+        tail = tail.lstrip(" ,;:-\t\n")
+        # Prefer the first sentence/segment only — split on common sentence
+        # terminators and take the first segment. Also cap length to avoid
+        # parsing extremely long notes.
+        tail_segment = re.split(r'[\r\n\.\!\?;]', tail, 1)
+        tail_segment = (tail_segment[0] if tail_segment else tail)[:120].strip()
+
+        rec = parse_recurrence_phrase(tail_segment)
 
         # Heuristic: if recurrence is DAILY (every day) and the tail does not
         # contain an explicit time or date anchor, treat it as non-recurring.
         if rec and rec.get('freq') == 'DAILY':
-            if not _has_time_or_date_anchor(tail):
+            # Use the same limited segment when checking for explicit time/date
+            # anchors so that later mentions don't influence the decision.
+            if not _has_time_or_date_anchor(tail_segment):
                 # suppress ambiguous every-day recurrence unless a time/date is present
                 rec = None
 
@@ -1404,13 +1417,13 @@ def parse_text_to_rrule(text: str) -> tuple[object | None, datetime | None]:
         return None, None
 
     # If we have a recurrence dict missing (date present but rec missing),
-    # try scanning the whole text for recurrence phrase.
+    # do NOT scan the entire text for recurrence phrases. Scanning the whole
+    # note may pick up unrelated later mentions (e.g., 'Saturday' in a
+    # follow-up sentence). Higher-level callsites that intentionally want
+    # to synthesize an rrule from a bare recurrence phrase should use the
+    # more permissive helpers. Here, prefer conservatism: return (None, dt)
+    # when no immediate recurrence dict was found by parse_date_and_recurrence.
     if rec is None:
-        try:
-            rec = parse_recurrence_phrase(text)
-        except Exception:
-            rec = None
-    if not rec:
         return None, dt
     try:
         r = build_rrule_from_recurrence(rec, dt)
