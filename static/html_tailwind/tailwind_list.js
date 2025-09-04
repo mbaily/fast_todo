@@ -294,6 +294,37 @@ window.tailwindList = (function () {
 	// Todo management functions
 	let currentTodos = [];
 	let currentCompletionTypes = [];
+	let sortByCompletedAfter = false; // false = newest first, true = completed after
+
+	function sortTodos(todos) {
+		return todos.sort((a, b) => {
+			if (sortByCompletedAfter) {
+				// Primary sort: completed status (incomplete first)
+				const aCompleted = isTodoCompleted(a);
+				const bCompleted = isTodoCompleted(b);
+				
+				if (aCompleted !== bCompleted) {
+					return aCompleted ? 1 : -1; // incomplete first
+				}
+				
+				// Secondary sort: creation date (newest first within each group)
+				const dateA = new Date(a.created_at || 0);
+				const dateB = new Date(b.created_at || 0);
+				return dateB - dateA;
+			} else {
+				// Default: newest first
+				const dateA = new Date(a.created_at || 0);
+				const dateB = new Date(b.created_at || 0);
+				return dateB - dateA;
+			}
+		});
+	}
+
+	function isTodoCompleted(todo) {
+		// Check if todo is completed in any completion type
+		if (!todo.completions) return false;
+		return Object.values(todo.completions).some(completed => completed === true);
+	}
 
 	async function fetchTodos() {
 		const listRoot = document.getElementById('list-root');
@@ -307,12 +338,8 @@ window.tailwindList = (function () {
 			if (!resp.ok) throw new Error('failed to fetch todos');
 			currentTodos = await resp.json();
 			
-			// Sort todos by creation date in reverse order (newest first)
-			currentTodos.sort((a, b) => {
-				const dateA = new Date(a.created_at || 0);
-				const dateB = new Date(b.created_at || 0);
-				return dateB - dateA; // Reverse chronological order
-			});
+			// Sort todos based on current sorting mode
+			currentTodos = sortTodos(currentTodos);
 			
 			// Fetch completion types
 			const typesResp = await fetch(`/client/json/lists/${encodeURIComponent(listId)}/completion_types`, { credentials: 'same-origin' });
@@ -493,12 +520,8 @@ window.tailwindList = (function () {
 			const newTodo = await postJson('/client/json/todos', { text: text.trim(), list_id: listId });
 			currentTodos.push(newTodo);
 			
-			// Sort todos by creation date in reverse order (newest first) after adding
-			currentTodos.sort((a, b) => {
-				const dateA = new Date(a.created_at || 0);
-				const dateB = new Date(b.created_at || 0);
-				return dateB - dateA; // Reverse chronological order
-			});
+			// Sort todos based on current sorting mode
+			currentTodos = sortTodos(currentTodos);
 			
 			renderTodos();
 			// Todo added - toast disabled
@@ -545,6 +568,7 @@ window.tailwindList = (function () {
 
 			// Optimistically update the UI
 			todo.completions[completionType.name] = newState;
+			currentTodos = sortTodos(currentTodos);
 			renderTodos();
 
 			// Send update to server
@@ -557,6 +581,7 @@ window.tailwindList = (function () {
 			if (updatedTodo && updatedTodo.completions) {
 				todo.completions = updatedTodo.completions;
 			}
+			currentTodos = sortTodos(currentTodos);
 			renderTodos();
 
 			// Completion status updated - toast disabled
@@ -564,6 +589,7 @@ window.tailwindList = (function () {
 			console.error('failed to toggle todo complete', err);
 			// Revert optimistic update on error
 			todo.completions = originalCompletions;
+			currentTodos = sortTodos(currentTodos);
 			renderTodos();
 			showToast('Failed to update todo', { type: 'error' });
 		}
@@ -580,6 +606,7 @@ window.tailwindList = (function () {
 
 			// Update local state
 			todo.pinned = updatedTodo.pinned;
+			currentTodos = sortTodos(currentTodos);
 			renderTodos();
 			// Pin status updated - toast disabled
 		} catch (err) {
@@ -654,6 +681,28 @@ window.tailwindList = (function () {
 				btn.textContent = 'Hide Icons';
 			}
 		});
+	}
+
+	function initSortToggle() {
+		const btn = document.getElementById('toggle-sort-btn');
+		if (!btn) return;
+
+		// Set initial button text
+		updateSortButtonText(btn);
+
+		btn.addEventListener('click', () => {
+			sortByCompletedAfter = !sortByCompletedAfter;
+			// Re-sort current todos
+			currentTodos = sortTodos(currentTodos);
+			// Re-render the todos
+			renderTodos();
+			// Update button text
+			updateSortButtonText(btn);
+		});
+	}
+
+	function updateSortButtonText(btn) {
+		btn.textContent = sortByCompletedAfter ? 'Sort: Completed After' : 'Sort: Newest First';
 	}
 
 	async function fetchAndRenderCompletionTypes() {
@@ -796,6 +845,7 @@ window.tailwindList = (function () {
 			initCompletionTypeEditor();
 			initAddTodo();
 			initViewToggle();
+			initSortToggle();
 			fetchTodos(); // Load initial todos
 		} catch (err) {
 			console.error('init list page failed', err);
