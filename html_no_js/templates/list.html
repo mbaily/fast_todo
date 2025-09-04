@@ -428,12 +428,20 @@
 
   var inlineDate = formatInlineDateTime(todo.created_at || todo.createdAt || todo.created || null);
   var titleAttr = inlineDate ? (' title="' + escapeHtml(inlineDate) + '"') : '';
-  var dataAttr = inlineDate ? (' data-date="' + escapeHtml(inlineDate) + '"') : '';
+  var dataAttr = inlineDate ? (' data-date="' + escapeHtml(inlineDate) + '" data-created-at="' + escapeHtml(todo.created_at || todo.createdAt || todo.created || '') + '"') : '';
 
         // Detect table mode (icons shown) or UL mode (hide-icons)
-  // find table by data attribute or any table inside this area
-  var table = document.querySelector('table[data-extra-type-ids]') || document.querySelector('table');
+  // Use the same container detection as the reordering code
+  var container = document.querySelector('table[data-extra-type-ids] tbody') || document.querySelector('table tbody') || document.querySelector('.todos-list');
+        var table = container ? container.closest('table') : null;
         var ul = document.querySelector('.todos-list');
+
+        // Get CSRF token from existing form for consistency with server-side
+        var csrfToken = '';
+        var existingCsrfInput = document.querySelector('input[name="_csrf"]');
+        if (existingCsrfInput) {
+          csrfToken = existingCsrfInput.value;
+        }
         if (!table && !ul) {
           // fall back to creating UL if neither exists
           ul = document.createElement('ul');
@@ -453,18 +461,44 @@
           var tbody = table.querySelector('tbody') || table;
           var tr = document.createElement('tr');
           tr.id = 'todo-' + todo.id;
-          tr.className = 'todo';
           if (todo.priority != null) tr.setAttribute('data-priority', String(todo.priority));
-          // default completion cell
+          
+          // pin cell (first column)
+          var tdPin = document.createElement('td'); tdPin.className = 'action';
+          try {
+            tdPin.innerHTML = '<form method="post" action="/html_no_js/todos/' + todo.id + '/pin">' +
+                              (csrfToken ? '<input type="hidden" name="_csrf" value="' + escapeHtml(csrfToken) + '">' : '') +
+                              '<input type="hidden" name="pinned" value="' + (todo.pinned ? 'false' : 'true') + '">' +
+                              '<button type="submit" aria-label="Pin" title="Pin" class="pin-button ' + (todo.pinned ? 'pinned' : '') + '">' + (todo.pinned ? '📌' : '📍') + '</button>' +
+                              '</form>';
+          } catch(e) { /* ignored (tdPin build failed) */ }
+          tr.appendChild(tdPin);
+          
+          // delete cell (second column)
+          var tdDel = document.createElement('td'); tdDel.className = 'action';
+          tdDel.style.paddingLeft = '20px';
+          tdDel.style.paddingRight = '20px';
+          try {
+            tdDel.innerHTML = '<form method="post" action="/html_no_js/todos/' + todo.id + '/delete">' +
+                              (csrfToken ? '<input type="hidden" name="_csrf" value="' + escapeHtml(csrfToken) + '">' : '') +
+                              '<input type="hidden" name="anchor" value="todo-' + todo.id + '">' +
+                              '<button type="submit" aria-label="Delete" title="Delete">🗑</button>' +
+                              '</form>';
+          } catch(e) { /* ignored (tdDel build failed) */ }
+          tr.appendChild(tdDel);
+          
+          // default completion cell (third column)
           var tdDef = document.createElement('td'); tdDef.className = 'icon';
           try {
             tdDef.innerHTML = '<form method="post" action="/html_no_js/todos/' + todo.id + '/complete" data-default-completion="true">' +
+                              (csrfToken ? '<input type="hidden" name="_csrf" value="' + escapeHtml(csrfToken) + '">' : '') +
                               '<input type="hidden" name="anchor" value="todo-' + todo.id + '">' +
                               '<input type="hidden" name="done" value="' + (todo.completed ? 'false' : 'true') + '">' +
                               '<button type="submit" aria-label="' + (todo.completed ? 'Unmark' : 'Mark') + '" title="' + (todo.completed ? 'Unmark' : 'Mark') + '">' + (todo.completed ? '☑' : '☐') + '</button>' +
                               '</form>';
           } catch(e) { /* ignored (tdDef build failed) */ }
           tr.appendChild(tdDef);
+          
           // extra completion cells per header order
           var idsAttr = table.getAttribute('data-extra-type-ids') || '';
           var extraIds = idsAttr ? idsAttr.split(',').map(function(s){ return s.trim(); }).filter(Boolean) : [];
@@ -472,6 +506,7 @@
             var td = document.createElement('td'); td.className = 'icon';
             try {
               td.innerHTML = '<form method="post" action="/html_no_js/todos/' + todo.id + '/complete_type" style="display:inline">' +
+                             (csrfToken ? '<input type="hidden" name="_csrf" value="' + escapeHtml(csrfToken) + '">' : '') +
                              '<input type="hidden" name="anchor" value="todo-' + todo.id + '">' +
                              '<input type="hidden" name="completion_type_id" value="' + cid + '">' +
                              '<input type="hidden" name="done" value="true">' +
@@ -480,7 +515,8 @@
             } catch(e) { /* ignored (extra td build failed) */ }
             tr.appendChild(td);
           });
-          // title cell
+          
+          // title cell (last column)
           var tdTitle = document.createElement('td'); tdTitle.className = 'title';
           try {
             tdTitle.innerHTML = '<div class="todo-title-inline' + (todo.completed ? ' done' : '') + '">' +
@@ -490,24 +526,7 @@
                                 (todo.note ? ('<div class="meta line-clamp-1 wrap-text">' + escapeHtml(todo.note) + '</div><div class="meta"><a href="/html_no_js/todos/' + todo.id + '">view full</a></div>') : '');
           } catch(e) { /* ignored (tdTitle build failed) */ }
           tr.appendChild(tdTitle);
-          // pin cell
-          var tdPin = document.createElement('td'); tdPin.className = 'action';
-          try {
-            tdPin.innerHTML = '<form method="post" action="/html_no_js/todos/' + todo.id + '/pin">' +
-                              '<input type="hidden" name="pinned" value="' + (todo.pinned ? 'false' : 'true') + '">' +
-                              '<button type="submit" aria-label="Pin" title="Pin" class="pin-button ' + (todo.pinned ? 'pinned' : '') + '">' + (todo.pinned ? '📌' : '📍') + '</button>' +
-                              '</form>';
-          } catch(e) { /* ignored (tdPin build failed) */ }
-          tr.appendChild(tdPin);
-          // delete cell
-          var tdDel = document.createElement('td'); tdDel.className = 'action';
-          try {
-            tdDel.innerHTML = '<form method="post" action="/html_no_js/todos/' + todo.id + '/delete">' +
-                              '<input type="hidden" name="anchor" value="todo-' + todo.id + '">' +
-                              '<button type="submit" aria-label="Delete" title="Delete">🗑</button>' +
-                              '</form>';
-          } catch(e) { /* ignored (tdDel build failed) */ }
-          tr.appendChild(tdDel);
+          
           // insert at top
           var body = table.querySelector('tbody') || table;
           if (body.firstChild) body.insertBefore(tr, body.firstChild); else body.appendChild(tr);
@@ -542,14 +561,18 @@
             var pinVal = todo.pinned ? 'false' : 'true';
             controlsHtml = '<div class="controls-left controls-left-wide">' +
                            '<form method="post" action="/html_no_js/todos/' + escapeHtml(todo.id) + '/complete" data-default-completion="true">' +
+                           (csrfToken ? '<input type="hidden" name="_csrf" value="' + escapeHtml(csrfToken) + '">' : '') +
                            '<input type="hidden" name="anchor" value="todo-' + escapeHtml(todo.id) + '">' +
                            '<input type="hidden" name="done" value="' + doneVal + '">' +
                            '<button type="submit" aria-label="' + (todo.completed ? 'Unmark' : 'Mark') + '" title="' + (todo.completed ? 'Unmark' : 'Mark') + '">' + (todo.completed ? '☑' : '☐') + '</button>' +
                            '</form>' +
                            '<form method="post" action="/html_no_js/todos/' + escapeHtml(todo.id) + '/delete">' +
+                           (csrfToken ? '<input type="hidden" name="_csrf" value="' + escapeHtml(csrfToken) + '">' : '') +
+                           '<input type="hidden" name="anchor" value="todo-' + escapeHtml(todo.id) + '">' +
                            '<button type="submit" aria-label="Delete" title="Delete">🗑</button>' +
                            '</form>' +
                            '<form method="post" action="/html_no_js/todos/' + escapeHtml(todo.id) + '/pin">' +
+                           (csrfToken ? '<input type="hidden" name="_csrf" value="' + escapeHtml(csrfToken) + '">' : '') +
                            '<input type="hidden" name="pinned" value="' + pinVal + '">' +
                            '<button type="submit" aria-label="Pin" title="Pin" class="pin-button ' + (todo.pinned ? 'pinned' : '') + '">' + (todo.pinned ? '📌' : '📍') + '</button>' +
                            '</form>' +
@@ -593,25 +616,30 @@
           var pinVal = todo.pinned ? 'false' : 'true';
           controlsHtml = '<div class="controls-left controls-left-wide">' +
                          '<form method="post" action="/html_no_js/todos/' + escapeHtml(todo.id) + '/complete" data-default-completion="true">' +
-                           '<input type="hidden" name="anchor" value="todo-' + escapeHtml(todo.id) + '">' +
-                           '<input type="hidden" name="done" value="' + doneVal + '">' +
-                           '<button type="submit" aria-label="' + (todo.completed ? 'Unmark' : 'Mark') + '" title="' + (todo.completed ? 'Unmark' : 'Mark') + '">' + (todo.completed ? '☑' : '☐') + '</button>' +
+                         (csrfToken ? '<input type="hidden" name="_csrf" value="' + escapeHtml(csrfToken) + '">' : '') +
+                         '<input type="hidden" name="anchor" value="todo-' + escapeHtml(todo.id) + '">' +
+                         '<input type="hidden" name="done" value="' + doneVal + '">' +
+                         '<button type="submit" aria-label="' + (todo.completed ? 'Unmark' : 'Mark') + '" title="' + (todo.completed ? 'Unmark' : 'Mark') + '">' + (todo.completed ? '☑' : '☐') + '</button>' +
                          '</form>' +
                          '<form method="post" action="/html_no_js/todos/' + escapeHtml(todo.id) + '/delete">' +
-                           '<button type="submit" aria-label="Delete" title="Delete">🗑</button>' +
+                         (csrfToken ? '<input type="hidden" name="_csrf" value="' + escapeHtml(csrfToken) + '">' : '') +
+                         '<input type="hidden" name="anchor" value="todo-' + escapeHtml(todo.id) + '">' +
+                         '<button type="submit" aria-label="Delete" title="Delete">🗑</button>' +
                          '</form>' +
                          '<form method="post" action="/html_no_js/todos/' + escapeHtml(todo.id) + '/pin">' +
-                           '<input type="hidden" name="pinned" value="' + pinVal + '">' +
-                           '<button type="submit" aria-label="Pin" title="Pin" class="pin-button ' + (todo.pinned ? 'pinned' : '') + '">' + (todo.pinned ? '📌' : '📍') + '</button>' +
+                         (csrfToken ? '<input type="hidden" name="_csrf" value="' + escapeHtml(csrfToken) + '">' : '') +
+                         '<input type="hidden" name="pinned" value="' + pinVal + '">' +
+                         '<button type="submit" aria-label="Pin" title="Pin" class="pin-button ' + (todo.pinned ? 'pinned' : '') + '">' + (todo.pinned ? '📌' : '📍') + '</button>' +
                          '</form>' +
                          '</div>';
         }
   try {
-    var _target = (typeof li !== 'undefined' && li) ? li : (typeof insertedElement !== 'undefined' ? insertedElement : null);
+    // Only overwrite innerHTML for UL mode, not for table mode
+    var _target = (typeof li !== 'undefined' && li) ? li : null;
     if (_target) {
       _target.innerHTML = controlsHtml + '<div class="todo-content"><div class="todo-main"><div class="todo-title-inline">' + titleHtml + '</div>' + noteHtml + priHtml + '</div></div>';
     } else {
-  /* no target to set innerHTML (post-mode) */
+      /* no target to set innerHTML (table mode or post-mode) */
     }
   } catch(e) { /* ignored (setting target.innerHTML failed) */ }
 
