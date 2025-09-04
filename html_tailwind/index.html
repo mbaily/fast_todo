@@ -187,6 +187,8 @@
         <script>
           (function(){
             try{ var el = document.getElementById('server-categories'); var txt = el ? (el.textContent || el.innerText || '').trim() : '[]'; window.categories = txt ? JSON.parse(txt) : []; } catch(e) { window.categories = []; }
+            // Set user's default category ID for optimistic UI placement
+            window.userDefaultCategoryId = {{ user_default_category_id | default('null') | tojson | safe }};
           })();
         </script>
 

@@ -230,9 +230,15 @@
             // Optimistic UI: insert a temporary placeholder row immediately
             if (createBtn) createBtn.disabled = true;
             const placeholderId = 'tmp-list-' + String(Date.now());
-            // Find the target category section - default to uncategorized
-            let targetCategoryId = 'uncategorized';
-            let targetUl = document.querySelector('.category-section[data-category-id="uncategorized"] ul');
+            // Find the target category section - use user's default category if available, otherwise uncategorized
+            let targetCategoryId = window.userDefaultCategoryId || 'uncategorized';
+            let targetUl = document.querySelector('.category-section[data-category-id="' + targetCategoryId + '"] ul');
+            
+            // If we don't have a section for the target category, fall back to uncategorized
+            if (!targetUl) {
+                targetCategoryId = 'uncategorized';
+                targetUl = document.querySelector('.category-section[data-category-id="uncategorized"] ul');
+            }
             
             // If we have a category section for the target category, use it
             if (targetUl) {

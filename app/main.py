@@ -929,7 +929,7 @@ async def html_tailwind_view_list(request: Request):
         # sublists
         sublists = []
         try:
-            qsubs = select(ListState).where(ListState.parent_list_id == list_id)
+            qsubs = select(ListState).where(ListState.parent_list_id == list_id).where(ListState.owner_id == current_user.id)
             rsubs = await sess.exec(qsubs)
             rows = rsubs.all()
             def _sort_key(l):
@@ -1637,7 +1637,7 @@ async def html_tailwind_search(request: Request):
 @app.post('/html_tailwind/lists', response_class=JSONResponse)
 async def html_tailwind_create_list(request: Request):
     """Create a list via JSON for the Tailwind client. Reuses create_list logic.
-    Accepts JSON body {name: string, hashtags?: [...], category_id?: int} and returns created list id/name.
+    Accepts JSON body {name: string, hashtags?: [...], category_id?: int, parent_list_id?: int} and returns created list id/name.
     """
     from .auth import get_current_user as _gcu
     try:
@@ -1652,9 +1652,18 @@ async def html_tailwind_create_list(request: Request):
     name = body.get('name') or request.query_params.get('name')
     if not name:
         raise HTTPException(status_code=400, detail='name is required')
+    
+    # Extract parent_list_id from JSON body
+    parent_list_id = body.get('parent_list_id')
+    if parent_list_id is not None:
+        try:
+            parent_list_id = int(parent_list_id)
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail='parent_list_id must be an integer')
+    
     # emulate form/query behavior of create_list by setting query param fallback
     # call existing create_list helper
-    new_list = await create_list(request, name=name, current_user=current_user)
+    new_list = await create_list(request, name=name, current_user=current_user, parent_list_id=parent_list_id)
     payload = {'ok': True}
     try:
         if new_list is not None:
@@ -1665,7 +1674,7 @@ async def html_tailwind_create_list(request: Request):
 
 
 @app.post("/lists")
-async def create_list(request: Request, name: str = Form(None), current_user: User = Depends(require_login)):
+async def create_list(request: Request, name: str = Form(None), current_user: User = Depends(require_login), parent_list_id: int = None):
     # Accept name from form (normal HTML/PWA) or fallback to query params so
     # test clients that post with `params={'name': ...}` continue to work.
     if not name:
@@ -1702,7 +1711,15 @@ async def create_list(request: Request, name: str = Form(None), current_user: Us
         if cid is None:
             default_cat = getattr(current_user, 'default_category_id', None)
             cid = default_cat if default_cat is not None else None
-        lst = ListState(name=name, owner_id=owner_id, category_id=cid)
+        
+        # Handle parent_list_id validation
+        if parent_list_id is not None:
+            # Verify the parent list exists and belongs to the user
+            parent_list = await sess.get(ListState, parent_list_id)
+            if not parent_list or parent_list.owner_id != current_user.id:
+                raise HTTPException(status_code=404, detail='parent list not found')
+        
+        lst = ListState(name=name, owner_id=owner_id, category_id=cid, parent_list_id=parent_list_id)
         sess.add(lst)
         try:
             await sess.commit()
@@ -3912,7 +3929,7 @@ async def get_list_todos(list_id: int, current_user: User = Depends(require_logi
 
 @app.patch("/lists/{list_id}")
 async def patch_list(list_id: int, payload: dict, current_user: User = Depends(require_login)):
-    """Patch list fields via JSON. Accepts optional keys: name (str), priority (int|null), completed (bool)."""
+    """Patch list fields via JSON. Accepts optional keys: name (str), priority (int|null), completed (bool), lists_up_top (bool)."""
     async with async_session() as sess:
         q = await sess.scalars(select(ListState).where(ListState.id == list_id))
         lst = q.first()
@@ -3946,6 +3963,12 @@ async def patch_list(list_id: int, payload: dict, current_user: User = Depends(r
             if not isinstance(comp, bool):
                 raise HTTPException(status_code=400, detail='invalid completed value')
             lst.completed = comp
+            changed = True
+        if 'lists_up_top' in payload:
+            lists_up_top = payload.get('lists_up_top')
+            if not isinstance(lists_up_top, bool):
+                raise HTTPException(status_code=400, detail='invalid lists_up_top value')
+            lst.lists_up_top = lists_up_top
             changed = True
         if changed:
             sess.add(lst)
@@ -6466,6 +6489,43 @@ async def api_set_user_default_category(request: Request, payload: SetUserDefaul
     return {'ok': True, 'default_category_id': cid}
 
 
+@app.get('/api/lists/{list_id}/sublists')
+async def api_get_list_sublists(list_id: int, current_user: User = Depends(require_login)):
+    """Return JSON list of sublists for a given list."""
+    async with async_session() as sess:
+        try:
+            # Verify the parent list exists and belongs to the user
+            parent_list = await sess.get(ListState, list_id)
+            if not parent_list or parent_list.owner_id != current_user.id:
+                raise HTTPException(status_code=404, detail='list not found')
+            
+            # Get sublists
+            q = select(ListState).where(ListState.parent_list_id == list_id).where(ListState.owner_id == current_user.id)
+            result = await sess.exec(q)
+            sublists = result.all()
+            
+            # Get uncompleted counts for each sublist
+            sublist_data = []
+            for sublist in sublists:
+                # Count uncompleted todos in this sublist
+                q_count = select(func.count(Todo.id)).where(Todo.list_id == sublist.id).where(Todo.completed == False)
+                count_result = await sess.exec(q_count)
+                uncompleted_count = count_result.first() or 0
+                
+                sublist_data.append({
+                    'id': sublist.id,
+                    'name': sublist.name,
+                    'uncompleted_count': uncompleted_count
+                })
+            
+            return sublist_data
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.exception('Failed to get sublists for list %s', list_id)
+            return []
+
+
 class SetCategorySortRequest(BaseModel):
     sort: bool
 
@@ -7740,7 +7800,7 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
         # else fall back to created_at ASC. Enrich with hashtags for display.
         sublists = []
         try:
-            qsubs = select(ListState).where(ListState.parent_list_id == list_id)
+            qsubs = select(ListState).where(ListState.parent_list_id == list_id).where(ListState.owner_id == current_user.id)
             rsubs = await sess.exec(qsubs)
             rows = rsubs.all()
             def _sort_key(l):

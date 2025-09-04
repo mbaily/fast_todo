@@ -105,6 +105,53 @@
             <button id="add-todo-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-slate-900">Add</button>
           </div>
 
+          <!-- Sublists Section -->
+          <div id="sublists-section" class="mt-6 bg-slate-800/50 rounded-lg p-4">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-lg font-semibold text-slate-200">Sublists</h3>
+              <div class="flex items-center gap-2">
+                <!-- Tag for later use -->
+                <button id="tag-list-btn" class="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-purple-400" title="Tag this list for later use">
+                  📌 Tag List
+                </button>
+                <!-- Move to top toggle -->
+                <button id="move-sublists-up-btn" class="px-3 py-1 bg-slate-600 hover:bg-slate-700 text-slate-200 text-sm rounded transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-slate-400" title="Move sublists section up">
+                  ⬆️ Move Up
+                </button>
+                <!-- Go to move page -->
+                <a href="/html_tailwind/move?list_id={{ list.id if list is defined else '' }}" class="px-3 py-1 bg-orange-600 hover:bg-orange-700 text-white text-sm rounded transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-orange-400 inline-block">
+                  📦 Move Items
+                </a>
+              </div>
+            </div>
+
+            <!-- Create new sublist -->
+            <div class="mb-4 flex gap-2">
+              <input id="new-sublist-input" type="text" placeholder="Create new sublist..." class="flex-1 px-3 py-2 bg-slate-700 text-slate-100 border border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent" />
+              <button id="create-sublist-btn" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-2 focus:ring-offset-slate-900">Create</button>
+            </div>
+
+            <!-- Sublists list -->
+            <div id="sublists-list" class="space-y-2">
+              {% if sublists %}
+                {% for sublist in sublists %}
+                  <div class="flex items-center gap-2 p-2 bg-slate-700/50 rounded">
+                    <a href="/html_tailwind/list?id={{ sublist.id }}" 
+                       class="text-blue-400 hover:text-blue-300 font-medium flex-1 truncate">
+                      {{ sublist.name }}
+                    </a>
+                    <span class="text-slate-400 text-xs">
+                      {{ sublist.override_priority or sublist.priority or '' }}
+                    </span>
+                  </div>
+                {% endfor %}
+              {% else %}
+                <!-- Sublists will be populated here by JavaScript -->
+                <div class="text-slate-400 text-sm italic">No sublists yet. Create your first sublist above.</div>
+              {% endif %}
+            </div>
+          </div>
+
           <!-- Todo list container -->
           <div id="todo-list-container" class="mt-6">
             <!-- Full control view (default) -->
@@ -197,5 +244,14 @@
 
   </div>
 
+  <script>
+    // Pass server state to JavaScript
+    window.listState = {
+      listsUpTop: {{ list.lists_up_top | default(false) | tojson | safe }},
+      listId: {{ list.id | default('null') | tojson | safe }}
+    };
+    // Debug: log the rendered value
+    console.log('Template rendered lists_up_top:', window.listState.listsUpTop);
+  </script>
   <script src="/static/html_tailwind/tailwind_list.js"></script>
 {% endblock %}

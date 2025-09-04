@@ -517,7 +517,7 @@ window.tailwindList = (function () {
 		if (!listId || !text.trim()) return;
 
 		try {
-			const newTodo = await postJson('/client/json/todos', { text: text.trim(), list_id: listId });
+			const newTodo = await postJson('/todos', { text: text.trim(), list_id: listId });
 			currentTodos.push(newTodo);
 			
 			// Sort todos based on current sorting mode
@@ -949,6 +949,7 @@ window.tailwindList = (function () {
 			initSortToggle();
 			initCategorySelector();
 			initDeleteListHandler();
+			initSublists(); // Initialize sublists functionality
 			fetchTodos(); // Load initial todos
 		} catch (err) {
 			console.error('init list page failed', err);
@@ -970,6 +971,255 @@ window.tailwindList = (function () {
 				cb.disabled = false;
 			}
 		});
+	}
+
+	// Sublists functionality
+	function initSublists() {
+		const listId = document.querySelector('#list-root [data-list-id]')?.dataset?.listId || '';
+		if (!listId) {
+			console.log('No list ID found, skipping sublists init');
+			return;
+		}
+		
+		console.log('Initializing sublists for list ID:', listId);
+		console.log('window.listState available:', !!window.listState);
+		
+		// Wait for window.listState to be available
+		if (!window.listState) {
+			console.log('window.listState not available yet, retrying in 100ms...');
+			setTimeout(initSublists, 100);
+			return;
+		}
+
+		// Tag list for later use
+		const tagBtn = document.getElementById('tag-list-btn');
+		if (tagBtn) {
+			tagBtn.addEventListener('click', () => {
+				try {
+					const taggedLists = JSON.parse(localStorage.getItem('taggedTodoLists') || '[]');
+					const listName = document.getElementById('list-name-display')?.textContent || 'Unknown List';
+					
+					// Check if already tagged
+					const existingIndex = taggedLists.findIndex(item => item.id === listId);
+					if (existingIndex >= 0) {
+						taggedLists.splice(existingIndex, 1);
+						showToast('List removed from tagged lists', { type: 'info' });
+						tagBtn.textContent = '📌 Tag List';
+						tagBtn.className = tagBtn.className.replace('bg-purple-700', 'bg-purple-600');
+					} else {
+						taggedLists.push({ id: listId, name: listName, taggedAt: new Date().toISOString() });
+						showToast('List tagged for later use', { type: 'success' });
+						tagBtn.textContent = '📌 Tagged';
+						tagBtn.className = tagBtn.className.replace('bg-purple-600', 'bg-purple-700');
+					}
+					
+					localStorage.setItem('taggedTodoLists', JSON.stringify(taggedLists));
+				} catch (err) {
+					showToast('Failed to tag list', { type: 'error' });
+					console.error('tag list failed', err);
+				}
+			});
+			
+			// Check if already tagged on load
+			try {
+				const taggedLists = JSON.parse(localStorage.getItem('taggedTodoLists') || '[]');
+				const isTagged = taggedLists.some(item => item.id === listId);
+				if (isTagged) {
+					tagBtn.textContent = '📌 Tagged';
+					tagBtn.className = tagBtn.className.replace('bg-purple-600', 'bg-purple-700');
+				}
+			} catch (err) {
+				console.error('check tagged status failed', err);
+			}
+		}
+
+		// Move sublists section up/down
+		const moveUpBtn = document.getElementById('move-sublists-up-btn');
+		const sublistsSection = document.getElementById('sublists-section');
+		const addTodoSection = document.querySelector('.mt-4.flex.gap-2');
+		
+		if (moveUpBtn && sublistsSection && addTodoSection) {
+			// Read initial state from server
+			let isMovedUp = window.listState && window.listState.listsUpTop;
+			console.log('Initial lists_up_top state:', isMovedUp, 'window.listState:', window.listState);
+			console.log('moveUpBtn found:', !!moveUpBtn, 'sublistsSection found:', !!sublistsSection, 'addTodoSection found:', !!addTodoSection);
+			
+			// Function to position sublists in down state
+			const positionSublistsDown = () => {
+				// Ensure all required elements exist
+				const categoryH3s = document.querySelectorAll('h3');
+				if (categoryH3s.length === 0) {
+					console.log('No h3 elements found, retrying positioning...');
+					setTimeout(positionSublistsDown, 100);
+					return;
+				}
+				
+				// Find the Category section
+				let categoryDiv = null;
+				document.querySelectorAll('h3').forEach(h3 => {
+					if (h3.textContent === 'Category') {
+						categoryDiv = h3.closest('.mt-4');
+					}
+				});
+				
+				// Find the List Actions section
+				let listActionsDiv = null;
+				document.querySelectorAll('h3').forEach(h3 => {
+					if (h3.textContent === 'List Actions') {
+						listActionsDiv = h3.closest('.mt-4');
+					}
+				});
+				
+				console.log('Positioning sublists down - categoryDiv:', !!categoryDiv, 'listActionsDiv:', !!listActionsDiv);
+				
+				if (categoryDiv && listActionsDiv) {
+					categoryDiv.parentNode.insertBefore(sublistsSection, listActionsDiv);
+				} else {
+					// Fallback to original position
+					addTodoSection.parentNode.insertBefore(sublistsSection, addTodoSection.nextSibling);
+				}
+			};
+			
+			// Set initial position based on server state
+			if (isMovedUp) {
+				// Move up initially
+				addTodoSection.parentNode.insertBefore(sublistsSection, addTodoSection);
+				moveUpBtn.textContent = '⬇️ Move Down';
+				console.log('Initial position: moved up');
+			} else {
+				// Move to default down position (after Category, before List Actions)
+				// Use requestAnimationFrame to ensure DOM is ready
+				requestAnimationFrame(() => {
+					positionSublistsDown();
+				});
+				moveUpBtn.textContent = '⬆️ Move Up';
+				console.log('Initial position: moved down');
+			}
+			
+			moveUpBtn.addEventListener('click', async () => {
+				const listId = window.listState && window.listState.listId;
+				if (!listId) return;
+				
+				if (isMovedUp) {
+					// Move back down - position after Category section, before List Actions
+					positionSublistsDown();
+					
+					moveUpBtn.textContent = '⬆️ Move Up';
+					isMovedUp = false;
+					showToast('Sublists moved back down', { type: 'info' });
+					
+					// Save state to server
+					try {
+						const result = await patchJson(`/lists/${encodeURIComponent(listId)}`, { lists_up_top: false });
+						console.log('Saved lists_up_top = false to server, response:', result);
+					} catch (err) {
+						console.error('Failed to save lists_up_top state:', err);
+					}
+				} else {
+					// Move up
+					addTodoSection.parentNode.insertBefore(sublistsSection, addTodoSection);
+					moveUpBtn.textContent = '⬇️ Move Down';
+					isMovedUp = true;
+					showToast('Sublists moved up', { type: 'info' });
+					
+					// Save state to server
+					try {
+						const result = await patchJson(`/lists/${encodeURIComponent(listId)}`, { lists_up_top: true });
+						console.log('Saved lists_up_top = true to server, response:', result);
+					} catch (err) {
+						console.error('Failed to save lists_up_top state:', err);
+					}
+				}
+			});
+		}
+
+		// Create new sublist
+		const createBtn = document.getElementById('create-sublist-btn');
+		const input = document.getElementById('new-sublist-input');
+		
+		if (createBtn && input) {
+			const createSublist = async () => {
+				const name = input.value.trim();
+				if (!name) {
+					showToast('Please enter a sublist name', { type: 'error' });
+					return;
+				}
+				
+				createBtn.disabled = true;
+				try {
+					const result = await postJson('/html_tailwind/lists', { 
+						name: name,
+						parent_list_id: listId 
+					});
+					
+					if (result.ok) {
+						input.value = '';
+						showToast('Sublist created successfully', { type: 'success' });
+						loadSublists(); // Refresh sublists
+					} else {
+						throw new Error(result.error || 'Failed to create sublist');
+					}
+				} catch (err) {
+					showToast('Failed to create sublist: ' + (err?.message || String(err)), { type: 'error' });
+					console.error('create sublist failed', err);
+				} finally {
+					createBtn.disabled = false;
+				}
+			};
+			
+			createBtn.addEventListener('click', createSublist);
+			input.addEventListener('keydown', (e) => {
+				if (e.key === 'Enter') {
+					e.preventDefault();
+					createSublist();
+				}
+			});
+		}
+
+		// Load sublists
+		loadSublists();
+	}
+
+	async function loadSublists() {
+		const listId = document.querySelector('#list-root [data-list-id]')?.dataset?.listId || '';
+		if (!listId) return;
+		
+		try {
+			const resp = await fetch(`/api/lists/${encodeURIComponent(listId)}/sublists`, {
+				credentials: 'same-origin'
+			});
+			
+			if (!resp.ok) throw new Error('Failed to load sublists');
+			
+			const sublists = await resp.json();
+			const container = document.getElementById('sublists-list');
+			
+			if (!container) return;
+			
+			if (!sublists || sublists.length === 0) {
+				container.innerHTML = '<div class="text-slate-400 text-sm italic">No sublists yet. Create your first sublist above.</div>';
+				return;
+			}
+			
+			container.innerHTML = sublists.map(sublist => `
+				<div class="flex items-center gap-2 p-2 bg-slate-700/50 rounded">
+					<a href="/html_tailwind/list?id=${sublist.id}" 
+					   class="text-blue-400 hover:text-blue-300 font-medium flex-1 truncate">
+						${sublist.name}
+					</a>
+					<span class="text-slate-400 text-xs">
+						${sublist.uncompleted_count || 0} items
+					</span>
+				</div>
+			`).join('');
+			
+		} catch (err) {
+			console.error('load sublists failed', err);
+			const container = document.getElementById('sublists-list');
+			if (container) {
+				container.innerHTML = '<div class="text-red-400 text-sm">Failed to load sublists</div>';
+			}
+		}
 	}
 
 	// Auto-init if DOM ready
