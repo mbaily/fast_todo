@@ -1,0 +1,83 @@
+Checklist
+
+ Scan repo for client callsites (fetch, URLSearchParams, postJson, safeFetch, tests)
+ Inspect server handlers for POST/PUT/PATCH endpoints to determine expected payload (await request.json() vs Form(...) / await request.form() / query param fallback)
+[in-progress] Produce prioritized mismatch report with file references and remediation notes (this message)
+Prioritized mismatch report (high → low risk)
+
+POST /todos — server expects JSON (await request.json())
+Server
+main.py POST /todos (create_todo) uses: try: payload = await request.json() except Exception: raise HTTPException(status_code=400, detail="invalid JSON")
+Also PATCH /todos/{id} uses request.json()
+Client callsites
+list.html (previously) built a querystring and POSTed to /todos — caused 400 invalid JSON (you already fixed this file to send JSON).
+tailwind_list.js uses postJson('/todos', {...}) — already sends JSON (good).
+tests/scripts: search shows many test clients use params or form variants but tests often hit other endpoints or rely on server query-param fallback; verify test runners that post to /todos use JSON.
+Risk/impact: High — mismatched clients will get 400. You already fixed the main no-JS offender.
+Recommendation: Ensure any client or test that POSTs to /todos sends JSON and includes Content-Type: application/json; run a grep for direct POSTs to '/todos' to confirm no remaining form/query callers.
+POST /lists and related create-list endpoints — mixed expectations (server accepts both JSON and form/query fallbacks)
+Server
+main.py
+POST /html_tailwind/lists — explicitly accepts JSON (await request.json()) and returns JSON.
+POST /lists (create_list) accepts Form(name) or falls back to request.query_params.get('name') and also reads request.form() for category_id. It preserves compatibility with URLSearchParams/form posts.
+Client callsites
+app.js — creates lists with: safeFetch('/lists', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ name }) }) (PWA uses form-encoded bodies; server handles that via create_list reading request.form() and query param fallback — OK).
+test_html_tailwind_e2e.py uses fetch('/lists?name=...') in tests — server accepts query param fallback — OK.
+html_tailwind client uses JSON (postJson for tailwind create uses /html_tailwind/lists) — server has separate JSON endpoint for that (html_tailwind_create_list) — OK.
+Risk/impact: Low — server intentionally supports multiple forms; just be aware of two distinct endpoints (/html_tailwind/lists expects JSON; /lists accepts form or query).
+Recommendation: Keep current behavior; document the dual contract (form/query for /lists, JSON for /html_tailwind/lists).
+PWA client uses application/x-www-form-urlencoded for many requests while server sometimes expects JSON (mixed)
+Observations
+app.js uses URLSearchParams with Content-Type application/x-www-form-urlencoded for:
+POST /lists (create list) — server accepts form/query for /lists (OK).
+PATCH /todos/{id} — PWA uses URLSearchParams for PATCH to /todos/{id} (line ~771). But server PATCH /todos/{id} expects JSON (await request.json()).
+POST /todos/{id}/complete — PWA posts form-encoded done: 'true' to /todos/{id}/complete. Server POST /todos/{id}/complete accepts query/form params? The wrapper complete_todo uses signature complete_todo(todo_id: int, completion_type: str = "default", done: bool = True, ...) — by FastAPI defaults that will pull from query/form depending on client; but several JSON handlers prefer request.json() patterns.
+Risk/impact: Medium — PWA PATCH to /todos/{id} with URLSearchParams may fail because server PATCH expects JSON and raises 400 on invalid JSON.
+Evidence: app.js lines show patch/fetch with URLSearchParams for PATCH; server PATCH explicitly does payload = await request.json() and returns 400 if parse fails.
+Recommendation:
+Option A (client-side): Update PWA to send JSON for endpoints where server expects JSON (PATCH /todos/{id}). Replace new URLSearchParams(...) with JSON.stringify({ ... }) and set Content-Type: application/json.
+Option B (server-side): Accept form-encoded or query fallback in PATCH handler (read request.form() when request.json() fails) — lower impact for many clients but adds server complexity.
+Endpoints that return JSON conditionally based on Accept header for html_no_js flows
+Examples
+Many /html_no_js/* POST handlers read form via await request.form() and then: accept = request.headers.get('Accept','') if 'application/json' in accept.lower(): return JSONResponse({...}) return RedirectResponse(...)
+Client callsites
+html_no_js pages use fetch with Accept: application/json in some JS enhancements; others use standard forms causing redirects.
+Risk/impact: Low — behavior is intentional; ensure JS clients add Accept: application/json when they expect JSON responses (you already added Accept header in the updated list.html).
+Recommendation: Validate that JS progressive-enhancements set Accept header when they want JSON, and that server-side handlers honor it (they do).
+Misc: sync endpoints and /client/json prefixed API vs top-level handlers
+Observations
+There are /client/json/* endpoints used by some clients (e2e logs show POST /client/json/todos). Those handlers live in client_json_api.py (they expect JSON).
+Some service-worker or offline code proxies requests differently; ensure service-worker fetches preserve Content-Type and body.
+Recommendation: Inspect client code paths that call /client/json/* and ensure they send JSON bodies (they mostly do).
+Files & notable client callsites (examples)
+
+tailwind_list.js
+Uses postJson and patchJson (JSON) for /lists and /todos — matches server JSON endpoints; good.
+Uses fetch for /lists/{id}/hashtags/json with JSON body for tag operations — server endpoints exist and expect JSON — good.
+app.js
+Uses new URLSearchParams(...) with Content-Type: application/x-www-form-urlencoded for many POST/PATCH operations (create list, patch todo, complete) — need to map each call to server handler. PATCH /todos/{id} expects JSON — mismatch.
+list.html
+Previously posted querystring to /todos — you fixed it to send JSON with Content-Type: application/json and Accept: application/json — resolved.
+fn-button.js
+fetch('/api/exec-fn', ...) — must ensure body and headers match expected BaseModel parsing; code likely sends JSON — review if needed.
+Tests
+test_html_tailwind_e2e.py uses fetch('/lists?name=...') for compatibility (server accepts query param) — ok.
+Concrete remediation suggestions (ordered)
+
+Fix PWA PATCH to /todos/{id}: change URLSearchParams/form-encoded bodies to JSON + Content-Type: application/json for endpoints that expect JSON (PATCH /todos/{id}, possibly others). Minimal client edits in app.js lines ~771 and ~779.
+Audit app.js for all calls to endpoints that server expects JSON, convert them to send JSON. Prioritize PATCH /todos and any POSTs hitting expect-json endpoints.
+Grep for direct POSTs to '/todos' across repo to ensure none remain sending form/query bodies. Example commands I ran show matches; confirm any remaining callers in tests/scripts and adjust tests or server as needed.
+Optionally make PATCH /todos/{id} handler tolerant: if request.json() fails, try request.form() or read query params as fallback (wrap current parse in try/except and support form fallback). This widens server compatibility but risks ambiguous semantics; prefer client fixes if possible.
+Document API contracts: create a small README/API.md listing endpoints and expected payloads (JSON vs form) to prevent future regressions.
+Next steps I can take (pick one)
+
+A) Finish a detailed itemized list mapping each client file + line number to the exact server endpoint and a one-line action (I can continue and produce this full mapping).
+B) Open PRs to fix PWA client calls to send JSON (I won't change code unless you ask).
+C) Run an automated grep to produce a machine-readable CSV of mismatches (for your tracking).
+D) Run live smoke tests (start server and exercise flows) — requires permission to start processes.
+What I did now
+
+Scanned the repo for fetch, URLSearchParams, /todos, /lists and inspected server handlers for POST /todos, POST /lists, PATCH /todos/{id}.
+Confirmed the main no-JS bug was fixed by your earlier edit to html_no_js/templates/list.html.
+Found PWA uses URLSearchParams for PATCH /todos — probable remaining mismatch.
+If you want the full per-file mapping, tell me to proceed with option A and I will produce a compact table mapping each client callsite to the server handler and recommended fix.

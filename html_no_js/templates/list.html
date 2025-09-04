@@ -392,11 +392,12 @@
       if (!text) return;
       if (submitBtn) submitBtn.disabled = true;
       try {
-        var listIdInput = form.querySelector('input[name="list_id"]');
-        var listIdVal = listIdInput ? Number(listIdInput.value) : undefined;
-        var q = '?text=' + encodeURIComponent(text) + (typeof listIdVal !== 'undefined' ? ('&list_id=' + encodeURIComponent(String(listIdVal))) : '');
-        var apiUrl = '/todos' + q;
-        var res = await fetch(apiUrl, { method: 'POST', credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
+  var listIdInput = form.querySelector('input[name="list_id"]');
+  var listIdVal = listIdInput ? Number(listIdInput.value) : undefined;
+  var apiUrl = '/todos';
+  var body = { text: text };
+  if (typeof listIdVal !== 'undefined') body.list_id = listIdVal;
+  var res = await fetch(apiUrl, { method: 'POST', credentials: 'same-origin', headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         if (!res.ok) {
           var body = await res.text().catch(function(){ return null; });
           console.error('create-todo fetch failed', res.status, body);
