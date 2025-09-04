@@ -52,13 +52,13 @@ async def test_bulk_todo_workflow(prepare_db):
         lid = rl.json()["id"]
 
         # create 50 todos quickly
-        tasks = [client.post("/todos", params={"text": f"task {i}", "list_id": lid}) for i in range(50)]
+        tasks = [client.post("/todos", json={"text": f"task {i}", "list_id": lid}) for i in range(50)]
         res = await asyncio.gather(*tasks)
         assert all(r.status_code == 200 for r in res)
 
         # mark every 5th as done and delete every 7th
         created = [r.json()["id"] for r in res]
-        mark_tasks = [client.post(f"/todos/{tid}/complete", params={"done": True}) for i, tid in enumerate(created) if i % 5 == 0]
+        mark_tasks = [client.post(f"/todos/{tid}/complete", json={"done": True}) for i, tid in enumerate(created) if i % 5 == 0]
         del_tasks = [client.delete(f"/todos/{tid}") for i, tid in enumerate(created) if i % 7 == 0]
         mres = await asyncio.gather(*mark_tasks)
         dres = await asyncio.gather(*del_tasks)
@@ -86,7 +86,7 @@ async def test_concurrent_user_actions(prepare_db):
             # create todos in each list
             for r in lists:
                 lid = r.json()["id"]
-                tks = [c.post("/todos", params={"text": f"{prefix}-task-{i}", "list_id": lid}) for i in range(10)]
+                tks = [c.post("/todos", json={"text": f"{prefix}-task-{i}", "list_id": lid}) for i in range(10)]
                 res = await asyncio.gather(*tks)
                 assert all(rr.status_code == 200 for rr in res)
 
@@ -109,7 +109,7 @@ async def test_hashtag_and_removal_flow(prepare_db):
         ra = await client.post(f"/lists/{lid}/hashtags", params={"tag": "#work"})
         assert ra.status_code == 200
         # create a todo and tag it
-        t = await client.post("/todos", params={"text": "tagged todo", "list_id": lid})
+        t = await client.post("/todos", json={"text": "tagged todo", "list_id": lid})
         tid = t.json()["id"]
         rtag = await client.post(f"/todos/{tid}/hashtags", params={"tag": "#work"})
         assert rtag.status_code == 200
@@ -131,7 +131,7 @@ async def test_long_unicode_and_admin_undefer(prepare_db):
         r = await client.post("/lists", params={"name": "uni-list"})
         lid = r.json()["id"]
         long_text = "🔥" * 2000 + " — 多言語テキスト — тест"
-        rt = await client.post("/todos", params={"text": long_text, "list_id": lid})
+        rt = await client.post("/todos", json={"text": long_text, "list_id": lid})
         assert rt.status_code == 200
         tid = rt.json()["id"]
         # defer the todo into the past, then run admin undefer

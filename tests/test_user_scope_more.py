@@ -120,7 +120,7 @@ async def test_default_list_fallback_for_user(prepare_db):
         assert r.status_code == 200
         dl = r.json()
         # create a todo in the user's list (API requires list_id)
-        rt = await gcli.post("/todos", params={"text": "uses-user-default", "list_id": dl.get("id")})
+        rt = await gcli.post("/todos", json={"text": "uses-user-default", "list_id": dl.get("id")})
         assert rt.status_code == 200
         todo = rt.json()
         assert todo.get("list_id") == dl.get("id")

@@ -35,7 +35,7 @@ async def test_calendar_events_endpoint(client, use_fake_extract_dates, monkeypa
     list_id = lst['id']
 
     # create a todo with an explicit date in text
-    resp = await client.post('/todos', params={'list_id': list_id, 'text': 'Pay rent on 2025-09-05'})
+    resp = await client.post('/todos', json={'list_id': list_id, 'text': 'Pay rent on 2025-09-05'})
     if resp.status_code != 200:
         raise AssertionError(f"create todo failed: {resp.status_code} {resp.text}")
     todo = resp.json()
@@ -43,7 +43,7 @@ async def test_calendar_events_endpoint(client, use_fake_extract_dates, monkeypa
 
     # create a todo with deferred_until
     future = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
-    resp = await client.post('/todos', params={'list_id': list_id, 'text': 'Check warranty', 'deferred_until': future})
+    resp = await client.post('/todos', json={'list_id': list_id, 'text': 'Check warranty', 'deferred_until': future})
     if resp.status_code != 200:
         raise AssertionError(f"create todo with deferred_until failed: {resp.status_code} {resp.text}")
 

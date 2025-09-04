@@ -65,7 +65,7 @@ async def test_concurrent_add_todo_hashtag(client):
     assert r.status_code == 200
     lst = r.json()
     lid = lst['id']
-    rt = await client.post('/todos', params={'text': 'race-todo', 'list_id': lid})
+    rt = await client.post('/todos', json={'text': 'race-todo', 'list_id': lid})
     assert rt.status_code == 200
     todo = rt.json()
     tid = todo['id']

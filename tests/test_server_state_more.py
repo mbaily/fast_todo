@@ -21,7 +21,7 @@ async def test_delete_list_reassigns_todos_to_server_default(client):
     temp = r_temp.json()
 
     # create a todo in temp
-    rt = await client.post('/todos', params={'text': 'task-temp', 'list_id': temp['id']})
+    rt = await client.post('/todos', json={'text': 'task-temp', 'list_id': temp['id']})
     assert rt.status_code == 200
     todo = rt.json()
 
@@ -51,7 +51,7 @@ async def test_clearing_default_allows_deleting_list_and_reassigns(client):
     assert rset.status_code == 200
 
     # create a todo in A
-    rt = await client.post('/todos', params={'text': 'todoA', 'list_id': a['id']})
+    rt = await client.post('/todos', json={'text': 'todoA', 'list_id': a['id']})
     todo = rt.json()
 
     # clear server default manually in DB

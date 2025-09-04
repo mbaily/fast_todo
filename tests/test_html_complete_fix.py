@@ -13,7 +13,7 @@ async def test_html_complete_uses_resolved_user(client):
     assert list_id
 
     # Create a todo in that list
-    resp = await client.post('/todos', params={'text': 'hi', 'list_id': list_id})
+    resp = await client.post('/todos', json={'text': 'hi', 'list_id': list_id})
     assert resp.status_code in (200, 201)
     todo = resp.json()
     todo_id = todo.get('id')
@@ -40,7 +40,7 @@ async def test_api_complete_with_completion_type_and_html_calls(client):
     assert resp.status_code in (200,201)
     list_id = resp.json().get('id')
 
-    resp = await client.post('/todos', params={'text': 'hello', 'list_id': list_id})
+    resp = await client.post('/todos', json={'text': 'hello', 'list_id': list_id})
     assert resp.status_code in (200,201)
     todo_id = resp.json().get('id')
 

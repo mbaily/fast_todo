@@ -87,7 +87,7 @@ async def test_per_user_list_isolation_and_todo_forbidden(prepare_db):
         assert alist.get("name") == "alice-list"
 
         # create a todo in alice's list
-        rtodo = await acli.post("/todos", params={"text": "alice task", "list_id": alist["id"]})
+        rtodo = await acli.post("/todos", json={"text": "alice task", "list_id": alist["id"]})
         assert rtodo.status_code == 200
         todo = rtodo.json()
 
@@ -99,7 +99,7 @@ async def test_per_user_list_isolation_and_todo_forbidden(prepare_db):
         assert all(l.get("name") != "alice-list" for l in blists)
 
         # bob cannot create a todo in alice's list (forbidden)
-        r = await bcli.post("/todos", params={"text": "bad", "list_id": alist["id"]})
+        r = await bcli.post("/todos", json={"text": "bad", "list_id": alist["id"]})
         assert r.status_code == 403
 
         # bob cannot GET alice's todo

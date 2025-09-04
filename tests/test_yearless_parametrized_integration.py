@@ -29,7 +29,7 @@ async def test_param_integration_calendar_resolution(client, month, day, created
     assert r.status_code == 200
     lid = r.json().get('id')
     text = f'ParamEvent {datetime(2000, month, day).strftime("%b %-d")}'
-    r = await client.post('/todos', params={'text': text, 'list_id': lid})
+    r = await client.post('/todos', json={'text': text, 'list_id': lid})
     assert r.status_code == 200
     tid = r.json().get('id')
 

@@ -12,7 +12,7 @@ async def test_delete_todo_cleans_links(client):
     lid = r.json()['id']
 
     # create a todo
-    rt = await client.post('/todos', params={'text': 'to be deleted', 'list_id': lid})
+    rt = await client.post('/todos', json={'text': 'to be deleted', 'list_id': lid})
     assert rt.status_code == 200
     tid = rt.json()['id']
 
@@ -45,7 +45,7 @@ async def test_delete_list_moves_todos_and_preserves_completions(client):
     lid = r.json()['id']
 
     # create a todo on that list
-    rt = await client.post('/todos', params={'text': 'to be moved', 'list_id': lid})
+    rt = await client.post('/todos', json={'text': 'to be moved', 'list_id': lid})
     assert rt.status_code == 200
     tid = rt.json()['id']
 

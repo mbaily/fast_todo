@@ -14,7 +14,7 @@ async def test_calendar_resolution_uses_todo_created_at(client):
     lid = r.json().get('id')
 
     # create a todo with yearless date in text
-    r = await client.post('/todos', params={'text': 'Event Jan 22', 'list_id': lid})
+    r = await client.post('/todos', json={'text': 'Event Jan 22', 'list_id': lid})
     assert r.status_code == 200
     todo = r.json()
     tid = todo.get('id')
@@ -46,7 +46,7 @@ async def test_calendar_window_prefers_window_candidates(client):
     r = await client.post('/lists', params={'name': 'Integration Window List'})
     assert r.status_code == 200
     lid = r.json().get('id')
-    r = await client.post('/todos', params={'text': 'WindowEvent Jan 22', 'list_id': lid})
+    r = await client.post('/todos', json={'text': 'WindowEvent Jan 22', 'list_id': lid})
     assert r.status_code == 200
     tid = r.json().get('id')
 

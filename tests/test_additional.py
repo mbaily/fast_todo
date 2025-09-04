@@ -28,7 +28,7 @@ async def test_admin_undefer_clears_due(client):
     assert r.status_code == 200
     lst = r.json()
     lid = lst['id']
-    rt = await client.post('/todos', params={'text': 'to-be-undeft', 'list_id': lid})
+    rt = await client.post('/todos', json={'text': 'to-be-undeft', 'list_id': lid})
     assert rt.status_code == 200
     todo = rt.json()
     tid = todo['id']
@@ -68,7 +68,7 @@ async def test_timestamps_are_timezone_aware(client):
     # create a list and a todo in it (server requires existing list_id)
     rl = await client.post('/lists', params={'name': 'tz-list'})
     lst = rl.json()
-    r = await client.post('/todos', params={'text': 'tz-test', 'list_id': lst['id']})
+    r = await client.post('/todos', json={'text': 'tz-test', 'list_id': lst['id']})
     assert r.status_code == 200
     t = r.json()
     # created_at should include timezone offset (UTC)

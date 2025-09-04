@@ -49,7 +49,7 @@ async def test_update_todo_patch_changes_modified_at(client):
     assert rl.status_code == 200
     lst = rl.json()
 
-    r = await client.post("/todos", params={"text": "to be updated", "list_id": lst['id']})
+    r = await client.post("/todos", json={"text": "to be updated", "list_id": lst['id']})
     assert r.status_code == 200
     todo = r.json()
     tid = todo["id"]
@@ -59,7 +59,7 @@ async def test_update_todo_patch_changes_modified_at(client):
     # sleep briefly to ensure timestamp difference
     time.sleep(0.01)
 
-    rp = await client.patch(f"/todos/{tid}", params={"text": "updated text", "note": "now with note"})
+    rp = await client.patch(f"/todos/{tid}", json={"text": "updated text", "note": "now with note"})
     assert rp.status_code == 200
     newt = rp.json()
     assert newt["text"] == "updated text"

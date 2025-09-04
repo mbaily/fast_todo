@@ -11,7 +11,7 @@ async def test_calendar_occurrences_inline_recurring_expansion(client):
     list_id = lst['id']
 
     # add a todo with inline recurrence (anchor date 2025-08-11 derived from 5/8)
-    resp = await client.post('/todos', params={'list_id': list_id, 'text': 'Water plant 5/8 every 2 weeks'})
+    resp = await client.post('/todos', json={'list_id': list_id, 'text': 'Water plant 5/8 every 2 weeks'})
     assert resp.status_code == 200
 
     # request occurrences covering Sep and Oct 2025

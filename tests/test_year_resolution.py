@@ -10,7 +10,7 @@ async def test_window_expansion_returns_multiple_years(client):
     assert r.status_code == 200
     lid = r.json().get('id')
     # create a todo with yearless date 'Jan 22'
-    r = await client.post('/todos', params={'text': 'Event Jan 22', 'list_id': lid})
+    r = await client.post('/todos', json={'text': 'Event Jan 22', 'list_id': lid})
     assert r.status_code == 200
     # query occurrences with a window spanning two years (Jan 2026 and Jan 2027)
     start = datetime(2026,1,1,tzinfo=timezone.utc).isoformat()
@@ -33,7 +33,7 @@ async def test_creation_time_resolution_single_year(client):
     lid = r.json().get('id')
     # create todo in Dec 2025 pretending creation time: we cannot set created_at easily
     # so create the todo and query a window that does NOT span multiple years: expect the upcoming Jan 22 (2026)
-    r = await client.post('/todos', params={'text': 'DecEvent Jan 22', 'list_id': lid})
+    r = await client.post('/todos', json={'text': 'DecEvent Jan 22', 'list_id': lid})
     assert r.status_code == 200
     # query only Jan 2026 month
     start = datetime(2026,1,1,tzinfo=timezone.utc).isoformat()
@@ -50,7 +50,7 @@ async def test_feb29_next_leap_year(client):
     r = await client.post('/lists', params={'name': 'Leap Test'})
     assert r.status_code == 200
     lid = r.json().get('id')
-    r = await client.post('/todos', params={'text': 'LeapParty Feb 29', 'list_id': lid})
+    r = await client.post('/todos', json={'text': 'LeapParty Feb 29', 'list_id': lid})
     assert r.status_code == 200
     # query a wide window and expect next leap year occurrence (2028)
     start = datetime(2025,1,1,tzinfo=timezone.utc).isoformat()

@@ -60,7 +60,7 @@ async def test_defer_returns_iso_and_admin_clears_immediate(ensure_db, client: A
     # use authenticated client fixture
     rl = await client.post('/lists', params={'name': 'defer-list'})
     lst = rl.json()
-    r = await client.post("/todos", params={"text": "defer-iso", 'list_id': lst['id']})
+    r = await client.post("/todos", json={"text": "defer-iso", 'list_id': lst['id']})
     todo = r.json()
     tid = todo['id']
     r2 = await client.post(f"/todos/{tid}/defer", params={"hours": 0})
@@ -85,7 +85,7 @@ async def test_concurrent_completion_markings(ensure_db, client: AsyncClient):
     # use authenticated client fixture
     rl = await client.post('/lists', params={'name': 'concurrent-list'})
     lst = rl.json()
-    r = await client.post('/todos', params={'text': 'concurrent', 'list_id': lst['id']})
+    r = await client.post('/todos', json={'text': 'concurrent', 'list_id': lst['id']})
     todo = r.json()
     tid = todo['id']
     # mark two different completion types

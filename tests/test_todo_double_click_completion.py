@@ -18,7 +18,7 @@ async def test_todo_double_click_same_param_leaves_wrong_state(client, ensure_db
     assert r.status_code in (200, 201)
     list_id = r.json()['id']
 
-    r2 = await client.post('/todos', params={'text': 'double click todo', 'list_id': list_id})
+    r2 = await client.post('/todos', json={'text': 'double click todo', 'list_id': list_id})
     assert r2.status_code == 200
     todo_id = r2.json()['id']
 

@@ -9,7 +9,7 @@ async def test_hashtag_invalid(client):
     rl = await client.post('/lists', params={'name': 'ht-list'})
     assert rl.status_code == 200
     lst = rl.json()
-    r = await client.post("/todos", params={"text": "tag me", "list_id": lst['id']})
+    r = await client.post("/todos", json={"text": "tag me", "list_id": lst['id']})
     assert r.status_code == 200
     todo = r.json()
     tid = todo["id"]

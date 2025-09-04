@@ -7,7 +7,7 @@ pytestmark = pytest.mark.asyncio
 async def test_todo_hashtag_idempotent_and_remove(client):
     rl = await client.post('/lists', params={'name': 'tagme-list'})
     lst = rl.json()
-    r = await client.post("/todos", params={"text": "tag me twice", 'list_id': lst['id']})
+    r = await client.post("/todos", json={"text": "tag me twice", 'list_id': lst['id']})
     assert r.status_code == 200
     todo = r.json()
     tid = todo["id"]
@@ -30,7 +30,7 @@ async def test_todo_hashtag_idempotent_and_remove(client):
 async def test_timezone_serialization_on_todo(client):
     rl = await client.post('/lists', params={'name': 'tz-list-2'})
     lst = rl.json()
-    r = await client.post("/todos", params={"text": "tz test", 'list_id': lst['id']})
+    r = await client.post("/todos", json={"text": "tz test", 'list_id': lst['id']})
     assert r.status_code == 200
     todo = r.json()
     ca = todo.get("created_at")
@@ -48,7 +48,7 @@ async def test_delete_list_moves_todos_to_default(client):
     lid = lst["id"]
 
     # create a todo in that list
-    rt = await client.post("/todos", params={"text": "in-other-list", "list_id": lid})
+    rt = await client.post("/todos", json={"text": "in-other-list", "list_id": lid})
     assert rt.status_code == 200
     todo = rt.json()
     tid = todo["id"]
@@ -82,7 +82,7 @@ async def test_delete_completion_type_removes_completions(client):
     lid = lst["id"]
 
     # create a todo in that list
-    rt = await client.post("/todos", params={"text": "complete then delete", "list_id": lid})
+    rt = await client.post("/todos", json={"text": "complete then delete", "list_id": lid})
     assert rt.status_code == 200
     todo = rt.json()
     tid = todo["id"]
@@ -95,7 +95,12 @@ async def test_delete_completion_type_removes_completions(client):
     rget = await client.get(f"/todos/{tid}")
     assert rget.status_code == 200
     got = rget.json()
-    assert any(c.get("done") and c.get("completion_type_id") for c in got["completions"]) or len(got["completions"]) >= 1
+    comps = got.get("completions")
+    if isinstance(comps, dict):
+        # any completion set to True counts as present
+        assert any(bool(v) for v in comps.values()) or len(comps) >= 1
+    else:
+        assert any(c.get("done") and c.get("completion_type_id") for c in (comps or [])) or len(comps or []) >= 1
 
     # delete the completion type
     rdel = await client.delete(f"/lists/{lid}/completion_types/temp")
@@ -105,6 +110,9 @@ async def test_delete_completion_type_removes_completions(client):
     rget2 = await client.get(f"/todos/{tid}")
     assert rget2.status_code == 200
     got2 = rget2.json()
-    # none of the remaining completions should refer to the deleted type
-    # we only know completion_type_id values, so ensure completions count is 0
-    assert len(got2["completions"]) == 0
+    comps2 = got2.get("completions")
+    # After deleting the type, there should be no completions. Accept both list/dict shapes.
+    if isinstance(comps2, dict):
+        assert len(comps2) == 0
+    else:
+        assert len(comps2 or []) == 0

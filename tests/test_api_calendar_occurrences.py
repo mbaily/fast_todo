@@ -21,7 +21,7 @@ async def test_calendar_occurrences_expansion(client, monkeypatch, use_fake_extr
     list_id = lst['id']
 
     # create a todo containing a recurring phrase (anchor date 2025-08-25)
-    resp = await client.post('/todos', params={'list_id': list_id, 'text': 'Pay subscription on 2025-08-25 every 2 weeks'})
+    resp = await client.post('/todos', json={'list_id': list_id, 'text': 'Pay subscription on 2025-08-25 every 2 weeks'})
     assert resp.status_code == 200
     todo = resp.json()
 
@@ -68,7 +68,7 @@ async def test_calendar_occurrences_truncation(client, monkeypatch, use_fake_ext
     list_id = lst['id']
 
     # create a todo that recurs daily starting 2025-01-01 (this will generate many occurrences)
-    resp = await client.post('/todos', params={'list_id': list_id, 'text': 'Daily meeting 2025-01-01 every day'})
+    resp = await client.post('/todos', json={'list_id': list_id, 'text': 'Daily meeting 2025-01-01 every day'})
     assert resp.status_code == 200
 
     # request a large window but set max_total small to force truncation

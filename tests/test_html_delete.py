@@ -12,7 +12,7 @@ async def test_html_delete_does_not_500(client: AsyncClient):
     assert resp.status_code == 200
     lst = resp.json()
     # create a todo
-    resp = await client.post('/todos', params={'text': 'to-delete', 'list_id': lst['id']})
+    resp = await client.post('/todos', json={'text': 'to-delete', 'list_id': lst['id']})
     assert resp.status_code == 200
     todo = resp.json()
 

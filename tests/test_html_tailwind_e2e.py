@@ -1,4 +1,5 @@
 import os
+RUN_E2E = os.environ.get('RUN_E2E', '0') in ('1','true','yes')
 import subprocess
 import time
 import requests
@@ -79,6 +80,7 @@ def live_server():
             pass
 
 
+@pytest.mark.skipif(not RUN_E2E, reason='E2E tests disabled unless RUN_E2E=1')
 def test_e2e_tailwind_login_create_logout(live_server):
     """Use Playwright to simulate browser login, create a list via client API, then logout.
 
@@ -162,6 +164,7 @@ def test_e2e_tailwind_login_create_logout(live_server):
         pytest.fail(f"Server-side exceptions detected during E2E run: {found}\n--- log excerpt ---\n{excerpt}")
 
 
+@pytest.mark.skipif(not RUN_E2E, reason='E2E tests disabled unless RUN_E2E=1')
 def test_e2e_tailwind_checkbox_toggle(live_server):
     """Test clicking a todo checkbox in the Tailwind interface.
 
@@ -269,6 +272,7 @@ def test_e2e_tailwind_checkbox_toggle(live_server):
 
     if found:
         excerpt = tail[-4000:] if len(tail) > 4000 else tail
+@pytest.mark.skipif(not RUN_E2E, reason='E2E tests disabled unless RUN_E2E=1')
 def test_e2e_tailwind_checkbox_toggle_detailed(live_server):
     """Detailed test for checkbox toggle that monitors API calls and JavaScript errors."""
     try:

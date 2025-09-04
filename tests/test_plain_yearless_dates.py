@@ -14,11 +14,11 @@ async def test_plain_dates_resolve_to_next_year_only(client):
     lid = r.json().get('id')
 
     # create two todos with plain dates (US-style M/D in text)
-    r1 = await client.post('/todos', params={'text': 'New Year 1/1', 'list_id': lid})
+    r1 = await client.post('/todos', json={'text': 'New Year 1/1', 'list_id': lid})
     assert r1.status_code == 200
     tid1 = r1.json().get('id')
 
-    r2 = await client.post('/todos', params={'text': 'Five Mar 5/3', 'list_id': lid})
+    r2 = await client.post('/todos', json={'text': 'Five Mar 5/3', 'list_id': lid})
     assert r2.status_code == 200
     tid2 = r2.json().get('id')
 

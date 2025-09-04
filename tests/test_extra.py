@@ -12,7 +12,7 @@ async def test_cannot_delete_default_list_and_reassign(ensure_db, client: AsyncC
     r = await client.post("/lists", params={"name": temp_name})
     assert r.status_code == 200
     temp = r.json()
-    r2 = await client.post("/todos", params={"text": "temp task", "list_id": temp["id"]})
+    r2 = await client.post("/todos", json={"text": "temp task", "list_id": temp["id"]})
     assert r2.status_code == 200
     todo = r2.json()
 
@@ -42,7 +42,7 @@ async def test_hashtag_add_remove_on_list_and_todo(ensure_db, client: AsyncClien
     # create a list and todo
     r = await client.post("/lists", params={"name": "tags"})
     lst = r.json()
-    r2 = await client.post("/todos", params={"text": "tagged", "list_id": lst["id"]})
+    r2 = await client.post("/todos", json={"text": "tagged", "list_id": lst["id"]})
     todo = r2.json()
 
     # add hashtag to list
@@ -64,7 +64,7 @@ async def test_timestamp_formats_are_iso(ensure_db, client: AsyncClient):
     # create list and todo explicitly (list_id required)
     rl = await client.post('/lists', params={'name': 'time-test-list'})
     lst = rl.json()
-    r = await client.post("/todos", params={"text": "time test", 'list_id': lst['id']})
+    r = await client.post("/todos", json={"text": "time test", 'list_id': lst['id']})
     todo = r.json()
     tid = todo["id"]
     r2 = await client.get(f"/todos/{tid}")

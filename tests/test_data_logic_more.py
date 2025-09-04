@@ -17,7 +17,7 @@ async def test_todo_defaults_to_server_default_list(client):
     assert rs.status_code == 200
 
     # create todo specifying the default list id (API requires list_id)
-    r = await client.post('/todos', params={'text': 'uses-default', 'list_id': default_id})
+    r = await client.post('/todos', json={'text': 'uses-default', 'list_id': default_id})
     assert r.status_code == 200
     todo = r.json()
     assert todo['list_id'] == default_id
@@ -27,7 +27,7 @@ async def test_update_todo_updates_modified_at(client):
     # create a list and todo for update testing
     rl = await client.post('/lists', params={'name': 'update-list'})
     l = rl.json()
-    r = await client.post('/todos', params={'text': 'to-update', 'list_id': l['id']})
+    r = await client.post('/todos', json={'text': 'to-update', 'list_id': l['id']})
     assert r.status_code == 200
     t = r.json()
     tid = t['id']
@@ -38,7 +38,7 @@ async def test_update_todo_updates_modified_at(client):
     # patch after slight delay
     import asyncio
     await asyncio.sleep(0.01)
-    rp = await client.patch(f'/todos/{tid}', params={'text': 'updated'})
+    rp = await client.patch(f'/todos/{tid}', json={'text': 'updated'})
     assert rp.status_code == 200
     updated = rp.json()
     assert updated['modified_at'] is not None

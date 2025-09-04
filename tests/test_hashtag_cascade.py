@@ -12,7 +12,7 @@ async def test_deleting_todo_removes_todohashtag_but_preserves_hashtag(ensure_db
     r = await client.post('/lists', params={'name': 'hc-list'})
     assert r.status_code == 200
     lst = r.json()
-    rt = await client.post('/todos', params={'text': 'hc-todo', 'list_id': lst['id']})
+    rt = await client.post('/todos', json={'text': 'hc-todo', 'list_id': lst['id']})
     assert rt.status_code == 200
     todo = rt.json()
 
@@ -56,8 +56,8 @@ async def test_deleting_list_removes_links_but_preserves_hashtags(ensure_db, cli
     r = await client.post('/lists', params={'name': 'hc-list-2'})
     assert r.status_code == 200
     lst = r.json()
-    t1 = (await client.post('/todos', params={'text': 't1', 'list_id': lst['id']})).json()
-    t2 = (await client.post('/todos', params={'text': 't2', 'list_id': lst['id']})).json()
+    t1 = (await client.post('/todos', json={'text': 't1', 'list_id': lst['id']})).json()
+    t2 = (await client.post('/todos', json={'text': 't2', 'list_id': lst['id']})).json()
 
     # add hashtags to list and both todos
     await client.post(f"/lists/{lst['id']}/hashtags", params={'tag': 'alpha'})

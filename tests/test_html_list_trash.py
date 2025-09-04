@@ -21,7 +21,10 @@ async def test_list_delete_moves_to_trash_and_restore(client: AsyncClient):
     assert resp.status_code == 200
     parent = resp.json()
     # create sublist via HTML endpoint (requires CSRF)
-    resp = await client.post(f'/html_no_js/lists/{parent["id"]}/sublists/create', data={'name': 'subl', '_csrf': csrf})
+    resp = await client.post(
+        f"/html_no_js/lists/{parent['id']}/sublists/create",
+        data={'name': 'subl', '_csrf': csrf}
+    )
     assert resp.status_code in (303, 302, 200)
     # find the created sublist id
     from app.db import async_session
@@ -30,10 +33,10 @@ async def test_list_delete_moves_to_trash_and_restore(client: AsyncClient):
         q = await sess.exec(select(ListState).where(ListState.parent_list_id == parent['id']).where(ListState.name == 'subl'))
         sub = q.first()
         assert sub is not None
-    # create a todo in sublist
-    resp = await client.post('/todos', params={'text': 'sub todo', 'list_id': sub.id})
-    assert resp.status_code == 200
-    todo = resp.json()
+        # create a todo in sublist
+        resp = await client.post('/todos', json={'text': 'sub todo', 'list_id': sub.id})
+        assert resp.status_code == 200
+        todo = resp.json()
 
     # login and set cookies for CSRF and authorization
     token_resp = await client.post('/auth/token', json={'username': 'testuser', 'password': 'testpass'})
@@ -49,9 +52,12 @@ async def test_list_delete_moves_to_trash_and_restore(client: AsyncClient):
     assert resp.status_code in (303,302,200)
 
     # verify ListTrashMeta created and parent changed to Trash
-    from app.db import async_session
     async with async_session() as sess:
-        q = await sess.exec(select(ListState).where(ListState.name == 'Trash').where(ListState.owner_id != None))
+        # ensure we fetch the Trash list for the authenticated test user
+        uq = await sess.exec(select(ListState.owner_id).where(ListState.id == parent['id']))
+        owner_id = uq.first()
+        owner_id = owner_id[0] if isinstance(owner_id, (tuple, list)) else owner_id
+        q = await sess.exec(select(ListState).where(ListState.name == 'Trash').where(ListState.owner_id == owner_id))
         trash = q.first()
         assert trash is not None
         q2 = await sess.exec(select(ListState).where(ListState.parent_list_id == trash.id).where(ListState.id == sub.id))

@@ -22,7 +22,7 @@ async function ensureServerDefaultList() {
       }
     }
     // not found or no default set: try to create a new list (best-effort)
-    const createResp = await safeFetch('/lists', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ name: 'Default' }) }, 10000);
+  const createResp = await safeFetch('/lists', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Default' }) }, 10000);
     if (createResp && createResp.ok) {
       const created = await createResp.json();
       if (created && created.id) {
@@ -515,7 +515,7 @@ window.addEventListener('load', async () => {
         if (!name) return;
         if (btn) btn.disabled = true;
         if (navigator.onLine) {
-          const resp = await safeFetch('/lists', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ name }) }, 8000);
+          const resp = await safeFetch('/lists', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) }, 8000);
           if (resp && resp.ok) {
             const created = await resp.json().catch(()=>null);
             // refresh lists from server and auto-select new list
@@ -768,7 +768,7 @@ function showTodoDetail(todo) {
     const newText = prompt('Edit todo text', todo.text || '');
     if (newText === null) return;
     try {
-      const resp = await safeFetch(`/todos/${todo.id}`, { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ text: newText }) }, 8000);
+  const resp = await safeFetch(`/todos/${todo.id}`, { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: newText }) }, 8000);
       if (resp && resp.ok) { await refreshServerTodos(); alert('updated'); }
       else alert('update failed');
     } catch (e) { alert('update error'); }
@@ -776,7 +776,7 @@ function showTodoDetail(todo) {
   const completeBtn = document.createElement('button'); completeBtn.textContent = 'Toggle Complete';
   completeBtn.addEventListener('click', async () => {
     try {
-      const resp = await safeFetch(`/todos/${todo.id}/complete`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ done: 'true' }) }, 8000);
+  const resp = await safeFetch(`/todos/${todo.id}/complete`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ done: true }) }, 8000);
       if (resp && resp.ok) { await refreshServerTodos(); alert('marked complete'); }
       else alert('complete failed');
     } catch (e) { alert('complete error'); }

@@ -38,7 +38,7 @@ async def test_invalid_hashtag_returns_400_for_list_and_todo(client):
     # create list and todo
     r = await client.post("/lists", params={"name": "tagtest"})
     lst = r.json()
-    r2 = await client.post("/todos", params={"text": "tagtodo", "list_id": lst['id']})
+    r2 = await client.post("/todos", json={"text": "tagtodo", "list_id": lst['id']})
     todo = r2.json()
 
     # invalid tags

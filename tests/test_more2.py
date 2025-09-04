@@ -13,7 +13,7 @@ async def test_delete_completion_type_removes_todocompletions(client):
     lst = r.json()
     lid = lst['id']
 
-    r2 = await client.post('/todos', params={'text': 'to-be-completed', 'list_id': lid})
+    r2 = await client.post('/todos', json={'text': 'to-be-completed', 'list_id': lid})
     assert r2.status_code == 200
     todo = r2.json()
     tid = todo['id']

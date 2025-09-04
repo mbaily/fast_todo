@@ -24,8 +24,8 @@ async def test_get_list_hashtags_include_todo_tags_returns_separate_keys(ensure_
     # create list, create todos, add tags to both
     r = await client.post('/lists', params={'name': 'lh-list-2'})
     lst = r.json()
-    t1 = (await client.post('/todos', params={'text': 't1', 'list_id': lst['id']})).json()
-    t2 = (await client.post('/todos', params={'text': 't2', 'list_id': lst['id']})).json()
+    t1 = (await client.post('/todos', json={'text': 't1', 'list_id': lst['id']})).json()
+    t2 = (await client.post('/todos', json={'text': 't2', 'list_id': lst['id']})).json()
     await client.post(f"/lists/{lst['id']}/hashtags", params={'tag': 'L'})
     await client.post(f"/todos/{t1['id']}/hashtags", params={'tag': 'A'})
     await client.post(f"/todos/{t2['id']}/hashtags", params={'tag': 'B'})
@@ -42,7 +42,7 @@ async def test_get_list_hashtags_include_todo_tags_returns_separate_keys(ensure_
 async def test_get_list_hashtags_combine_returns_deduped(ensure_db, client):
     r = await client.post('/lists', params={'name': 'lh-list-3'})
     lst = r.json()
-    t1 = (await client.post('/todos', params={'text': 't1', 'list_id': lst['id']})).json()
+    t1 = (await client.post('/todos', json={'text': 't1', 'list_id': lst['id']})).json()
     # add overlapping tags
     await client.post(f"/lists/{lst['id']}/hashtags", params={'tag': 'x'})
     await client.post(f"/todos/{t1['id']}/hashtags", params={'tag': 'x'})
