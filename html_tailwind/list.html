@@ -2,6 +2,30 @@
 
 {% block head %}
 <script src="https://cdn.tailwindcss.com"></script>
+<style>
+  /* tag-chip styles copied from html_tailwind/index.html (dark mode friendly) */
+  .tag-wrapper { position: relative; display: inline-flex; align-items: center; }
+  .tag-chip:hover { box-shadow: 0 6px 18px rgba(0,0,0,0.5); background: rgba(37,99,235,0.55); border-color: rgba(147,197,253,0.9); color: #fff; }
+  .tag-chip:focus { outline: none; }
+  .tag-chip:focus-visible { box-shadow: 0 0 0 3px rgba(88,166,255,0.45); }
+  .tag-chip .label { font-weight: 600; font-size: 0.9rem; }
+  /* ensure the visible label box ends before the X by reserving space; use fixed max-width to avoid zero-width issues */
+  .tag-chip .label { display: inline-block; max-width: 9rem; margin-right: 0.4rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tag-chip { font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; font-weight: 600; }
+  .tag-chip { box-shadow: 0 4px 10px rgba(2,6,23,0.25); }
+  .tag-chip:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(96,165,250,0.18); }
+  .tag-wrapper .remove { background: rgba(0,0,0,0.12); width: 1.2rem; height: 1.2rem; display:flex; align-items:center; justify-content:center; }
+  .tag-wrapper .remove:hover { background: rgba(0,0,0,0.2); }
+  .tag-wrapper .remove:focus { outline: none; box-shadow: 0 0 0 3px rgba(96,165,250,0.18); }
+  /* remove button is absolutely positioned inside the rounded chip but kept outside the anchor in DOM */
+  /* increase right padding so label has breathing room before the X */
+  /* increase padding-right further so label ends left of the X */
+  .tag-chip { display:inline-flex; align-items:center; gap:0.35rem; background: rgba(30,64,175,0.4); border: 1px solid rgba(96,165,250,0.7); padding: 0.2rem 2.6rem 0.2rem 0.6rem; border-radius: 999px; color: #fff; text-decoration: none; margin: 0.12rem 0.35rem 0.12rem 0; transition: box-shadow 120ms ease, background-color 120ms ease, color 120ms ease, border-color 120ms ease; cursor: pointer; }
+
+  /* position the remove X button fixed relative to the chip - no movement on hover */
+  .tag-wrapper .remove { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); height: 1.1rem; width: 1.1rem; display:flex; align-items:center; justify-content:center; background: transparent; border: none; color: rgba(255,255,255,0.95); font-weight:700; cursor: pointer; border-radius: 999px; transition: background-color 120ms ease, color 120ms ease; }
+  .tag-wrapper .remove:hover { color: #fff; background: rgba(0,0,0,0.12); }
+</style>
 {% endblock %}
 
 {% block body %}
@@ -12,73 +36,125 @@
     <div id="list-root" class="mx-auto py-1 px-1">
       <!-- List header: name, completed toggle, edit, priority, tags -->
       <header class="bg-black-900 rounded-lg p-1 mb-1">
-        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-1">
-          <div class="flex flex-col gap-3">
-            <!-- top row: name + controls (priority, etc.) -->
-            <div class="flex items-center justify-between gap-3">
-              <div class="flex items-center gap-2 min-w-0">
-                <!-- Completed toggle -->
-                <label class="flex items-center gap-1">
-                  <input id="list-complete-toggle" data-list-id="{{ list.id if list is defined else '' }}" type="checkbox" class="h-4 w-4 rounded text-blue-400 focus:ring-blue-300" {% if list is defined and list.complete %}checked{% endif %} />
-                </label>
+        <div class="flex flex-col gap-3">
+          <!-- top row: name + controls (priority, etc.) -->
+          <div class="flex items-center justify-between w-full">
+            <div class="flex items-center gap-2 min-w-0">
+              <!-- Completed toggle -->
+              <label class="flex items-center gap-1">
+                <input id="list-complete-toggle" data-list-id="{{ list.id if list is defined else '' }}" type="checkbox" class="h-4 w-4 rounded text-blue-400 focus:ring-blue-300" {% if list is defined and list.complete %}checked{% endif %} />
+              </label>
 
-                <!-- List name (display + inline edit) -->
-                <div class="min-w-0">
-                  <h1 id="list-name-display" class="text-xl md:text-2xl font-semibold text-slate-50 truncate" title="{{ list.name if list is defined else 'List' }}">{{ list.name if list is defined else 'Untitled List' }}</h1>
-                  <div id="list-name-edit" class="hidden mt-1">
-                    <input id="list-name-input" type="text" class="w-full bg-slate-800 text-slate-100 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-400" value="{{ list.name if list is defined else '' }}" />
-                  </div>
-                </div>
+              <!-- Small horizontal gap -->
+              <div class="w-5"></div>
+
+              <!-- List name (display + inline edit) -->
+              <div class="min-w-0">
+                <h1 id="list-name-display" class="text-xl md:text-2xl font-semibold text-slate-50 truncate" title="{{ list.name if list is defined else 'List' }}">{{ list.name if list is defined else 'Untitled List' }}</h1>
               </div>
 
-              <div class="flex items-center gap-3 ml-auto">
-                <!-- Priority select (server model: nullable int 1..10) -->
-                <div class="flex items-center gap-2 ml-auto">
-                  <label for="list-priority-select" class="text-sm text-slate-400">Priority</label>
-                  <select id="list-priority-select" data-list-id="{{ list.id if list is defined else '' }}" class="bg-slate-800 text-slate-100 text-sm rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-400">
-                    <option value="" {% if list is defined and list.priority is none %}selected{% endif %}>None</option>
-                    {% for p in range(1,11) %}
-                      <option value="{{ p }}" {% if list is defined and list.priority == p %}selected{% endif %}>{{ p }}</option>
-                    {% endfor %}
-                  </select>
-                </div>
-              </div>
+              <!-- Small horizontal gap -->
+              <div class="w-5"></div>
+
+              <!-- Edit list name button -->
+              <button id="edit-list-name-btn" class="px-2 py-1 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm rounded transition-colors duration-200" title="Edit list name">
+                ✏️
+              </button>
             </div>
 
-            <!-- tags row below -->
+
+
+            <!-- Priority select (server model: nullable int 1..10) -->
             <div class="flex items-center gap-2">
-              <div id="list-tags" class="flex flex-wrap gap-2">
+              <label for="list-priority-select" class="text-sm text-slate-400">Priority</label>
+              <select id="list-priority-select" data-list-id="{{ list.id if list is defined else '' }}" class="bg-slate-800 text-slate-100 text-sm rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-400">
+                <option value="" {% if list is defined and list.priority is none %}selected{% endif %}>None</option>
+                {% for p in range(1,11) %}
+                  <option value="{{ p }}" {% if list is defined and list.priority == p %}selected{% endif %}>{{ p }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
+            <!-- tags row (keeps #list-tags for JS) -->
+            <div class="mt-2">
+              <div id="list-tags" class="flex flex-wrap gap-2 items-center" aria-live="polite">
                 {% if list is defined and list.tags %}
-                  {% for t in list.tags %}
-                    <span class="tag-chip inline-flex items-center text-xs px-2 py-1 rounded-full bg-slate-700 text-slate-200">
-                      <a href="/html_tailwind/index?tag={{ t }}" class="mr-2 hover:underline">#{{ t }}</a>
-                      <button data-tag="{{ t }}" class="remove-tag-btn text-xs text-slate-400 hover:text-red-400">&times;</button>
-                    </span>
+                  {% for tag in (list.tags | sort) %}
+                    <div class="tag-wrapper inline-flex items-center">
+                      <a href="/html_no_js/search?q={{ tag|urlencode }}" class="tag-chip inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-semibold text-slate-100 border border-sky-500/30 hover:bg-sky-700/25 focus:outline-none focus:ring-2 focus:ring-sky-400" data-tag="{{ tag }}">
+                        <span class="label truncate">#{{ tag }}</span>
+                      </a>
+                      <button type="button" onclick="event.stopPropagation();event.preventDefault();" class="remove" aria-label="Remove tag {{ tag }}" data-tag="{{ tag }}">×</button>
+                    </div>
                   {% endfor %}
-                {% else %}
-                  <span id="no-tags-placeholder" class="text-xs text-slate-500">No tags</span>
                 {% endif %}
               </div>
-              <!-- Add tag input -->
-              <div class="flex items-center gap-2">
-                <input id="add-tag-input" type="text" placeholder="#tag" class="text-xs bg-slate-800 text-slate-100 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-400" />
-                <button id="add-tag-btn" class="text-sm px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-500">Add</button>
+
+              <!-- add-tag controls (keeps existing IDs for JS) -->
+              <div class="mt-2 flex items-center gap-2">
+                <input id="add-tag-input" class="px-2 py-1 rounded bg-slate-800 text-slate-100 text-sm" placeholder="add tag (no #)" />
+                <button id="add-tag-btn" class="px-2 py-1 bg-sky-600 text-white rounded text-sm">Add</button>
               </div>
             </div>
           </div>
 
-        <!-- Edit controls row (save/cancel) -->
-        <div id="list-edit-controls" class="hidden mt-3 flex items-center gap-2">
-          <button id="list-save-btn" class="text-sm px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-500">Save</button>
-          <button id="list-cancel-btn" class="text-sm px-3 py-1 rounded bg-slate-700 text-slate-200 hover:bg-slate-600">Cancel</button>
-        </div>
-      </header>
+          <!-- Add new todo section -->
+          <div class="mt-4 flex gap-2">
+            <input id="new-todo-input" type="text" placeholder="Add a new todo..." class="flex-1 px-3 py-2 bg-slate-800 text-slate-100 border border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent" />
+            <button id="add-todo-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-slate-900">Add</button>
+          </div>
+
+          <!-- Todo list container -->
+          <div id="todo-list-container" class="mt-6">
+            <!-- Full control view (default) -->
+            <div id="todo-list-full" class="todo-view">
+              <table class="w-full table-auto border-collapse">
+                <thead id="todo-list-full-head">
+                  <tr class="border-b border-slate-700">
+                    <th class="w-12 p-2 text-center text-slate-400 text-sm font-medium"></th>
+                    <th class="w-12 p-2 text-center text-slate-400 text-sm font-medium"></th>
+                    <th class="w-12 p-2 text-center text-slate-400 text-sm font-medium"></th>
+                    <th class="p-2 text-left text-slate-400 text-sm font-medium">Todo</th>
+                  </tr>
+                </thead>
+                <tbody id="todo-list-full-body">
+                  <!-- Todos will be populated here by JavaScript -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Read-only view -->
+            <div id="todo-list-compact" class="todo-view hidden">
+              <table class="w-full table-auto border-collapse">
+                <thead>
+                  <tr class="border-b border-slate-700">
+                    <th class="w-12 p-2 text-center text-slate-400 text-sm font-medium"></th>
+                    <th class="p-2 text-left text-slate-400 text-sm font-medium">Todo & Notes</th>
+                  </tr>
+                </thead>
+                <tbody id="todo-list-compact-body">
+                  <!-- Todos will be populated here by JavaScript -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- View toggle control -->
+          <div class="mt-4 flex justify-center">
+            <button id="toggle-view-btn" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm rounded transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-slate-400">
+              Hide Icons
+            </button>
+          </div>
 
       <!-- list content placeholder -->
+
+
+
     </div>
   </main>
 
   </div>
 
-<script src="/static/html_tailwind/tailwind_list.js"></script>
+  <script src="/static/html_tailwind/tailwind_list.js"></script>
 {% endblock %}

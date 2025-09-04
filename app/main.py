@@ -433,7 +433,7 @@ async def get_session_timezone(request: Request) -> str | None:
     if st:
         try:
             async with async_session() as sess:
-                q = await sess.exec(select(Session).where(Session.session_token == st))
+                q = await sess.scalars(select(Session).where(Session.session_token == st))
                 row = q.first()
                 if row:
                     # ignore expired sessions
@@ -683,10 +683,13 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 try:
     from .client_json_api import router as json_api_router
     app.include_router(json_api_router)
-except Exception:
+    print("INFO: client_json_api router loaded successfully")
+except Exception as e:
     # importing the router is best-effort during static analysis; runtime import errors
     # will surface when the server is run in the proper environment.
-    pass
+    print(f"WARNING: Failed to load client_json_api router: {e}")
+    import traceback
+    traceback.print_exc()
 
 
 # Templates for Tailwind client (minimal, separate directory)
@@ -765,7 +768,7 @@ async def html_tailwind_view_list(request: Request):
     # templates get consistent context. This duplicates the data-fetching
     # but intentionally keeps behaviour identical.
     async with async_session() as sess:
-        q = await sess.exec(select(ListState).where(ListState.id == list_id))
+        q = await sess.scalars(select(ListState).where(ListState.id == list_id))
         lst = q.first()
         if not lst:
             raise HTTPException(status_code=404, detail="list not found")
@@ -773,7 +776,7 @@ async def html_tailwind_view_list(request: Request):
             raise HTTPException(status_code=403, detail="forbidden")
 
         # completion types
-        qct = await sess.exec(
+        qct = await sess.scalars(
             select(CompletionType)
             .where(CompletionType.list_id == list_id)
             .order_by(CompletionType.id.asc())
@@ -782,9 +785,9 @@ async def html_tailwind_view_list(request: Request):
 
         # todos and completion states
         try:
-            q2 = await sess.exec(select(Todo).where(Todo.list_id == list_id).order_by(Todo.priority.desc().nullslast(), Todo.created_at.desc()))
+            q2 = await sess.scalars(select(Todo).where(Todo.list_id == list_id).order_by(Todo.priority.desc().nullslast(), Todo.created_at.desc()))
         except Exception:
-            q2 = await sess.exec(select(Todo).where(Todo.list_id == list_id).order_by(Todo.created_at.desc()))
+            q2 = await sess.scalars(select(Todo).where(Todo.list_id == list_id).order_by(Todo.created_at.desc()))
         todos = q2.all()
         todo_ids = [t.id for t in todos]
         ctype_ids = [c.id for c in ctypes]
@@ -955,7 +958,7 @@ async def html_tailwind_view_list(request: Request):
                 })
             try:
                 if sub_ids:
-                    todo_q = await sess.exec(select(Todo.id, Todo.list_id, Todo.priority).where(Todo.list_id.in_(sub_ids)).where(Todo.priority != None))
+                    todo_q = await sess.scalars(select(Todo.id, Todo.list_id, Todo.priority).where(Todo.list_id.in_(sub_ids)).where(Todo.priority != None))
                     todo_id_rows = todo_q.all()
                     todo_map: dict[int, list[tuple[int,int]]] = {}
                     todo_ids = []
@@ -1610,7 +1613,7 @@ async def html_tailwind_search(request: Request):
                     qall = select(Todo).where(Todo.list_id.in_(list_ids_match))
                     for t in (await sess.exec(qall)).all():
                         todos_acc.setdefault(t.id, t)
-                lm = {l.id: l.name for l in (await sess.exec(select(ListState).where(ListState.id.in_(vis_ids)))).all()}
+                lm = {l.id: l.name for l in (await sess.scalars(select(ListState).where(ListState.id.in_(vis_ids)))).all()}
                 todo_list_ids = list({t.list_id for t in todos_acc.values()})
                 default_ct_ids: dict[int, int] = {}
                 if todo_list_ids:
@@ -2766,7 +2769,7 @@ async def mark_occurrence_completed(request: Request, hash: str = Form(...), cur
     from .models import CompletedOccurrence
     async with async_session() as sess:
         # idempotent upsert: insert row if not exists
-        exists_q = await sess.exec(select(CompletedOccurrence).where(CompletedOccurrence.user_id == current_user.id).where(CompletedOccurrence.occ_hash == hash))
+        exists_q = await sess.scalars(select(CompletedOccurrence).where(CompletedOccurrence.user_id == current_user.id).where(CompletedOccurrence.occ_hash == hash))
         if exists_q.first():
             return {'ok': True, 'created': False}
         row = CompletedOccurrence(user_id=current_user.id, occ_hash=hash)
@@ -2905,7 +2908,7 @@ async def unmark_occurrence_completed(request: Request, hash: str = Form(...), c
     from .models import CompletedOccurrence
     async with async_session() as sess:
         # delete all rows matching this user+hash (should be at most one)
-        q = await sess.exec(select(CompletedOccurrence).where(CompletedOccurrence.user_id == current_user.id).where(CompletedOccurrence.occ_hash == hash))
+        q = await sess.scalars(select(CompletedOccurrence).where(CompletedOccurrence.user_id == current_user.id).where(CompletedOccurrence.occ_hash == hash))
         rows = q.all()
         deleted = 0
         for r in rows:
@@ -3102,10 +3105,10 @@ async def deactivate_ignore_scope(request: Request,
     async with async_session() as sess:
         if scope_type == 'list':
             scope_hash = ignore_list_hash(scope_key, owner_id=current_user.id)
-            q = await sess.exec(select(IgnoredScope).where(IgnoredScope.user_id == current_user.id).where(IgnoredScope.scope_hash == scope_hash).where(IgnoredScope.active == True))
+            q = await sess.scalars(select(IgnoredScope).where(IgnoredScope.user_id == current_user.id).where(IgnoredScope.scope_hash == scope_hash).where(IgnoredScope.active == True))
         elif scope_type == 'occurrence':
             scope_hash = str(scope_key)
-            q = await sess.exec(select(IgnoredScope).where(IgnoredScope.user_id == current_user.id).where(IgnoredScope.scope_hash == scope_hash).where(IgnoredScope.active == True))
+            q = await sess.scalars(select(IgnoredScope).where(IgnoredScope.user_id == current_user.id).where(IgnoredScope.scope_hash == scope_hash).where(IgnoredScope.active == True))
         elif scope_type == 'todo_from':
             # If from_dt is provided, target the exact hash; otherwise, deactivate any
             # todo_from scopes for this scope_key (id) regardless of from_dt.
@@ -3119,9 +3122,9 @@ async def deactivate_ignore_scope(request: Request,
                     # If parse failed, treat as no matching rows (invalid input)
                     return {'ok': True, 'updated': 0}
                 scope_hash = ignore_todo_from_hash(scope_key, parsed)
-                q = await sess.exec(select(IgnoredScope).where(IgnoredScope.user_id == current_user.id).where(IgnoredScope.scope_hash == scope_hash).where(IgnoredScope.active == True))
+                q = await sess.scalars(select(IgnoredScope).where(IgnoredScope.user_id == current_user.id).where(IgnoredScope.scope_hash == scope_hash).where(IgnoredScope.active == True))
             else:
-                q = await sess.exec(select(IgnoredScope).where(IgnoredScope.user_id == current_user.id).where(IgnoredScope.scope_type == 'todo_from').where(IgnoredScope.scope_key == str(scope_key)).where(IgnoredScope.active == True))
+                q = await sess.scalars(select(IgnoredScope).where(IgnoredScope.user_id == current_user.id).where(IgnoredScope.scope_type == 'todo_from').where(IgnoredScope.scope_key == str(scope_key)).where(IgnoredScope.active == True))
         else:
             raise HTTPException(status_code=400, detail='invalid scope_type')
 
@@ -3181,7 +3184,7 @@ async def get_default_list(current_user: User = Depends(require_login)):
         ss = qs.first()
         if not ss or not ss.default_list_id:
             raise HTTPException(status_code=404, detail="default list not set")
-        q = await sess.exec(select(ListState).where(ListState.id == ss.default_list_id))
+        q = await sess.scalars(select(ListState).where(ListState.id == ss.default_list_id))
         lst = q.first()
         if not lst:
             raise HTTPException(status_code=404, detail="list not found")
@@ -3282,7 +3285,7 @@ async def set_default_list(list_id: int, current_user: User = Depends(require_lo
     This avoids unauthenticated callers hijacking the default pointer.
     """
     async with async_session() as sess:
-        q = await sess.exec(select(ListState).where(ListState.id == list_id))
+        q = await sess.scalars(select(ListState).where(ListState.id == list_id))
         lst = q.first()
         if not lst:
             raise HTTPException(status_code=404, detail="list not found")
@@ -3302,7 +3305,7 @@ async def delete_list(list_id: int, current_user: Optional[User] = Depends(get_c
     # Use a single session for the entire operation to avoid operating on a
     # closed session and to ensure commits are applied in order.
     async with async_session() as sess:
-        q = await sess.exec(select(ListState).where(ListState.id == list_id))
+        q = await sess.scalars(select(ListState).where(ListState.id == list_id))
         lst = q.first()
         if not lst:
             raise HTTPException(status_code=404, detail="list not found")
@@ -3397,7 +3400,7 @@ async def html_delete_list(request: Request, list_id: int):
             raise HTTPException(status_code=403, detail='forbidden')
 
         # Find or create user's Trash list
-        q = await sess.exec(select(ListState).where(ListState.owner_id == cu.id).where(ListState.name == 'Trash'))
+        q = await sess.scalars(select(ListState).where(ListState.owner_id == cu.id).where(ListState.name == 'Trash'))
         trash = q.first()
         if not trash:
             trash = ListState(name='Trash', owner_id=cu.id)
@@ -3431,7 +3434,7 @@ async def html_delete_list(request: Request, list_id: int):
 @app.post("/lists/{list_id}/hashtags")
 async def add_list_hashtag(list_id: int, tag: str, current_user: User = Depends(require_login)):
     async with async_session() as sess:
-        q = await sess.exec(select(ListState).where(ListState.id == list_id))
+        q = await sess.scalars(select(ListState).where(ListState.id == list_id))
         lst = q.first()
         if not lst:
             raise HTTPException(status_code=404, detail="list not found")
@@ -3492,7 +3495,7 @@ async def get_list_hashtags(
     Ownership rules: only the list owner may call this API (same as other list APIs).
     """
     async with async_session() as sess:
-        q = await sess.exec(select(ListState).where(ListState.id == list_id))
+        q = await sess.scalars(select(ListState).where(ListState.id == list_id))
         lst = q.first()
         if not lst:
             raise HTTPException(status_code=404, detail="list not found")
@@ -3550,7 +3553,7 @@ async def get_list_hashtags(
 @app.get("/lists/{list_id}/completion_types")
 async def get_completion_types(list_id: int, current_user: User = Depends(require_login)):
     async with async_session() as sess:
-        q = await sess.exec(select(ListState).where(ListState.id == list_id))
+        q = await sess.scalars(select(ListState).where(ListState.id == list_id))
         lst = q.first()
         if not lst:
             raise HTTPException(status_code=404, detail="list not found")
@@ -3564,7 +3567,7 @@ async def get_completion_types(list_id: int, current_user: User = Depends(requir
 @app.post("/lists/{list_id}/completion_types")
 async def create_completion_type_endpoint(list_id: int, name: str, current_user: User = Depends(require_login)):
     async with async_session() as sess:
-        q = await sess.exec(select(ListState).where(ListState.id == list_id))
+        q = await sess.scalars(select(ListState).where(ListState.id == list_id))
         lst = q.first()
         if not lst:
             raise HTTPException(status_code=404, detail="list not found")
@@ -3599,7 +3602,7 @@ async def delete_completion_type_endpoint(list_id: int, name: str, current_user:
             raise HTTPException(status_code=404, detail="list not found")
         if lst.owner_id != current_user.id:
             raise HTTPException(status_code=403, detail="forbidden")
-        q = await sess.exec(select(CompletionType).where(CompletionType.list_id == list_id).where(CompletionType.name == name))
+        q = await sess.scalars(select(CompletionType).where(CompletionType.list_id == list_id).where(CompletionType.name == name))
         c = q.first()
         if not c:
             raise HTTPException(status_code=404, detail="completion type not found")
@@ -3715,7 +3718,7 @@ async def html_add_list_hashtag(request: Request, list_id: int, current_user: Us
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     async with async_session() as sess:
-        q = await sess.exec(select(ListState).where(ListState.id == list_id))
+        q = await sess.scalars(select(ListState).where(ListState.id == list_id))
         lst = q.first()
         if not lst:
             raise HTTPException(status_code=404, detail='list not found')
@@ -3755,7 +3758,7 @@ from typing import Optional as _Optional
 @app.post("/todos/{todo_id}/hashtags")
 async def add_todo_hashtag(todo_id: int, tag: str, current_user: _Optional[User] = Depends(get_current_user)):
     async with async_session() as sess:
-        q = await sess.exec(select(Todo).where(Todo.id == todo_id))
+        q = await sess.scalars(select(Todo).where(Todo.id == todo_id))
         todo = q.first()
         if not todo:
             raise HTTPException(status_code=404, detail="todo not found")
@@ -3844,7 +3847,7 @@ async def remove_todo_hashtag(todo_id: int, tag: str, current_user: _Optional[Us
 @app.post("/lists/{list_id}/state")
 async def set_list_state(list_id: int, expanded: Optional[bool] = None, hide_done: Optional[bool] = None, current_user: User = Depends(require_login)):
     async with async_session() as sess:
-        q = await sess.exec(select(ListState).where(ListState.id == list_id))
+        q = await sess.scalars(select(ListState).where(ListState.id == list_id))
         lst = q.first()
         if not lst:
             raise HTTPException(status_code=404, detail="list not found")
@@ -3866,7 +3869,7 @@ async def set_list_icons(list_id: int, hide_icons: Optional[bool] = None, curren
     completion checkbox, pin and delete actions for the given list.
     """
     async with async_session() as sess:
-        q = await sess.exec(select(ListState).where(ListState.id == list_id))
+        q = await sess.scalars(select(ListState).where(ListState.id == list_id))
         lst = q.first()
         if not lst:
             raise HTTPException(status_code=404, detail="list not found")
@@ -3880,11 +3883,38 @@ async def set_list_icons(list_id: int, hide_icons: Optional[bool] = None, curren
         return lst
 
 
+@app.get("/lists/{list_id}/todos")
+async def get_list_todos(list_id: int, current_user: User = Depends(require_login)):
+    """Get all todos for a list that the user owns."""
+    async with async_session() as sess:
+        # Verify list exists and user owns it
+        q = await sess.scalars(select(ListState).where(ListState.id == list_id))
+        lst = q.first()
+        if not lst:
+            raise HTTPException(status_code=404, detail="list not found")
+        if lst.owner_id != current_user.id:
+            raise HTTPException(status_code=403, detail="forbidden")
+
+        # Fetch todos for the list
+        try:
+            q2 = await sess.scalars(select(Todo).where(Todo.list_id == list_id).order_by(Todo.priority.desc().nullslast(), Todo.created_at.desc()))
+        except Exception:
+            q2 = await sess.scalars(select(Todo).where(Todo.list_id == list_id).order_by(Todo.created_at.desc()))
+        todos = q2.all()
+
+        # Serialize todos
+        result = []
+        for todo in todos:
+            result.append(_serialize_todo(todo, []))
+
+        return result
+
+
 @app.patch("/lists/{list_id}")
 async def patch_list(list_id: int, payload: dict, current_user: User = Depends(require_login)):
     """Patch list fields via JSON. Accepts optional keys: name (str), priority (int|null), completed (bool)."""
     async with async_session() as sess:
-        q = await sess.exec(select(ListState).where(ListState.id == list_id))
+        q = await sess.scalars(select(ListState).where(ListState.id == list_id))
         lst = q.first()
         if not lst:
             raise HTTPException(status_code=404, detail="list not found")
@@ -3933,7 +3963,7 @@ async def record_list_visit(list_id: int, current_user: User = Depends(require_l
     """
     async with async_session() as sess:
         # ensure list exists
-        q = await sess.exec(select(ListState).where(ListState.id == list_id))
+        q = await sess.scalars(select(ListState).where(ListState.id == list_id))
         lst = q.first()
         if not lst:
             raise HTTPException(status_code=404, detail='list not found')
@@ -4073,16 +4103,45 @@ async def _get_recent_lists_impl(limit: int, current_user: User):
 
 
 @app.post("/todos")
-async def create_todo(text: str, note: Optional[str] = None, list_id: int = None, priority: Optional[int] = None, current_user: User = Depends(require_login)):
+async def create_todo(request: Request, current_user: User = Depends(require_login)):
     """
-    Create a todo in an explicit, existing list. `list_id` is required and
-    must reference an existing ListState. Requires authentication; the
-    authenticated user may create todos in lists they own or in public lists
-    (owner_id is None). Anonymous creation is not permitted.
+    Create a todo in an explicit, existing list. Expects JSON payload with:
+    - text: str (required)
+    - note: str (optional)
+    - list_id: int (required)
+    - priority: int (optional)
     """
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="invalid JSON")
+
+    text = payload.get('text')
+    note = payload.get('note')
+    list_id = payload.get('list_id')
+    priority = payload.get('priority')
+
+    if not text or not isinstance(text, str):
+        raise HTTPException(status_code=400, detail="text is required and must be a string")
     if list_id is None:
         raise HTTPException(status_code=400, detail="list_id is required")
 
+    try:
+        list_id = int(list_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="list_id must be an integer")
+
+    if priority is not None:
+        try:
+            priority = int(priority)
+        except Exception:
+            raise HTTPException(status_code=400, detail="priority must be an integer")
+
+    return await _create_todo_internal(text, note, list_id, priority, current_user)
+
+
+async def _create_todo_internal(text: str, note: Optional[str], list_id: int, priority: Optional[int], current_user: User):
+    """Internal function to create a todo. Used by both JSON API and form-based endpoints."""
     async with async_session() as sess:
         # ensure the list exists
         ql = await sess.exec(select(ListState).where(ListState.id == list_id))
@@ -4161,39 +4220,151 @@ async def get_todo(todo_id: int, current_user: User = Depends(require_login)):
         qc = select(TodoCompletion).where(TodoCompletion.todo_id == todo_id)
         cres = await sess.exec(qc)
         completions = [{"completion_type_id": c.completion_type_id, "done": c.done} for c in cres.all()]
+        
+        # Transform completions to object format expected by client
+        # Fetch completion types for this list to map IDs to names
+        qct = await sess.scalars(select(CompletionType).where(CompletionType.list_id == todo.list_id).order_by(CompletionType.id.asc()))
+        completion_types = qct.all()
+        
+        # Create completion object keyed by completion type names
+        completion_obj = {}
+        completion_type_map = {ct.id: ct.name for ct in completion_types}
+        for comp in completions:
+            type_name = completion_type_map.get(comp["completion_type_id"])
+            if type_name:
+                completion_obj[type_name] = comp["done"]
+        
         await sess.refresh(todo)
-        return _serialize_todo(todo, completions)
+        return _serialize_todo(todo, completion_obj)
 
 
 @app.patch("/todos/{todo_id}")
-async def update_todo(todo_id: int, text: Optional[str] = None, note: Optional[str] = None, list_id: Optional[int] = None, current_user: User = Depends(require_login)):
+async def update_todo(todo_id: int, request: Request, current_user: User = Depends(require_login)):
+    """
+    Update a todo. Expects JSON payload with optional fields:
+    - text: str
+    - note: str
+    - list_id: int
+    - priority: int
+    - completed: bool
+    - pinned: bool
+    """
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="invalid JSON")
+
+    return await _update_todo_internal(todo_id, payload, current_user)
+
+
+async def _update_todo_internal(todo_id: int, payload: dict, current_user: User):
+    """Internal function to update a todo. Used by both JSON API and form-based endpoints."""
     async with async_session() as sess:
         todo = await sess.get(Todo, todo_id)
         if not todo:
             raise HTTPException(status_code=404, detail="todo not found")
+
+        # Verify ownership through list
+        ql = await sess.exec(select(ListState).where(ListState.id == todo.list_id))
+        lst = ql.first()
+        if not lst or lst.owner_id != current_user.id:
+            raise HTTPException(status_code=403, detail="forbidden")
+
         # capture original parent list for potential move
         old_list_id = int(todo.list_id) if getattr(todo, 'list_id', None) is not None else None
-        if text is not None:
-            # Strip inline hashtags from saved text; tags will be managed separately
-            try:
-                todo.text = remove_hashtags_from_text(text.lstrip())
-            except Exception:
-                todo.text = text
-        # allow updating priority via API patch (if provided)
-        if 'priority' in locals() and locals().get('priority') is not None:
-            try:
-                pr = locals().get('priority')
-                if pr is None or (isinstance(pr, str) and str(pr).strip() == ''):
-                    todo.priority = None
+
+        # Update fields from payload
+        if 'text' in payload:
+            text = payload['text']
+            if text is not None:
+                # Strip inline hashtags from saved text; tags will be managed separately
+                try:
+                    todo.text = remove_hashtags_from_text(text.lstrip())
+                except Exception:
+                    todo.text = text
+
+        if 'note' in payload:
+            todo.note = payload['note']
+
+        if 'priority' in payload:
+            priority = payload['priority']
+            if priority is None or (isinstance(priority, str) and str(priority).strip() == ''):
+                todo.priority = None
+            else:
+                try:
+                    todo.priority = int(priority)
+                except Exception:
+                    raise HTTPException(status_code=400, detail="priority must be an integer")
+
+        if 'completed' in payload:
+            completed = payload['completed']
+            if completed is not None:
+                # Check if a specific completion type was provided
+                completion_type_id = payload.get('completion_type_id')
+                if completion_type_id is not None:
+                    # Handle specific completion type
+                    try:
+                        completion_type_id = int(completion_type_id)
+                    except Exception:
+                        raise HTTPException(status_code=400, detail="completion_type_id must be an integer")
+                    
+                    # Verify the completion type exists and belongs to the correct list
+                    qct = await sess.scalars(select(CompletionType).where(CompletionType.id == completion_type_id).where(CompletionType.list_id == todo.list_id))
+                    ct = qct.first()
+                    if not ct:
+                        raise HTTPException(status_code=404, detail="completion type not found")
+                    
+                    # Check if completion record exists
+                    qtc = await sess.exec(select(TodoCompletion).where(TodoCompletion.todo_id == todo_id).where(TodoCompletion.completion_type_id == completion_type_id))
+                    completion = qtc.first()
+                    if not completion:
+                        completion = TodoCompletion(todo_id=todo_id, completion_type_id=completion_type_id, done=bool(completed))
+                        sess.add(completion)
+                    else:
+                        completion.done = bool(completed)
+                        sess.add(completion)
                 else:
-                    todo.priority = int(pr)
-            except Exception:
-                # ignore invalid priority values
-                pass
-        if note is not None:
-            todo.note = note
-        # If text or note changed, recompute recurrence metadata and persist.
-        if text is not None or note is not None:
+                    # Handle legacy completion (default completion type)
+                    qct = await sess.scalars(select(CompletionType).where(CompletionType.list_id == todo.list_id).where(CompletionType.name == 'default'))
+                    default_ct = qct.first()
+                    if not default_ct:
+                        # Create default completion type if it doesn't exist
+                        default_ct = CompletionType(name="default", list_id=todo.list_id)
+                        sess.add(default_ct)
+                        await sess.commit()
+                        await sess.refresh(default_ct)
+                    
+                    # Check if completion record exists
+                    qtc = await sess.exec(select(TodoCompletion).where(TodoCompletion.todo_id == todo_id).where(TodoCompletion.completion_type_id == default_ct.id))
+                    completion = qtc.first()
+                    if not completion:
+                        completion = TodoCompletion(todo_id=todo_id, completion_type_id=default_ct.id, done=bool(completed))
+                        sess.add(completion)
+                    else:
+                        completion.done = bool(completed)
+                        sess.add(completion)
+
+        if 'pinned' in payload:
+            pinned = payload['pinned']
+            if pinned is not None:
+                todo.pinned = bool(pinned)
+
+        if 'list_id' in payload:
+            list_id = payload['list_id']
+            if list_id is not None:
+                # ensure the target list exists
+                ql = await sess.exec(select(ListState).where(ListState.id == list_id))
+                lst = ql.first()
+                if not lst:
+                    raise HTTPException(status_code=404, detail="target list not found")
+                # enforce ownership rules: only owners or public lists allowed
+                user_id = current_user.id
+                if lst.owner_id not in (None, user_id):
+                    raise HTTPException(status_code=403, detail="forbidden")
+                todo.list_id = list_id
+
+        # If text or note changed, recompute recurrence metadata
+        if 'text' in payload or 'note' in payload:
             try:
                 from .utils import parse_text_to_rrule_string, parse_date_and_recurrence
                 dtstart_val, rrule_str = parse_text_to_rrule_string(todo.text + '\n' + (todo.note or ''))
@@ -4205,41 +4376,49 @@ async def update_todo(todo_id: int, text: Optional[str] = None, note: Optional[s
             except Exception:
                 # Do not block updates on recurrence parsing failures; leave existing values
                 logger.exception('failed to recompute recurrence metadata during update_todo')
-        if list_id is not None:
-            # ensure the target list exists
-            ql = await sess.exec(select(ListState).where(ListState.id == list_id))
-            lst = ql.first()
-            if not lst:
-                raise HTTPException(status_code=404, detail="list not found")
-            # enforce ownership rules: only owners or public lists allowed
-            user_id = current_user.id
-            if lst.owner_id not in (None, user_id):
-                raise HTTPException(status_code=403, detail="forbidden")
-            todo.list_id = list_id
+
         todo.modified_at = now_utc()
         sess.add(todo)
         await sess.commit()
         await sess.refresh(todo)
+
         # Capture list id after potential move
         parent_list_id = int(todo.list_id) if todo.list_id is not None else None
+
         # fetch completions for serialization
         qc = select(TodoCompletion).where(TodoCompletion.todo_id == todo_id)
         cres = await sess.exec(qc)
         completions = [{"completion_type_id": c.completion_type_id, "done": c.done} for c in cres.all()]
-        # Precompute response dict before further commits to prevent lazy loads later
-        todo_resp = _serialize_todo(todo, completions)
-        # After updating the todo row, merge any newly provided hashtags with existing ones.
-        # Only change tags if the request included new hashtags in text and/or note.
+
+        # Transform completions to object format expected by client
+        # Fetch completion types for this list to map IDs to names
+        qct = await sess.scalars(select(CompletionType).where(CompletionType.list_id == todo.list_id).order_by(CompletionType.id.asc()))
+        completion_types = qct.all()
+        
+        # Create completion object keyed by completion type names
+        completion_obj = {}
+        completion_type_map = {ct.id: ct.name for ct in completion_types}
+        for comp in completions:
+            type_name = completion_type_map.get(comp["completion_type_id"])
+            if type_name:
+                completion_obj[type_name] = comp["done"]
+
+        # Precompute response dict before further commits
+        todo_resp = _serialize_todo(todo, completion_obj)
+
+        # Handle hashtags if text or note was updated
         provided_new_tags = []
-        if text is not None:
-            provided_new_tags += extract_hashtags(text)
-        if note is not None:
-            provided_new_tags += extract_hashtags(note)
+        if 'text' in payload:
+            provided_new_tags += extract_hashtags(payload['text'])
+        if 'note' in payload and payload['note']:
+            provided_new_tags += extract_hashtags(payload['note'])
+
         # dedupe provided
         pn_seen: list[str] = []
         for t in provided_new_tags:
             if t not in pn_seen:
                 pn_seen.append(t)
+
         if pn_seen:
             # read existing tags for this todo
             rtags = await sess.exec(select(Hashtag.tag).join(TodoHashtag, Hashtag.id == TodoHashtag.hashtag_id).where(TodoHashtag.todo_id == todo.id))
@@ -4254,6 +4433,7 @@ async def update_todo(todo_id: int, text: Optional[str] = None, note: Optional[s
                 if t not in merged:
                     merged.append(t)
             await _sync_todo_hashtags(sess, todo.id, merged)
+
         # Touch parent list modified_at and persist (and the old list if the todo moved)
         try:
             await _touch_list_modified(sess, parent_list_id)
@@ -4262,11 +4442,54 @@ async def update_todo(todo_id: int, text: Optional[str] = None, note: Optional[s
             await sess.commit()
         except Exception:
             await sess.rollback()
+
         return todo_resp
 
 
 @app.delete("/todos/{todo_id}")
 async def delete_todo(todo_id: int, current_user: Optional[User] = Depends(get_current_user)):
+    async with async_session() as sess:
+        todo = await sess.get(Todo, todo_id)
+        if not todo:
+            # resource doesn't exist; return 404 regardless of auth
+            raise HTTPException(status_code=404, detail="todo not found")
+        # check ownership via parent list
+        ql = await sess.exec(select(ListState).where(ListState.id == todo.list_id))
+        lst = ql.first()
+        # enforce ownership: owners or public lists allowed; anonymous callers forbidden for owned lists
+        if lst:
+            if current_user is None:
+                if lst.owner_id is not None:
+                    raise HTTPException(status_code=403, detail="forbidden")
+            else:
+                if lst.owner_id not in (None, current_user.id):
+                    raise HTTPException(status_code=403, detail="forbidden")
+        # Detach any sublists owned by this todo so they don't dangle
+        try:
+            await sess.exec(sqlalchemy_update(ListState).where(ListState.parent_todo_id == todo_id).values(parent_todo_id=None))
+            await sess.commit()
+        except Exception:
+            await sess.rollback()
+        # delete dependent link/completion rows at the DB level first to avoid
+        # SQLAlchemy trying to null-out PK columns on dependent rows during flush
+        await sess.exec(sqlalchemy_delete(TodoCompletion).where(TodoCompletion.todo_id == todo_id))
+        await sess.exec(sqlalchemy_delete(TodoHashtag).where(TodoHashtag.todo_id == todo_id))
+        # now delete the todo
+        # record tombstone so offline clients learn about the deletion
+        ts = Tombstone(item_type='todo', item_id=todo_id)
+        sess.add(ts)
+        await sess.delete(todo)
+        # Touch parent list modified_at and persist
+        try:
+            await _touch_list_modified(sess, getattr(todo, 'list_id', None))
+        except Exception:
+            pass
+        await sess.commit()
+        return {"ok": True}
+
+
+async def _delete_todo_internal(todo_id: int, current_user):
+    """Internal function to delete a todo, used by client_json_api.py"""
     async with async_session() as sess:
         todo = await sess.get(Todo, todo_id)
         if not todo:
@@ -4392,14 +4615,14 @@ def _ensure_owner_todo_parent_list(todo: Todo | None, lst: ListState | None, use
 
 async def _next_position_for_parent(sess, *, parent_todo_id: int | None = None, parent_list_id: int | None = None) -> int:
     if parent_todo_id is not None:
-        q = await sess.exec(select(ListState.parent_todo_position).where(ListState.parent_todo_id == parent_todo_id))
+        q = await sess.scalars(select(ListState.parent_todo_position).where(ListState.parent_todo_id == parent_todo_id))
         positions = [p[0] if isinstance(p, (tuple, list)) else p for p in q.fetchall()]
         try:
             return (max([pp for pp in positions if pp is not None]) + 1) if positions else 0
         except Exception:
             return 0
     if parent_list_id is not None:
-        q = await sess.exec(select(ListState.parent_list_position).where(ListState.parent_list_id == parent_list_id))
+        q = await sess.scalars(select(ListState.parent_list_position).where(ListState.parent_list_id == parent_list_id))
         positions = [p[0] if isinstance(p, (tuple, list)) else p for p in q.fetchall()]
         try:
             return (max([pp for pp in positions if pp is not None]) + 1) if positions else 0
@@ -4777,7 +5000,7 @@ async def undefer_due(current_user: User = Depends(require_login)):
         return {'pruned': deleted, 'cutoff': cutoff.isoformat()}
 
 
-def _serialize_todo(todo: Todo, completions: list[dict] | None = None) -> dict:
+def _serialize_todo(todo: Todo, completions: list[dict] | dict | None = None) -> dict:
     def _fmt(dt):
         if not dt:
             return None
@@ -4788,17 +5011,31 @@ def _serialize_todo(todo: Todo, completions: list[dict] | None = None) -> dict:
             dt = dt.replace(tzinfo=_tz.utc)
         return dt.isoformat()
 
+    # Determine completion status from completions data
+    completed = False
+    if completions:
+        if isinstance(completions, list):
+            # Handle array format: [{"completion_type_id": 169, "done": true}]
+            for comp in completions:
+                if comp.get('completion_type_id') and comp.get('done', False):
+                    completed = True
+                    break
+        elif isinstance(completions, dict):
+            # Handle object format: {"default": true}
+            completed = any(completions.values())
+
     return {
         "id": todo.id,
         "text": todo.text,
-    "pinned": getattr(todo, 'pinned', False),
+        "pinned": getattr(todo, 'pinned', False),
         "note": todo.note,
         "created_at": _fmt(todo.created_at),
         "modified_at": _fmt(todo.modified_at),
         "deferred_until": _fmt(todo.deferred_until),
         "list_id": todo.list_id,
-        "completions": completions or [],
+        "completions": completions or ([] if isinstance(completions, list) else {}),
         "priority": getattr(todo, 'priority', None),
+        "completed": completed,  # Add the completed field for client compatibility
     }
 
 
@@ -5128,7 +5365,7 @@ async def html_index(request: Request):
             })
         # Determine highest uncompleted todo priority per list (if any)
         try:
-            todo_q = await sess.exec(select(Todo.id, Todo.list_id, Todo.priority).where(Todo.list_id.in_(list_ids)).where(Todo.priority != None))
+            todo_q = await sess.scalars(select(Todo.id, Todo.list_id, Todo.priority).where(Todo.list_id.in_(list_ids)).where(Todo.priority != None))
             todo_rows = todo_q.all()
             todo_map: dict[int, list[tuple[int,int]]] = {}
             todo_ids = []
@@ -5612,7 +5849,7 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
 
         # (reuse existing logic: compute override_priority and uncompleted counts)
         try:
-            todo_q = await sess.exec(select(Todo.id, Todo.list_id, Todo.priority).where(Todo.list_id.in_(list_ids)).where(Todo.priority != None))
+            todo_q = await sess.scalars(select(Todo.id, Todo.list_id, Todo.priority).where(Todo.list_id.in_(list_ids)).where(Todo.priority != None))
             todo_rows = todo_q.all()
             todo_map: dict[int, list[tuple[int,int]]] = {}
             todo_ids = []
@@ -6110,7 +6347,7 @@ async def api_exec_fn(request: Request, payload: ExecFnRequest, current_user: Us
                     todos_acc.setdefault(int(t.id), t)
 
             # Compute completion status (reuse same logic as html_search)
-            lm = {l.id: l.name for l in (await sess.exec(select(ListState).where(ListState.id.in_(vis_ids)))).all()} if vis_ids else {}
+            lm = {l.id: l.name for l in (await sess.scalars(select(ListState).where(ListState.id.in_(vis_ids)))).all()} if vis_ids else {}
             todo_list_ids = list({t.list_id for t in todos_acc.values()})
             default_ct_ids: dict[int, int] = {}
             if todo_list_ids:
@@ -6201,7 +6438,7 @@ async def api_set_user_default_category(request: Request, payload: SetUserDefaul
     if cid is None:
         # clear default
         async with async_session() as sess:
-            q = await sess.exec(select(User).where(User.id == current_user.id))
+            q = await sess.scalars(select(User).where(User.id == current_user.id))
             u = q.first()
             if not u:
                 raise HTTPException(status_code=404, detail='user not found')
@@ -6219,7 +6456,7 @@ async def api_set_user_default_category(request: Request, payload: SetUserDefaul
         cat = await sess.get(Category, cid)
         if not cat:
             raise HTTPException(status_code=404, detail='category not found')
-        q = await sess.exec(select(User).where(User.id == current_user.id))
+        q = await sess.scalars(select(User).where(User.id == current_user.id))
         u = q.first()
         if not u:
             raise HTTPException(status_code=404, detail='user not found')
@@ -6251,7 +6488,7 @@ async def api_set_category_sort(request: Request, cat_id: int, payload: SetCateg
 
     val = bool(getattr(payload, 'sort', False))
     async with async_session() as sess:
-        q = await sess.exec(select(Category).where(Category.id == cat_id))
+        q = await sess.scalars(select(Category).where(Category.id == cat_id))
         cur = q.first()
         if not cur:
             raise HTTPException(status_code=404, detail='category not found')
@@ -6316,7 +6553,7 @@ async def api_move_category(request: Request, cat_id: int, payload: MoveCatReque
         # capture order before
         bres = await sess.exec(select(Category).order_by(Category.position.asc(), Category.id.asc()))
         before = [{'id': c.id, 'name': c.name, 'position': c.position} for c in bres.all()]
-        q = await sess.exec(select(Category).where(Category.id == cat_id))
+        q = await sess.scalars(select(Category).where(Category.id == cat_id))
         cur = q.first()
         if not cur:
             raise HTTPException(status_code=404, detail='category not found')
@@ -6417,7 +6654,7 @@ async def move_category(request: Request, cat_id: int, direction: str = Form(...
     except HTTPException:
         return RedirectResponse(url='/html_no_js/login', status_code=303)
     async with async_session() as sess:
-        q = await sess.exec(select(Category).where(Category.id == cat_id))
+        q = await sess.scalars(select(Category).where(Category.id == cat_id))
         cur = q.first()
         if not cur:
             return RedirectResponse(url='/html_no_js/categories', status_code=303)
@@ -6525,7 +6762,7 @@ async def html_search(request: Request):
                     for t in (await sess.exec(qall)).all():
                         todos_acc.setdefault(t.id, t)
                 # include list name for display
-                lm = {l.id: l.name for l in (await sess.exec(select(ListState).where(ListState.id.in_(vis_ids)))).all()}
+                lm = {l.id: l.name for l in (await sess.scalars(select(ListState).where(ListState.id.in_(vis_ids)))).all()}
                 # Compute default completion status per todo for strike-out and optional exclusion
                 todo_list_ids = list({t.list_id for t in todos_acc.values()})
                 default_ct_ids: dict[int, int] = {}
@@ -6670,7 +6907,7 @@ async def html_edit_list(request: Request, list_id: int, name: str = Form(...), 
     original_name = name or ''
     name = remove_hashtags_from_text(original_name.lstrip())
     async with async_session() as sess:
-        q = await sess.exec(select(ListState).where(ListState.id == list_id))
+        q = await sess.scalars(select(ListState).where(ListState.id == list_id))
         lst = q.first()
         if not lst:
             raise HTTPException(status_code=404, detail='list not found')
@@ -6840,7 +7077,7 @@ async def html_set_list_icons(request: Request, list_id: int, hide_icons: str = 
     if not token or not verify_csrf_token(token, current_user.username):
         raise HTTPException(status_code=403, detail='invalid csrf token')
     async with async_session() as sess:
-        q = await sess.exec(select(ListState).where(ListState.id == list_id))
+        q = await sess.scalars(select(ListState).where(ListState.id == list_id))
         lst = q.first()
         if not lst:
             raise HTTPException(status_code=404, detail='list not found')
@@ -6868,7 +7105,7 @@ async def html_set_list_lists_up_top(request: Request, list_id: int, lists_up_to
     if not token or not verify_csrf_token(token, current_user.username):
         raise HTTPException(status_code=403, detail='invalid csrf token')
     async with async_session() as sess:
-        q = await sess.exec(select(ListState).where(ListState.id == list_id))
+        q = await sess.scalars(select(ListState).where(ListState.id == list_id))
         lst = q.first()
         if not lst:
             raise HTTPException(status_code=404, detail='list not found')
@@ -6896,7 +7133,7 @@ async def html_set_todo_lists_up_top(request: Request, todo_id: int, lists_up_to
     if not token or not verify_csrf_token(token, current_user.username):
         raise HTTPException(status_code=403, detail='invalid csrf token')
     async with async_session() as sess:
-        q = await sess.exec(select(Todo).where(Todo.id == todo_id))
+        q = await sess.scalars(select(Todo).where(Todo.id == todo_id))
         todo = q.first()
         if not todo:
             raise HTTPException(status_code=404, detail='todo not found')
@@ -7055,7 +7292,7 @@ async def sync_post(req: SyncRequest, current_user: User = Depends(require_login
 
                 elif name == 'delete_list':
                     lid = payload.get('id')
-                    q = await sess.exec(select(ListState).where(ListState.id == lid))
+                    q = await sess.scalars(select(ListState).where(ListState.id == lid))
                     lst = q.first()
                     if not lst:
                         results.append({'op': name, 'status': 'not_found', 'id': lid})
@@ -7143,7 +7380,7 @@ async def sync_post(req: SyncRequest, current_user: User = Depends(require_login
 
                 elif name == 'update_todo':
                     tid = payload.get('id')
-                    q = await sess.exec(select(Todo).where(Todo.id == tid))
+                    q = await sess.scalars(select(Todo).where(Todo.id == tid))
                     todo = q.first()
                     if not todo:
                         results.append({'op': name, 'status': 'not_found', 'id': tid})
@@ -7197,7 +7434,7 @@ async def sync_post(req: SyncRequest, current_user: User = Depends(require_login
 
                 elif name == 'delete_todo':
                     tid = payload.get('id')
-                    q = await sess.exec(select(Todo).where(Todo.id == tid))
+                    q = await sess.scalars(select(Todo).where(Todo.id == tid))
                     todo = q.first()
                     if not todo:
                         results.append({'op': name, 'status': 'not_found', 'id': tid})
@@ -7324,7 +7561,7 @@ async def html_tailwind_whoami(request: Request):
 async def html_view_list(request: Request, list_id: int, current_user: User = Depends(require_login)):
     # require login and ownership for HTML list view
     async with async_session() as sess:
-        q = await sess.exec(select(ListState).where(ListState.id == list_id))
+        q = await sess.scalars(select(ListState).where(ListState.id == list_id))
         lst = q.first()
         if not lst:
             raise HTTPException(status_code=404, detail="list not found")
@@ -7332,7 +7569,7 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
             raise HTTPException(status_code=403, detail="forbidden")
 
         # fetch completion types for this list in creation order (id ASC)
-        qct = await sess.exec(
+        qct = await sess.scalars(
             select(CompletionType)
             .where(CompletionType.list_id == list_id)
             .order_by(CompletionType.id.asc())
@@ -7342,10 +7579,10 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
         # load todos and completion states in batch
         # Order todos: priority (higher first, NULLs last), then newest created_at first
         try:
-            q2 = await sess.exec(select(Todo).where(Todo.list_id == list_id).order_by(Todo.priority.desc().nullslast(), Todo.created_at.desc()))
+            q2 = await sess.scalars(select(Todo).where(Todo.list_id == list_id).order_by(Todo.priority.desc().nullslast(), Todo.created_at.desc()))
         except Exception:
             # Fallback if DB/driver doesn't support nullslast or priority desc expression
-            q2 = await sess.exec(select(Todo).where(Todo.list_id == list_id).order_by(Todo.created_at.desc()))
+            q2 = await sess.scalars(select(Todo).where(Todo.list_id == list_id).order_by(Todo.created_at.desc()))
         todos = q2.all()
         todo_ids = [t.id for t in todos]
         ctype_ids = [c.id for c in ctypes]
@@ -7535,7 +7772,7 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
             # Determine highest uncompleted todo priority per sublist (if any)
             try:
                 if sub_ids:
-                    todo_q = await sess.exec(select(Todo.id, Todo.list_id, Todo.priority).where(Todo.list_id.in_(sub_ids)).where(Todo.priority != None))
+                    todo_q = await sess.scalars(select(Todo.id, Todo.list_id, Todo.priority).where(Todo.list_id.in_(sub_ids)).where(Todo.priority != None))
                     # use a distinct variable name so we don't clobber the main `todo_rows`
                     todo_id_rows = todo_q.all()
                     todo_map: dict[int, list[tuple[int,int]]] = {}
@@ -7601,7 +7838,7 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
 async def html_no_js_hashtags(request: Request, current_user: User = Depends(require_login)):
     """Unlinked page to list all Hashtag rows."""
     async with async_session() as sess:
-        q = await sess.exec(select(Hashtag).order_by(Hashtag.tag.asc()))
+        q = await sess.scalars(select(Hashtag).order_by(Hashtag.tag.asc()))
         hashtags = q.all()
     return TEMPLATES.TemplateResponse(request, 'hashtags.html', {'request': request, 'hashtags': hashtags})
 
@@ -7845,7 +8082,7 @@ async def html_toggle_todo_completion_type(request: Request, todo_id: int, compl
         if not lst or lst.owner_id != current_user.id:
             raise HTTPException(status_code=403, detail='forbidden')
         # Validate completion type belongs to this list
-        qct = await sess.exec(select(CompletionType).where(CompletionType.id == completion_type_id).where(CompletionType.list_id == lst.id))
+        qct = await sess.scalars(select(CompletionType).where(CompletionType.id == completion_type_id).where(CompletionType.list_id == lst.id))
         ctype = qct.first()
         if not ctype:
             raise HTTPException(status_code=404, detail='completion type not found')
@@ -7885,16 +8122,14 @@ async def html_create_todo(request: Request, text: str = Form(...), list_id: int
     from .auth import verify_csrf_token
     if not token or not verify_csrf_token(token, current_user.username):
         raise HTTPException(status_code=403, detail="invalid csrf token")
-    new_todo = await create_todo(text=text, list_id=list_id, current_user=current_user)
+    new_todo = await _create_todo_internal(text=text, note=None, list_id=list_id, priority=None, current_user=current_user)
     accept = (request.headers.get('Accept') or '')
     if 'application/json' in accept.lower():
         payload = {'ok': True}
         try:
-            # create_todo may return a serialized dict or an object; handle both
+            # _create_todo_internal returns a serialized dict
             if isinstance(new_todo, dict):
                 payload.update({k: new_todo.get(k) for k in ('id', 'text', 'list_id')})
-            elif new_todo is not None:
-                payload.update({'id': getattr(new_todo, 'id', None), 'text': getattr(new_todo, 'text', None), 'list_id': getattr(new_todo, 'list_id', None)})
         except Exception:
             pass
         return JSONResponse(payload)
@@ -7907,7 +8142,7 @@ async def html_toggle_complete(request: Request, todo_id: int, done: str = Form(
     val = True if done.lower() in ("1", "true", "yes") else False
     # find the todo's list so we can redirect back to it after marking
     async with async_session() as sess:
-        q = await sess.exec(select(Todo).where(Todo.id == todo_id))
+        q = await sess.scalars(select(Todo).where(Todo.id == todo_id))
         todo = q.first()
     # require login for completing todos; call internal impl with authenticated user
     await _complete_todo_impl(todo_id=todo_id, done=val, current_user=current_user)
@@ -7932,7 +8167,7 @@ async def html_toggle_complete_get(request: Request, todo_id: int, done: str, cu
     # Accept 'done' as query param string and perform the same toggle as the POST handler.
     val = True if str(done).lower() in ("1", "true", "yes") else False
     async with async_session() as sess:
-        q = await sess.exec(select(Todo).where(Todo.id == todo_id))
+        q = await sess.scalars(select(Todo).where(Todo.id == todo_id))
         todo = q.first()
         if not todo:
             raise HTTPException(status_code=404, detail='todo not found')
@@ -7996,7 +8231,7 @@ async def html_delete_todo(request: Request, todo_id: int):
 
             # Find or create the user's Trash list (only for authenticated users)
             if cu:
-                q = await sess.exec(select(ListState).where(ListState.owner_id == cu.id).where(ListState.name == 'Trash'))
+                q = await sess.scalars(select(ListState).where(ListState.owner_id == cu.id).where(ListState.name == 'Trash'))
                 trash = q.first()
                 if not trash:
                     trash = ListState(name='Trash', owner_id=cu.id)
@@ -8070,12 +8305,12 @@ async def html_delete_todo(request: Request, todo_id: int):
 async def html_view_trash(request: Request, current_user: User = Depends(require_login)):
     # List todos in the current user's Trash list
     async with async_session() as sess:
-        q = await sess.exec(select(ListState).where(ListState.owner_id == current_user.id).where(ListState.name == 'Trash'))
+        q = await sess.scalars(select(ListState).where(ListState.owner_id == current_user.id).where(ListState.name == 'Trash'))
         trash = q.first()
         todos = []
         lists = []
         if trash:
-            q2 = await sess.exec(select(Todo).where(Todo.list_id == trash.id).order_by(Todo.modified_at.desc()))
+            q2 = await sess.scalars(select(Todo).where(Todo.list_id == trash.id).order_by(Todo.modified_at.desc()))
             todos = q2.all()
             # also include lists that were moved under the Trash list (parent_list_id == trash.id)
             ql = await sess.exec(select(ListState).where(ListState.parent_list_id == trash.id).order_by(ListState.modified_at.desc()))
@@ -8107,7 +8342,7 @@ async def html_restore_trash(request: Request, todo_id: int, current_user: User 
         if not lst or lst.owner_id != current_user.id:
             raise HTTPException(status_code=403, detail='forbidden')
         # find TrashMeta
-        q = await sess.exec(select(TrashMeta).where(TrashMeta.todo_id == todo_id))
+        q = await sess.scalars(select(TrashMeta).where(TrashMeta.todo_id == todo_id))
         tm = q.first()
         if not tm:
             # nothing to restore, redirect back
@@ -8160,7 +8395,7 @@ async def html_restore_list_trash(request: Request, list_id: int):
         if lst.parent_list_id is None or lst.owner_id != current_user.id:
             # not a trashed list owned by user
             raise HTTPException(status_code=403, detail='forbidden')
-        q = await sess.exec(select(ListTrashMeta).where(ListTrashMeta.list_id == list_id))
+        q = await sess.scalars(select(ListTrashMeta).where(ListTrashMeta.list_id == list_id))
         meta = q.first()
         if not meta:
             # nothing to restore
@@ -8210,7 +8445,7 @@ async def html_permanent_delete_list_trash(request: Request, list_id: int):
     # avoid subtle dependency/visibility issues when called from another
     # request handler.
     async with async_session() as sess:
-        q = await sess.exec(select(ListState).where(ListState.id == list_id))
+        q = await sess.scalars(select(ListState).where(ListState.id == list_id))
         lst = q.first()
         logger.info('html_permanent_delete_list_trash lookup lst=%s', bool(lst))
         if not lst:
@@ -8393,7 +8628,7 @@ async def html_view_todo(request: Request, todo_id: int, current_user: User = De
         # Determine highest uncompleted todo priority per sublist (if any)
         try:
             if sub_ids:
-                todo_q = await sess.exec(select(Todo.id, Todo.list_id, Todo.priority).where(Todo.list_id.in_(sub_ids)).where(Todo.priority != None))
+                todo_q = await sess.scalars(select(Todo.id, Todo.list_id, Todo.priority).where(Todo.list_id.in_(sub_ids)).where(Todo.priority != None))
                 todo_id_rows = todo_q.all()
                 todo_map: dict[int, list[tuple[int,int]]] = {}
                 todo_ids = []
@@ -8496,7 +8731,7 @@ async def html_create_sublist(request: Request, todo_id: int, name: str = Form(.
 
 async def _normalize_sublist_positions(sess, parent_todo_id: int):
     """Ensure sibling positions are contiguous starting at 0 for a parent's sublists."""
-    q = await sess.exec(select(ListState).where(ListState.parent_todo_id == parent_todo_id))
+    q = await sess.scalars(select(ListState).where(ListState.parent_todo_id == parent_todo_id))
     rows = q.all()
     # order by current position (None last), then created_at
     def _key(l):
@@ -8541,7 +8776,7 @@ async def _move_sublist_core(sess, *, current_user: User, todo_id: int, list_id:
     if not sub or getattr(sub, 'parent_todo_id', None) != todo_id:
         raise HTTPException(status_code=404, detail='sublist not found')
     # get siblings and positions
-    q = await sess.exec(select(ListState).where(ListState.parent_todo_id == todo_id))
+    q = await sess.scalars(select(ListState).where(ListState.parent_todo_id == todo_id))
     sibs = q.all()
     # ensure positions are normalized first
     await _normalize_sublist_positions(sess, todo_id)
@@ -8631,7 +8866,7 @@ async def html_move_sublist(request: Request, todo_id: int, list_id: int, direct
 
 # ===== List -> List sublists (nested lists) =====
 async def _normalize_list_sublists_positions(sess, parent_list_id: int):
-    q = await sess.exec(select(ListState).where(ListState.parent_list_id == parent_list_id))
+    q = await sess.scalars(select(ListState).where(ListState.parent_list_id == parent_list_id))
     rows = q.all()
     def _key(l):
         pos = getattr(l, 'parent_list_position', None)
@@ -8704,7 +8939,7 @@ async def _move_list_sublist_core(sess, *, current_user: User, list_id: int, sub
     sub = await sess.get(ListState, sub_id)
     if not sub or getattr(sub, 'parent_list_id', None) != list_id:
         raise HTTPException(status_code=404, detail='sublist not found')
-    q = await sess.exec(select(ListState).where(ListState.parent_list_id == list_id))
+    q = await sess.scalars(select(ListState).where(ListState.parent_list_id == list_id))
     sibs = q.all()
     await _normalize_list_sublists_positions(sess, list_id)
     await sess.refresh(sub)

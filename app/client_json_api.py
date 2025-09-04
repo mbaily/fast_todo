@@ -2,13 +2,11 @@ from typing import Optional
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse
 
-from .main import select, ListState, ListHashtag, Hashtag, Todo, TodoHashtag, CompletionType, TodoCompletion, async_session
+from .db import async_session
+from .models import ListState, ListHashtag, Hashtag, Todo, TodoHashtag, CompletionType, TodoCompletion, RecentListVisit, Category
 from .auth import get_current_user as _gcu
-from .main import extract_hashtags, create_list
-from sqlalchemy import func, or_, and_
-from .models import RecentListVisit, Category
-from .utils import now_utc
-from datetime import datetime
+from .utils import extract_hashtags, now_utc
+from sqlalchemy import select, func, or_, and_
 
 # Use a client-scoped prefix to avoid colliding with other APIs. These endpoints
 # are intended for web clients (generic web frontends), not a generic public API.
@@ -81,7 +79,7 @@ async def client_search(request: Request):
                     qall = select(Todo).where(Todo.list_id.in_(list_ids_match))
                     for t in (await sess.exec(qall)).all():
                         todos_acc.setdefault(t.id, t)
-                lm = {l.id: l.name for l in (await sess.exec(select(ListState).where(ListState.id.in_(vis_ids)))).all()}
+                lm = {l.id: l.name for l in (await sess.scalars(select(ListState).where(ListState.id.in_(vis_ids)))).all()}
                 todo_list_ids = list({t.list_id for t in todos_acc.values()})
                 default_ct_ids: dict[int, int] = {}
                 if todo_list_ids:
@@ -120,6 +118,8 @@ async def client_create_list(request: Request):
     if not name:
         raise HTTPException(status_code=400, detail='name is required')
     # Delegate to existing create_list helper which expects Request and current_user
+    # Use local import to avoid circular dependency
+    from .main import create_list
     new_list = await create_list(request, name=name, current_user=current_user)
     payload = {'ok': True}
     try:
@@ -219,7 +219,7 @@ async def client_list_index(request: Request, per_page: Optional[int] = None):
 
         # Determine highest uncompleted todo priority per list
         try:
-            todo_q = await sess.exec(select(Todo.id, Todo.list_id, Todo.priority).where(Todo.list_id.in_(list_ids)).where(Todo.priority != None))
+            todo_q = await sess.scalars(select(Todo.id, Todo.list_id, Todo.priority).where(Todo.list_id.in_(list_ids)).where(Todo.priority != None))
             todo_rows = todo_q.all()
             todo_map: dict[int, list[tuple[int,int]]] = {}
             todo_ids = []
@@ -374,7 +374,7 @@ async def client_get_list(request: Request, list_id: int):
         raise HTTPException(status_code=401, detail='authentication required')
 
     async with async_session() as sess:
-        q = await sess.exec(select(ListState).where(ListState.id == list_id))
+        q = await sess.scalars(select(ListState).where(ListState.id == list_id))
         lst = q.first()
         if not lst:
             raise HTTPException(status_code=404, detail='list not found')
@@ -382,14 +382,14 @@ async def client_get_list(request: Request, list_id: int):
             raise HTTPException(status_code=403, detail='forbidden')
 
         # completion types
-        qct = await sess.exec(select(CompletionType).where(CompletionType.list_id == list_id).order_by(CompletionType.id.asc()))
+        qct = await sess.scalars(select(CompletionType).where(CompletionType.list_id == list_id).order_by(CompletionType.id.asc()))
         ctypes = qct.all()
 
         # todos and statuses
         try:
-            q2 = await sess.exec(select(Todo).where(Todo.list_id == list_id).order_by(Todo.priority.desc().nullslast(), Todo.created_at.desc()))
+            q2 = await sess.scalars(select(Todo).where(Todo.list_id == list_id).order_by(Todo.priority.desc().nullslast(), Todo.created_at.desc()))
         except Exception:
-            q2 = await sess.exec(select(Todo).where(Todo.list_id == list_id).order_by(Todo.created_at.desc()))
+            q2 = await sess.scalars(select(Todo).where(Todo.list_id == list_id).order_by(Todo.created_at.desc()))
         todos = q2.all()
         todo_ids = [t.id for t in todos]
         ctype_ids = [c.id for c in ctypes]
@@ -547,7 +547,7 @@ async def client_get_list(request: Request, list_id: int):
             # compute override priorities per sublist (similar to above)
             try:
                 if sub_ids:
-                    todo_q = await sess.exec(select(Todo.id, Todo.list_id, Todo.priority).where(Todo.list_id.in_(sub_ids)).where(Todo.priority != None))
+                    todo_q = await sess.scalars(select(Todo.id, Todo.list_id, Todo.priority).where(Todo.list_id.in_(sub_ids)).where(Todo.priority != None))
                     todo_id_rows = todo_q.all()
                     todo_map = {}
                     todo_ids = []
@@ -594,3 +594,189 @@ async def client_get_list(request: Request, list_id: int):
         'sublists': sublists,
     }
     return JSONResponse(payload)
+
+
+# Todo CRUD endpoints
+@router.get('/lists/{list_id}/todos', response_class=JSONResponse)
+async def get_list_todos(list_id: int, request: Request):
+    """Get all todos for a list that the user owns."""
+    try:
+        current_user = await _gcu(token=None, request=request)
+    except HTTPException:
+        raise HTTPException(status_code=401, detail='authentication required')
+
+    async with async_session() as sess:
+        # Verify list exists and user owns it
+        q = await sess.scalars(select(ListState).where(ListState.id == list_id))
+        lst = q.first()
+        if not lst:
+            raise HTTPException(status_code=404, detail="list not found")
+        
+        # Check ownership - handle case where owner_id might not be loaded
+        owner_id = getattr(lst, 'owner_id', None)
+        if owner_id is not None and owner_id != current_user.id:
+            raise HTTPException(status_code=403, detail="forbidden")
+
+        # Fetch todos for the list
+        try:
+            q2 = await sess.scalars(select(Todo).where(Todo.list_id == list_id).order_by(Todo.priority.desc().nullslast(), Todo.created_at.desc()))
+        except Exception:
+            q2 = await sess.scalars(select(Todo).where(Todo.list_id == list_id).order_by(Todo.created_at.desc()))
+        todos = q2.all()
+
+        # Serialize todos
+        result = []
+        for todo in todos:
+            result.append({
+                "id": todo.id,
+                "text": todo.text,
+                "pinned": getattr(todo, 'pinned', False),
+                "note": todo.note,
+                "created_at": todo.created_at.isoformat() if todo.created_at else None,
+                "modified_at": todo.modified_at.isoformat() if todo.modified_at else None,
+                "deferred_until": todo.deferred_until.isoformat() if todo.deferred_until else None,
+                "list_id": todo.list_id,
+                "completions": [],
+                "priority": getattr(todo, 'priority', None),
+                "completed": False  # Will be set by completion logic below
+            })
+
+        # Add completion status for all completion types
+        todo_ids = [t.id for t in todos]
+        if todo_ids:
+            # Get all completion types for this list
+            qct = await sess.scalars(select(CompletionType).where(CompletionType.list_id == list_id).order_by(CompletionType.id.asc()))
+            completion_types = qct.all()
+            
+            # Get completion status for all completion types
+            completion_type_ids = [ct.id for ct in completion_types]
+            if completion_type_ids:
+                qcomp = await sess.scalars(select(TodoCompletion).where(TodoCompletion.todo_id.in_(todo_ids)).where(TodoCompletion.completion_type_id.in_(completion_type_ids)))
+                completion_records = qcomp.all()
+                
+                # Create completion map: todo_id -> completion_type_id -> done
+                completion_map = {}
+                for comp in completion_records:
+                    if comp.todo_id not in completion_map:
+                        completion_map[comp.todo_id] = {}
+                    completion_map[comp.todo_id][comp.completion_type_id] = comp.done
+                
+                # Update todos with completion data
+                for todo_data in result:
+                    todo_id = todo_data["id"]
+                    todo_completions = {}
+                    
+                    # Set completion status for each completion type
+                    for ct in completion_types:
+                        todo_completions[ct.name] = completion_map.get(todo_id, {}).get(ct.id, False)
+                    
+                    todo_data["completions"] = todo_completions
+                    
+                    # For backward compatibility, set "completed" to the default completion type status
+                    default_completion = todo_completions.get("default", False)
+                    todo_data["completed"] = default_completion
+
+        return JSONResponse(result)
+
+
+@router.post('/todos', response_class=JSONResponse)
+async def create_todo(request: Request):
+    """Create a todo. Expects JSON payload with text, list_id, note, priority."""
+    try:
+        current_user = await _gcu(token=None, request=request)
+    except HTTPException:
+        raise HTTPException(status_code=401, detail='authentication required')
+
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="invalid JSON")
+
+    text = payload.get('text')
+    note = payload.get('note')
+    list_id = payload.get('list_id')
+    priority = payload.get('priority')
+
+    if not text or not isinstance(text, str):
+        raise HTTPException(status_code=400, detail="text is required and must be a string")
+    if list_id is None:
+        raise HTTPException(status_code=400, detail="list_id is required")
+
+    try:
+        list_id = int(list_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="list_id must be an integer")
+
+    if priority is not None:
+        try:
+            priority = int(priority)
+        except Exception:
+            raise HTTPException(status_code=400, detail="priority must be an integer")
+
+    # Import the internal function from main
+    from .main import _create_todo_internal
+    return await _create_todo_internal(text, note, list_id, priority, current_user)
+
+
+@router.patch('/todos/{todo_id}', response_class=JSONResponse)
+async def update_todo(todo_id: int, request: Request):
+    """Update a todo. Expects JSON payload with optional fields."""
+    try:
+        current_user = await _gcu(token=None, request=request)
+    except HTTPException:
+        raise HTTPException(status_code=401, detail='authentication required')
+
+    # Import the internal function from main
+    from .main import _update_todo_internal
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="invalid JSON")
+
+    return await _update_todo_internal(todo_id, payload, current_user)
+
+
+@router.delete('/todos/{todo_id}', response_class=JSONResponse)
+async def delete_todo(todo_id: int, request: Request):
+    """Delete a todo."""
+    try:
+        current_user = await _gcu(token=None, request=request)
+    except HTTPException:
+        raise HTTPException(status_code=401, detail='authentication required')
+
+    # Import the internal function from main
+    from .main import _delete_todo_internal
+    return await _delete_todo_internal(todo_id, current_user)
+
+
+@router.get('/lists/{list_id}/completion_types', response_class=JSONResponse)
+async def get_list_completion_types(list_id: int, request: Request):
+    """Get all completion types for a list that the user owns."""
+    try:
+        current_user = await _gcu(token=None, request=request)
+    except HTTPException:
+        raise HTTPException(status_code=401, detail='authentication required')
+
+    async with async_session() as sess:
+        # Verify list exists and user owns it
+        q = await sess.scalars(select(ListState).where(ListState.id == list_id))
+        lst = q.first()
+        if not lst:
+            raise HTTPException(status_code=404, detail="list not found")
+        if lst.owner_id != current_user.id:
+            raise HTTPException(status_code=403, detail="forbidden")
+
+        # Fetch completion types for the list
+        qct = await sess.scalars(select(CompletionType).where(CompletionType.list_id == list_id).order_by(CompletionType.id.asc()))
+        completion_types = qct.all()
+
+        # Serialize completion types
+        result = []
+        for ct in completion_types:
+            result.append({
+                "id": ct.id,
+                "name": ct.name,
+                "list_id": ct.list_id
+            })
+
+        return JSONResponse(result)

@@ -157,7 +157,14 @@
                                 if (parentLi){ parentLi.querySelectorAll('.tag-chip').forEach(function(el){ if (el && el.textContent) existing.add(String(el.textContent).trim()); }); }
                             }catch(e){}
                             // append unique tags only
-                            tags.forEach(function(t){ try{ var txt = String(t).trim(); if (!txt) return; if (existing.has(txt)) return; existing.add(txt); var a = document.createElement('a'); a.href = '/html_no_js/search?q=' + encodeURIComponent(txt); a.className = 'tag-chip'; a.textContent = txt; a.setAttribute('data-appended','1'); c.appendChild(a); }catch(e){} });
+                            tags.forEach(function(t){ try{ var txt = String(t).trim(); if (!txt) return; if (existing.has(txt)) return; existing.add(txt);
+                                var wrapItem = document.createElement('div'); wrapItem.className = 'tag-wrapper inline-flex items-center';
+                                    var a = document.createElement('a'); a.href = '/html_no_js/search?q=' + encodeURIComponent(txt); a.className = 'tag-chip inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-semibold text-slate-100 border border-sky-500/30 hover:bg-sky-700/25 focus:outline-none focus:ring-2 focus:ring-sky-400';
+                                var span = document.createElement('span'); span.className = 'label truncate'; span.textContent = txt;
+                                a.appendChild(span);
+                                var btn = document.createElement('button'); btn.className = 'remove'; btn.setAttribute('data-tag', txt); btn.type = 'button'; btn.textContent = '\u00d7'; btn.setAttribute('aria-label','Remove tag '+txt); btn.title = 'Remove ' + txt;
+                                wrapItem.appendChild(a); wrapItem.appendChild(btn); wrapItem.setAttribute('data-appended','1'); c.appendChild(wrapItem);
+                            }catch(e){} });
                         }
                     }catch(e){ c.innerHTML = ''; }
                 }));

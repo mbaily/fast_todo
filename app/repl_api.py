@@ -305,7 +305,7 @@ class Repl:
     # ===== Async impls =====
     async def _get_list_by_id(self, list_id: int) -> Optional[ListState]:
         async with async_session() as sess:
-            res = await sess.exec(select(ListState).where(ListState.id == list_id, ListState.owner_id == self.user.id))
+            res = await sess.scalars(select(ListState).where(ListState.id == list_id, ListState.owner_id == self.user.id))
             return res.first()
 
     async def _get_list_by_path(self, path: str) -> Optional[ListState]:
@@ -333,19 +333,19 @@ class Repl:
 
     async def _get_todo_by_id(self, todo_id: int) -> Optional[Todo]:
         async with async_session() as sess:
-            res = await sess.exec(select(Todo).where(Todo.id == todo_id))
+            res = await sess.scalars(select(Todo).where(Todo.id == todo_id))
             row = res.first()
             if not row:
                 return None
             # ensure ownership via parent list
-            lres = await sess.exec(select(ListState).where(ListState.id == row.list_id, ListState.owner_id == self.user.id))
+            lres = await sess.scalars(select(ListState).where(ListState.id == row.list_id, ListState.owner_id == self.user.id))
             if not lres.first():
                 return None
             return row
 
     async def _get_todo_by_text(self, list_id: int, text: str) -> Optional[Todo]:
         async with async_session() as sess:
-            res = await sess.exec(select(Todo).where(Todo.list_id == list_id, Todo.text == text))
+            res = await sess.scalars(select(Todo).where(Todo.list_id == list_id, Todo.text == text))
             return res.first()
 
     async def _lists_in_container(self, parent_list_id: Optional[int], parent_todo_id: Optional[int]) -> list[ListState]:
@@ -364,7 +364,7 @@ class Repl:
 
     async def _lists_and_todos_under_list(self, list_id: int) -> tuple[list[ListState], list[Todo]]:
         async with async_session() as sess:
-            lq = await sess.exec(select(ListState).where(ListState.owner_id == self.user.id, ListState.parent_list_id == list_id))
+            lq = await sess.scalars(select(ListState).where(ListState.owner_id == self.user.id, ListState.parent_list_id == list_id))
             tq = await sess.exec(select(Todo).where(Todo.list_id == list_id))
             return lq.all(), tq.all()
 
@@ -391,7 +391,7 @@ class Repl:
             dest_list_id: Optional[int] = None
             if at is None:
                 # default to a top-level list named 'default' or the newest list
-                q = await sess.exec(select(ListState).where(ListState.owner_id == self.user.id, ListState.parent_list_id == None, ListState.parent_todo_id == None).order_by(ListState.created_at.desc()))
+                q = await sess.scalars(select(ListState).where(ListState.owner_id == self.user.id, ListState.parent_list_id == None, ListState.parent_todo_id == None).order_by(ListState.created_at.desc()))
                 lst = q.first()
                 if not lst:
                     # create a personal root list if none

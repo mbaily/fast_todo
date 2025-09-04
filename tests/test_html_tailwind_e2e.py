@@ -160,3 +160,281 @@ def test_e2e_tailwind_login_create_logout(live_server):
         # Fail the test and include a short excerpt of the logfile for debugging
         excerpt = tail[-4000:] if len(tail) > 4000 else tail
         pytest.fail(f"Server-side exceptions detected during E2E run: {found}\n--- log excerpt ---\n{excerpt}")
+
+
+def test_e2e_tailwind_checkbox_toggle(live_server):
+    """Test clicking a todo checkbox in the Tailwind interface.
+
+    This test logs in, navigates to list id 175, finds an incomplete todo,
+    clicks its checkbox, and verifies the state changes.
+    """
+    try:
+        from playwright.sync_api import sync_playwright
+    except Exception as e:
+        pytest.skip(f"Playwright not available: {e}")
+
+    url, log_path = live_server
+    server_5xx = []
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+
+        # Track any 5xx responses
+        def _on_response(response):
+            try:
+                if response.status >= 500:
+                    server_5xx.append({'url': response.url, 'status': response.status})
+            except Exception:
+                pass
+        page.on('response', _on_response)
+
+        try:
+            # Navigate to login page
+            page.goto(f"{url}/html_tailwind/login", wait_until='networkidle')
+            page.fill('#username', 'mbaily')
+            page.fill('#password', 'mypass')
+            page.click('button[type=submit]')
+
+            # Wait for navigation to the tailwind interface
+            try:
+                page.wait_for_url('**/html_tailwind', timeout=5000)
+            except Exception:
+                pass  # May stay on same page
+
+            # Navigate to the specific list
+            page.goto(f"{url}/html_tailwind/list?id=175", wait_until='networkidle')
+
+            # Wait for the todo list to load
+            page.wait_for_selector('#todo-list-full-body', timeout=10000)
+
+            # Find incomplete todos (those with ⬜ symbol)
+            incomplete_buttons = page.query_selector_all('#todo-list-full-body button:has-text("⬜")')
+
+            if not incomplete_buttons:
+                pytest.fail("No incomplete todos found on the page")
+
+            # Click the first incomplete todo
+            first_incomplete = incomplete_buttons[0]
+            todo_text = first_incomplete.inner_text()
+
+            print(f"Found incomplete todo: {todo_text}")
+
+            # Click the checkbox
+            first_incomplete.click()
+
+            # Wait a moment for the UI to update
+            page.wait_for_timeout(1000)
+
+            # Check if the todo is now complete (should show ✅ instead of ⬜)
+            updated_buttons = page.query_selector_all('#todo-list-full-body button')
+            found_complete = False
+            for button in updated_buttons:
+                if "✅" in button.inner_text() and todo_text.replace("⬜", "").strip() in button.inner_text():
+                    found_complete = True
+                    print(f"Todo successfully marked complete: {button.inner_text()}")
+                    break
+
+            if not found_complete:
+                # Check if the original button still exists but with different text
+                current_buttons = page.query_selector_all('#todo-list-full-body button:has-text("⬜")')
+                if len(current_buttons) == len(incomplete_buttons):
+                    pytest.fail("Checkbox click did not change the todo state - still shows as incomplete")
+                else:
+                    print("Todo state appears to have changed (different count of incomplete todos)")
+
+            # Also check for any error messages in the page
+            error_toasts = page.query_selector_all('.border-red-500')
+            if error_toasts:
+                error_text = error_toasts[0].inner_text()
+                print(f"Found error toast: {error_text}")
+                pytest.fail(f"Error occurred during checkbox toggle: {error_text}")
+
+            print("Checkbox toggle test completed successfully")
+
+        finally:
+            browser.close()
+
+    # Check for server errors
+    try:
+        with open(log_path, 'r', errors='ignore') as lf:
+            tail = lf.read()
+    except Exception:
+        tail = ''
+
+    markers = ['Traceback (most recent call last):', 'Exception in ASGI application', 'jinja2.exceptions', 'Traceback', 'ERROR:']
+    found = [m for m in markers if m in tail]
+    if server_5xx:
+        found.append(f'5xx_responses:{server_5xx}')
+
+    if found:
+        excerpt = tail[-4000:] if len(tail) > 4000 else tail
+def test_e2e_tailwind_checkbox_toggle_detailed(live_server):
+    """Detailed test for checkbox toggle that monitors API calls and JavaScript errors."""
+    try:
+        from playwright.sync_api import sync_playwright
+    except Exception as e:
+        pytest.skip(f"Playwright not available: {e}")
+
+    url, log_path = live_server
+    server_5xx = []
+    api_requests = []
+    api_responses = []
+    js_errors = []
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+
+        # Track responses
+        def _on_response(response):
+            try:
+                if response.status >= 500:
+                    server_5xx.append({'url': response.url, 'status': response.status})
+                if '/client/json/todos/' in response.url:
+                    api_responses.append({
+                        'url': response.url,
+                        'status': response.status,
+                        'method': response.request.method
+                    })
+            except Exception:
+                pass
+        page.on('response', _on_response)
+
+        # Track requests
+        def _on_request(request):
+            try:
+                if '/client/json/todos/' in request.url:
+                    api_requests.append({
+                        'url': request.url,
+                        'method': request.method,
+                        'post_data': request.post_data
+                    })
+            except Exception:
+                pass
+        page.on('request', _on_request)
+
+        # Track JavaScript errors
+        def _on_page_error(error):
+            js_errors.append(str(error))
+        page.on('pageerror', _on_page_error)
+
+        try:
+            # Navigate to login page
+            page.goto(f"{url}/html_tailwind/login", wait_until='networkidle')
+            page.fill('#username', 'mbaily')
+            page.fill('#password', 'mypass')
+            page.click('button[type=submit]')
+
+            # Wait for navigation
+            try:
+                page.wait_for_url('**/html_tailwind', timeout=5000)
+            except Exception:
+                pass
+
+            # Navigate to the specific list
+            page.goto(f"{url}/html_tailwind/list?id=175", wait_until='networkidle')
+
+            # Wait for the todo list to load
+            page.wait_for_selector('#todo-list-full-body', timeout=10000)
+
+            # Check for JavaScript errors before clicking
+            if js_errors:
+                print(f"JavaScript errors before click: {js_errors}")
+                pytest.fail(f"JavaScript errors detected: {js_errors}")
+
+            # Find incomplete todos
+            incomplete_buttons = page.query_selector_all('#todo-list-full-body button:has-text("⬜")')
+
+            if not incomplete_buttons:
+                pytest.fail("No incomplete todos found on the page")
+
+            # Get initial state
+            initial_incomplete_count = len(incomplete_buttons)
+            first_incomplete = incomplete_buttons[0]
+            todo_text = first_incomplete.inner_text()
+
+            print(f"Found {initial_incomplete_count} incomplete todos")
+            print(f"Clicking todo: {todo_text}")
+
+            # Clear previous API calls
+            api_requests.clear()
+            api_responses.clear()
+
+            # Click the checkbox
+            first_incomplete.click()
+
+            # Wait for potential API call and UI update
+            page.wait_for_timeout(2000)
+
+            # Check API calls
+            print(f"API requests made: {len(api_requests)}")
+            for req in api_requests:
+                print(f"  {req['method']} {req['url']}")
+                if req['post_data']:
+                    print(f"    Data: {req['post_data']}")
+
+            print(f"API responses received: {len(api_responses)}")
+            for resp in api_responses:
+                print(f"  {resp['status']} {resp['url']}")
+
+            # Check for JavaScript errors after clicking
+            if js_errors:
+                print(f"JavaScript errors after click: {js_errors}")
+                pytest.fail(f"JavaScript errors detected after click: {js_errors}")
+
+            # Check final state
+            final_incomplete_buttons = page.query_selector_all('#todo-list-full-body button:has-text("⬜")')
+            final_incomplete_count = len(final_incomplete_buttons)
+
+            print(f"Initial incomplete count: {initial_incomplete_count}")
+            print(f"Final incomplete count: {final_incomplete_count}")
+
+            if final_incomplete_count >= initial_incomplete_count:
+                # Check if the specific todo changed
+                all_buttons = page.query_selector_all('#todo-list-full-body button')
+                found_original_todo = False
+                for button in all_buttons:
+                    btn_text = button.inner_text()
+                    if todo_text.replace("⬜", "").strip() in btn_text:
+                        found_original_todo = True
+                        if "⬜" in btn_text:
+                            print(f"Todo still incomplete: {btn_text}")
+                            pytest.fail("Checkbox click did not change the todo state")
+                        elif "✅" in btn_text:
+                            print(f"Todo successfully completed: {btn_text}")
+                        break
+
+                if not found_original_todo:
+                    print("Original todo not found in updated list")
+                    pytest.fail("Could not verify todo state after click")
+            else:
+                print("Todo state successfully changed (incomplete count decreased)")
+
+            # Check for error toasts
+            error_toasts = page.query_selector_all('.border-red-500')
+            if error_toasts:
+                error_text = error_toasts[0].inner_text()
+                print(f"Found error toast: {error_text}")
+                pytest.fail(f"Error occurred during checkbox toggle: {error_text}")
+
+            print("Detailed checkbox toggle test completed successfully")
+
+        finally:
+            browser.close()
+
+    # Check for server errors
+    try:
+        with open(log_path, 'r', errors='ignore') as lf:
+            tail = lf.read()
+    except Exception:
+        tail = ''
+
+    markers = ['Traceback (most recent call last):', 'Exception in ASGI application', 'jinja2.exceptions', 'Traceback', 'ERROR:']
+    found = [m for m in markers if m in tail]
+    if server_5xx:
+        found.append(f'5xx_responses:{server_5xx}')
+
+    if found:
+        excerpt = tail[-4000:] if len(tail) > 4000 else tail
+        pytest.fail(f"Server-side exceptions detected during detailed checkbox test: {found}\n--- log excerpt ---\n{excerpt}")
