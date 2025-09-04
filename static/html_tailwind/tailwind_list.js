@@ -600,7 +600,7 @@ window.tailwindList = (function () {
 			// Remove from local state
 			currentTodos = currentTodos.filter(t => t.id !== todoId);
 			renderTodos();
-			showToast('Todo deleted', { type: 'success' });
+			// showToast('Todo deleted', { type: 'success' }); // Toast disabled for todo deletion
 		} catch (err) {
 			console.error('failed to delete todo', err);
 			showToast('Failed to delete todo', { type: 'error' });
@@ -656,6 +656,134 @@ window.tailwindList = (function () {
 		});
 	}
 
+	async function fetchAndRenderCompletionTypes() {
+		const listRoot = document.getElementById('list-root');
+		if (!listRoot) return;
+		const listId = listRoot.querySelector('[data-list-id]')?.dataset?.listId || '';
+		if (!listId) return;
+
+		try {
+			const resp = await fetch(`/client/json/lists/${encodeURIComponent(listId)}/completion_types`, { credentials: 'same-origin' });
+			if (!resp.ok) throw new Error('failed to fetch completion types');
+			const completionTypes = await resp.json();
+			
+			const container = document.getElementById('completion-types-list');
+			if (!container) return;
+			
+			container.innerHTML = '';
+			
+			if (completionTypes.length === 0) {
+				container.innerHTML = '<span class="text-slate-500 text-sm">No completion types yet</span>';
+				return;
+			}
+			
+			completionTypes.forEach(ct => {
+				const wrapper = document.createElement('div');
+				wrapper.className = 'completion-type-wrapper inline-flex items-center';
+				
+				const chip = document.createElement('span');
+				chip.className = 'completion-type-chip inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-semibold text-slate-100 border border-green-500/30 bg-green-700/25';
+				chip.textContent = ct.name;
+				
+				const removeBtn = document.createElement('button');
+				removeBtn.className = 'remove-completion-type text-xs text-slate-400 hover:text-red-400 ml-1';
+				removeBtn.textContent = '×';
+				removeBtn.title = `Remove completion type: ${ct.name}`;
+				removeBtn.addEventListener('click', () => deleteCompletionType(ct.name));
+				
+				wrapper.appendChild(chip);
+				wrapper.appendChild(removeBtn);
+				container.appendChild(wrapper);
+			});
+		} catch (err) {
+			console.error('failed to fetch completion types', err);
+		}
+	}
+
+	async function deleteCompletionType(completionTypeName) {
+		if (!confirm(`Are you sure you want to delete the completion type "${completionTypeName}"? This will remove all completion data for this type.`)) {
+			return;
+		}
+		
+		const listRoot = document.getElementById('list-root');
+		if (!listRoot) return;
+		const listId = listRoot.querySelector('[data-list-id]')?.dataset?.listId || '';
+		if (!listId) return;
+
+		try {
+			const resp = await fetch(`/lists/${encodeURIComponent(listId)}/completion_types/${encodeURIComponent(completionTypeName)}`, {
+				method: 'DELETE',
+				credentials: 'same-origin'
+			});
+			
+			if (!resp.ok) {
+				if (resp.status === 400) {
+					showToast('Cannot delete the last completion type', { type: 'error' });
+				} else {
+					throw new Error('failed to delete completion type');
+				}
+				return;
+			}
+			
+			// Refresh completion types and todos
+			await fetchAndRenderCompletionTypes();
+			await fetchTodos();
+			// Completion type deleted - toast disabled
+		} catch (err) {
+			console.error('failed to delete completion type', err);
+			showToast('Failed to delete completion type', { type: 'error' });
+		}
+	}
+
+	function initCompletionTypeEditor() {
+		const input = document.getElementById('add-completion-type-input');
+		const btn = document.getElementById('add-completion-type-btn');
+		if (!input || !btn) return;
+
+		const addCompletionTypeHandler = async () => {
+			const name = input.value.trim();
+			if (!name) return;
+
+			const listRoot = document.getElementById('list-root');
+			if (!listRoot) return;
+			const listId = listRoot.querySelector('[data-list-id]')?.dataset?.listId || '';
+			if (!listId) return;
+
+			btn.disabled = true;
+			try {
+				// Use query parameters instead of JSON for the POST request
+				const url = `/lists/${encodeURIComponent(listId)}/completion_types?name=${encodeURIComponent(name)}`;
+				const resp = await fetch(url, {
+					method: 'POST',
+					credentials: 'same-origin'
+				});
+				if (!resp.ok) throw new Error('request failed: ' + resp.status);
+				
+				input.value = '';
+				await fetchAndRenderCompletionTypes();
+				await fetchTodos(); // Refresh todos to show new completion type column
+				// Completion type added - toast disabled
+			} catch (err) {
+				console.error('failed to add completion type', err);
+				if (err.message.includes('400')) {
+					showToast('Completion type already exists', { type: 'error' });
+				} else {
+					showToast('Failed to add completion type', { type: 'error' });
+				}
+			} finally {
+				btn.disabled = false;
+			}
+		};
+
+		btn.addEventListener('click', addCompletionTypeHandler);
+		input.addEventListener('keydown', (e) => {
+			if (e.key === 'Enter') {
+				e.preventDefault();
+				addCompletionTypeHandler();
+			}
+		});
+	}
+
 	function init() {
 		try {
 			initPriorityHandler();
@@ -664,6 +792,8 @@ window.tailwindList = (function () {
 			initCompleteToggle();
 			fetchAndRenderTags();
 			initTagEditor();
+			fetchAndRenderCompletionTypes();
+			initCompletionTypeEditor();
 			initAddTodo();
 			initViewToggle();
 			fetchTodos(); // Load initial todos
