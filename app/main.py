@@ -5388,7 +5388,7 @@ async def html_index(request: Request):
             })
         # Determine highest uncompleted todo priority per list (if any)
         try:
-            todo_q = await sess.scalars(select(Todo.id, Todo.list_id, Todo.priority).where(Todo.list_id.in_(list_ids)).where(Todo.priority != None))
+            todo_q = await sess.exec(select(Todo.id, Todo.list_id, Todo.priority).where(Todo.list_id.in_(list_ids)).where(Todo.priority != None))
             todo_rows = todo_q.all()
             todo_map: dict[int, list[tuple[int,int]]] = {}
             todo_ids = []
@@ -5421,6 +5421,9 @@ async def html_index(request: Request):
                         max_p = pv
                 if max_p is not None:
                     row['override_priority'] = max_p
+        except Exception:
+            # failure computing overrides should not break index rendering
+            pass
         except Exception:
             # failure computing overrides should not break index rendering
             pass
@@ -5904,6 +5907,8 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
                         max_p = pv
                 if max_p is not None:
                     row['override_priority'] = max_p
+        except Exception:
+            pass
         except Exception:
             pass
 
