@@ -219,58 +219,105 @@
 
     // create-list handler
     const createBtn = document.getElementById('tw-create-list');
-    if (createBtn) {
-        createBtn.addEventListener('click', async () => {
-            const nameEl = document.getElementById('tw-newlist-name');
-            if (!nameEl) return;
-            const name = nameEl.value && String(nameEl.value).trim();
-            if (!name) { alert('Please enter a list name'); return; }
-            try {
-                // Optimistic UI: insert a temporary placeholder row immediately
-                createBtn.disabled = true;
-                const placeholderId = 'tmp-list-' + String(Date.now());
-                const uncategorizedUl = document.querySelector('.category-section[data-category-id="uncategorized"] ul');
-                let placeholderLi = null;
-                if (uncategorizedUl) {
-                    placeholderLi = document.createElement('li');
-                    placeholderLi.className = 'bg-black border-b border-slate-700 px-0 py-1 opacity-80';
-                    placeholderLi.setAttribute('data-list-id', placeholderId);
-                    placeholderLi.innerHTML = '<span class="list-title font-medium text-slate-400">' + (name.replace(/</g, '&lt;')) + '</span>';
-                    uncategorizedUl.insertBefore(placeholderLi, uncategorizedUl.firstChild);
-                }
+    const nameEl = document.getElementById('tw-newlist-name');
+    
+    // Function to handle list creation
+    const createList = async () => {
+        if (!nameEl) return;
+        const name = nameEl.value && String(nameEl.value).trim();
+        if (!name) { alert('Please enter a list name'); return; }
+        try {
+            // Optimistic UI: insert a temporary placeholder row immediately
+            if (createBtn) createBtn.disabled = true;
+            const placeholderId = 'tmp-list-' + String(Date.now());
+            // Find the target category section - default to uncategorized
+            let targetCategoryId = 'uncategorized';
+            let targetUl = document.querySelector('.category-section[data-category-id="uncategorized"] ul');
+            
+            // If we have a category section for the target category, use it
+            if (targetUl) {
+                placeholderLi = document.createElement('li');
+                placeholderLi.className = 'bg-black px-0 py-1 opacity-80'; // Removed border-b to avoid horizontal lines
+                placeholderLi.setAttribute('data-list-id', placeholderId);
+                placeholderLi.innerHTML = '<span class="list-title font-medium text-slate-400">' + (name.replace(/</g, '&lt;')) + '</span>';
+                targetUl.insertBefore(placeholderLi, targetUl.firstChild);
+            }
 
-                const res = await fetch('/client/json/lists', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, credentials: 'same-origin', body: JSON.stringify({ name }) });
-                if (!res.ok) {
-                    // remove placeholder and restore
-                    if (placeholderLi && placeholderLi.parentNode) placeholderLi.parentNode.removeChild(placeholderLi);
-                    createBtn.disabled = false;
-                    alert('Failed to create list');
+            const res = await fetch('/client/json/lists', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, credentials: 'same-origin', body: JSON.stringify({ name }) });
+            if (!res.ok) {
+                // remove placeholder and restore
+                if (placeholderLi && placeholderLi.parentNode) placeholderLi.parentNode.removeChild(placeholderLi);
+                if (createBtn) createBtn.disabled = false;
+                alert('Failed to create list');
+                return;
+            }
+            const j = await res.json();
+            if (j && j.ok) {
+                // Determine the target category for this list
+                const listCategoryId = j.category_id || 'uncategorized';
+                
+                // if server provided id, update the placeholder with a proper link element
+                if (placeholderLi && j.id) {
+                    // If the category changed from our optimistic insert, move the element
+                    const currentCategorySection = placeholderLi.closest('.category-section');
+                    const currentCategoryId = currentCategorySection ? currentCategorySection.getAttribute('data-category-id') : 'uncategorized';
+                    
+                    if (currentCategoryId !== listCategoryId) {
+                        // Remove from current location
+                        if (placeholderLi.parentNode) {
+                            placeholderLi.parentNode.removeChild(placeholderLi);
+                        }
+                        
+                        // Find the correct category section
+                        let targetSection = document.querySelector('.category-section[data-category-id="' + listCategoryId + '"]');
+                        if (!targetSection && listCategoryId === 'uncategorized') {
+                            targetSection = document.querySelector('.category-section[data-category-id="uncategorized"]');
+                        }
+                        
+                        if (targetSection) {
+                            const targetUl = targetSection.querySelector('ul');
+                            if (targetUl) {
+                                targetUl.insertBefore(placeholderLi, targetUl.firstChild);
+                            }
+                        }
+                    }
+                    
+                    // replace placeholder with a proper link element
+                    const a = document.createElement('a');
+                    a.className = (j.completed ? 'list-title font-medium text-slate-400 line-through done' : 'list-title font-medium text-blue-600 hover:underline');
+                    a.href = '/html_tailwind/list?id=' + j.id;
+                    a.textContent = j.name || name;
+                    placeholderLi.innerHTML = '';
+                    placeholderLi.appendChild(a);
+                    placeholderLi.setAttribute('data-list-id', j.id);
+                    placeholderLi.className = 'bg-black px-0 py-1'; // Ensure consistent styling without border
+                    if (createBtn) createBtn.disabled = false;
+                    nameEl.value = ''; // Clear the input field
+                    // Stay on the current page - no redirect
                     return;
                 }
-                const j = await res.json();
-                if (j && j.ok) {
-                    // if server provided id, navigate to the list page; otherwise reload so server renders it
-                    if (placeholderLi && j.id) {
-                        // replace placeholder with a proper link element
-                        const a = document.createElement('a');
-                        a.className = (j.completed ? 'list-title font-medium text-slate-400 line-through done' : 'list-title font-medium text-blue-600 hover:underline');
-                        a.href = '/html_no_js/lists/' + j.id;
-                        a.textContent = j.name || name;
-                        placeholderLi.innerHTML = '';
-                        placeholderLi.appendChild(a);
-                        placeholderLi.setAttribute('data-list-id', j.id);
-                        createBtn.disabled = false;
-                        // navigate to the new list page to be consistent with prior behavior
-                        window.location.href = '/html_no_js/lists/' + j.id;
-                        return;
-                    }
-                    if (j.id) window.location.href = '/html_no_js/lists/' + j.id; else window.location.reload();
-                } else {
-                    if (placeholderLi && placeholderLi.parentNode) placeholderLi.parentNode.removeChild(placeholderLi);
-                    createBtn.disabled = false;
-                    alert('Create failed');
-                }
-            } catch (e) { alert('Network error'); }
+                // Stay on the current page - no redirect
+                if (createBtn) createBtn.disabled = false;
+                nameEl.value = ''; // Clear the input field
+            } else {
+                if (placeholderLi && placeholderLi.parentNode) placeholderLi.parentNode.removeChild(placeholderLi);
+                if (createBtn) createBtn.disabled = false;
+                alert('Create failed');
+            }
+        } catch (e) { alert('Network error'); }
+    };
+    
+    if (createBtn) {
+        createBtn.addEventListener('click', createList);
+    }
+    
+    // Add Enter key handler for the input field
+    if (nameEl) {
+        nameEl.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.keyCode === 13) {
+                event.preventDefault(); // Prevent form submission if inside a form
+                createList();
+            }
         });
     }
 })();

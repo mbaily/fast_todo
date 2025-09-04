@@ -705,6 +705,107 @@ window.tailwindList = (function () {
 		btn.textContent = sortByCompletedAfter ? 'Sort: Completed After' : 'Sort: Newest First';
 	}
 
+	function initCategorySelector() {
+		const select = document.getElementById('list-category-select');
+		const saveBtn = document.getElementById('save-category-btn');
+		if (!select || !saveBtn) return;
+
+		const listId = select.dataset.listId || '';
+		if (!listId) return;
+
+		// Load categories
+		fetchCategories();
+
+		// Handle save button click
+		saveBtn.addEventListener('click', async () => {
+			const categoryId = select.value;
+			saveBtn.disabled = true;
+			try {
+				await patchJson(`/lists/${encodeURIComponent(listId)}`, { category_id: categoryId || null });
+				showToast('Category updated', { type: 'success' });
+			} catch (err) {
+				showToast('Failed to update category', { type: 'error' });
+				console.error('failed to update category', err);
+			} finally {
+				saveBtn.disabled = false;
+			}
+		});
+	}
+
+	async function fetchCategories() {
+		try {
+			const resp = await fetch('/api/categories', { credentials: 'same-origin' });
+			if (!resp.ok) throw new Error('failed to fetch categories');
+			const data = await resp.json();
+			const categories = data.categories || [];
+			populateCategorySelect(categories);
+		} catch (err) {
+			console.error('failed to fetch categories', err);
+		}
+	}
+
+	function populateCategorySelect(categories) {
+		const select = document.getElementById('list-category-select');
+		if (!select) return;
+
+		// Get current category_id from the select element's data attribute
+		const currentCategoryId = select.dataset.categoryId || '';
+
+		// Clear existing options except "No Category"
+		while (select.options.length > 1) {
+			select.remove(1);
+		}
+
+		// Add category options
+		categories.forEach(category => {
+			const option = document.createElement('option');
+			option.value = category.id;
+			option.textContent = category.name;
+			if (String(category.id) === String(currentCategoryId)) {
+				option.selected = true;
+			}
+			select.appendChild(option);
+		});
+	}
+
+	function initDeleteListHandler() {
+		const deleteBtn = document.getElementById('delete-list-btn');
+		if (!deleteBtn) return;
+
+		const listRoot = document.getElementById('list-root');
+		if (!listRoot) return;
+
+		const listId = listRoot.querySelector('[data-list-id]')?.dataset?.listId || '';
+		if (!listId) return;
+
+		deleteBtn.addEventListener('click', async () => {
+			const confirmed = confirm('Are you sure you want to delete this list? This action cannot be undone.');
+			if (!confirmed) return;
+
+			deleteBtn.disabled = true;
+			try {
+				const resp = await fetch(`/lists/${encodeURIComponent(listId)}`, {
+					method: 'DELETE',
+					credentials: 'same-origin'
+				});
+
+				if (resp.ok) {
+					showToast('List deleted', { type: 'success' });
+					// Redirect to main index after successful deletion
+					setTimeout(() => {
+						window.location.href = '/html_tailwind';
+					}, 1000);
+				} else {
+					throw new Error('failed to delete list');
+				}
+			} catch (err) {
+				showToast('Failed to delete list', { type: 'error' });
+				console.error('failed to delete list', err);
+				deleteBtn.disabled = false;
+			}
+		});
+	}
+
 	async function fetchAndRenderCompletionTypes() {
 		const listRoot = document.getElementById('list-root');
 		if (!listRoot) return;
@@ -846,6 +947,8 @@ window.tailwindList = (function () {
 			initAddTodo();
 			initViewToggle();
 			initSortToggle();
+			initCategorySelector();
+			initDeleteListHandler();
 			fetchTodos(); // Load initial todos
 		} catch (err) {
 			console.error('init list page failed', err);

@@ -1658,7 +1658,7 @@ async def html_tailwind_create_list(request: Request):
     payload = {'ok': True}
     try:
         if new_list is not None:
-            payload.update({'id': getattr(new_list, 'id', None), 'name': getattr(new_list, 'name', None)})
+            payload.update({'id': getattr(new_list, 'id', None), 'name': getattr(new_list, 'name', None), 'category_id': getattr(new_list, 'category_id', None)})
     except Exception:
         pass
     return JSONResponse(payload)

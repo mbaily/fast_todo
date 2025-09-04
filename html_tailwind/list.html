@@ -166,6 +166,28 @@
             </div>
           </div>
 
+          <!-- List Category Selection -->
+          <div class="mt-4">
+            <h3 class="text-lg font-semibold text-slate-200 mb-2">Category</h3>
+            <div class="flex items-center gap-2">
+              <select id="list-category-select" data-list-id="{{ list.id if list is defined else '' }}" data-category-id="{{ list.category_id if list is defined and list.category_id else '' }}" class="px-2 py-1 rounded bg-slate-800 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                <option value="">No Category</option>
+                <!-- Categories will be populated here by JavaScript -->
+              </select>
+              <button id="save-category-btn" class="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition-colors">Save</button>
+            </div>
+          </div>
+
+          <!-- List Actions -->
+          <div class="mt-4">
+            <h3 class="text-lg font-semibold text-slate-200 mb-2">List Actions</h3>
+            <div class="flex items-center gap-2">
+              <button id="delete-list-btn" class="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-red-400">
+                Delete List
+              </button>
+            </div>
+          </div>
+
       <!-- list content placeholder -->
 
 
