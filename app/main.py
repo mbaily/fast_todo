@@ -7597,6 +7597,15 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
     return TEMPLATES.TemplateResponse(request, "list.html", {"request": request, "list": list_row, "todos": todo_rows, "csrf_token": csrf_token, "client_tz": client_tz, "completion_types": completion_types, "all_hashtags": all_hashtags, "categories": categories, "sublists": sublists})
 
 
+@app.get('/html_no_js/hashtags', response_class=HTMLResponse)
+async def html_no_js_hashtags(request: Request, current_user: User = Depends(require_login)):
+    """Unlinked page to list all Hashtag rows."""
+    async with async_session() as sess:
+        q = await sess.exec(select(Hashtag).order_by(Hashtag.tag.asc()))
+        hashtags = q.all()
+    return TEMPLATES.TemplateResponse(request, 'hashtags.html', {'request': request, 'hashtags': hashtags})
+
+
 @app.post('/html_no_js/lists/{list_id}/priority')
 async def html_update_list_priority(request: Request, list_id: int, priority: str = Form(None), current_user: User = Depends(require_login)):
     """Update the optional priority for a list. Accepts values 'none' or '' to clear, or '1'..'10'."""

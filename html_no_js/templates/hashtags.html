@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}Hashtags{% endblock %}
+
+{% block content %}
+  <h1>Hashtags</h1>
+  <p>This page is intentionally unlinked from the main UI; it lists all hashtags in the DB.</p>
+  {% if hashtags %}
+    <ul>
+      {% for h in hashtags %}
+        <li>{{ h.tag }} (id={{ h.id }})</li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>No hashtags found.</p>
+  {% endif %}
+{% endblock %}
