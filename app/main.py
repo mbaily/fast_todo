@@ -368,6 +368,47 @@ def render_fn_tags(text: str | None) -> Markup:
                 # Important: emit a plain anchor without data-fn so middle/Ctrl-click works and no exec-fn intercept
                 return f'<a class="fn-button" role="link" href="{escape(href)}">{esc_label}</a>'
 
+            # External URL link with optional custom label
+            if identifier == 'url':
+                try:
+                    # Determine href from explicit args or first positional token
+                    href_val = None
+                    if isinstance(args, dict):
+                        href_val = args.get('href') or args.get('url')
+                        if (not href_val) and isinstance(args.get('tags'), list) and args.get('tags'):
+                            href_val = args['tags'][0]
+                    href = str(href_val or '').strip()
+                    # basic scheme safety: require http/https
+                    if not href.lower().startswith('http://') and not href.lower().startswith('https://'):
+                        # if missing scheme but looks like domain, prepend http:// as a convenience
+                        if href and '://' not in href and ('.' in href or href.startswith('www.')):
+                            href = 'http://' + href
+                    if not href:
+                        # malformed; fall back to button rendering
+                        raise ValueError('missing href')
+                    # Label: use custom label if provided; else show the URL
+                    link_label = btn_label if label else href
+                    # Attributes
+                    target = (args.get('target') if isinstance(args, dict) else None) or '_blank'
+                    rel = (args.get('rel') if isinstance(args, dict) else None) or 'noopener noreferrer'
+                    # Optional nofollow/noreferrer flags
+                    try:
+                        def _is_true(v):
+                            s = str(v).strip().lower() if v is not None else ''
+                            return s in ('1','true','yes','on') or v is True
+                        if isinstance(args, dict) and (_is_true(args.get('nofollow')) or ('nofollow' in args and args.get('nofollow') is None)):
+                            if 'nofollow' not in rel:
+                                rel = (rel + ' nofollow').strip()
+                    except Exception:
+                        pass
+                    return (
+                        f'<a class="fn-button fn-url" role="link" href="{escape(href)}" target="{escape(target)}" rel="{escape(rel)}">'
+                        f'{escape(link_label)}</a>'
+                    )
+                except Exception:
+                    # fall through to default
+                    pass
+
             # Navigation link to a specific todo or list by id
             if identifier == 'link':
                 try:

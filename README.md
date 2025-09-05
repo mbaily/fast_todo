@@ -354,3 +354,82 @@ Files and scripts referenced in this README (located in the repository):
 
 
 
+## Inline link markup (fn:link)
+
+You can insert inline links in a todo’s note that navigate to other todos or lists by database ID. These render as normal anchors (you can middle/Ctrl-click) and, by default, show the target’s title and circled priority when present.
+
+- Purpose: cross-link between todos/lists directly from note text.
+- Works in: the no‑JS HTML UI (notes are rendered server-side).
+
+Basic syntax (preferred)
+- Todo by id: `{{fn:link target=todo:123}}`
+- List by id: `{{fn:link target=list:45}}`
+
+Alternate forms (all equivalent)
+- Separate keys: `{{fn:link type=todo,id=123}}`
+- Shorthand keys: `{{fn:link todo=123}}` or `{{fn:link list=45}}`
+
+Custom label
+- Use a trailing pipe to supply link text:
+  - `{{fn:link target=todo:123 | Next Action}}`
+  - `{{fn:link list=45 | Someday/Maybe}}`
+
+Priority display
+- By default, if the target has a priority (1–10), the rendered link appends the usual circled number ①..⑩ in the same large style used elsewhere.
+- Suppress the priority using any of the following (choose one):
+  - `show_priority=false`
+  - `priority=false`
+  - `no_priority` (flag)
+  - `nopriority` (flag)
+
+Examples
+- Auto label + priority: `{{fn:link target=todo:77}}` → “<todo title> ③”
+- Custom label + priority: `{{fn:link target=todo:77 | Next Action}}` → “Next Action ③”
+- Suppress priority: `{{fn:link target=list:9, show_priority=false}}` → “<list name>”
+
+Label resolution
+- If you don’t provide a custom label, the server resolves the label to the target’s actual name:
+  - Todo → its `text`
+  - List → its `name`
+- If the title can’t be loaded (rare), a safe fallback is used: “Todo #id” or “List #id”.
+
+Navigation behavior
+- Rendered links are plain anchors with no special interception, so middle/Ctrl‑click opens in a new tab as expected.
+
+Note insertion helper (optional)
+- On the todo page, a small “Insert link” combobox next to the Note uses your recently marked items to insert link markup for you.
+  - It first shows placeholders like “Todo #123” / “List #45”, then enriches to “123 — <title snippet>”.
+  - When you click “Insert Link”, it inserts the correct `{{fn:link target=...}}` markup at the cursor in the note.
+  - Mark items using the 🔖 button on list/todo pages; marks expire after a few minutes.
+
+Tips
+- You can put multiple fn:link items on separate lines (or inline) to build a small hub note.
+- For consistent titles across a note, prefer not mixing custom labels with auto‑labels unless you need a specific phrasing.
+
+## Item links (non‑markup links between todos and lists)
+
+Apart from inline note markup, you can add persistent links between items (todo→todo, todo→list, list→todo, list→list). These links live on the item and appear in the UI.
+
+Where links appear
+- Compact: a “Links:” row near the top of todo and list pages (comma‑separated anchors).
+- Full list: a “Links” section lower on the page with add/remove controls.
+
+How to add a link
+1) Mark the target item using the 🔖 button on a todo or list page (marks expire after a few minutes).
+2) On the source item’s page, in the “Links” section:
+  - Choose the marked target from the “Marked” dropdown.
+  - Optionally enter a custom label.
+  - Click “Add link”.
+
+Notes
+- Labels: If you don’t provide a label, the UI shows the target’s title. You can edit/remove the link later.
+- Navigation: These render as plain anchors, so middle/Ctrl‑click opens in a new tab.
+- Ownership: You can only link items you own; the server checks ownership on add/remove.
+- Storage: Links are stored in the database table `itemlink` with a uniqueness constraint on (src_type, src_id, tgt_type, tgt_id). A `position` field is reserved for future ordering.
+
+Related helpers
+- Marked items are kept client‑side in localStorage (`ft_marks_v1`) with a short TTL so the “Marked” dropdowns stay relevant and fast.
+- The “Insert link” combobox next to a todo’s Note is separate; it inserts note markup `{{fn:link ...}}` and isn’t the same as persistent item links above.
+
+
+
