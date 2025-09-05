@@ -222,17 +222,31 @@ def linkify(text: str | None) -> Markup:
     if not text:
         return Markup("")
 
-
-    # escape first to avoid HTML injection
-    esc = escape(text)
+    # Regex for bare URLs in text segments (not inside existing anchors)
     url_re = re.compile(r"(https?://[^\s<]+)")
+    # Regex to split into anchor vs non-anchor segments
+    anchor_re = re.compile(r"(<a\b[^>]*>.*?</a>)", re.IGNORECASE | re.DOTALL)
 
-    def _repl(m: re.Match) -> str:
-        url = m.group(1)
-        return f'<a href="{url}" target="_blank" rel="noopener noreferrer">{escape(url)}</a>'
+    def _linkify_segment(segment: str) -> str:
+        # Escape non-anchor text first, then replace bare URLs with anchors
+        seg = escape(segment)
+        def _repl(m: re.Match) -> str:
+            url = m.group(1)
+            return f'<a href="{url}" target="_blank" rel="noopener noreferrer">{escape(url)}</a>'
+        return url_re.sub(lambda m: _repl(m), str(seg))
 
-    res = url_re.sub(lambda m: _repl(m), str(esc))
-    return Markup(res)
+    s = str(text)
+    parts = anchor_re.split(s)
+    out_parts: list[str] = []
+    for i, part in enumerate(parts):
+        if not part:
+            continue
+        if anchor_re.match(part):
+            # Preserve existing anchors verbatim
+            out_parts.append(part)
+        else:
+            out_parts.append(_linkify_segment(part))
+    return Markup(''.join(out_parts))
 
 
 TEMPLATES.env.filters['linkify'] = linkify
@@ -594,7 +608,9 @@ def render_fn_tags(text: str | None) -> Markup:
                             ch = _circled(link_priority)
                             if ch:
                                 pr_html = f' <span class="meta priority-inline" title="Priority {int(link_priority)}"><span class="priority-circle">{escape(ch)}</span></span>'
-                        return f'<a class="fn-button fn-link" role="link" href="{escape(href)}">{escape(link_label)}</a>' + pr_html
+                        # Place the priority markup inside the anchor so post-processing (linkify) preserves it
+                        label_html = f'{escape(link_label)}{pr_html}'
+                        return f'<a class="fn-button fn-link" role="link" href="{escape(href)}">{label_html}</a>'
                     # If parsing failed, fall through to default button rendering
                 except Exception:
                     pass
