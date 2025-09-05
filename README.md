@@ -352,3 +352,4 @@ Files and scripts referenced in this README (located in the repository):
   - `scripts/run_server_dev_debian.sh` — Debian/Linux helper script (creates .venv, installs, runs server).
   - `scripts/add_user.py` — CLI helper to add users from the server machine.
 
+
