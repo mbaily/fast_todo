@@ -261,7 +261,7 @@
     {# DokuWiki link button (uses config.DOKUWIKI_NOTE_LINK_PREFIX + 'fast_todo:' + todo.id); shown even if note is empty #}
   {% set dw_prefix = config.DOKUWIKI_NOTE_LINK_PREFIX if config is defined and config.DOKUWIKI_NOTE_LINK_PREFIX is defined else None %}
   {% if dw_prefix %}
-    {% set dw_url = dw_prefix ~ 'fast_todo:' ~ todo.id %}
+    {% set dw_url = dw_prefix ~ 'fast_todo:todo:' ~ todo.id %}
     <p style="margin:0.25rem 0 0.75rem 0">
       <a class="btn" href="{{ dw_url }}" target="_blank" rel="noopener noreferrer" title="Open DokuWiki page for this todo">📄 DokuWiki page for this todo</a>
     </p>
