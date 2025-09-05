@@ -59,6 +59,14 @@
       </div>    
   </div>
   <p class="meta" style="margin:0">List: <a href="/html_no_js/lists/{{ todo.list_id }}">{{ list.name if list else todo.list_id }}</a></p>
+  {% if links is defined and links|length > 0 %}
+    <div class="meta" style="margin:0.15rem 0 0.35rem 0">
+      <strong>Links:</strong>
+      {% for lk in links %}
+        <a href="{{ lk.href }}">{{ lk.label or lk.title or (lk.tgt_type ~ ' #' ~ lk.tgt_id) }}</a>{% if not loop.last %}, {% endif %}
+      {% endfor %}
+    </div>
+  {% endif %}
   
 
   {% if todo.note %}
@@ -225,6 +233,7 @@
     </form>
   </div>
 
+
   {# Optionally render sublists up-top for todos with lists_up_top set #}
   {% if sublists is defined and (todo is defined and not todo.lists_up_top) %}
     <section aria-label="Sublists" style="margin-top:1rem">
@@ -298,6 +307,66 @@
     {% endif %}
   </section>
   {% endif %}
+
+
+
+  <section aria-label="Links" style="margin-top:0.75rem">
+    <h3 style="margin:0 0 .4rem 0">Links</h3>
+    <form id="add-link-form-todo-{{ todo.id }}" method="post" action="/html_no_js/todos/{{ todo.id }}/links" style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap">
+      {{ csrf_field() }}
+      <input type="hidden" name="tgt_type" value="">
+      <input type="hidden" name="tgt_id" value="">
+      <label>Marked
+        <select id="link-target-todo-{{ todo.id }}">
+          <option value="">(Select a recently marked item)</option>
+        </select>
+      </label>
+      <label>Label <input name="label" placeholder="Optional label"></label>
+      <button type="submit">Add link</button>
+    </form>
+    <p id="link-empty-todo-{{ todo.id }}" class="meta" style="display:none;margin:0.2rem 0">No marked items. Use the 🔖 button on a todo or list to mark it, then return here.</p>
+    <script>
+    (function(){
+      try{
+        var KEY='ft_marks_v1'; var TTL=5*60*1000;
+        function load(){ try { return JSON.parse(localStorage.getItem(KEY)||'{}')||{}; } catch(_){ return {}; } }
+        function prune(o){ var t=Date.now(); var out={todos:{},lists:{}}; if(o.todos) for(var k in o.todos){ if((t-(o.todos[k]||0))<TTL) out.todos[k]=o.todos[k]; } if(o.lists) for(var k2 in o.lists){ if((t-(o.lists[k2]||0))<TTL) out.lists[k2]=o.lists[k2]; } return out; }
+        var sel=document.getElementById('link-target-todo-{{ todo.id }}'); if(!sel) return;
+        var emptyMsg=document.getElementById('link-empty-todo-{{ todo.id }}');
+        var marks=prune(load()); var count=0;
+        function addOpt(v,t,parent){ var o=document.createElement('option'); o.value=v; o.textContent=t; (parent||sel).appendChild(o); count++; }
+        if (marks.todos && Object.keys(marks.todos).length){
+          var og=document.createElement('optgroup'); og.label='Todos'; sel.appendChild(og);
+          Object.keys(marks.todos).sort(function(a,b){return (+a)-(+b);}).forEach(function(id){ addOpt('todo:'+id, 'Todo #'+id, og); });
+        }
+        if (marks.lists && Object.keys(marks.lists).length){
+          var og2=document.createElement('optgroup'); og2.label='Lists'; sel.appendChild(og2);
+          Object.keys(marks.lists).sort(function(a,b){return (+a)-(+b);}).forEach(function(id){ addOpt('list:'+id, 'List #'+id, og2); });
+        }
+        if (!count && emptyMsg){ emptyMsg.style.display='block'; }
+        var form = document.getElementById('add-link-form-todo-{{ todo.id }}');
+        if (form){ form.addEventListener('submit', function(e){ try{ var v=sel.value||''; if(!v){ e.preventDefault(); alert('Select a marked item first.'); return; } var parts=v.split(':'); if(parts.length!==2){ e.preventDefault(); alert('Invalid selection'); return; } var t=parts[0], id=parts[1]; form.querySelector('input[name="tgt_type"]').value=t; form.querySelector('input[name="tgt_id"]').value=id; }catch(err){ e.preventDefault(); } }, false); }
+      }catch(e){ /* silent */ }
+    })();
+    </script>
+    {% if links is defined and links|length > 0 %}
+      <ul style="list-style: none; padding-left: 0; margin-left: 0;">
+        {% for lk in links %}
+          <li>
+            <a href="{{ lk.href }}">{{ lk.label or lk.title or (lk.tgt_type ~ ' #' ~ lk.tgt_id) }}</a>
+            <form method="post" action="/html_no_js/todos/{{ todo.id }}/links/{{ lk.id }}/delete" style="display:inline">
+              {{ csrf_field() }}
+              <button type="submit" class="tag-remove" title="Remove link"><span aria-hidden="true">✖</span><span class="sr-only">Remove link</span></button>
+            </form>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="meta" style="margin:0.2rem 0">No links yet.</p>
+    {% endif %}
+  </section>
+
+
 
   {# Actions (heading removed to reduce visual clutter) #}
   {# Use an anchor link for mark/unmark so no-JS clients can click it. The GET handler will perform the toggle and redirect back. #}

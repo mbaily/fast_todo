@@ -164,6 +164,15 @@
       </div>
     </div>
   </div>
+            {# Compact links display directly under the title (no create/delete here) #}
+            {% if links is defined and links|length > 0 %}
+              <div class="meta" style="width:100%; margin-top:0.25rem">
+                <strong>Links:</strong>
+                {% for lk in links %}
+                  <a href="{{ lk.href }}">{{ lk.label or lk.title or (lk.tgt_type ~ ' #' ~ lk.tgt_id) }}</a>{% if not loop.last %}, {% endif %}
+                {% endfor %}
+              </div>
+            {% endif %}
 
   {# Sublist toolbar: show if this list is owned by a todo and/or another list #}
   {% if list.parent_todo_id or list.parent_list_id %}
@@ -188,6 +197,7 @@
     <div style="flex:1 1 auto"></div>
   </nav>
   {% endif %}
+
 
   {% if completion_types is not none %}
   {% endif %}
@@ -1402,6 +1412,67 @@
   </section>
   {% endif %}
   
+
+  {# Links section: outgoing links from this list to todos or lists #}
+  <section aria-label="Links" style="margin-top:0.75rem">
+    <h3 style="margin:0 0 .4rem 0">Links</h3>
+    <form id="add-link-form-{{ list.id }}" method="post" action="/html_no_js/lists/{{ list.id }}/links" style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap">
+      {{ csrf_field() }}
+      <input type="hidden" name="tgt_type" value="">
+      <input type="hidden" name="tgt_id" value="">
+      <label>Marked
+        <select id="link-target-{{ list.id }}">
+          <option value="">(Select a recently marked item)</option>
+        </select>
+      </label>
+      <label>Label <input name="label" placeholder="Optional label"></label>
+      <button type="submit">Add link</button>
+    </form>
+    <p id="link-empty-{{ list.id }}" class="meta" style="display:none;margin:0.2rem 0">No marked items. Use the 🔖 button on a todo or list to mark it, then return here.</p>
+    <script>
+    (function(){
+      try{
+        var KEY='ft_marks_v1'; var TTL=5*60*1000;
+        function load(){ try { return JSON.parse(localStorage.getItem(KEY)||'{}')||{}; } catch(_){ return {}; } }
+        function prune(o){ var t=Date.now(); var out={todos:{},lists:{}}; if(o.todos) for(var k in o.todos){ if((t-(o.todos[k]||0))<TTL) out.todos[k]=o.todos[k]; } if(o.lists) for(var k2 in o.lists){ if((t-(o.lists[k2]||0))<TTL) out.lists[k2]=o.lists[k2]; } return out; }
+        var sel=document.getElementById('link-target-{{ list.id }}'); if(!sel) return;
+        var emptyMsg=document.getElementById('link-empty-{{ list.id }}');
+        var marks=prune(load()); var count=0;
+        function addOpt(v,t,parent){ var o=document.createElement('option'); o.value=v; o.textContent=t; (parent||sel).appendChild(o); count++; }
+        if (marks.todos && Object.keys(marks.todos).length){
+          var og=document.createElement('optgroup'); og.label='Todos'; sel.appendChild(og);
+          Object.keys(marks.todos).sort(function(a,b){return (+a)-(+b);}).forEach(function(id){ addOpt('todo:'+id, 'Todo #'+id, og); });
+        }
+        if (marks.lists && Object.keys(marks.lists).length){
+          var og2=document.createElement('optgroup'); og2.label='Lists'; sel.appendChild(og2);
+          Object.keys(marks.lists).sort(function(a,b){return (+a)-(+b);}).forEach(function(id){ addOpt('list:'+id, 'List #'+id, og2); });
+        }
+        if (!count && emptyMsg){ emptyMsg.style.display='block'; }
+        var form = document.getElementById('add-link-form-{{ list.id }}');
+        if (form){ form.addEventListener('submit', function(e){ try{ var v=sel.value||''; if(!v){ e.preventDefault(); alert('Select a marked item first.'); return; } var parts=v.split(':'); if(parts.length!==2){ e.preventDefault(); alert('Invalid selection'); return; } var t=parts[0], id=parts[1]; form.querySelector('input[name="tgt_type"]').value=t; form.querySelector('input[name="tgt_id"]').value=id; }catch(err){ e.preventDefault(); } }, false); }
+      }catch(e){ /* silent */ }
+    })();
+    </script>
+    {% if links is defined and links|length > 0 %}
+      <ul style="list-style: none; padding-left: 0; margin-left: 0;">
+        {% for lk in links %}
+          <li>
+            <a href="{{ lk.href }}">{{ lk.label or lk.title or (lk.tgt_type ~ ' #' ~ lk.tgt_id) }}</a>
+            <form method="post" action="/html_no_js/lists/{{ list.id }}/links/{{ lk.id }}/delete" style="display:inline">
+              {{ csrf_field() }}
+              <button type="submit" class="tag-remove" title="Remove link"><span aria-hidden="true">✖</span><span class="sr-only">Remove link</span></button>
+            </form>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="meta" style="margin:0.2rem 0">No links yet.</p>
+    {% endif %}
+  </section>
+
+
+
+
   <!-- Bottom delete control: provide a clear delete action at end of page -->
   <div style="margin-top:1rem;">
     <form method="post" action="/html_no_js/lists/{{ list.id }}/delete" class="confirm-delete" data-confirm="Delete list '{{ list.name }}' and all its todos? This cannot be undone." style="display:inline">

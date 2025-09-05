@@ -212,6 +212,33 @@ def _ensure_sqlite_minimal_migrations(url: str | None) -> None:
                         pass
             except Exception:
                 pass
+            # Ensure itemlink table exists for cross-entity links
+            try:
+                cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='itemlink'")
+                exists = cur.fetchone() is not None
+            except Exception:
+                exists = True
+            if not exists:
+                try:
+                    cur.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS itemlink (
+                          id INTEGER PRIMARY KEY,
+                          src_type TEXT NOT NULL,
+                          src_id INTEGER NOT NULL,
+                          tgt_type TEXT NOT NULL,
+                          tgt_id INTEGER NOT NULL,
+                          label TEXT,
+                          position INTEGER,
+                          owner_id INTEGER NOT NULL,
+                          created_at DATETIME
+                        )
+                        """
+                    )
+                    cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_itemlink_edge ON itemlink(src_type, src_id, tgt_type, tgt_id)")
+                    cur.execute("CREATE INDEX IF NOT EXISTS ix_itemlink_src ON itemlink(src_type, src_id, position)")
+                except Exception:
+                    pass
             # Ensure category table has sort_alphanumeric column for older DBs
             try:
                 cur.execute("PRAGMA table_info('category')")
@@ -674,6 +701,15 @@ async def init_db():
                 logger.exception('failed to create ix_todo_priority during init_db')
         except Exception:
             logger.exception('failed to ensure parent_todo_id on liststate in init_db')
+        # Ensure ItemLink indices exist
+        try:
+            await conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_itemlink_edge ON itemlink(src_type, src_id, tgt_type, tgt_id)"))
+        except Exception:
+            pass
+        try:
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_itemlink_src ON itemlink(src_type, src_id, position)"))
+        except Exception:
+            pass
         # defensive dedupe: if earlier test runs created duplicate rows
         # (possible before unique indexes were present), remove duplicates
         # keeping the first row for each unique key, then create the

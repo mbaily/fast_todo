@@ -19,6 +19,7 @@ import os
 from contextvars import ContextVar
 from sqlmodel import select
 from .models import Hashtag, TodoHashtag, ListHashtag, ServerState, CompletionType, SyncOperation, Tombstone, Category
+from .models import ItemLink
 from .models import RecentListVisit
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import text, func
@@ -7800,7 +7801,7 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
                     list_row["parent_list_name"] = parent_list_name
             except Exception:
                 list_row["parent_list_name"] = None
-        # also pass completion types for management UI
+    # also pass completion types for management UI
         completion_types = [{'id': c.id, 'name': c.name} for c in ctypes]
         # fetch this user's hashtags for completion suggestions (from lists and todos they own)
         owner_id_val = current_user.id
@@ -7836,7 +7837,7 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
             categories = [{'id': c.id, 'name': c.name, 'position': c.position} for c in cres.all()]
         except Exception:
             categories = []
-        # Fetch sublists owned by this list (list->list nesting). Use explicit sibling position when set,
+    # Fetch sublists owned by this list (list->list nesting). Use explicit sibling position when set,
         # else fall back to created_at ASC. Enrich with hashtags for display.
         sublists = []
         try:
@@ -7918,6 +7919,40 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
                 pass
         except Exception:
             sublists = []
+        # Fetch outgoing links from this list (to todos or lists), order by position then created_at
+        links: list[dict] = []
+        try:
+            qlnk = select(ItemLink).where(ItemLink.src_type == 'list').where(ItemLink.src_id == list_id).order_by(ItemLink.position.asc().nullslast(), ItemLink.created_at.asc())
+            rlnk = await sess.exec(qlnk)
+            rows = rlnk.all()
+            # Preload names/texts for targets in batch
+            todo_targets = [r.tgt_id for r in rows if r.tgt_type == 'todo']
+            list_targets = [r.tgt_id for r in rows if r.tgt_type == 'list']
+            todo_map: dict[int, dict] = {}
+            list_map: dict[int, dict] = {}
+            if todo_targets:
+                qtt = await sess.exec(select(Todo.id, Todo.text).where(Todo.id.in_(todo_targets)))
+                for tid, txt in qtt.all():
+                    todo_map[int(tid)] = {'id': int(tid), 'text': txt}
+            if list_targets:
+                qll = await sess.exec(select(ListState.id, ListState.name).where(ListState.id.in_(list_targets)))
+                for lid, name in qll.all():
+                    list_map[int(lid)] = {'id': int(lid), 'name': name}
+            for r in rows:
+                d = {'id': r.id, 'tgt_type': r.tgt_type, 'tgt_id': r.tgt_id, 'label': r.label, 'position': r.position}
+                if r.tgt_type == 'todo':
+                    t = todo_map.get(int(r.tgt_id))
+                    if t:
+                        d['title'] = t.get('text')
+                        d['href'] = f"/html_no_js/todos/{t['id']}"
+                elif r.tgt_type == 'list':
+                    l = list_map.get(int(r.tgt_id))
+                    if l:
+                        d['title'] = l.get('name')
+                        d['href'] = f"/html_no_js/lists/{l['id']}"
+                links.append(d)
+        except Exception:
+            links = []
     from .auth import create_csrf_token
     csrf_token = create_csrf_token(current_user.username)
     # Best-effort: record that the current user visited this list so the
@@ -7931,7 +7966,7 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
         logger.exception('failed to record list visit for list %s', list_id)
     # timezone for template rendering
     client_tz = await get_session_timezone(request)
-    return TEMPLATES.TemplateResponse(request, "list.html", {"request": request, "list": list_row, "todos": todo_rows, "csrf_token": csrf_token, "client_tz": client_tz, "completion_types": completion_types, "all_hashtags": all_hashtags, "categories": categories, "sublists": sublists})
+    return TEMPLATES.TemplateResponse(request, "list.html", {"request": request, "list": list_row, "todos": todo_rows, "csrf_token": csrf_token, "client_tz": client_tz, "completion_types": completion_types, "all_hashtags": all_hashtags, "categories": categories, "sublists": sublists, "links": links})
 
 
 @app.get('/html_no_js/hashtags', response_class=HTMLResponse)
@@ -8725,7 +8760,7 @@ async def html_view_todo(request: Request, todo_id: int, current_user: User = De
                 })
         except Exception:
             sublists = []
-        # Determine highest uncompleted todo priority per sublist (if any)
+    # Determine highest uncompleted todo priority per sublist (if any)
         try:
             if sub_ids:
                 todo_q = await sess.scalars(select(Todo.id, Todo.list_id, Todo.priority).where(Todo.list_id.in_(sub_ids)).where(Todo.priority != None))
@@ -8771,6 +8806,39 @@ async def html_view_todo(request: Request, todo_id: int, current_user: User = De
         except Exception:
             # failure computing overrides should not break todo rendering
             pass
+        # Fetch outgoing links from this todo
+        links: list[dict] = []
+        try:
+            qlnk = select(ItemLink).where(ItemLink.src_type == 'todo').where(ItemLink.src_id == todo_id).order_by(ItemLink.position.asc().nullslast(), ItemLink.created_at.asc())
+            rlnk = await sess.exec(qlnk)
+            rows = rlnk.all()
+            todo_targets = [r.tgt_id for r in rows if r.tgt_type == 'todo']
+            list_targets = [r.tgt_id for r in rows if r.tgt_type == 'list']
+            todo_map: dict[int, dict] = {}
+            list_map: dict[int, dict] = {}
+            if todo_targets:
+                qtt = await sess.exec(select(Todo.id, Todo.text).where(Todo.id.in_(todo_targets)))
+                for tid, txt in qtt.all():
+                    todo_map[int(tid)] = {'id': int(tid), 'text': txt}
+            if list_targets:
+                qll = await sess.exec(select(ListState.id, ListState.name).where(ListState.id.in_(list_targets)))
+                for lid, name in qll.all():
+                    list_map[int(lid)] = {'id': int(lid), 'name': name}
+            for r in rows:
+                d = {'id': r.id, 'tgt_type': r.tgt_type, 'tgt_id': r.tgt_id, 'label': r.label, 'position': r.position}
+                if r.tgt_type == 'todo':
+                    t = todo_map.get(int(r.tgt_id))
+                    if t:
+                        d['title'] = t.get('text')
+                        d['href'] = f"/html_no_js/todos/{t['id']}"
+                elif r.tgt_type == 'list':
+                    l = list_map.get(int(r.tgt_id))
+                    if l:
+                        d['title'] = l.get('name')
+                        d['href'] = f"/html_no_js/lists/{l['id']}"
+                links.append(d)
+        except Exception:
+            links = []
     csrf_token = None
     from .auth import create_csrf_token
     csrf_token = create_csrf_token(current_user.username)
@@ -8781,7 +8849,149 @@ async def html_view_todo(request: Request, todo_id: int, current_user: User = De
     except Exception:
         pass
     # pass plain dicts (with datetime objects preserved) to avoid lazy DB loads
-    return TEMPLATES.TemplateResponse(request, 'todo.html', {"request": request, "todo": todo_row, "completed": completed, "list": list_row, "csrf_token": csrf_token, "client_tz": client_tz, "tags": todo_tags, "all_hashtags": all_hashtags, 'sublists': sublists})
+    return TEMPLATES.TemplateResponse(request, 'todo.html', {"request": request, "todo": todo_row, "completed": completed, "list": list_row, "csrf_token": csrf_token, "client_tz": client_tz, "tags": todo_tags, "all_hashtags": all_hashtags, 'sublists': sublists, 'links': links})
+
+
+# ===== Links: add/remove for list and todo (no-JS HTML and JSON) =====
+class AddLinkPayload(BaseModel):
+    tgt_type: str
+    tgt_id: int
+    label: Optional[str] = None
+    position: Optional[int] = None
+
+
+async def _verify_owner_for_src(sess, *, src_type: str, src_id: int, current_user: User) -> int:
+    if src_type == 'list':
+        lst = await sess.get(ListState, src_id)
+        if not lst:
+            raise HTTPException(status_code=404, detail='list not found')
+        if lst.owner_id != current_user.id:
+            raise HTTPException(status_code=403, detail='forbidden')
+        return lst.owner_id
+    elif src_type == 'todo':
+        td = await sess.get(Todo, src_id)
+        if not td:
+            raise HTTPException(status_code=404, detail='todo not found')
+        ql = await sess.exec(select(ListState).where(ListState.id == td.list_id))
+        lst = ql.first()
+        if not lst or lst.owner_id != current_user.id:
+            raise HTTPException(status_code=403, detail='forbidden')
+        return lst.owner_id
+    else:
+        raise HTTPException(status_code=400, detail='invalid src_type')
+
+
+async def _validate_target_exists(sess, *, tgt_type: str, tgt_id: int) -> None:
+    if tgt_type == 'list':
+        if not (await sess.get(ListState, tgt_id)):
+            raise HTTPException(status_code=404, detail='target list not found')
+    elif tgt_type == 'todo':
+        if not (await sess.get(Todo, tgt_id)):
+            raise HTTPException(status_code=404, detail='target todo not found')
+    else:
+        raise HTTPException(status_code=400, detail='invalid tgt_type')
+
+
+async def _add_link_core(sess, *, src_type: str, src_id: int, payload: AddLinkPayload, current_user: User) -> dict:
+    owner_id = await _verify_owner_for_src(sess, src_type=src_type, src_id=src_id, current_user=current_user)
+    await _validate_target_exists(sess, tgt_type=payload.tgt_type, tgt_id=payload.tgt_id)
+    # compute default position if not provided
+    pos = payload.position
+    if pos is None:
+        q = await sess.exec(select(ItemLink.position).where(ItemLink.src_type == src_type).where(ItemLink.src_id == src_id))
+        vals = [v[0] if isinstance(v, (tuple, list)) else v for v in q.fetchall()]
+        try:
+            pos = (max([vv for vv in vals if vv is not None]) + 1) if vals else 0
+        except Exception:
+            pos = 0
+    link = ItemLink(src_type=src_type, src_id=src_id, tgt_type=payload.tgt_type, tgt_id=payload.tgt_id, label=(payload.label or None), position=pos, owner_id=owner_id)
+    sess.add(link)
+    try:
+        await sess.commit()
+    except IntegrityError:
+        await sess.rollback()
+        # already exists: fetch existing
+        q = await sess.exec(select(ItemLink).where(ItemLink.src_type == src_type, ItemLink.src_id == src_id, ItemLink.tgt_type == payload.tgt_type, ItemLink.tgt_id == payload.tgt_id))
+        link = q.first()
+        if not link:
+            raise HTTPException(status_code=409, detail='link exists')
+    await sess.refresh(link)
+    return {'ok': True, 'id': link.id, 'label': link.label, 'position': link.position}
+
+
+async def _remove_link_core(sess, *, src_type: str, src_id: int, link_id: int, current_user: User) -> dict:
+    await _verify_owner_for_src(sess, src_type=src_type, src_id=src_id, current_user=current_user)
+    link = await sess.get(ItemLink, link_id)
+    if not link or link.src_type != src_type or link.src_id != src_id:
+        raise HTTPException(status_code=404, detail='link not found')
+    await sess.delete(link)
+    try:
+        await sess.commit()
+    except Exception:
+        await sess.rollback()
+    return {'ok': True, 'deleted': link_id}
+
+
+@app.post('/html_no_js/lists/{list_id}/links')
+async def html_add_list_link(request: Request, list_id: int, tgt_type: str = Form(...), tgt_id: int = Form(...), label: str = Form(None), current_user: User = Depends(require_login)):
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    payload = AddLinkPayload(tgt_type=tgt_type, tgt_id=int(tgt_id), label=label)
+    async with async_session() as sess:
+        res = await _add_link_core(sess, src_type='list', src_id=list_id, payload=payload, current_user=current_user)
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse(res)
+    return RedirectResponse(url=f'/html_no_js/lists/{list_id}', status_code=303)
+
+
+@app.post('/html_no_js/lists/{list_id}/links/{link_id}/delete')
+async def html_remove_list_link(request: Request, list_id: int, link_id: int, current_user: User = Depends(require_login)):
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    async with async_session() as sess:
+        res = await _remove_link_core(sess, src_type='list', src_id=list_id, link_id=link_id, current_user=current_user)
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse(res)
+    return RedirectResponse(url=f'/html_no_js/lists/{list_id}', status_code=303)
+
+
+@app.post('/html_no_js/todos/{todo_id}/links')
+async def html_add_todo_link(request: Request, todo_id: int, tgt_type: str = Form(...), tgt_id: int = Form(...), label: str = Form(None), current_user: User = Depends(require_login)):
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    payload = AddLinkPayload(tgt_type=tgt_type, tgt_id=int(tgt_id), label=label)
+    async with async_session() as sess:
+        res = await _add_link_core(sess, src_type='todo', src_id=todo_id, payload=payload, current_user=current_user)
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse(res)
+    return RedirectResponse(url=f'/html_no_js/todos/{todo_id}', status_code=303)
+
+
+@app.post('/html_no_js/todos/{todo_id}/links/{link_id}/delete')
+async def html_remove_todo_link(request: Request, todo_id: int, link_id: int, current_user: User = Depends(require_login)):
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    async with async_session() as sess:
+        res = await _remove_link_core(sess, src_type='todo', src_id=todo_id, link_id=link_id, current_user=current_user)
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse(res)
+    return RedirectResponse(url=f'/html_no_js/todos/{todo_id}', status_code=303)
 
 
 @app.post('/html_no_js/todos/{todo_id}/sublists/create')

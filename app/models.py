@@ -283,3 +283,27 @@ class SshPublicKey(SQLModel, table=True):
     fingerprint: Optional[str] = Field(default=None, index=True)
     enabled: bool = Field(default=True, index=True)
     created_at: datetime | None = Field(default_factory=now_utc)
+
+
+class ItemLink(SQLModel, table=True):
+    """Directed links from a source item (todo or list) to a target item (todo or list).
+
+    src_type/tgt_type: 'todo' or 'list'
+    src_id/tgt_id: integer database ids
+    label: optional human-friendly label for the link display
+    position: optional ordering per (src_type, src_id)
+    owner_id: owner of the source item (enforced by app-level checks)
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    src_type: str = Field(index=True)
+    src_id: int = Field(index=True)
+    tgt_type: str
+    tgt_id: int
+    label: Optional[str] = None
+    position: Optional[int] = Field(default=None, index=True)
+    owner_id: int = Field(foreign_key='user.id', index=True)
+    created_at: datetime | None = Field(default_factory=now_utc)
+
+    __table_args__ = (
+        UniqueConstraint('src_type', 'src_id', 'tgt_type', 'tgt_id', name='uq_itemlink_edge'),
+    )
