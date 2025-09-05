@@ -363,7 +363,8 @@ def render_fn_tags(text: str | None) -> Markup:
                 except Exception:
                     q = ''
                 href = '/html_no_js/search?q=' + quote_plus(q)
-                return f'<a class="fn-button" role="button" href="{escape(href)}" {attrs}>{esc_label}</a>'
+                # Important: emit a plain anchor without data-fn so middle/Ctrl-click works and no exec-fn intercept
+                return f'<a class="fn-button" role="link" href="{escape(href)}">{esc_label}</a>'
 
             # Navigation link to a specific todo or list by id
             if identifier == 'link':
