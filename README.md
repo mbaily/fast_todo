@@ -154,6 +154,48 @@ Your Suburbs {{fn:search.multi tags=#newyork,#london,#tokyo,#nottinghill | Subur
 ```
 
 
+## Hide a "search page" todo from search results (search_ignored)
+
+If you keep special todos whose note contains many multi-tag search links (a "hub" page), those notes can match normal searches and clutter results. You can mark such a todo to be ignored by search.
+
+- What it does
+  - Sets a boolean flag `search_ignored` on a todo. The HTML search (`/html_no_js/search`) and JSON client search both exclude todos where `search_ignored` is true, across all search branches (text/note match, hashtag match, and include-list-todos expansion).
+  - The todo still appears in its list views and APIs that aren’t search-specific.
+
+- When to use it
+  - For navigation-style todos used as link hubs with markup like `{{fn:search.multi ...}}` containing many tags.
+  - For index/reference pages that shouldn’t appear as regular search hits.
+
+- Toggle via CLI
+
+  Activate your virtualenv and run from the project root:
+
+  ```bash
+  # Toggle the flag (true <-> false)
+  python -m scripts.toggle_search_ignore 327
+
+  # Explicitly set true or false
+  python -m scripts.toggle_search_ignore 327 --set true
+  python -m scripts.toggle_search_ignore 327 --set false
+  ```
+
+  The script prints the previous and new values and a short summary of the todo.
+
+- Verify from bash (SQLite one-liners)
+
+  ```bash
+  # Show id and flag
+  sqlite3 -header -column fast_todo.db "SELECT id, search_ignored FROM todo WHERE id=327;"
+
+  # Show flag only
+  sqlite3 -noheader -batch fast_todo.db "SELECT search_ignored FROM todo WHERE id=327;"
+  ```
+
+- Notes
+  - After changing the flag, just refresh the search page. No server restart is needed.
+  - If a flagged todo still appears, confirm the DB value is `1` (true) and that you’re using the updated server code where the HTML search route also applies the filter.
+
+
 ## Scripts: run server and create venv
 
 Both the Windows and Debian scripts perform these steps automatically:
