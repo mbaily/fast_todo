@@ -14,7 +14,6 @@ from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
 import json
 import asyncio
-from asyncio import Queue
 import os
 from contextvars import ContextVar
 from sqlmodel import select
@@ -39,13 +38,13 @@ from . import config
 from .repl_api import run_code_for_user
 
 import sys
+from asyncio import Queue
 
 logger = logging.getLogger(__name__)
 # Ensure INFO-level messages from this module appear on the server console when
 # no handlers are configured (safe fallback for development/testing).
 if not logger.handlers:
     handler = logging.StreamHandler(sys.stdout)
-    handler.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s %(levelname)s:%(name)s: %(message)s')
     handler.setFormatter(formatter)
     logger.addHandler(handler)
@@ -70,11 +69,11 @@ def _redirect_or_json(request: Request, url: str, extra: dict | None = None, sta
     accept = (request.headers.get('Accept') or '')
     if 'application/json' in accept.lower():
         payload = {'ok': True, 'redirect': url}
-        if extra:
-            try:
+        try:
+            if extra:
                 payload.update(extra)
-            except Exception:
-                pass
+        except Exception:
+            pass
         return JSONResponse(payload)
     return RedirectResponse(url=url, status_code=status)
 
@@ -464,6 +463,7 @@ def render_fn_tags(text: str | None) -> Markup:
                         has_custom_label = bool(label)
                         link_label = btn_label if has_custom_label else None
                         link_priority: int | None = None
+                        link_tags: list[str] | None = None
                         # determine if priority should be suppressed via args
                         def _is_false(v: str | bool | None) -> bool:
                             if v is None:
@@ -478,7 +478,7 @@ def render_fn_tags(text: str | None) -> Markup:
                                 show_prio = False
                         except Exception:
                             show_prio = True
-                        # First check per-request cache for both name and priority
+                        # First check per-request cache for name, priority, and tags
                         cache = _fn_link_label_cache.get() or {}
                         cache_key = f"{kind}:{target_id}"
                         cached = cache.get(cache_key) if cache else None
@@ -489,13 +489,17 @@ def render_fn_tags(text: str | None) -> Markup:
                                 # Only adopt cached label when no custom label given
                                 if not has_custom_label and (not link_label):
                                     link_label = cached.get('name') or cached.get('label')
+                                if link_tags is None:
+                                    ct = cached.get('tags')
+                                    if isinstance(ct, list):
+                                        link_tags = [str(x) for x in ct if isinstance(x, str)] or []
                             except Exception:
                                 pass
                         elif isinstance(cached, str) and cached and not has_custom_label and not link_label:
                             link_label = cached
 
-                        # Decide if we need a DB lookup: if label is missing (no custom) or we need priority
-                        need_lookup = (not has_custom_label and not link_label) or (show_prio and (link_priority is None))
+                        # Decide if we need a DB lookup: if label is missing (no custom) or we need priority or tags
+                        need_lookup = (not has_custom_label and not link_label) or (show_prio and (link_priority is None)) or (link_tags is None)
                         resolved_name: str | None = None
                         if need_lookup:
                             # Try SQLAlchemy sync session first; if that fails (e.g., async driver), try sqlite3 direct.
@@ -517,6 +521,18 @@ def render_fn_tags(text: str | None) -> Markup:
                                                     link_priority = int(pr) if pr is not None else None
                                             except Exception:
                                                 link_priority = None
+                                            # fetch hashtags for todo
+                                            try:
+                                                qtags = select(Hashtag.tag).join(TodoHashtag, TodoHashtag.hashtag_id == Hashtag.id).where(TodoHashtag.todo_id == target_id)
+                                                rtags = _s.execute(qtags).all()
+                                                tags_list: list[str] = []
+                                                for row in rtags:
+                                                    val = row[0] if isinstance(row, (tuple, list)) else row
+                                                    if isinstance(val, str) and val:
+                                                        tags_list.append(val)
+                                                link_tags = tags_list
+                                            except Exception:
+                                                pass
                                             looked_up = True
                                     else:
                                         res = _s.execute(select(ListState.name, ListState.priority).where(ListState.id == target_id)).first()
@@ -532,6 +548,18 @@ def render_fn_tags(text: str | None) -> Markup:
                                                     link_priority = int(pr) if pr is not None else None
                                             except Exception:
                                                 link_priority = None
+                                            # fetch hashtags for list
+                                            try:
+                                                qtags = select(Hashtag.tag).join(ListHashtag, ListHashtag.hashtag_id == Hashtag.id).where(ListHashtag.list_id == target_id)
+                                                rtags = _s.execute(qtags).all()
+                                                tags_list: list[str] = []
+                                                for row in rtags:
+                                                    val = row[0] if isinstance(row, (tuple, list)) else row
+                                                    if isinstance(val, str) and val:
+                                                        tags_list.append(val)
+                                                link_tags = tags_list
+                                            except Exception:
+                                                pass
                                             looked_up = True
                             except Exception:
                                 pass
@@ -563,6 +591,16 @@ def render_fn_tags(text: str | None) -> Markup:
                                                             link_priority = int(row[1]) if len(row) > 1 and row[1] is not None else None
                                                     except Exception:
                                                         link_priority = None
+                                                # fetch hashtags via sqlite
+                                                try:
+                                                    if kind == 'todo':
+                                                        cur.execute('SELECT h.tag FROM hashtag h JOIN todohashtag th ON th.hashtag_id = h.id WHERE th.todo_id = ?', (target_id,))
+                                                    else:
+                                                        cur.execute('SELECT h.tag FROM hashtag h JOIN listhashtag lh ON lh.hashtag_id = h.id WHERE lh.list_id = ?', (target_id,))
+                                                    rows = cur.fetchall()
+                                                    link_tags = [r[0] for r in rows if r and isinstance(r[0], str) and r[0]]
+                                                except Exception:
+                                                    pass
                                             finally:
                                                 try:
                                                     con.close()
@@ -570,6 +608,51 @@ def render_fn_tags(text: str | None) -> Markup:
                                                     pass
                                 except Exception:
                                     pass
+                        # If tags were not resolved yet, attempt a light sqlite fallback just for hashtags
+                        if link_tags is None:
+                            try:
+                                from .db import DATABASE_URL as _DB_URL
+                                from .db import _sqlite_path_from_url as _sqlite_path_from_url
+                                path = _sqlite_path_from_url(_DB_URL)
+                                if path:
+                                    import sqlite3, os as _os
+                                    abs_path = _os.path.abspath(path)
+                                    if _os.path.exists(abs_path):
+                                        con = sqlite3.connect(abs_path)
+                                        try:
+                                            cur = con.cursor()
+                                            if kind == 'todo':
+                                                cur.execute('SELECT h.tag FROM hashtag h JOIN todohashtag th ON th.hashtag_id = h.id WHERE th.todo_id = ?', (target_id,))
+                                            else:
+                                                cur.execute('SELECT h.tag FROM hashtag h JOIN listhashtag lh ON lh.hashtag_id = h.id WHERE lh.list_id = ?', (target_id,))
+                                            rows = cur.fetchall()
+                                            link_tags = [r[0] for r in rows if r and isinstance(r[0], str) and r[0]]
+                                            if os.getenv('DEBUG_FN_LINKS', '0').lower() in ('1','true','yes'):
+                                                try:
+                                                    import os as _os, time as _time
+                                                    _os.makedirs('debug_logs', exist_ok=True)
+                                                    with open(_os.path.join('debug_logs', 'fn_link_debug.log'), 'a', encoding='utf-8') as _f:
+                                                        _ts = _time.strftime('%Y-%m-%d %H:%M:%S')
+                                                        _f.write(f"[{_ts}] sqlite-tags kind={kind} id={target_id} count={len(link_tags or [])} rows={link_tags!r}\n")
+                                                except Exception:
+                                                    pass
+                                        finally:
+                                            try:
+                                                con.close()
+                                            except Exception:
+                                                pass
+                            except Exception:
+                                pass
+                        # Final debug snapshot of what will be rendered
+                        if os.getenv('DEBUG_FN_LINKS', '0').lower() in ('1','true','yes'):
+                            try:
+                                import os as _os, time as _time
+                                _os.makedirs('debug_logs', exist_ok=True)
+                                with open(_os.path.join('debug_logs', 'fn_link_debug.log'), 'a', encoding='utf-8') as _f:
+                                    _ts = _time.strftime('%Y-%m-%d %H:%M:%S')
+                                    _f.write(f"[{_ts}] final-tags kind={kind} id={target_id} tags={link_tags!r}\n")
+                            except Exception:
+                                pass
                         if link_label is None:
                             # Final fallback if lookup failed
                             link_label = f"Todo #{target_id}" if kind == 'todo' else f"List #{target_id}"
@@ -586,6 +669,8 @@ def render_fn_tags(text: str | None) -> Markup:
                                     entry['label'] = store_name
                                 if link_priority is not None:
                                     entry['priority'] = link_priority
+                                if isinstance(link_tags, list):
+                                    entry['tags'] = [str(x) for x in link_tags if isinstance(x, str)]
                                 if entry:
                                     cache[cache_key] = entry
                                     _fn_link_label_cache.set(cache)
@@ -609,8 +694,36 @@ def render_fn_tags(text: str | None) -> Markup:
                             if ch:
                                 pr_html = f' <span class="meta priority-inline" title="Priority {int(link_priority)}"><span class="priority-circle">{escape(ch)}</span></span>'
                         # Place the priority markup inside the anchor so post-processing (linkify) preserves it
-                        label_html = f'{escape(link_label)}{pr_html}'
-                        return f'<a class="fn-button fn-link" role="link" href="{escape(href)}">{label_html}</a>'
+                        # Build hashtags as separate tag-chip anchors outside the main link
+                        tags_html = ''
+                        try:
+                            if isinstance(link_tags, list) and link_tags:
+                                chips: list[str] = []
+                                for t in link_tags:
+                                    if not isinstance(t, str) or not t:
+                                        continue
+                                    chips.append(f'<a class="tag-chip" href="/html_no_js/search?q={quote_plus(t)}" role="link">{escape(t)}</a>')
+                                if chips:
+                                    # No wrapper span to avoid linkify escaping non-anchor HTML; chips have their own spacing.
+                                    tags_html = ' ' + ''.join(chips)
+                        except Exception:
+                            tags_html = ''
+                        # Optional debug logging for troubleshooting link rendering
+                        try:
+                            if os.getenv('DEBUG_FN_LINKS', '0').lower() in ('1','true','yes'):
+                                try:
+                                    import os as _os, time as _time
+                                    _os.makedirs('debug_logs', exist_ok=True)
+                                    with open(_os.path.join('debug_logs', 'fn_link_debug.log'), 'a', encoding='utf-8') as _f:
+                                        _ts = _time.strftime('%Y-%m-%d %H:%M:%S')
+                                        _f.write(f"[{_ts}] fn:link kind={kind} id={target_id} label={link_label!r} pr={link_priority!r} tags={link_tags!r}\n")
+                                except Exception:
+                                    pass
+                        except Exception:
+                            pass
+                        # Compose label using Markup to avoid double-escaping of our span fragments
+                        label_html = escape(link_label) + Markup(pr_html)
+                        return f'<a class="fn-button fn-link" role="link" href="{escape(href)}">{label_html}</a>' + tags_html
                     # If parsing failed, fall through to default button rendering
                 except Exception:
                     pass
@@ -738,6 +851,15 @@ async def lifespan(app: FastAPI):
             logger.info('starting server: DATABASE_URL not set')
     except Exception:
         logger.exception('could not determine DATABASE_URL at startup')
+    # Announce fn:link debug if enabled so it’s visible in console
+    try:
+        _d = os.getenv('DEBUG_FN_LINKS', '0').lower()
+        if _d in ('1','true','yes'):
+            logger.info('DEBUG_FN_LINKS enabled: fn:link will log to debug_logs/fn_link_debug.log')
+            # Also print directly in case logger routing filters this out
+            print('[app] DEBUG_FN_LINKS enabled: fn:link will log to debug_logs/fn_link_debug.log', flush=True)
+    except Exception:
+        pass
     # Initialize a seeded DateDataParser instance per worker to avoid repeated
     # automatic language detection. This is created here (in the lifespan
     # startup) so each worker process gets its own instance and we can control
@@ -8188,6 +8310,27 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
                 qll = await sess.exec(select(ListState.id, ListState.name).where(ListState.id.in_(list_targets)))
                 for lid, name in qll.all():
                     list_map[int(lid)] = {'id': int(lid), 'name': name}
+            # Preload hashtags for targets
+            tags_map_todo: dict[int, list[str]] = {}
+            tags_map_list: dict[int, list[str]] = {}
+            if todo_targets:
+                qth = await sess.exec(select(TodoHashtag.todo_id, Hashtag.tag).join(Hashtag, Hashtag.id == TodoHashtag.hashtag_id).where(TodoHashtag.todo_id.in_(todo_targets)))
+                for tid, tag in qth.all():
+                    try:
+                        tid_i = int(tid)
+                    except Exception:
+                        continue
+                    if isinstance(tag, str) and tag:
+                        tags_map_todo.setdefault(tid_i, []).append(tag)
+            if list_targets:
+                qlh = await sess.exec(select(ListHashtag.list_id, Hashtag.tag).join(Hashtag, Hashtag.id == ListHashtag.hashtag_id).where(ListHashtag.list_id.in_(list_targets)))
+                for lid, tag in qlh.all():
+                    try:
+                        lid_i = int(lid)
+                    except Exception:
+                        continue
+                    if isinstance(tag, str) and tag:
+                        tags_map_list.setdefault(lid_i, []).append(tag)
             for r in rows:
                 d = {'id': r.id, 'tgt_type': r.tgt_type, 'tgt_id': r.tgt_id, 'label': r.label, 'position': r.position}
                 if r.tgt_type == 'todo':
@@ -8195,11 +8338,13 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
                     if t:
                         d['title'] = t.get('text')
                         d['href'] = f"/html_no_js/todos/{t['id']}"
+                        d['tags'] = tags_map_todo.get(int(r.tgt_id), [])
                 elif r.tgt_type == 'list':
                     l = list_map.get(int(r.tgt_id))
                     if l:
                         d['title'] = l.get('name')
                         d['href'] = f"/html_no_js/lists/{l['id']}"
+                        d['tags'] = tags_map_list.get(int(r.tgt_id), [])
                 links.append(d)
         except Exception:
             links = []
@@ -9149,6 +9294,7 @@ async def html_view_todo(request: Request, todo_id: int, current_user: User = De
             list_targets = [r.tgt_id for r in rows if r.tgt_type == 'list']
             todo_map: dict[int, dict] = {}
             list_map: dict[int, dict] = {}
+            # Preload target titles
             if todo_targets:
                 qtt = await sess.exec(select(Todo.id, Todo.text).where(Todo.id.in_(todo_targets)))
                 for tid, txt in qtt.all():
@@ -9157,6 +9303,29 @@ async def html_view_todo(request: Request, todo_id: int, current_user: User = De
                 qll = await sess.exec(select(ListState.id, ListState.name).where(ListState.id.in_(list_targets)))
                 for lid, name in qll.all():
                     list_map[int(lid)] = {'id': int(lid), 'name': name}
+            # Preload hashtags for targets
+            tags_map_todo: dict[int, list[str]] = {}
+            tags_map_list: dict[int, list[str]] = {}
+            if todo_targets:
+                qth = select(TodoHashtag.todo_id, Hashtag.tag).join(Hashtag, Hashtag.id == TodoHashtag.hashtag_id).where(TodoHashtag.todo_id.in_(todo_targets))
+                rth = await sess.exec(qth)
+                for tid, tag in rth.all():
+                    try:
+                        tid_i = int(tid)
+                    except Exception:
+                        continue
+                    if isinstance(tag, str) and tag:
+                        tags_map_todo.setdefault(tid_i, []).append(tag)
+            if list_targets:
+                qlh = select(ListHashtag.list_id, Hashtag.tag).join(Hashtag, Hashtag.id == ListHashtag.hashtag_id).where(ListHashtag.list_id.in_(list_targets))
+                rlh = await sess.exec(qlh)
+                for lid, tag in rlh.all():
+                    try:
+                        lid_i = int(lid)
+                    except Exception:
+                        continue
+                    if isinstance(tag, str) and tag:
+                        tags_map_list.setdefault(lid_i, []).append(tag)
             for r in rows:
                 d = {'id': r.id, 'tgt_type': r.tgt_type, 'tgt_id': r.tgt_id, 'label': r.label, 'position': r.position}
                 if r.tgt_type == 'todo':
@@ -9164,11 +9333,13 @@ async def html_view_todo(request: Request, todo_id: int, current_user: User = De
                     if t:
                         d['title'] = t.get('text')
                         d['href'] = f"/html_no_js/todos/{t['id']}"
+                        d['tags'] = tags_map_todo.get(int(r.tgt_id), [])
                 elif r.tgt_type == 'list':
                     l = list_map.get(int(r.tgt_id))
                     if l:
                         d['title'] = l.get('name')
                         d['href'] = f"/html_no_js/lists/{l['id']}"
+                        d['tags'] = tags_map_list.get(int(r.tgt_id), [])
                 links.append(d)
         except Exception:
             links = []

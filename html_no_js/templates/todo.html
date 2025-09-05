@@ -63,7 +63,7 @@
     <div class="meta" style="margin:0.15rem 0 0.35rem 0">
       <strong>Links:</strong>
       {% for lk in links %}
-        <a href="{{ lk.href }}">{{ lk.label or lk.title or (lk.tgt_type ~ ' #' ~ lk.tgt_id) }}</a>{% if not loop.last %}, {% endif %}
+  <a href="{{ lk.href }}">{{ lk.label or lk.title or (lk.tgt_type ~ ' #' ~ lk.tgt_id) }}</a>{% if lk.tags and lk.tags|length %} <span class="tags-inline meta">{% for tag in lk.tags %}<a class="tag-chip" href="/html_no_js/search?q={{ tag|urlencode }}" role="link">{{ tag }}</a>{% endfor %}</span>{% endif %}{% if not loop.last %}, {% endif %}
       {% endfor %}
     </div>
   {% endif %}
@@ -436,7 +436,7 @@
       <ul style="list-style: none; padding: 0; margin: 0;">
         {% for lk in links %}
           <li>
-            <a href="{{ lk.href }}">{{ lk.label or lk.title or (lk.tgt_type ~ ' #' ~ lk.tgt_id) }}</a>
+            <a href="{{ lk.href }}">{{ lk.label or lk.title or (lk.tgt_type ~ ' #' ~ lk.tgt_id) }}</a>{% if lk.tags and lk.tags|length %} <span class="tags-inline meta">{% for tag in lk.tags %}<a class="tag-chip" href="/html_no_js/search?q={{ tag|urlencode }}" role="link">{{ tag }}</a>{% endfor %}</span>{% endif %}
             <form method="post" action="/html_no_js/todos/{{ todo.id }}/links/{{ lk.id }}/delete" style="display:inline">
               {{ csrf_field() }}
               <button type="submit" class="tag-remove" title="Remove link"><span aria-hidden="true">✖</span><span class="sr-only">Remove link</span></button>

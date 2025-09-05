@@ -16,12 +16,18 @@ $ErrorActionPreference = 'Stop'
 $RELOAD = $true
 $DEBUGPY = $false
 $DEBUGPY_WAIT = $false
+$FN_LINK_DEBUG = $false
+
+# Optional server log file. Set to a filename (e.g., 'server_run.log') to enable logging,
+# or leave empty to disable file logging.
+$LOG_FILE = 'server_win.log'
 
 foreach ($arg in $args) {
     switch ($arg) {
         '--dev' { $RELOAD = $true }
-        '--debug' { $DEBUGPY = $true }
+    '--debug' { $DEBUGPY = $true }
         '--debug-wait' { $DEBUGPY = $true; $DEBUGPY_WAIT = $true }
+    '--fn-link-debug' { $FN_LINK_DEBUG = $true }
         default { }
     }
 }
@@ -124,7 +130,6 @@ if (-not $env:DATABASE_URL -or $env:DATABASE_URL -eq '') {
 $HOST_ADDR = if ($env:HOST) { $env:HOST } else { '0.0.0.0' }
 $PORT = if ($env:PORT) { $env:PORT } else { '10443' }
 $APP_MODULE = if ($env:APP_MODULE) { $env:APP_MODULE } else { 'app.main:app' }
-$LOG_FILE = if ($env:LOG_FILE) { $env:LOG_FILE } else { $null }
 $UVICORN_LOG_LEVEL = if ($env:UVICORN_LOG_LEVEL) { $env:UVICORN_LOG_LEVEL } else { 'info' }
 $UVICORN_ACCESS_LOG = if ($env:UVICORN_ACCESS_LOG) { $env:UVICORN_ACCESS_LOG } else { 'true' }
 
@@ -155,11 +160,19 @@ if ($RELOAD) {
     }
     $uvicornArgs = @('-m', 'uvicorn', $APP_MODULE, '--host', $HOST_ADDR, '--port', $PORT, '--reload', '--ssl-keyfile', $CERT_KEY, '--ssl-certfile', $CERT_PUB, '--log-level', $UVICORN_LOG_LEVEL)
     if ($UVICORN_ACCESS_LOG -ne 'true') { $uvicornArgs += '--access-log'; $uvicornArgs += 'false' }
-    if ($LOG_FILE) {
+    if ($FN_LINK_DEBUG) { $env:DEBUG_FN_LINKS = '1'; Write-Host "[run_server] DEBUG_FN_LINKS is enabled (env:DEBUG_FN_LINKS=1)" }
+    if ($LOG_FILE -and $LOG_FILE -ne '') {
         $logDir = Split-Path $LOG_FILE -Parent
-        if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Path $logDir -Force | Out-Null }
+        if ($logDir -and -not (Test-Path $logDir)) { New-Item -ItemType Directory -Path $logDir -Force | Out-Null }
         Write-Host "[run_server] Redirecting output to $LOG_FILE"
-        & $VENV_PY @uvicornArgs *>&1 | Tee-Object -FilePath $LOG_FILE
+        $oldEAP = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'Continue'
+            & $VENV_PY @uvicornArgs 2>&1 | Tee-Object -FilePath $LOG_FILE -Append
+        }
+        finally {
+            $ErrorActionPreference = $oldEAP
+        }
     }
     else {
         & $VENV_PY @uvicornArgs
@@ -169,11 +182,19 @@ else {
     Write-Host "[run_server] Starting uvicorn on https://$($HOST_ADDR):$($PORT) (log_level=$UVICORN_LOG_LEVEL access_log=$UVICORN_ACCESS_LOG)"
     $uvicornArgs = @('-m', 'uvicorn', $APP_MODULE, '--host', $HOST_ADDR, '--port', $PORT, '--workers', '1', '--ssl-keyfile', $CERT_KEY, '--ssl-certfile', $CERT_PUB, '--log-level', $UVICORN_LOG_LEVEL)
     if ($UVICORN_ACCESS_LOG -ne 'true') { $uvicornArgs += '--access-log'; $uvicornArgs += 'false' }
-    if ($LOG_FILE) {
+    if ($FN_LINK_DEBUG) { $env:DEBUG_FN_LINKS = '1'; Write-Host "[run_server] DEBUG_FN_LINKS is enabled (env:DEBUG_FN_LINKS=1)" }
+    if ($LOG_FILE -and $LOG_FILE -ne '') {
         $logDir = Split-Path $LOG_FILE -Parent
-        if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Path $logDir -Force | Out-Null }
+        if ($logDir -and -not (Test-Path $logDir)) { New-Item -ItemType Directory -Path $logDir -Force | Out-Null }
         Write-Host "[run_server] Redirecting output to $LOG_FILE"
-        & $VENV_PY @uvicornArgs *>&1 | Tee-Object -FilePath $LOG_FILE
+        $oldEAP = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'Continue'
+            & $VENV_PY @uvicornArgs 2>&1 | Tee-Object -FilePath $LOG_FILE -Append
+        }
+        finally {
+            $ErrorActionPreference = $oldEAP
+        }
     }
     else {
         & $VENV_PY @uvicornArgs
