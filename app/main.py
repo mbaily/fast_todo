@@ -406,37 +406,83 @@ def render_fn_tags(text: str | None) -> Markup:
                     if kind in ('todo', 'list') and isinstance(target_id, int) and target_id > 0:
                         href = f"/html_no_js/{'todos' if kind=='todo' else 'lists'}/{target_id}"
                         # Resolve label: prefer explicit |Label; else use the actual item name/text when possible
-                        link_label = btn_label if label else None
-                        if link_label is None:
-                            # First check per-request cache
-                            cache = _fn_link_label_cache.get() or {}
-                            cache_key = f"{kind}:{target_id}"
-                            if cache and cache_key in cache:
-                                cached = cache.get(cache_key)
-                                if isinstance(cached, str) and cached:
-                                    link_label = cached
+                        has_custom_label = bool(label)
+                        link_label = btn_label if has_custom_label else None
+                        link_priority: int | None = None
+                        # determine if priority should be suppressed via args
+                        def _is_false(v: str | bool | None) -> bool:
+                            if v is None:
+                                return False
+                            if isinstance(v, bool):
+                                return (v is False)
+                            s = str(v).strip().lower()
+                            return s in ('0','false','no','off')
+                        show_prio = True
+                        try:
+                            if _is_false(args.get('show_priority')) or _is_false(args.get('priority')) or ('no_priority' in args) or ('nopriority' in args):
+                                show_prio = False
+                        except Exception:
+                            show_prio = True
+                        # First check per-request cache for both name and priority
+                        cache = _fn_link_label_cache.get() or {}
+                        cache_key = f"{kind}:{target_id}"
+                        cached = cache.get(cache_key) if cache else None
+                        if isinstance(cached, dict):
+                            try:
+                                if link_priority is None:
+                                    link_priority = cached.get('priority')
+                                # Only adopt cached label when no custom label given
+                                if not has_custom_label and (not link_label):
+                                    link_label = cached.get('name') or cached.get('label')
+                            except Exception:
+                                pass
+                        elif isinstance(cached, str) and cached and not has_custom_label and not link_label:
+                            link_label = cached
+
+                        # Decide if we need a DB lookup: if label is missing (no custom) or we need priority
+                        need_lookup = (not has_custom_label and not link_label) or (show_prio and (link_priority is None))
+                        resolved_name: str | None = None
+                        if need_lookup:
                             # Try SQLAlchemy sync session first; if that fails (e.g., async driver), try sqlite3 direct.
                             looked_up = False
                             try:
-                                # Attempt a lightweight sync lookup for the display name
                                 from .db import engine, TracedSyncSession
                                 with TracedSyncSession(bind=getattr(engine, 'sync_engine', None)) as _s:
                                     if kind == 'todo':
-                                        res = _s.execute(select(Todo.text).where(Todo.id == target_id)).scalar_one_or_none()
-                                        if isinstance(res, str) and res.strip():
-                                            link_label = res.strip()
+                                        res = _s.execute(select(Todo.text, Todo.priority).where(Todo.id == target_id)).first()
+                                        if res:
+                                            txt = res[0] if isinstance(res, (tuple, list)) else None
+                                            pr = res[1] if isinstance(res, (tuple, list)) and len(res) > 1 else None
+                                            if isinstance(txt, str) and txt.strip():
+                                                resolved_name = txt.strip()
+                                                if not has_custom_label and not link_label:
+                                                    link_label = resolved_name
+                                            try:
+                                                if link_priority is None:
+                                                    link_priority = int(pr) if pr is not None else None
+                                            except Exception:
+                                                link_priority = None
                                             looked_up = True
                                     else:
-                                        res = _s.execute(select(ListState.name).where(ListState.id == target_id)).scalar_one_or_none()
-                                        if isinstance(res, str) and res.strip():
-                                            link_label = res.strip()
+                                        res = _s.execute(select(ListState.name, ListState.priority).where(ListState.id == target_id)).first()
+                                        if res:
+                                            name = res[0] if isinstance(res, (tuple, list)) else None
+                                            pr = res[1] if isinstance(res, (tuple, list)) and len(res) > 1 else None
+                                            if isinstance(name, str) and name.strip():
+                                                resolved_name = name.strip()
+                                                if not has_custom_label and not link_label:
+                                                    link_label = resolved_name
+                                            try:
+                                                if link_priority is None:
+                                                    link_priority = int(pr) if pr is not None else None
+                                            except Exception:
+                                                link_priority = None
                                             looked_up = True
                             except Exception:
-                                link_label = None
+                                pass
                             # Fallback: direct sqlite3 if using local sqlite DB
-                            if not looked_up and (link_label is None):
+                            if not looked_up:
                                 try:
-                                    # Use shared helper to resolve a local sqlite file path from DATABASE_URL
                                     from .db import DATABASE_URL as _DB_URL
                                     from .db import _sqlite_path_from_url as _sqlite_path_from_url
                                     path = _sqlite_path_from_url(_DB_URL)
@@ -448,19 +494,27 @@ def render_fn_tags(text: str | None) -> Markup:
                                             try:
                                                 cur = con.cursor()
                                                 if kind == 'todo':
-                                                    cur.execute('SELECT text FROM todo WHERE id = ?', (target_id,))
+                                                    cur.execute('SELECT text, priority FROM todo WHERE id = ?', (target_id,))
                                                 else:
-                                                    cur.execute('SELECT name FROM liststate WHERE id = ?', (target_id,))
+                                                    cur.execute('SELECT name, priority FROM liststate WHERE id = ?', (target_id,))
                                                 row = cur.fetchone()
-                                                if row and isinstance(row[0], str) and row[0].strip():
-                                                    link_label = row[0].strip()
+                                                if row:
+                                                    if isinstance(row[0], str) and row[0].strip():
+                                                        resolved_name = row[0].strip()
+                                                        if not has_custom_label and not link_label:
+                                                            link_label = resolved_name
+                                                    try:
+                                                        if link_priority is None:
+                                                            link_priority = int(row[1]) if len(row) > 1 and row[1] is not None else None
+                                                    except Exception:
+                                                        link_priority = None
                                             finally:
                                                 try:
                                                     con.close()
                                                 except Exception:
                                                     pass
                                 except Exception:
-                                    link_label = None
+                                    pass
                         if link_label is None:
                             # Final fallback if lookup failed
                             link_label = f"Todo #{target_id}" if kind == 'todo' else f"List #{target_id}"
@@ -469,12 +523,37 @@ def render_fn_tags(text: str | None) -> Markup:
                             cache = _fn_link_label_cache.get() or {}
                             try:
                                 cache_key = f"{kind}:{target_id}"
-                                cache[cache_key] = link_label
-                                _fn_link_label_cache.set(cache)
+                                # Store true resolved name when available; avoid caching custom labels as titles
+                                store_name = resolved_name if isinstance(resolved_name, str) and resolved_name else (None if has_custom_label else link_label)
+                                entry = cache.get(cache_key) if isinstance(cache.get(cache_key), dict) else {}
+                                if store_name:
+                                    entry['name'] = store_name
+                                    entry['label'] = store_name
+                                if link_priority is not None:
+                                    entry['priority'] = link_priority
+                                if entry:
+                                    cache[cache_key] = entry
+                                    _fn_link_label_cache.set(cache)
                             except Exception:
                                 pass
                         # Important: do NOT include data-fn/data-args here so clicks navigate normally (no exec-fn)
-                        return f'<a class="fn-button fn-link" role="link" href="{escape(href)}">{escape(link_label)}</a>'
+                        # Optionally append priority circle if available and not suppressed
+                        def _circled(n: int | None) -> str:
+                            try:
+                                if n is None:
+                                    return ''
+                                n = int(n)
+                                if 1 <= n <= 10:
+                                    return chr(0x2460 + (n - 1))
+                                return str(n)
+                            except Exception:
+                                return ''
+                        pr_html = ''
+                        if show_prio and (link_priority is not None):
+                            ch = _circled(link_priority)
+                            if ch:
+                                pr_html = f' <span class="meta priority-inline" title="Priority {int(link_priority)}"><span class="priority-circle">{escape(ch)}</span></span>'
+                        return f'<a class="fn-button fn-link" role="link" href="{escape(href)}">{escape(link_label)}</a>' + pr_html
                     # If parsing failed, fall through to default button rendering
                 except Exception:
                     pass
