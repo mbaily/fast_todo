@@ -241,9 +241,17 @@
               // Update existing option textContent with title snippets
               var mapT = j.todos||{}; var mapL = j.lists||{};
               // Update Todos
-              Object.keys(mapT).forEach(function(id){ var label = 'Todo #'+id; var sn = snippet(mapT[id]); if (sn) label = id+' — '+sn; var opt = sel.querySelector('option[value="todo:'+id+'"]'); if (opt) opt.textContent = label; });
+              Object.keys(mapT).forEach(function(id){
+                var label = 'Todo #'+id; var sn = snippet(mapT[id]); if (sn) label = id+' — '+sn;
+                var opt = sel.querySelector('option[value="todo:'+id+'"]');
+                if (opt) { opt.textContent = label; if (sn) opt.setAttribute('data-snippet', sn); }
+              });
               // Update Lists
-              Object.keys(mapL).forEach(function(id){ var label = 'List #'+id; var sn = snippet(mapL[id]); if (sn) label = id+' — '+sn; var opt = sel.querySelector('option[value="list:'+id+'"]'); if (opt) opt.textContent = label; });
+              Object.keys(mapL).forEach(function(id){
+                var label = 'List #'+id; var sn = snippet(mapL[id]); if (sn) label = id+' — '+sn;
+                var opt = sel.querySelector('option[value="list:'+id+'"]');
+                if (opt) { opt.textContent = label; if (sn) opt.setAttribute('data-snippet', sn); }
+              });
             }).catch(function(){});
           }
         }catch(_){ /* ignore */ }
@@ -251,7 +259,30 @@
       var btn=document.getElementById('note-insert-link-{{ todo.id }}');
       var ta=document.getElementById('note-textarea');
       function insertAtCursor(textarea, ins){ try{ var start = textarea.selectionStart||0; var end = textarea.selectionEnd||0; var v = textarea.value||''; textarea.value = v.slice(0,start) + ins + v.slice(end); var pos = start + ins.length; textarea.setSelectionRange(pos,pos); textarea.focus(); }catch(_){ /* ignore */ } }
-  if (btn && sel && ta){ btn.addEventListener('click', function(){ var v = sel.value||''; if(!v){ alert('Select a marked item first.'); return; } var parts=v.split(':'); if(parts.length!==2){ alert('Invalid selection'); return; } var t=parts[0], id=parts[1]; var markup = '{' + '{' + 'fn:link target=' + t + ':' + id + '}' + '}'; insertAtCursor(ta, (ta.value && ta.value.length ? '\n' : '') + markup + '\n'); try { var evt = new Event('input', { bubbles: true }); ta.dispatchEvent(evt); } catch(_){} }); }
+  if (btn && sel && ta){ btn.addEventListener('click', function(){
+        var v = sel.value||''; if(!v){ alert('Select a marked item first.'); return; }
+        var parts=v.split(':'); if(parts.length!==2){ alert('Invalid selection'); return; }
+        var t=parts[0], id=parts[1];
+        // Derive a human-readable comment (list name or todo text snippet)
+        var opt = sel.options[sel.selectedIndex];
+        var human = '';
+        if (opt){
+          human = opt.getAttribute('data-snippet') || '';
+          if (!human){
+            var txt = (opt.textContent||'').trim();
+            var sep = ' — ';
+            var idx = txt.indexOf(sep);
+            // Only use extracted part after separator; otherwise leave empty to avoid generic labels
+            human = (idx >= 0) ? txt.slice(idx+sep.length).trim() : '';
+          }
+        }
+        // Normalize whitespace and escape for inclusion in quoted arg
+        function esc(s){ return String(s||'').replace(/\s+/g,' ').replace(/\\/g,'\\\\').replace(/"/g,'\\"'); }
+  var commentArg = human ? (', comment="'+esc(human)+'"') : '';
+  var markup = '{' + '{' + 'fn:link target=' + t + ':' + id + commentArg + '}' + '}';
+        insertAtCursor(ta, (ta.value && ta.value.length ? '\n' : '') + markup + '\n');
+        try { var evt = new Event('input', { bubbles: true }); ta.dispatchEvent(evt); } catch(_){}
+      }); }
     }catch(e){ /* silent */ }
   })();
   </script>
