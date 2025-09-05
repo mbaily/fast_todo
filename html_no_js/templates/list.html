@@ -910,6 +910,9 @@
             table.table-top-left td { white-space: nowrap; }
             /* last column is the Todo text cell in this table */
             table.table-top-left td:last-child { white-space: normal; }
+            /* keep the Todo text column reasonably wide on mobile for readability */
+            table.table-top-left td:last-child,
+            table.table-top-left th:last-child { min-width: 14rem; }
             table.table-top-left td:last-child .todo-title-inline .wrap-text { white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
             /* tighten padding on the first couple of action columns */
             table.table-top-left td:nth-child(1),

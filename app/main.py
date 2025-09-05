@@ -9070,7 +9070,11 @@ async def html_edit_todo(request: Request, todo_id: int, text: str = Form(...), 
     if not token or not verify_csrf_token(token, current_user.username):
         raise HTTPException(status_code=403, detail='invalid csrf token')
     # perform update and return either a redirect (normal browsers) or JSON (AJAX/fetch)
-    result = await update_todo(todo_id=todo_id, text=text, note=note, current_user=current_user)
+    # Build payload for internal updater; only include fields provided by the form
+    payload = { 'text': text }
+    if 'note' in form:
+        payload['note'] = note
+    result = await _update_todo_internal(todo_id, payload, current_user)
     accept = request.headers.get('accept', '')
     if 'application/json' in accept.lower():
         # return JSON result for AJAX autosave clients
