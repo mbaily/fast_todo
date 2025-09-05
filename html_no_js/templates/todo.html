@@ -221,8 +221,33 @@
       var sel=document.getElementById('note-link-target-{{ todo.id }}'); if(!sel) return;
       var marks=prune(load());
       function addOpt(v,t,parent){ var o=document.createElement('option'); o.value=v; o.textContent=t; (parent||sel).appendChild(o); }
-      if (marks.todos && Object.keys(marks.todos).length){ var og=document.createElement('optgroup'); og.label='Todos'; sel.appendChild(og); Object.keys(marks.todos).sort(function(a,b){return (+a)-(+b);}).forEach(function(id){ addOpt('todo:'+id, 'Todo #'+id, og); }); }
-      if (marks.lists && Object.keys(marks.lists).length){ var og2=document.createElement('optgroup'); og2.label='Lists'; sel.appendChild(og2); Object.keys(marks.lists).sort(function(a,b){return (+a)-(+b);}).forEach(function(id){ addOpt('list:'+id, 'List #'+id, og2); }); }
+      var todoIds = marks.todos ? Object.keys(marks.todos).sort(function(a,b){return (+a)-(+b);}) : [];
+      var listIds = marks.lists ? Object.keys(marks.lists).sort(function(a,b){return (+a)-(+b);}) : [];
+      if (todoIds.length || listIds.length){
+        // Pre-create groups so we can add placeholders, then enrich with titles
+        var ogT=document.createElement('optgroup'); ogT.label='Todos'; sel.appendChild(ogT);
+        var ogL=document.createElement('optgroup'); ogL.label='Lists'; sel.appendChild(ogL);
+        todoIds.forEach(function(id){ addOpt('todo:'+id, 'Todo #'+id, ogT); });
+        listIds.forEach(function(id){ addOpt('list:'+id, 'List #'+id, ogL); });
+        // Fetch titles to improve labels to "id — snippet" (best-effort)
+        try{
+          var qs = [];
+          if (todoIds.length) qs.push('todos='+encodeURIComponent(todoIds.join(',')));
+          if (listIds.length) qs.push('lists='+encodeURIComponent(listIds.join(',')));
+          if (qs.length){
+            fetch('/api/lookup/names?'+qs.join('&'), { credentials: 'same-origin' }).then(function(r){ return r.json(); }).then(function(j){
+              if (!j || !j.ok) return;
+              function snippet(s){ if(!s) return ''; s = String(s); return s.length>60 ? s.slice(0,60)+'…' : s; }
+              // Update existing option textContent with title snippets
+              var mapT = j.todos||{}; var mapL = j.lists||{};
+              // Update Todos
+              Object.keys(mapT).forEach(function(id){ var label = 'Todo #'+id; var sn = snippet(mapT[id]); if (sn) label = id+' — '+sn; var opt = sel.querySelector('option[value="todo:'+id+'"]'); if (opt) opt.textContent = label; });
+              // Update Lists
+              Object.keys(mapL).forEach(function(id){ var label = 'List #'+id; var sn = snippet(mapL[id]); if (sn) label = id+' — '+sn; var opt = sel.querySelector('option[value="list:'+id+'"]'); if (opt) opt.textContent = label; });
+            }).catch(function(){});
+          }
+        }catch(_){ /* ignore */ }
+      }
       var btn=document.getElementById('note-insert-link-{{ todo.id }}');
       var ta=document.getElementById('note-textarea');
       function insertAtCursor(textarea, ins){ try{ var start = textarea.selectionStart||0; var end = textarea.selectionEnd||0; var v = textarea.value||''; textarea.value = v.slice(0,start) + ins + v.slice(end); var pos = start + ins.length; textarea.setSelectionRange(pos,pos); textarea.focus(); }catch(_){ /* ignore */ } }

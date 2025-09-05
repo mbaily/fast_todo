@@ -8098,6 +8098,74 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
     return TEMPLATES.TemplateResponse(request, "list.html", {"request": request, "list": list_row, "todos": todo_rows, "csrf_token": csrf_token, "client_tz": client_tz, "completion_types": completion_types, "all_hashtags": all_hashtags, "categories": categories, "sublists": sublists, "links": links})
 
 
+# ===== Tiny lookup endpoint for names/titles (used by Note combobox) =====
+@app.get('/api/lookup/names')
+async def api_lookup_names(request: Request, current_user: User = Depends(require_login)):
+    """Return minimal titles for given todo/list IDs that belong to the current user.
+
+    Query params:
+    - todos=1,2,3
+    - lists=4,5
+
+    Response: { ok: true, todos: {"1": "todo text"}, lists: {"4": "list name"} }
+    """
+    # Parse query params into integer ID lists
+    def _parse_ids(val: str | None) -> list[int]:
+        out: list[int] = []
+        if not val:
+            return out
+        for tok in str(val).split(','):
+            tok = tok.strip()
+            if not tok:
+                continue
+            try:
+                nid = int(tok)
+                if nid > 0:
+                    out.append(nid)
+            except Exception:
+                continue
+        return list(dict.fromkeys(out))  # dedupe preserving order
+
+    todo_ids = _parse_ids(request.query_params.get('todos'))
+    list_ids = _parse_ids(request.query_params.get('lists'))
+
+    todos_map: dict[str, str] = {}
+    lists_map: dict[str, str] = {}
+
+    if not todo_ids and not list_ids:
+        return JSONResponse({'ok': True, 'todos': todos_map, 'lists': lists_map})
+
+    try:
+        async with async_session() as sess:
+            if todo_ids:
+                # Only return todos in lists owned by the current user
+                q = (
+                    select(Todo.id, Todo.text)
+                    .join(ListState, ListState.id == Todo.list_id)
+                    .where(Todo.id.in_(todo_ids))
+                    .where(ListState.owner_id == current_user.id)
+                )
+                res = await sess.exec(q)
+                for tid, txt in res.all():
+                    if tid is None:
+                        continue
+                    val = txt if isinstance(txt, str) else ''
+                    todos_map[str(int(tid))] = val
+            if list_ids:
+                ql = select(ListState.id, ListState.name).where(ListState.id.in_(list_ids)).where(ListState.owner_id == current_user.id)
+                r2 = await sess.exec(ql)
+                for lid, name in r2.all():
+                    if lid is None:
+                        continue
+                    val = name if isinstance(name, str) else ''
+                    lists_map[str(int(lid))] = val
+    except Exception:
+        # best-effort; do not fail callers if a transient DB error occurs
+        pass
+
+    return JSONResponse({'ok': True, 'todos': todos_map, 'lists': lists_map})
+
+
 @app.get('/html_no_js/hashtags', response_class=HTMLResponse)
 async def html_no_js_hashtags(request: Request, current_user: User = Depends(require_login)):
     """Unlinked page to list all Hashtag rows."""
