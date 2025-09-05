@@ -26,3 +26,17 @@ ENABLE_RECURRING_DETECTION = True
 # Read from environment variable DATE_ORDER; default to 'DMY' for Australian-style
 # parsing. Accept lowercase variants.
 DATE_ORDER = os.getenv('DATE_ORDER', 'DMY').upper()
+
+
+DOKUWIKI_NOTE_LINK_PREFIX = os.getenv('DOKUWIKI_NOTE_LINK_PREFIX', 'https://myserver.hopto.org/dokuwiki/doku.php?')
+
+# Optional local overrides: define variables in app/local_config.py to extend or
+# override the defaults above without changing versioned config.
+# Don't put your server for dokuwiki in version control in this project's git
+# So don't add app/local_config.py to the git repository.
+try:
+    from .local_config import *  # type: ignore  # noqa: F401,F403
+except ImportError:
+    # No local overrides present; proceed with defaults.
+    pass
+

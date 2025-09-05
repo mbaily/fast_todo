@@ -200,6 +200,12 @@ TEMPLATES = Jinja2Templates(directory="html_no_js/templates")
 TEMPLATES.env.auto_reload = True
 TEMPLATES.env.filters['server_local_dt'] = format_server_local
 TEMPLATES.env.filters['in_tz'] = format_in_timezone
+# Expose config in Jinja templates (e.g., for DOKUWIKI_NOTE_LINK_PREFIX)
+try:
+    TEMPLATES.env.globals['config'] = config
+except Exception:
+    # keep template setup robust if globals assignment fails
+    logger.exception('failed to inject config into Jinja env globals')
 from markupsafe import Markup, escape
 import re
 import time

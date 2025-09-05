@@ -85,6 +85,7 @@
     <label>Add Tag <input name="tag" placeholder="#tag" aria-label="Tag name"></label>
     <button type="submit">Add</button>
   </form>
+
   {# If the user opts to show sublists up-top, render them here (below tags) #}
   {% if sublists is defined and (todo is defined and todo.lists_up_top) %}
     <section aria-label="Sublists" style="margin-top:1rem">
@@ -99,7 +100,7 @@
           </label>
         </form>
       </div>
-    
+      
     {# Inline create control (replaces the previous 'No sublists yet' message) #}
   <form method="post" action="/html_no_js/todos/{{ todo.id }}/sublists/create" style="margin:0 0 .4rem 0" autocomplete="off">
       {{ csrf_field() }}
@@ -186,15 +187,25 @@
   {% endif %}
   <p class="meta">Created: {{ todo.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }} &nbsp; Modified: {{ todo.modified_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</p>
 
+
   <form id="todo-edit-form" method="post" action="/html_no_js/todos/{{ todo.id }}/edit" autocomplete="off">
     {{ csrf_field() }}
     {# Make the title editable as a textarea with rows matching the note's newline count so it visually matches note height #}
   <label>Text<br><textarea id="todo-text-input" class="full-bleed" name="text" required autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" rows="{{ (todo.note or '').split('\n')|length }}">{{ todo.text }}</textarea></label><br>
     <div id="todo-hashtag-suggest" class="hashtag-suggest" role="listbox" aria-label="Hashtag suggestions" data-tags="{% if all_hashtags and all_hashtags|length > 0 %}{% for tag in all_hashtags %}{{ tag }}{% if not loop.last %},{% endif %}{% endfor %}{% endif %}"></div>
+    
   <label>Note<br><textarea id="note-textarea" class="full-bleed" name="note" rows="9">{{ todo.note or '' }}</textarea></label><br>
   {# Save button moved to page toolbar above; keep a hidden submit for progressive enhancement if needed #}
   <button type="submit" style="display:none">Save</button>
   </form>
+    {# DokuWiki link button (uses config.DOKUWIKI_NOTE_LINK_PREFIX + 'fast_todo:' + todo.id); shown even if note is empty #}
+  {% set dw_prefix = config.DOKUWIKI_NOTE_LINK_PREFIX if config is defined and config.DOKUWIKI_NOTE_LINK_PREFIX is defined else None %}
+  {% if dw_prefix %}
+    {% set dw_url = dw_prefix ~ 'fast_todo:' ~ todo.id %}
+    <p style="margin:0.25rem 0 0.75rem 0">
+      <a class="btn" href="{{ dw_url }}" target="_blank" rel="noopener noreferrer" title="Open DokuWiki page for this todo">📄 DokuWiki page for this todo</a>
+    </p>
+  {% endif %}
 
   <div class="priority-row" style="margin:0.25rem 0">
     <label for="todo-priority-{{ todo.id }}">Priority</label>
