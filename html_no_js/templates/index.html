@@ -106,6 +106,10 @@
           <li>
             <strong>{{ ev.occurrence_date or ev.occurrence_dt[:10] }}</strong>
             &nbsp; <a href="{% if ev.item_type == 'todo' %}/html_no_js/todos/{{ ev.id }}{% else %}/html_no_js/lists/{{ ev.id }}{% endif %}">{{ ev.title or (ev.rrule or '')[:60] }}</a>
+            {% if ev.item_type == 'todo' and ev.priority %}
+              {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
+              <span class="meta priority-inline"><span class="priority-circle">{{ circ.get(ev.priority, ev.priority) }}</span></span>
+            {% endif %}
             {% if ev.is_recurring %}<span class="muted"> (recurring)</span>{% endif %}
           </li>
         {% endfor %}

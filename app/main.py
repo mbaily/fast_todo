@@ -5693,7 +5693,7 @@ async def html_index(request: Request):
                         for od in occs:
                             oh = _occ_allowed('todo', t.id, od, rec_rrule, title=(t.text or ''), list_id=t.list_id)
                             if oh:
-                                calendar_occurrences.append({'occurrence_dt': od.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': True, 'rrule': rec_rrule})
+                                calendar_occurrences.append({'occurrence_dt': od.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': True, 'rrule': rec_rrule, 'priority': getattr(t, 'priority', None)})
                     except Exception:
                         pass
                 else:
@@ -5709,7 +5709,7 @@ async def html_index(request: Request):
                             for od in occs:
                                 oh = _occ_allowed('todo', t.id, od, rrule_str_local, title=(t.text or ''), list_id=t.list_id)
                                 if oh:
-                                    calendar_occurrences.append({'occurrence_dt': od.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': True, 'rrule': rrule_str_local})
+                                    calendar_occurrences.append({'occurrence_dt': od.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': True, 'rrule': rrule_str_local, 'priority': getattr(t, 'priority', None)})
                     except Exception:
                         pass
                 # explicit dates from text/note (handle year-explicit and yearless)
@@ -5722,7 +5722,7 @@ async def html_index(request: Request):
                                 if d and d >= cal_start and d <= cal_end:
                                     oh = _occ_allowed('todo', t.id, d, '', title=(t.text or ''), list_id=t.list_id)
                                     if oh:
-                                        calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': False, 'rrule': ''})
+                                        calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': False, 'rrule': '', 'priority': getattr(t, 'priority', None)})
                             else:
                                 # yearless: resolve the candidate(s) using todo created_at
                                 try:
@@ -5733,13 +5733,13 @@ async def html_index(request: Request):
                                             if d and d >= cal_start and d <= cal_end:
                                                 oh = _occ_allowed('todo', t.id, d, '', title=(t.text or ''), list_id=t.list_id)
                                                 if oh:
-                                                    calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': False, 'rrule': ''})
+                                                    calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': False, 'rrule': '', 'priority': getattr(t, 'priority', None)})
                                     else:
                                         d = candidates
                                         if d and d >= cal_start and d <= cal_end:
                                             oh = _occ_allowed('todo', t.id, d, '', title=(t.text or ''), list_id=t.list_id)
                                             if oh:
-                                                calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': False, 'rrule': ''})
+                                                calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': False, 'rrule': '', 'priority': getattr(t, 'priority', None)})
                                 except Exception:
                                     pass
                         except Exception:
@@ -6143,7 +6143,7 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
                         for od in occs:
                             oh = _occ_allowed('todo', t.id, od, rec_rrule, title=(t.text or ''), list_id=t.list_id)
                             if oh:
-                                calendar_occurrences.append({'occurrence_dt': od.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': True, 'rrule': rec_rrule})
+                                calendar_occurrences.append({'occurrence_dt': od.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': True, 'rrule': rec_rrule, 'priority': getattr(t, 'priority', None)})
                     except Exception:
                         pass
                 else:
@@ -6158,7 +6158,7 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
                             for od in occs:
                                 oh = _occ_allowed('todo', t.id, od, rrule_str_local, title=(t.text or ''), list_id=t.list_id)
                                 if oh:
-                                    calendar_occurrences.append({'occurrence_dt': od.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': True, 'rrule': rrule_str_local})
+                                    calendar_occurrences.append({'occurrence_dt': od.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': True, 'rrule': rrule_str_local, 'priority': getattr(t, 'priority', None)})
                     except Exception:
                         pass
                 try:
@@ -6170,7 +6170,7 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
                                 if d and d >= cal_start and d <= cal_end:
                                     oh = _occ_allowed('todo', t.id, d, '', title=(t.text or ''), list_id=t.list_id)
                                     if oh:
-                                        calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': False, 'rrule': ''})
+                                        calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': False, 'rrule': '', 'priority': getattr(t, 'priority', None)})
                             else:
                                 try:
                                     created = getattr(t, 'created_at', None) or now
@@ -6180,13 +6180,13 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
                                             if d and d >= cal_start and d <= cal_end:
                                                 oh = _occ_allowed('todo', t.id, d, '', title=(t.text or ''), list_id=t.list_id)
                                                 if oh:
-                                                    calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': False, 'rrule': ''})
+                                                    calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': False, 'rrule': '', 'priority': getattr(t, 'priority', None)})
                                     else:
                                         d = candidates
                                         if d and d >= cal_start and d <= cal_end:
                                             oh = _occ_allowed('todo', t.id, d, '', title=(t.text or ''), list_id=t.list_id)
                                             if oh:
-                                                calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': False, 'rrule': ''})
+                                                calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': False, 'rrule': '', 'priority': getattr(t, 'priority', None)})
                                 except Exception:
                                     pass
                         except Exception:
