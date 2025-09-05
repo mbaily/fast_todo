@@ -133,6 +133,8 @@ _sse_queues: list[Queue] = []
 # contextvar to annotate whether current execution is handling an HTTP request
 # value will be a short string like 'http_request:/path' or None for background tasks
 _sse_origin: ContextVar[str | None] = ContextVar('_sse_origin', default=None)
+# Per-request cache for fn:link label resolution to avoid DB lookups during template render
+_fn_link_label_cache: ContextVar[dict | None] = ContextVar('_fn_link_label_cache', default=None)
 
 
 class InMemoryHandler(logging.Handler):
@@ -403,8 +405,74 @@ def render_fn_tags(text: str | None) -> Markup:
 
                     if kind in ('todo', 'list') and isinstance(target_id, int) and target_id > 0:
                         href = f"/html_no_js/{'todos' if kind=='todo' else 'lists'}/{target_id}"
-                        # Default label fallback if no custom label provided
-                        link_label = btn_label if label else (f"Todo #{target_id}" if kind == 'todo' else f"List #{target_id}")
+                        # Resolve label: prefer explicit |Label; else use the actual item name/text when possible
+                        link_label = btn_label if label else None
+                        if link_label is None:
+                            # First check per-request cache
+                            cache = _fn_link_label_cache.get() or {}
+                            cache_key = f"{kind}:{target_id}"
+                            if cache and cache_key in cache:
+                                cached = cache.get(cache_key)
+                                if isinstance(cached, str) and cached:
+                                    link_label = cached
+                            # Try SQLAlchemy sync session first; if that fails (e.g., async driver), try sqlite3 direct.
+                            looked_up = False
+                            try:
+                                # Attempt a lightweight sync lookup for the display name
+                                from .db import engine, TracedSyncSession
+                                with TracedSyncSession(bind=getattr(engine, 'sync_engine', None)) as _s:
+                                    if kind == 'todo':
+                                        res = _s.execute(select(Todo.text).where(Todo.id == target_id)).scalar_one_or_none()
+                                        if isinstance(res, str) and res.strip():
+                                            link_label = res.strip()
+                                            looked_up = True
+                                    else:
+                                        res = _s.execute(select(ListState.name).where(ListState.id == target_id)).scalar_one_or_none()
+                                        if isinstance(res, str) and res.strip():
+                                            link_label = res.strip()
+                                            looked_up = True
+                            except Exception:
+                                link_label = None
+                            # Fallback: direct sqlite3 if using local sqlite DB
+                            if not looked_up and (link_label is None):
+                                try:
+                                    # Use shared helper to resolve a local sqlite file path from DATABASE_URL
+                                    from .db import DATABASE_URL as _DB_URL
+                                    from .db import _sqlite_path_from_url as _sqlite_path_from_url
+                                    path = _sqlite_path_from_url(_DB_URL)
+                                    if path:
+                                        import sqlite3, os as _os
+                                        abs_path = _os.path.abspath(path)
+                                        if _os.path.exists(abs_path):
+                                            con = sqlite3.connect(abs_path)
+                                            try:
+                                                cur = con.cursor()
+                                                if kind == 'todo':
+                                                    cur.execute('SELECT text FROM todo WHERE id = ?', (target_id,))
+                                                else:
+                                                    cur.execute('SELECT name FROM liststate WHERE id = ?', (target_id,))
+                                                row = cur.fetchone()
+                                                if row and isinstance(row[0], str) and row[0].strip():
+                                                    link_label = row[0].strip()
+                                            finally:
+                                                try:
+                                                    con.close()
+                                                except Exception:
+                                                    pass
+                                except Exception:
+                                    link_label = None
+                        if link_label is None:
+                            # Final fallback if lookup failed
+                            link_label = f"Todo #{target_id}" if kind == 'todo' else f"List #{target_id}"
+                        else:
+                            # Save into per-request cache for subsequent references in same render/request
+                            cache = _fn_link_label_cache.get() or {}
+                            try:
+                                cache_key = f"{kind}:{target_id}"
+                                cache[cache_key] = link_label
+                                _fn_link_label_cache.set(cache)
+                            except Exception:
+                                pass
                         # Important: do NOT include data-fn/data-args here so clicks navigate normally (no exec-fn)
                         return f'<a class="fn-button fn-link" role="link" href="{escape(href)}">{escape(link_label)}</a>'
                     # If parsing failed, fall through to default button rendering
@@ -8012,6 +8080,21 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
         logger.exception('failed to record list visit for list %s', list_id)
     # timezone for template rendering
     client_tz = await get_session_timezone(request)
+    # Seed per-request fn:link label cache with this list and included todos to improve inline rendering labels
+    try:
+        cache = _fn_link_label_cache.get()
+        if not isinstance(cache, dict):
+            cache = {}
+        if list_row and list_row.get('id') and list_row.get('name'):
+            cache[f"list:{int(list_row['id'])}"] = list_row['name']
+        for t in todo_rows:
+            try:
+                cache[f"todo:{int(t['id'])}"] = t.get('text')
+            except Exception:
+                pass
+        _fn_link_label_cache.set(cache)
+    except Exception:
+        pass
     return TEMPLATES.TemplateResponse(request, "list.html", {"request": request, "list": list_row, "todos": todo_rows, "csrf_token": csrf_token, "client_tz": client_tz, "completion_types": completion_types, "all_hashtags": all_hashtags, "categories": categories, "sublists": sublists, "links": links})
 
 
@@ -8892,6 +8975,18 @@ async def html_view_todo(request: Request, todo_id: int, current_user: User = De
     # debug: log sublists passed to template for easier diagnosis (temporary)
     try:
         logger.info('rendering todo %s sublists: %s', todo_id, sublists)
+    except Exception:
+        pass
+    # Seed per-request fn:link label cache with this todo and its list for better inline rendering
+    try:
+        cache = _fn_link_label_cache.get()
+        if not isinstance(cache, dict):
+            cache = {}
+        if todo_row and getattr(todo_row, 'id', None) and getattr(todo_row, 'text', None):
+            cache[f"todo:{int(todo_row.id)}"] = todo_row.text
+        if list_row and getattr(list_row, 'id', None) and getattr(list_row, 'name', None):
+            cache[f"list:{int(list_row.id)}"] = list_row.name
+        _fn_link_label_cache.set(cache)
     except Exception:
         pass
     # pass plain dicts (with datetime objects preserved) to avoid lazy DB loads
