@@ -61,7 +61,12 @@ async def client_search(request: Request):
             vis_ids = [l.id for l in rvis.all()]
             todos_acc: dict[int, Todo] = {}
             if vis_ids:
-                qtodos = select(Todo).where(Todo.list_id.in_(vis_ids)).where((Todo.text.ilike(like)) | (Todo.note.ilike(like)))
+                qtodos = (
+                    select(Todo)
+                    .where(Todo.list_id.in_(vis_ids))
+                    .where((Todo.text.ilike(like)) | (Todo.note.ilike(like)))
+                    .where(Todo.search_ignored == False)
+                )
                 for t in (await sess.exec(qtodos)).all():
                     todos_acc.setdefault(t.id, t)
                 if search_tags:
@@ -71,12 +76,13 @@ async def client_search(request: Request):
                         .join(Hashtag, Hashtag.id == TodoHashtag.hashtag_id)
                         .where(Todo.list_id.in_(vis_ids))
                         .where(Hashtag.tag.in_(search_tags))
+                        .where(Todo.search_ignored == False)
                     )
                     for t in (await sess.exec(qth)).all():
                         todos_acc.setdefault(t.id, t)
                 if include_list_todos and lists_by_id:
                     list_ids_match = list(lists_by_id.keys())
-                    qall = select(Todo).where(Todo.list_id.in_(list_ids_match))
+                    qall = select(Todo).where(Todo.list_id.in_(list_ids_match)).where(Todo.search_ignored == False)
                     for t in (await sess.exec(qall)).all():
                         todos_acc.setdefault(t.id, t)
                 lm = {l.id: l.name for l in (await sess.scalars(select(ListState).where(ListState.id.in_(vis_ids)))).all()}
