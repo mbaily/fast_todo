@@ -897,6 +897,26 @@
             vertical-align: top;
             text-align: left;
           }
+          /* Mobile: allow the wide action table to scroll horizontally without affecting desktop */
+          @media (max-width: 560px) {
+            table.table-top-left {
+              display: block;              /* allow overflow on the table element */
+              overflow-x: auto;            /* enable horizontal scroll on iPhone */
+              -webkit-overflow-scrolling: touch; /* momentum scroll for iOS */
+              width: 100%;
+            }
+            /* Keep action/header cells compact; let the Todo column wrap */
+            table.table-top-left th { white-space: nowrap; }
+            table.table-top-left td { white-space: nowrap; }
+            /* last column is the Todo text cell in this table */
+            table.table-top-left td:last-child { white-space: normal; }
+            table.table-top-left td:last-child .todo-title-inline .wrap-text { white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
+            /* tighten padding on the first couple of action columns */
+            table.table-top-left td:nth-child(1),
+            table.table-top-left td:nth-child(2),
+            table.table-top-left th:nth-child(1),
+            table.table-top-left th:nth-child(2) { padding-left: 10px !important; padding-right: 10px !important; }
+          }
         </style>
         <table class="table-top-left" data-extra-type-ids="{% if extra_types and extra_types|length>0 %}{% for ct in extra_types %}{{ ct.id }}{% if not loop.last %},{% endif %}{% endfor %}{% endif %}">
           {% if extra_types and extra_types|length > 0 %}
