@@ -406,6 +406,28 @@ Tips
 - You can put multiple fn:link items on separate lines (or inline) to build a small hub note.
 - For consistent titles across a note, prefer not mixing custom labels with auto‑labels unless you need a specific phrasing.
 
+### External URL link markup (fn:url)
+
+Use this to add an external hyperlink in a todo’s note. Renders as a plain anchor (middle/Ctrl‑click works) and opens in a new tab by default.
+
+Accepted forms
+- `{{fn:url href=https://example.com}}`
+- `{{fn:url url=https://example.com}}`
+- `{{fn:url https://example.com}}` (positional)
+- `{{fn:url example.com}}` or `{{fn:url www.example.com}}` → scheme auto‑prepended to `http://` for convenience
+
+Custom label
+- `{{fn:url href=https://example.com | Example Site}}`
+
+Options
+- `target=_blank` by default (override with `target=_self`, etc.).
+- `rel="noopener noreferrer"` by default (extend with `nofollow` via `nofollow=true` or a `nofollow` flag).
+
+Examples
+- `{{fn:url https://news.ycombinator.com}}`
+- `{{fn:url href=https://example.com | Example}}`
+- `{{fn:url www.example.com nofollow}}`
+
 ## Item links (non‑markup links between todos and lists)
 
 Apart from inline note markup, you can add persistent links between items (todo→todo, todo→list, list→todo, list→list). These links live on the item and appear in the UI.
