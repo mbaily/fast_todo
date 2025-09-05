@@ -691,6 +691,16 @@ except Exception as e:
     import traceback
     traceback.print_exc()
 
+# include JSON note-edit/login service router
+try:
+    from .note_edit_service import router as note_service_router
+    app.include_router(note_service_router)
+    print("INFO: note_edit_service router loaded successfully")
+except Exception as e:
+    print(f"WARNING: Failed to load note_edit_service router: {e}")
+    import traceback
+    traceback.print_exc()
+
 
 # Templates for Tailwind client (minimal, separate directory)
 TEMPLATES_TAILWIND = Jinja2Templates(directory="html_tailwind")
