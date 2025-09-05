@@ -310,8 +310,8 @@
 
 
 
-  <section aria-label="Links" style="margin-top:0.75rem">
-    <h3 style="margin:0 0 .4rem 0">Links</h3>
+  <section aria-label="Links" style="margin-top:1.0rem">
+    <h3 style="margin:0">Links</h3>
     <form id="add-link-form-todo-{{ todo.id }}" method="post" action="/html_no_js/todos/{{ todo.id }}/links" style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap">
       {{ csrf_field() }}
       <input type="hidden" name="tgt_type" value="">
@@ -350,7 +350,7 @@
     })();
     </script>
     {% if links is defined and links|length > 0 %}
-      <ul style="list-style: none; padding-left: 0; margin-left: 0;">
+      <ul style="list-style: none; padding: 0; margin: 0;">
         {% for lk in links %}
           <li>
             <a href="{{ lk.href }}">{{ lk.label or lk.title or (lk.tgt_type ~ ' #' ~ lk.tgt_id) }}</a>
