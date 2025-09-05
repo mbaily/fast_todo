@@ -365,6 +365,51 @@ def render_fn_tags(text: str | None) -> Markup:
                 href = '/html_no_js/search?q=' + quote_plus(q)
                 return f'<a class="fn-button" role="button" href="{escape(href)}" {attrs}>{esc_label}</a>'
 
+            # Navigation link to a specific todo or list by id
+            if identifier == 'link':
+                try:
+                    kind = None
+                    target_id = None
+                    # Prefer a combined target like "todo:123" or "list:45"
+                    tval = args.get('target') if isinstance(args, dict) else None
+                    if isinstance(tval, str) and ':' in tval:
+                        k, v = tval.split(':', 1)
+                        kind = (k or '').strip().lower()
+                        try:
+                            target_id = int((v or '').strip())
+                        except Exception:
+                            target_id = None
+                    else:
+                        # Accept separate keys: type + id, or todo/list keys directly
+                        if 'type' in args and 'id' in args:
+                            kind = str(args.get('type') or '').strip().lower()
+                            try:
+                                target_id = int(str(args.get('id') or '').strip())
+                            except Exception:
+                                target_id = None
+                        elif 'todo' in args:
+                            kind = 'todo'
+                            try:
+                                target_id = int(str(args.get('todo') or '').strip())
+                            except Exception:
+                                target_id = None
+                        elif 'list' in args:
+                            kind = 'list'
+                            try:
+                                target_id = int(str(args.get('list') or '').strip())
+                            except Exception:
+                                target_id = None
+
+                    if kind in ('todo', 'list') and isinstance(target_id, int) and target_id > 0:
+                        href = f"/html_no_js/{'todos' if kind=='todo' else 'lists'}/{target_id}"
+                        # Default label fallback if no custom label provided
+                        link_label = btn_label if label else (f"Todo #{target_id}" if kind == 'todo' else f"List #{target_id}")
+                        # Important: do NOT include data-fn/data-args here so clicks navigate normally (no exec-fn)
+                        return f'<a class="fn-button fn-link" role="link" href="{escape(href)}">{escape(link_label)}</a>'
+                    # If parsing failed, fall through to default button rendering
+                except Exception:
+                    pass
+
             return f'<button type="button" class="fn-button" {attrs}>{esc_label}</button>'
         except Exception:
             # On any parse error, return the original text escaped

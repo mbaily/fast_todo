@@ -202,7 +202,34 @@
   <label>Text<br><textarea id="todo-text-input" class="full-bleed" name="text" required autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" rows="{{ (todo.note or '').split('\n')|length }}">{{ todo.text }}</textarea></label><br>
     <div id="todo-hashtag-suggest" class="hashtag-suggest" role="listbox" aria-label="Hashtag suggestions" data-tags="{% if all_hashtags and all_hashtags|length > 0 %}{% for tag in all_hashtags %}{{ tag }}{% if not loop.last %},{% endif %}{% endfor %}{% endif %}"></div>
     
-  <label>Note<br><textarea id="note-textarea" class="full-bleed" name="note" rows="9">{{ todo.note or '' }}</textarea></label><br>
+  <label>Note
+    <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; margin:0.25rem 0;">
+      <span class="meta">Insert link:</span>
+      <select id="note-link-target-{{ todo.id }}">
+        <option value="">(Select a recently marked item)</option>
+      </select>
+      <button type="button" id="note-insert-link-{{ todo.id }}">Insert Link</button>
+    </div>
+    <textarea id="note-textarea" class="full-bleed" name="note" rows="9">{{ todo.note or '' }}</textarea>
+  </label><br>
+  <script>
+  (function(){
+    try{
+      var KEY='ft_marks_v1'; var TTL=5*60*1000;
+      function load(){ try { return JSON.parse(localStorage.getItem(KEY)||'{}')||{}; } catch(_){ return {}; } }
+      function prune(o){ var t=Date.now(); var out={todos:{},lists:{}}; if(o.todos) for(var k in o.todos){ if((t-(o.todos[k]||0))<TTL) out.todos[k]=o.todos[k]; } if(o.lists) for(var k2 in o.lists){ if((t-(o.lists[k2]||0))<TTL) out.lists[k2]=o.lists[k2]; } return out; }
+      var sel=document.getElementById('note-link-target-{{ todo.id }}'); if(!sel) return;
+      var marks=prune(load());
+      function addOpt(v,t,parent){ var o=document.createElement('option'); o.value=v; o.textContent=t; (parent||sel).appendChild(o); }
+      if (marks.todos && Object.keys(marks.todos).length){ var og=document.createElement('optgroup'); og.label='Todos'; sel.appendChild(og); Object.keys(marks.todos).sort(function(a,b){return (+a)-(+b);}).forEach(function(id){ addOpt('todo:'+id, 'Todo #'+id, og); }); }
+      if (marks.lists && Object.keys(marks.lists).length){ var og2=document.createElement('optgroup'); og2.label='Lists'; sel.appendChild(og2); Object.keys(marks.lists).sort(function(a,b){return (+a)-(+b);}).forEach(function(id){ addOpt('list:'+id, 'List #'+id, og2); }); }
+      var btn=document.getElementById('note-insert-link-{{ todo.id }}');
+      var ta=document.getElementById('note-textarea');
+      function insertAtCursor(textarea, ins){ try{ var start = textarea.selectionStart||0; var end = textarea.selectionEnd||0; var v = textarea.value||''; textarea.value = v.slice(0,start) + ins + v.slice(end); var pos = start + ins.length; textarea.setSelectionRange(pos,pos); textarea.focus(); }catch(_){ /* ignore */ } }
+  if (btn && sel && ta){ btn.addEventListener('click', function(){ var v = sel.value||''; if(!v){ alert('Select a marked item first.'); return; } var parts=v.split(':'); if(parts.length!==2){ alert('Invalid selection'); return; } var t=parts[0], id=parts[1]; var markup = '{' + '{' + 'fn:link target=' + t + ':' + id + '}' + '}'; insertAtCursor(ta, (ta.value && ta.value.length ? '\n' : '') + markup + '\n'); try { var evt = new Event('input', { bubbles: true }); ta.dispatchEvent(evt); } catch(_){} }); }
+    }catch(e){ /* silent */ }
+  })();
+  </script>
   {# Save button moved to page toolbar above; keep a hidden submit for progressive enhancement if needed #}
   <button type="submit" style="display:none">Save</button>
   </form>
