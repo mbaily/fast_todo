@@ -6035,6 +6035,7 @@ async def html_index(request: Request):
                         'list_id': t.list_id,
                         'list_name': lm.get(t.list_id),
                         'modified_at': (t.modified_at.isoformat() if getattr(t, 'modified_at', None) else None),
+                        'created_at': (t.created_at.isoformat() if getattr(t, 'created_at', None) else None),
                         'priority': getattr(t, 'priority', None),
                         'override_priority': getattr(t, 'override_priority', None) if hasattr(t, 'override_priority') else None,
                     }
@@ -6046,18 +6047,27 @@ async def html_index(request: Request):
                 # Merge todos and lists into a single sorted list by effective priority.
                 # Effective priority is override_priority when present, otherwise priority.
                 high_priority_items = []
+                # include created_at on todos so we can sort by creation when requested
                 for t in high_priority_todos:
                     eff = None
+                    # compute numeric priority values when possible
+                    lp = None
+                    op = None
+                    if t.get('priority') is not None:
+                        try:
+                            lp = int(t.get('priority'))
+                        except Exception:
+                            lp = None
                     if t.get('override_priority') is not None:
                         try:
-                            eff = int(t.get('override_priority'))
+                            op = int(t.get('override_priority'))
                         except Exception:
-                            eff = t.get('override_priority')
-                    elif t.get('priority') is not None:
-                        try:
-                            eff = int(t.get('priority'))
-                        except Exception:
-                            eff = t.get('priority')
+                            op = None
+                    # primary sort value is the maximum of normal and override priorities
+                    if lp is None and op is None:
+                        eff = None
+                    else:
+                        eff = lp if (op is None or (lp is not None and lp >= op)) else op
                     high_priority_items.append({
                         'kind': 'todo',
                         'id': t.get('id'),
@@ -6065,22 +6075,27 @@ async def html_index(request: Request):
                         'list_id': t.get('list_id'),
                         'list_name': t.get('list_name'),
                         'modified_at': t.get('modified_at'),
+                        'created_at': t.get('created_at') if t.get('created_at', None) else None,
                         'priority': t.get('priority'),
                         'override_priority': t.get('override_priority'),
                         'effective_priority': eff,
                     })
                 for lst in high_priority_lists:
-                    eff = None
-                    if lst.get('override_priority') is not None:
-                        try:
-                            eff = int(lst.get('override_priority'))
-                        except Exception:
-                            eff = lst.get('override_priority')
-                    elif lst.get('priority') is not None:
-                        try:
-                            eff = int(lst.get('priority'))
-                        except Exception:
-                            eff = lst.get('priority')
+                    # compute primary as max(priority, override_priority) similar to todos
+                    lp = lst.get('priority') if lst.get('priority') is not None else None
+                    op = lst.get('override_priority') if lst.get('override_priority') is not None else None
+                    try:
+                        lpv = int(lp) if lp is not None else None
+                    except Exception:
+                        lpv = None
+                    try:
+                        opv = int(op) if op is not None else None
+                    except Exception:
+                        opv = None
+                    if lpv is None and opv is None:
+                        eff = None
+                    else:
+                        eff = lpv if (opv is None or (lpv is not None and lpv >= opv)) else opv
                     high_priority_items.append({
                         'kind': 'list',
                         'id': lst.get('id'),
@@ -6091,16 +6106,53 @@ async def html_index(request: Request):
                         'effective_priority': eff,
                         'modified_at': lst.get('modified_at'),
                     })
-                # Sort by effective_priority desc, then by modified_at (newest first), then by name/id
-                def _sort_key(item):
+                # Decide secondary date key based on the UI list-sort-order preference.
+                # Preference can be passed as a query param 'hp_secondary' or read from the index_list_sort_order cookie.
+                # Accept values: 'created' or 'modified' (default 'modified').
+                hp_secondary = request.query_params.get('hp_secondary') or None
+                if not hp_secondary:
+                    # try cookie
+                    hp_secondary = None
+                    cookie_val = None
+                    try:
+                        cookie_val = request.cookies.get('index_list_sort_order')
+                    except Exception:
+                        cookie_val = None
+                    if cookie_val:
+                        hp_secondary = 'created' if cookie_val == 'created' else 'modified'
+                if not hp_secondary:
+                    hp_secondary = 'modified'
+
+                def _date_value(item):
+                    # returns epoch-like comparable int (larger = newer)
+                    from datetime import datetime
+                    v = None
+                    if hp_secondary == 'created':
+                        v = item.get('created_at') or item.get('modified_at')
+                    else:
+                        v = item.get('modified_at') or item.get('created_at')
+                    if not v:
+                        return 0
+                    try:
+                        # support ISO strings
+                        if isinstance(v, str):
+                            dt = datetime.fromisoformat(v)
+                        else:
+                            dt = v
+                        return int(dt.timestamp())
+                    except Exception:
+                        return 0
+
+                def _priority_value(item):
                     ep = item.get('effective_priority')
-                    # None -> push to end
-                    epv = ep if (ep is not None) else -1
-                    md = item.get('modified_at') or ''
-                    # Use negative epv so higher priority sorts first when reversed
-                    return (int(epv) if isinstance(epv, int) or (isinstance(epv, str) and epv.isdigit()) else epv, md or '')
+                    try:
+                        return int(ep) if ep is not None else -1
+                    except Exception:
+                        return -1
+
                 try:
-                    high_priority_items.sort(key=lambda x: (_sort_key(x)[0], _sort_key(x)[1]), reverse=True)
+                    # Sort: primary by effective priority desc (None -> last), secondary by chosen date desc, tie-breaker by name/id
+                    high_priority_items.sort(key=lambda it: (_priority_value(it), _date_value(it), it.get('name') or it.get('text') or it.get('id') or 0), reverse=True)
                 except Exception:
                     # fallback: leave unsorted if any issue
                     pass
