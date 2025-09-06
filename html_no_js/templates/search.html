@@ -21,7 +21,6 @@
               <span class="list-inline">
                   <span class="match-icon">📁</span>
                   <a class="list-title {% if it.completed %}done{% endif %}" href="/html_no_js/lists/{{ it.id }}">{{ it.name }}</a>
-                priority debug {{ it.priority }}
                 {% if it.priority %}
                   <span class="meta priority-inline" title="List priority {{ it.priority }}" style="margin-left:0.5rem;"><span class="priority-circle">{{ circ.get(it.priority, it.priority) }}</span></span>
                 {% endif %}
