@@ -827,7 +827,21 @@
       .then(function(){
         try{
           if (action.indexOf('/delete') !== -1) {
-            var anchor = form.querySelector('input[name="anchor"]'); var anchorId = anchor ? anchor.value : ('todo-' + todoId); var li = document.getElementById(anchorId) || document.getElementById('todo-' + todoId); if (li) li.remove(); return;
+            // If this delete came from the standalone todo page, navigate back to the owning list.
+            // The delete form includes a hidden "list_id" for this purpose when rendering the todo page.
+            var listInput = form.querySelector('input[name="list_id"]');
+            var listId = listInput ? listInput.value : null;
+            // Remove the inline element if one exists (this covers list-page inline deletes)
+            var anchor = form.querySelector('input[name="anchor"]');
+            var anchorId = anchor ? anchor.value : ('todo-' + todoId);
+            var li = document.getElementById(anchorId) || document.getElementById('todo-' + todoId);
+            if (li) { li.remove(); return; }
+            // No inline element found — likely we're on the todo detail page. Redirect to the owning list.
+            if (listId) {
+              try { window.location.href = '/html_no_js/lists/' + encodeURIComponent(listId); return; } catch(e){}
+            }
+            // Fallback: reload the index
+            try { window.location.href = '/html_no_js/'; return; } catch(e){}
           }
           if (action.indexOf('/pin') !== -1) {
             var btn = form.querySelector('button'); if (btn) { var pinned = btn.classList && btn.classList.contains('pinned'); if (pinned) { btn.classList.remove('pinned'); btn.textContent='📍'; } else { btn.classList.add('pinned'); btn.textContent='📌'; } } return;
