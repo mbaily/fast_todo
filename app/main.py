@@ -723,7 +723,49 @@ def render_fn_tags(text: str | None) -> Markup:
                             pass
                         # Compose label using Markup to avoid double-escaping of our span fragments
                         label_html = escape(link_label) + Markup(pr_html)
-                        return f'<a class="fn-button fn-link" role="link" href="{escape(href)}">{label_html}</a>' + tags_html
+                        # Attempt to detect whether the target todo is completed so
+                        # we can mark inline anchors with `done` and let CSS
+                        # apply a strikethrough. Best-effort: try a sync DB
+                        # lookup first, fall back to sqlite direct query.
+                        link_completed = False
+                        try:
+                            if kind == 'todo' and isinstance(target_id, int):
+                                try:
+                                    from .db import engine, TracedSyncSession
+                                    with TracedSyncSession(bind=getattr(engine, 'sync_engine', None)) as _s:
+                                        q = _s.execute(select(TodoCompletion.todo_id).join(CompletionType, CompletionType.id == TodoCompletion.completion_type_id).where(TodoCompletion.todo_id == target_id).where(CompletionType.name == 'default').where(TodoCompletion.done == True))
+                                        row = q.first()
+                                        if row:
+                                            link_completed = True
+                                except Exception:
+                                    try:
+                                        from .db import DATABASE_URL as _DB_URL
+                                        from .db import _sqlite_path_from_url as _sqlite_path_from_url
+                                        path = _sqlite_path_from_url(_DB_URL)
+                                        if path:
+                                            import sqlite3, os as _os
+                                            abs_path = _os.path.abspath(path)
+                                            if _os.path.exists(abs_path):
+                                                con = sqlite3.connect(abs_path)
+                                                try:
+                                                    cur = con.cursor()
+                                                    cur.execute("SELECT tc.todo_id FROM todocompletion tc JOIN completiontype ct ON tc.completion_type_id = ct.id WHERE tc.todo_id = ? AND ct.name = 'default' AND tc.done = 1", (target_id,))
+                                                    prow = cur.fetchone()
+                                                    if prow:
+                                                        link_completed = True
+                                                finally:
+                                                    try:
+                                                        con.close()
+                                                    except Exception:
+                                                        pass
+                                    except Exception:
+                                        pass
+                        except Exception:
+                            pass
+                        cls = 'fn-button fn-link'
+                        if link_completed:
+                            cls += ' done'
+                        return f'<a class="{cls}" role="link" href="{escape(href)}">{label_html}</a>' + tags_html
                     # If parsing failed, fall through to default button rendering
                 except Exception:
                     pass
@@ -8418,9 +8460,10 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
             todo_map: dict[int, dict] = {}
             list_map: dict[int, dict] = {}
             if todo_targets:
-                qtt = await sess.exec(select(Todo.id, Todo.text).where(Todo.id.in_(todo_targets)))
-                for tid, txt in qtt.all():
-                    todo_map[int(tid)] = {'id': int(tid), 'text': txt}
+                # preload todo id, text and list_id so we can determine completion state
+                qtt = await sess.exec(select(Todo.id, Todo.text, Todo.list_id).where(Todo.id.in_(todo_targets)))
+                for tid, txt, lid in qtt.all():
+                    todo_map[int(tid)] = {'id': int(tid), 'text': txt, 'list_id': int(lid) if lid is not None else None}
             if list_targets:
                 qll = await sess.exec(select(ListState.id, ListState.name).where(ListState.id.in_(list_targets)))
                 for lid, name in qll.all():
@@ -9431,6 +9474,25 @@ async def html_view_todo(request: Request, todo_id: int, current_user: User = De
                         continue
                     if isinstance(tag, str) and tag:
                         tags_map_todo.setdefault(tid_i, []).append(tag)
+            # Determine completion status for todo targets using default completion types
+            todo_completed_ids: set[int] = set()
+            try:
+                if todo_map:
+                    todo_list_ids = list({v.get('list_id') for v in todo_map.values() if v.get('list_id') is not None})
+                    default_ct_ids: dict[int, int] = {}
+                    if todo_list_ids:
+                        qct = select(CompletionType).where(CompletionType.list_id.in_(todo_list_ids)).where(CompletionType.name == 'default')
+                        for ct in (await sess.exec(qct)).all():
+                            default_ct_ids[int(ct.list_id)] = int(ct.id)
+                    if default_ct_ids:
+                        qdone = select(TodoCompletion.todo_id).where(TodoCompletion.todo_id.in_(todo_targets)).where(TodoCompletion.completion_type_id.in_(list(default_ct_ids.values()))).where(TodoCompletion.done == True)
+                        for (tid_done,) in (await sess.exec(qdone)).all():
+                            try:
+                                todo_completed_ids.add(int(tid_done))
+                            except Exception:
+                                continue
+            except Exception:
+                todo_completed_ids = set()
             if list_targets:
                 qlh = select(ListHashtag.list_id, Hashtag.tag).join(Hashtag, Hashtag.id == ListHashtag.hashtag_id).where(ListHashtag.list_id.in_(list_targets))
                 rlh = await sess.exec(qlh)
@@ -9449,6 +9511,7 @@ async def html_view_todo(request: Request, todo_id: int, current_user: User = De
                         d['title'] = t.get('text')
                         d['href'] = f"/html_no_js/todos/{t['id']}"
                         d['tags'] = tags_map_todo.get(int(r.tgt_id), [])
+                        d['completed'] = (int(r.tgt_id) in todo_completed_ids)
                 elif r.tgt_type == 'list':
                     l = list_map.get(int(r.tgt_id))
                     if l:
@@ -9479,6 +9542,14 @@ async def html_view_todo(request: Request, todo_id: int, current_user: User = De
         _fn_link_label_cache.set(cache)
     except Exception:
         pass
+    # debug: log outgoing links structure for this todo (temporary)
+    try:
+        logger.info('TODO_LINKS id=%s links=%s', todo_id, json.dumps(links, default=str, ensure_ascii=False))
+    except Exception:
+        try:
+            logger.info('TODO_LINKS id=%s links=%s', todo_id, str(links))
+        except Exception:
+            pass
     # pass plain dicts (with datetime objects preserved) to avoid lazy DB loads
     return TEMPLATES.TemplateResponse(request, 'todo.html', {"request": request, "todo": todo_row, "completed": completed, "list": list_row, "csrf_token": csrf_token, "client_tz": client_tz, "tags": todo_tags, "all_hashtags": all_hashtags, 'sublists': sublists, 'links': links})
 

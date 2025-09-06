@@ -14,6 +14,10 @@
   .pin-button.pinned:hover { background: rgba(255,138,61,0.12); }
   /* ensure completed sublists are struck-through (match index) */
   .lists-list .list-title.done { text-decoration: line-through; color: #6b7280; }
+  /* generic done class for striking-through anchors and inline content */
+  .done { text-decoration: line-through; color: #6b7280; }
+  /* when a note paragraph is marked done, ensure contained anchors are struck-through too */
+  .note-text.done a { text-decoration: line-through; color: inherit; }
   /* sublists action column: ensure sufficient width and no overlap */
   .lists-list .list-item { align-items: flex-start; }
   .lists-list .list-item > .list-action-left { width: 5.5rem; flex: 0 0 5.5rem; gap: 0.25rem; align-items: center; justify-content: flex-start; }
@@ -62,15 +66,15 @@
   {% if links is defined and links|length > 0 %}
     <div class="meta" style="margin:0.15rem 0 0.35rem 0">
       <strong>Links:</strong>
-      {% for lk in links %}
-  <a href="{{ lk.href }}">{{ lk.label or lk.title or (lk.tgt_type ~ ' #' ~ lk.tgt_id) }}</a>{% if lk.tags and lk.tags|length %} <span class="tags-inline meta">{% for tag in lk.tags %}<a class="tag-chip" href="/html_no_js/search?q={{ tag|urlencode }}" role="link">{{ tag }}</a>{% endfor %}</span>{% endif %}{% if not loop.last %}, {% endif %}
+    {% for lk in links %}
+  <a href="{{ lk.href }}" class="{% if lk.completed or completed %}done{% endif %}">{{ lk.label or lk.title or (lk.tgt_type ~ ' #' ~ lk.tgt_id) }}</a>{% if lk.tags and lk.tags|length %} <span class="tags-inline meta">{% for tag in lk.tags %}<a class="tag-chip {% if lk.completed or completed %}done{% endif %}" href="/html_no_js/search?q={{ tag|urlencode }}" role="link">{{ tag }}</a>{% endfor %}</span>{% endif %}{% if not loop.last %}, {% endif %}
       {% endfor %}
     </div>
   {% endif %}
   
 
   {% if todo.note %}
-    <p class="note-text">{{ todo.note|render_fn_tags|linkify }}</p>
+    <p class="note-text {% if completed %}done{% endif %}">{{ todo.note|render_fn_tags|linkify }}</p>
   {% endif %}
   {% if tags and tags|length > 0 %}
     <div class="tags" role="list" aria-label="Tags">
