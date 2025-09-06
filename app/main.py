@@ -2564,6 +2564,49 @@ async def calendar_occurrences(request: Request,
             qtodos = await sess.exec(select(Todo).where(Todo.list_id.in_(list_ids)))
             todos = qtodos.all()
         _sse_debug('calendar_occurrences.todos_fetched', {'count': len(todos)})
+        # Build helper maps for todos and lists and compute per-list override priorities
+        todo_map: dict[int, object] = {}
+        try:
+            for t in todos:
+                if getattr(t, 'id', None) is not None:
+                    todo_map[int(t.id)] = t
+        except Exception:
+            todo_map = {}
+        # compute completed todo ids to exclude when computing override priorities
+        completed_ids = set()
+        try:
+            todo_ids = [int(getattr(t, 'id')) for t in todos if getattr(t, 'id', None) is not None]
+            if todo_ids:
+                qcomp = select(TodoCompletion.todo_id).join(CompletionType, CompletionType.id == TodoCompletion.completion_type_id).where(TodoCompletion.todo_id.in_(todo_ids)).where(CompletionType.name == 'default').where(TodoCompletion.done == True)
+                cres = await sess.exec(qcomp)
+                completed_ids = set(r[0] if isinstance(r, tuple) else r for r in cres.all())
+        except Exception:
+            completed_ids = set()
+        # per-list highest uncompleted todo priority
+        list_override_map: dict[int, int] = {}
+        try:
+            for t in todos:
+                try:
+                    lid = getattr(t, 'list_id', None)
+                    if lid is None:
+                        continue
+                    tid = getattr(t, 'id', None)
+                    if tid in completed_ids:
+                        continue
+                    pri = getattr(t, 'priority', None)
+                    if pri is None:
+                        continue
+                    try:
+                        pv = int(pri)
+                    except Exception:
+                        continue
+                    cur = list_override_map.get(lid)
+                    if cur is None or pv > cur:
+                        list_override_map[lid] = pv
+                except Exception:
+                    continue
+        except Exception:
+            list_override_map = {}
         try:
             logger.info('calendar_occurrences.fetched_todos %s', [(getattr(tt,'id',None), (getattr(tt,'text',None) or '')[:40], (getattr(tt,'created_at',None).isoformat() if getattr(tt,'created_at',None) and getattr(tt,'created_at',None).tzinfo else str(getattr(tt,'created_at',None)))) for tt in todos])
         except Exception:
@@ -2603,6 +2646,8 @@ async def calendar_occurrences(request: Request,
                 'rrule': rrule_str or '',
                 'recurrence_meta': rec_meta,
                 'occ_hash': occ_hash,
+                # effective priority: for todos use todo.priority, for lists use max(list.priority, highest uncompleted todo priority in that list)
+                'effective_priority': None,
             })
             # Emit an SSE debug event so callers can see which occurrences were added
             try:
@@ -3044,8 +3089,65 @@ async def calendar_occurrences(request: Request,
                                 add_occ('todo', t.id, t.list_id, t.text, cand, None, False, '', None, source='todo-yearless-fallback')
                                 break
 
-    # sort occurrences by datetime ascending
-    occurrences.sort(key=lambda x: x.get('occurrence_dt'))
+    # Compute effective priority per occurrence and sort:
+    # Primary = max(normal priority, override_priority) where missing is lowest.
+    # Secondary = occurrence datetime (ascending).
+    try:
+        # build maps for quick lookup
+        list_map = {l.id: l for l in lists} if lists else {}
+        def _parse_dt_str(s):
+            try:
+                ss = (s or '').replace('Z', '+00:00')
+                d = datetime.fromisoformat(ss) if not isinstance(s, datetime) else s
+                if d.tzinfo is None:
+                    d = d.replace(tzinfo=timezone.utc)
+                return int(d.timestamp())
+            except Exception:
+                return 0
+
+        def _priority_of_occ(o):
+            # determine effective priority for the occurrence
+            try:
+                item_type = o.get('item_type')
+                iid = o.get('id')
+                ep = None
+                if item_type == 'todo':
+                    t = todo_map.get(int(iid)) if todo_map else None
+                    lp = getattr(t, 'priority', None) if t is not None else None
+                    op = getattr(t, 'override_priority', None) if t is not None and hasattr(t, 'override_priority') else None
+                else:
+                    # list occurrence
+                    lobj = list_map.get(int(iid)) if list_map else None
+                    lp = getattr(lobj, 'priority', None) if lobj is not None else None
+                    # override priority for lists comes from highest uncompleted todo in that list
+                    op = list_override_map.get(int(iid)) if list_override_map else None
+                try:
+                    lpv = int(lp) if lp is not None else None
+                except Exception:
+                    lpv = None
+                try:
+                    opv = int(op) if op is not None else None
+                except Exception:
+                    opv = None
+                if lpv is None and opv is None:
+                    ep = None
+                else:
+                    ep = lpv if (opv is None or (lpv is not None and lpv >= opv)) else opv
+                return ep
+            except Exception:
+                return None
+
+        for o in occurrences:
+            try:
+                o['effective_priority'] = _priority_of_occ(o)
+            except Exception:
+                o['effective_priority'] = None
+
+        # sort by (-priority, occurrence_dt) so higher priorities come first and earlier occurrences first on ties
+        occurrences.sort(key=lambda x: (-(int(x.get('effective_priority')) if x.get('effective_priority') is not None else -9999), _parse_dt_str(x.get('occurrence_dt'))))
+    except Exception:
+        # fallback: sort by datetime ascending
+        occurrences.sort(key=lambda x: x.get('occurrence_dt'))
     # Emit a compact SSE summary so tools can observe which occurrences were computed
     try:
         _sse_debug('calendar_occurrences.summary', {'count': len(occurrences), 'items': [{'id': o.get('id'), 'title': o.get('title'), 'occurrence_dt': o.get('occurrence_dt')} for o in occurrences]})
