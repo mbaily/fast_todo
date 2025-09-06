@@ -7227,8 +7227,38 @@ async def html_search(request: Request):
                 rlh = await sess.exec(qlh)
                 for l in rlh.all():
                     lists_by_id.setdefault(l.id, l)
+            # Build list results including priority and hashtags so the
+            # no-JS search template can render inline priority-circle and tag chips.
+            list_ids = [l.id for l in lists_by_id.values()]
+            list_tags_map: dict[int, list[str]] = {}
+            if list_ids:
+                try:
+                    qlt = (
+                        select(ListHashtag.list_id, Hashtag.tag)
+                        .join(Hashtag, Hashtag.id == ListHashtag.hashtag_id)
+                        .where(ListHashtag.list_id.in_(list_ids))
+                    )
+                    for row in (await sess.exec(qlt)).all():
+                        if isinstance(row, (tuple, list)) and len(row) >= 2:
+                            lid, tag = row[0], row[1]
+                        else:
+                            try:
+                                lid = row.list_id
+                                tag = row.tag
+                            except Exception:
+                                continue
+                        list_tags_map.setdefault(int(lid), []).append(tag)
+                except Exception:
+                    list_tags_map = {}
+
             results['lists'] = [
-                {'id': l.id, 'name': l.name, 'completed': getattr(l, 'completed', False)}
+                {
+                    'id': l.id,
+                    'name': l.name,
+                    'completed': getattr(l, 'completed', False),
+                    'priority': getattr(l, 'priority', None),
+                    'tags': sorted(list_tags_map.get(int(l.id), [])) if list_tags_map else [],
+                }
                 for l in lists_by_id.values()
                 if not (exclude_completed and getattr(l, 'completed', False))
             ]
