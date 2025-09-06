@@ -140,7 +140,7 @@
     {{ list.name }}
     {% if list.is_collation|default(false) %}
       {% set hue = (list.id * 47) % 360 %}
-      <span class="meta" title="This is a collation list" style="display:inline-flex; align-items:center;">
+      <span class="meta" data-role="collation-title-dot" title="This is a collation list" style="display:inline-flex; align-items:center;">
         <span aria-hidden="true" style="--dot-hue: {{ hue }}; width:12px; height:12px; border-radius:50%; display:inline-block; border:2px solid hsl(var(--dot-hue), 75%, 35%); background: hsl(var(--dot-hue), 75%, 50%);"></span>
       </span>
     {% endif %}
@@ -206,6 +206,36 @@
       var wrap = document.getElementById('collation-controls');
       if (!btn || !cb || !wrap) return;
       var state = { isCollation: (wrap.getAttribute('data-is-collation') === 'true'), active: (wrap.getAttribute('data-collation-active') === 'true'), loading: false };
+      function ensureTitleDot(){
+        try{
+          var title = document.querySelector('.list-title');
+          if (!title) return;
+          var existing = title.parentElement && title.parentElement.querySelector('[data-role="collation-title-dot"]');
+          var want = state.isCollation; // show a dot only if list is marked collation
+          if (want && !existing){
+            var hue = ({{ list.id }} * 47) % 360;
+            var span = document.createElement('span');
+            span.setAttribute('data-role', 'collation-title-dot');
+            span.className = 'meta';
+            span.title = 'This is a collation list';
+            span.style.display = 'inline-flex';
+            span.style.alignItems = 'center';
+            var inner = document.createElement('span');
+            inner.setAttribute('aria-hidden', 'true');
+            inner.style.setProperty('--dot-hue', String(hue));
+            inner.style.width = '12px';
+            inner.style.height = '12px';
+            inner.style.borderRadius = '50%';
+            inner.style.display = 'inline-block';
+            inner.style.border = '2px solid hsl(var(--dot-hue), 75%, 35%)';
+            inner.style.background = 'hsl(var(--dot-hue), 75%, 50%)';
+            span.appendChild(inner);
+            title.appendChild(span);
+          } else if (!want && existing){
+            existing.remove();
+          }
+        } catch(_){}
+      }
       function setUI(){
         try{
           btn.textContent = state.isCollation ? 'Unmark Collation' : 'Mark as Collation';
@@ -213,6 +243,7 @@
           cb.disabled = !state.isCollation;
           cb.checked = !!(state.isCollation && state.active);
           cb.parentElement.style.opacity = state.isCollation ? '1' : '0.6';
+          ensureTitleDot();
         }catch(_){}
       }
       setUI();

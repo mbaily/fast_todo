@@ -8683,6 +8683,104 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
         except Exception:
             list_row["is_collation"] = False
             list_row["collation_active"] = False
+        # If this list is marked as a collation, include linked todos (list -> todo edges) in the rendered list
+        try:
+            if list_row.get("is_collation"):
+                # collect linked todo ids from ItemLink
+                q_linked = await sess.exec(
+                    select(ItemLink.tgt_id)
+                    .where(ItemLink.src_type == 'list')
+                    .where(ItemLink.src_id == list_id)
+                    .where(ItemLink.tgt_type == 'todo')
+                )
+                linked_ids_all = [int(v) for v in q_linked.all() if v is not None]
+                if linked_ids_all:
+                    existing_ids = {int(r['id']) for r in todo_rows}
+                    new_ids = [tid for tid in linked_ids_all if tid not in existing_ids]
+                else:
+                    new_ids = []
+                if new_ids:
+                    # fetch linked todos ensuring user owns the underlying lists
+                    q_lt = await sess.exec(
+                        select(Todo.id, Todo.text, Todo.note, Todo.created_at, Todo.modified_at, Todo.priority, Todo.list_id)
+                        .join(ListState, ListState.id == Todo.list_id)
+                        .where(Todo.id.in_(new_ids))
+                        .where(ListState.owner_id == current_user.id)
+                    )
+                    lrows = q_lt.all()
+                    origin_ids = sorted({int(lid) for (_, _, _, _, _, _, lid) in lrows if lid is not None})
+                    origin_names: dict[int, str] = {}
+                    if origin_ids:
+                        q_on = await sess.exec(select(ListState.id, ListState.name).where(ListState.id.in_(origin_ids)))
+                        for lid, nm in q_on.all():
+                            try:
+                                origin_names[int(lid)] = nm
+                            except Exception:
+                                pass
+                    # append linked rows (mark as linked; no extra completion types from current list)
+                    for tid, text, note, created_at, modified_at, priority, origin_lid in lrows:
+                        todo_rows.append({
+                            "id": int(tid),
+                            "text": text,
+                            "note": note,
+                            "created_at": created_at,
+                            "modified_at": modified_at,
+                            "completed": False,  # set accurately below via default-completion recompute
+                            "pinned": False,
+                            "priority": getattr(priority, 'real', priority) if priority is not None else None,
+                            "extra_completions": [],
+                            "is_linked": True,
+                            "origin_list_id": int(origin_lid) if origin_lid is not None else None,
+                            "origin_list_name": origin_names.get(int(origin_lid)) if origin_lid is not None else None,
+                        })
+                    # tags for linked todos only
+                    if lrows:
+                        new_ids_set = {int(tid) for tid, *_ in lrows}
+                        if new_ids_set:
+                            qth2 = select(TodoHashtag.todo_id, Hashtag.tag).join(Hashtag, Hashtag.id == TodoHashtag.hashtag_id).where(TodoHashtag.todo_id.in_(list(new_ids_set)))
+                            tres2 = await sess.exec(qth2)
+                            tag_map2: dict[int, list[str]] = {}
+                            for tid, tag in tres2.all():
+                                try:
+                                    tid_i = int(tid)
+                                except Exception:
+                                    continue
+                                if isinstance(tag, str) and tag:
+                                    tag_map2.setdefault(tid_i, []).append(tag)
+                            for r in todo_rows:
+                                if int(r.get('id')) in tag_map2 and not r.get('tags'):
+                                    r['tags'] = tag_map2.get(int(r['id']), [])
+                    # recompute default completion across all rows by using each todo's own default type
+                    try:
+                        all_ids = [int(r['id']) for r in todo_rows]
+                        if all_ids:
+                            qdef = await sess.exec(
+                                select(TodoCompletion.todo_id, TodoCompletion.done)
+                                .join(CompletionType, CompletionType.id == TodoCompletion.completion_type_id)
+                                .where(CompletionType.name == 'default')
+                                .where(TodoCompletion.todo_id.in_(all_ids))
+                            )
+                            def_map = {}
+                            for tid, done_val in qdef.all():
+                                try:
+                                    def_map[int(tid)] = bool(done_val)
+                                except Exception:
+                                    continue
+                            for r in todo_rows:
+                                try:
+                                    r['completed'] = bool(def_map.get(int(r['id']), False))
+                                except Exception:
+                                    pass
+                    except Exception:
+                        pass
+                    # resort to keep display order consistent
+                    try:
+                        todo_rows.sort(key=_todo_display_sort_key, reverse=True)
+                    except Exception:
+                        pass
+        except Exception:
+            # never break list view on aggregation problems
+            logger.exception('Failed to aggregate linked todos for collation list %s', list_id)
         # If this list is owned by a todo, fetch the todo text for UI label
         if getattr(lst, 'parent_todo_id', None):
             try:
