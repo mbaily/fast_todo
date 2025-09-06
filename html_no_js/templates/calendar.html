@@ -8,7 +8,14 @@
     /* remove top gap so toolbar sits flush to the top on calendar page */
     body { margin-top: 0 !important; }
     header { margin-top: 0 !important; }
+    /* hide server-rendered occurrences when JS is present; keep layout space to avoid reflow */
+    .ft-js .todos-list.full-bleed { visibility: hidden; }
   </style>
+  <script>
+    // Mark page as JS-enabled as early as possible to avoid showing a mismatched
+    // server-rendered list briefly before the client replaces it.
+    try { document.documentElement.classList.add('ft-js'); } catch (e) {}
+  </script>
   <section class="full-bleed">
     <div style="display:flex; align-items:center; gap:0.5rem;">
       <h2>Calendar - {{ year }}-{{ '%02d'|format(month) }}</h2>
@@ -84,7 +91,33 @@
       const data = await res.json();
       const container = document.querySelector('.todos-list.full-bleed') || document.querySelector('p.meta');
       const parent = container && container.parentNode; if (!parent) return;
-      if (data && data.occurrences && data.occurrences.length > 0) {
+        if (data && data.occurrences && data.occurrences.length > 0) {
+        // Build a list of occ_hashes for the fetched occurrences
+        const newHashes = data.occurrences.map(function(ev){ return ev && ev.occ_hash ? String(ev.occ_hash) : ''; });
+        // Read current DOM occurrence order (if present) to avoid unnecessary reflows
+        const existingHashes = Array.from((parent.querySelectorAll('.occ-complete')||[])).map(function(el){ return el.getAttribute('data-hash') || ''; });
+        // If the order of occ_hashes is identical, avoid full replace; instead update checkbox states and ignored markers
+  if (existingHashes.length === newHashes.length && existingHashes.every(function(h, i){ return h === newHashes[i]; })) {
+          try {
+            data.occurrences.forEach(function(ev){
+              try {
+                const chk = parent.querySelector('.occ-complete[data-hash="' + ev.occ_hash + '"]');
+                if (chk) {
+                  // preserve any in-flight user action when present
+                  if (!window.__occInFlight || !window.__occInFlight[ev.occ_hash]) {
+                    chk.checked = !!ev.completed;
+                  }
+                }
+                // update meta/date text for this occurrence row if present
+                const row = parent.querySelector('.todo .meta:contains("' + (ev.occurrence_date || ev.occurrence_dt) + '")');
+                // best-effort: skip complex DOM updates to avoid layout thrash
+              } catch(e) { /* ignore per-occ update errors */ }
+            });
+          } catch(e) { /* ignore overall update errors */ }
+          // Reveal the existing server-rendered list (we updated checkbox states above)
+          try { const existing = parent.querySelector('.todos-list.full-bleed'); if (existing) existing.style.visibility = 'visible'; } catch(e) {}
+          return;
+        }
         const ul = document.createElement('ul'); ul.className = 'todos-list full-bleed';
         // read global in-flight map if present so we can preserve user actions
         const occInFlight = (window.__occInFlight || {});
@@ -119,9 +152,11 @@
       const html = `${occControls}\n  <div class="todo-content"${ignoredStyle}>\n    <div class="todo-main wrap-text">\n      <div style="font-weight:700">${title}${(showIgnored && ev.ignored) ? ' <span class="meta" style="margin-left:0.35rem;">(ignored)</span>' : ''}</div>\n      <div class="meta">${occDate}</div>\n    </div>\n  </div>\n  `;
           li.innerHTML = html; ul.appendChild(li);
         }
-        parent.replaceChild(ul, container);
+  parent.replaceChild(ul, container);
+  try { ul.style.visibility = 'visible'; } catch(e) {}
       } else {
-        const p = document.createElement('p'); p.className = 'meta'; p.textContent = 'No events found for this month.'; parent.replaceChild(p, container);
+  const p = document.createElement('p'); p.className = 'meta'; p.textContent = 'No events found for this month.'; parent.replaceChild(p, container);
+  try { p.style.visibility = 'visible'; } catch(e) {}
       }
     } catch (e) { console.error('DEBUG: fetchOccurrences error', e); }
   }
