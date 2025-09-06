@@ -165,12 +165,12 @@
         // Create list if missing
         var listId = null;
         // POST list
-  var lr = await fetch('/lists', { method: 'POST', credentials: 'same-origin', headers: {'Content-Type':'application/json','Accept':'application/json'}, body: JSON.stringify({ name: 'Quick' }) });
+        var lr = await fetch('/lists', { method: 'POST', credentials: 'same-origin', headers: {'Content-Type':'application/json','Accept':'application/json'}, body: JSON.stringify({ name: 'Quick' }) });
         if (!lr.ok) throw new Error('create list failed'); var lj = await lr.json(); listId = lj.id;
-  var tr = await fetch('/todos', { method: 'POST', credentials: 'same-origin', headers: {'Content-Type':'application/json','Accept':'application/json'}, body: JSON.stringify({ text: text, list_id: listId, priority: 7 }) });
+        var tr = await fetch('/todos', { method: 'POST', credentials: 'same-origin', headers: {'Content-Type':'application/json','Accept':'application/json'}, body: JSON.stringify({ text: text, list_id: listId, priority: 7 }) });
         if (!tr.ok) throw new Error('create todo failed');
-  inp.value = '';
-  try { window.location.reload(); } catch(e) { try{ window.location.href = '/html_no_js/'; }catch(e){} }
+        inp.value = '';
+        try { window.location.reload(); } catch(e) { try{ window.location.href = '/html_no_js/'; }catch(e){} }
       }catch(e){ console && console.error && console.error(e); alert('Add failed'); }
       finally{ btn.disabled = false; }
     }, false);

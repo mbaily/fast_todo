@@ -189,19 +189,17 @@
     }
   btn.addEventListener('click', async function(){
       var text = input.value && input.value.trim(); if (!text) return;
-      console.debug('quick-add: button clicked, text=', text);
+      
       btn.disabled = true;
       try{
         var listId = await findQuickListId();
-        console.debug('quick-add: findQuickListId ->', listId);
+        
         if (!listId){
           // create 'Quick' list via JSON API (preferred)
           try{
-            console.debug('quick-add: creating Quick list via /lists');
             var res = await fetch('/lists', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify({ name: 'Quick' }) });
-            console.debug('quick-add: /lists response status=', res.status, 'ok=', res.ok);
             if (res){
-              try{ var j = await res.json(); console.debug('quick-add: /lists response json=', j); listId = j && j.id; } catch(e){ console.debug('quick-add: /lists json parse failed', e); }
+              try{ var j = await res.json(); listId = j && j.id; } catch(e){}
             }
           }catch(e){}
         }
@@ -219,21 +217,18 @@
         }
   if (!listId) throw new Error('could not determine Quick list id');
   // create todo with priority 7 via JSON API
-  console.debug('quick-add: POST /todos payload', { text: text, list_id: listId, priority: 7 });
+  
   var tres = await fetch('/todos', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify({ text: text, list_id: listId, priority: 7 }) });
-  console.debug('quick-add: /todos response status=', tres.status, 'ok=', tres.ok);
   try{
     var todo_txt = await tres.text();
-    console.debug('quick-add: /todos raw response text length=', todo_txt && todo_txt.length, 'content=', todo_txt);
     // attempt to parse as JSON
-    try{ var todo = JSON.parse(todo_txt); console.debug('quick-add: /todos parsed json=', todo); }
-    catch(e){ console.debug('quick-add: /todos parse json failed', e); var todo = null; }
+    try{ var todo = JSON.parse(todo_txt); } catch(e){ var todo = null; }
     if (!tres.ok) throw new Error('create todo failed status=' + tres.status);
   }catch(e){ throw e; }
   // Clear input and focus
   input.value = '';
   input.focus();
-  try{ console && console.log && console.log('quick-add todos response', todo); }catch(e){}
+  
   // Refresh index so the created todo appears in the Quick list without navigating away
   try { window.location.reload(); } catch(e){}
       }catch(err){ console && console.error && console.error('Quick add failed', err); try{ alert('Add failed'); }catch(_){}}
