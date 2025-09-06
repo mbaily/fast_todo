@@ -6470,8 +6470,71 @@ async def html_index(request: Request):
                     pass
 
             # sort and cap
-            calendar_occurrences.sort(key=lambda x: x.get('occurrence_dt'))
-            calendar_occurrences = calendar_occurrences[:20]
+            # Compute effective priority per occurrence and sort:
+            # Primary = max(normal priority, override_priority) where missing is lowest.
+            # Secondary = occurrence datetime (ascending).
+            try:
+                # build lookup maps
+                todo_map = {t.id: t for t in vis_todos} if vis_todos else {}
+                list_row_map = {r.get('id'): r for r in list_rows} if list_rows else {}
+
+                def _parse_dt_str(s):
+                    try:
+                        ss = (s or '').replace('Z', '+00:00')
+                        d = datetime.fromisoformat(ss) if not isinstance(s, datetime) else s
+                        if d.tzinfo is None:
+                            d = d.replace(tzinfo=timezone.utc)
+                        return int(d.timestamp())
+                    except Exception:
+                        return 0
+
+                def _priority_of_occ(o):
+                    try:
+                        item_type = o.get('item_type')
+                        iid = o.get('id')
+                        lp = None
+                        op = None
+                        if item_type == 'todo':
+                            t = None
+                            try:
+                                t = todo_map.get(int(iid)) if todo_map else None
+                            except Exception:
+                                t = None
+                            if t is not None:
+                                lp = getattr(t, 'priority', None)
+                                op = getattr(t, 'override_priority', None) if hasattr(t, 'override_priority') else None
+                        else:
+                            row = list_row_map.get(int(iid)) if list_row_map else None
+                            if row is not None:
+                                lp = row.get('priority')
+                                op = row.get('override_priority')
+                        try:
+                            lpv = int(lp) if lp is not None else None
+                        except Exception:
+                            lpv = None
+                        try:
+                            opv = int(op) if op is not None else None
+                        except Exception:
+                            opv = None
+                        if lpv is None and opv is None:
+                            return None
+                        return lpv if (opv is None or (lpv is not None and lpv >= opv)) else opv
+                    except Exception:
+                        return None
+
+                for o in calendar_occurrences:
+                    try:
+                        o['effective_priority'] = _priority_of_occ(o)
+                    except Exception:
+                        o['effective_priority'] = None
+
+                # sort by (-priority, occurrence_dt) so higher priorities come first and earlier occurrences first on ties
+                calendar_occurrences.sort(key=lambda x: (-(int(x.get('effective_priority')) if x.get('effective_priority') is not None else -9999), _parse_dt_str(x.get('occurrence_dt'))))
+                calendar_occurrences = calendar_occurrences[:20]
+            except Exception:
+                # fallback: previous behavior (sort by occurrence datetime ascending)
+                calendar_occurrences.sort(key=lambda x: x.get('occurrence_dt'))
+                calendar_occurrences = calendar_occurrences[:20]
         except Exception:
             calendar_occurrences = []
 
