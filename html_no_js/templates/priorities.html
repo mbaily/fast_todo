@@ -11,8 +11,10 @@
   <h2>Priority summary</h2>
   {% set circled = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
   <div id="hide-completed-control" style="margin-bottom:0.5rem;">
-    <label><input type="checkbox" id="hide-completed-checkbox"> Hide completed</label>
-    <span class="meta" style="margin-left:0.5rem; color: var(--muted, #6b7280);">(default: on)</span>
+  <label><input type="checkbox" id="hide-completed-checkbox"> Hide completed</label>
+  <span class="meta" style="margin-left:0.5rem; color: var(--muted, #6b7280);">(default: on)</span>
+  <!-- Added toggle to include uncompleted unprioritised todos at the end -->
+  <label style="margin-left:1rem"><input type="checkbox" id="uncompleted-as-well-checkbox"> Uncompleted as well</label>
   </div>
   <p class="meta">Lists (highest priority first)</p>
   <ul class="lists-list">
@@ -28,6 +30,14 @@
   <li class="todo"><div class="todo-content"><div class="todo-main"><div class="todo-title-inline"><a class="wrap-text{% if t.completed %} done{% endif %}" href="/html_no_js/todos/{{ t.id }}">{{ t.text }}</a>
     <span class="meta priority-inline" style="margin-left:0.35rem"><span class="priority-circle">{{ circled.get(t.priority, t.priority) }}</span></span></div><div class="meta">in <a href="/html_no_js/lists/{{ l.id }}">{{ l.name }}</a></div></div></div></li>
     {% endfor %}
+    {# Unprioritised uncompleted todos are included but hidden by default; client-side toggle will show and move them #}
+    {% if todos_unprio is defined %}
+      {% for t, l in todos_unprio %}
+        {# expose modified timestamp for client-side sorting; fallback to created if missing #}
+        {% set modified_iso = t.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') if t.modified_at else (t.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S')) %}
+        <li class="todo no-priority-todo" data-modified-at="{{ modified_iso }}" style="display:none"><div class="todo-content"><div class="todo-main"><div class="todo-title-inline"><a class="wrap-text" href="/html_no_js/todos/{{ t.id }}">{{ t.text }}</a></div><div class="meta">in <a href="/html_no_js/lists/{{ l.id }}">{{ l.name }}</a></div></div></div></li>
+      {% endfor %}
+    {% endif %}
   </ul>
 {% endblock %}
 {% block scripts %}
@@ -43,6 +53,38 @@
   var cur = getCookie(cookieName);
   cb.checked = (cur === null) ? true : (cur === '1');
   cb.addEventListener('change', function(){ setCookie(cookieName, cb.checked ? '1' : '0', 365); location.reload(); });
+})();
+</script>
+<script>
+// Toggle for showing uncompleted unprioritised todos (persist via cookie) and client-side reordering
+(function(){
+  function setCookie(name, value, days){ var expires=''; if(days){ var d=new Date(); d.setTime(d.getTime() + (days*24*60*60*1000)); expires='; expires='+d.toUTCString(); } document.cookie = name + '=' + encodeURIComponent(value) + expires + '; path=/'; }
+  function getCookie(name){ var m = document.cookie.match('(?:^|; )' + name + '=([^;]*)'); return m ? decodeURIComponent(m[1]) : null; }
+  var cb = document.getElementById('uncompleted-as-well-checkbox'); if (!cb) return;
+  var cookieName = 'priorities_uncompleted_as_well';
+  // default off
+  var cur = getCookie(cookieName);
+  cb.checked = (cur === '1');
+
+  function parseISO(s){ if(!s) return null; try{ return new Date(s); }catch(e){ return null; } }
+
+  function showOrHideUnprio(){
+    var ul = document.querySelector('.todos-list'); if(!ul) return;
+    var items = Array.from(ul.querySelectorAll('li.no-priority-todo'));
+    if(cb.checked){
+      // sort items by data-modified-at ascending -> older first, but user asked 'sorted by modification date appear last' — place newest last? We will sort ascending so earlier modified appear before later; then append in that order so they appear after priority items
+  // sort by modified date descending so newest modified appear first
+  items.sort(function(a,b){ var ad = parseISO(a.getAttribute('data-modified-at')); var bd = parseISO(b.getAttribute('data-modified-at')); if(!ad && !bd) return 0; if(!ad) return 1; if(!bd) return -1; return bd - ad; });
+      items.forEach(function(li){ li.style.display=''; ul.appendChild(li); });
+    } else {
+      items.forEach(function(li){ li.style.display='none'; });
+    }
+  }
+
+  // initial display based on cookie
+  try{ showOrHideUnprio(); }catch(e){ console && console.error && console.error('unprio toggle init failed', e); }
+
+  cb.addEventListener('change', function(){ setCookie(cookieName, cb.checked ? '1' : '0', 365); try{ showOrHideUnprio(); }catch(e){ console && console.error && console.error('unprio toggle failed', e); } });
 })();
 </script>
 {% endblock %}

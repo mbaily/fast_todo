@@ -2328,7 +2328,23 @@ async def html_priorities(request: Request, current_user: User = Depends(require
 
         lists_sorted = sorted(lists, key=_list_priority_key, reverse=True)
         todos_sorted = sorted(todos, key=_todo_priority_key, reverse=True)
-    return TEMPLATES.TemplateResponse(request, 'priorities.html', {'request': request, 'lists': lists_sorted, 'todos': todos_sorted, 'client_tz': await get_session_timezone(request)})
+        # Additionally, fetch unprioritised todos (no per-todo priority) that are not completed
+        todos_unprio = []
+        qt3_stmt = select(Todo).where(Todo.priority == None)
+        qt3 = await sess.exec(qt3_stmt)
+        for t in qt3.all():
+            ql2 = await sess.exec(select(ListState).where(ListState.id == t.list_id))
+            lst = ql2.first()
+            if not lst:
+                continue
+            if lst.owner_id is None or lst.owner_id == current_user.id:
+                # skip if todo is completed (check TodoCompletion rows)
+                qc = await sess.exec(select(TodoCompletion).where(TodoCompletion.todo_id == t.id).where(TodoCompletion.done == True))
+                if qc.first():
+                    continue
+                todos_unprio.append((t, lst))
+        # leave todos_unprio unsorted here; client-side will sort by modified date when shown
+    return TEMPLATES.TemplateResponse(request, 'priorities.html', {'request': request, 'lists': lists_sorted, 'todos': todos_sorted, 'todos_unprio': todos_unprio, 'client_tz': await get_session_timezone(request)})
 
 
 def _parse_iso_to_utc(s: Optional[str]) -> Optional[datetime]:
