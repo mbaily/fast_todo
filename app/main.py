@@ -3940,6 +3940,22 @@ async def delete_list(list_id: int, current_user: Optional[User] = Depends(get_c
         # remove any list-level artifacts (completion types, list hashtags)
         await sess.exec(sqlalchemy_delete(CompletionType).where(CompletionType.list_id == list_id))
         await sess.exec(sqlalchemy_delete(ListHashtag).where(ListHashtag.list_id == list_id))
+        # cleanup any trash metadata for this list (if present)
+        try:
+            await sess.exec(sqlalchemy_delete(ListTrashMeta).where(ListTrashMeta.list_id == list_id))
+        except Exception:
+            pass
+        # remove collation registration rows for this list
+        try:
+            await sess.exec(sqlalchemy_delete(UserCollation).where(UserCollation.list_id == list_id))
+        except Exception:
+            pass
+        # remove ItemLink edges where this list is the source or the target
+        try:
+            await sess.exec(sqlalchemy_delete(ItemLink).where(ItemLink.src_type == 'list').where(ItemLink.src_id == list_id))
+            await sess.exec(sqlalchemy_delete(ItemLink).where(ItemLink.tgt_type == 'list').where(ItemLink.tgt_id == list_id))
+        except Exception:
+            pass
         # delete the list row using a SQL-level delete to avoid ORM cascading
         await sess.exec(sqlalchemy_delete(ListState).where(ListState.id == list_id))
         # commit deletion first
@@ -9596,6 +9612,22 @@ async def html_permanent_delete_list_trash(request: Request, list_id: int):
         # remove list-level artifacts
         await sess.exec(sqlalchemy_delete(CompletionType).where(CompletionType.list_id == list_id))
         await sess.exec(sqlalchemy_delete(ListHashtag).where(ListHashtag.list_id == list_id))
+        # cleanup any trash metadata for this list (if present)
+        try:
+            await sess.exec(sqlalchemy_delete(ListTrashMeta).where(ListTrashMeta.list_id == list_id))
+        except Exception:
+            pass
+        # remove collation registration rows for this list
+        try:
+            await sess.exec(sqlalchemy_delete(UserCollation).where(UserCollation.list_id == list_id))
+        except Exception:
+            pass
+        # remove ItemLink edges where this list is the source or the target
+        try:
+            await sess.exec(sqlalchemy_delete(ItemLink).where(ItemLink.src_type == 'list').where(ItemLink.src_id == list_id))
+            await sess.exec(sqlalchemy_delete(ItemLink).where(ItemLink.tgt_type == 'list').where(ItemLink.tgt_id == list_id))
+        except Exception:
+            pass
         # delete the list row
         await sess.exec(sqlalchemy_delete(ListState).where(ListState.id == list_id))
         await sess.commit()
@@ -9995,16 +10027,47 @@ async def html_view_todo(request: Request, todo_id: int, current_user: User = De
                 r2 = await sess2.exec(select(ListState.id, ListState.name).where(ListState.id.in_(ids)).where(ListState.owner_id == current_user.id))
                 for lid, name in r2.all():
                     names[int(lid)] = name
+            # Exclude any lists that are currently in Trash (parented to user's Trash list)
+            trashed: set[int] = set()
+            if ids:
+                trash_id = None
+                try:
+                    trq = await sess2.scalars(select(ListState.id).where(ListState.owner_id == current_user.id).where(ListState.name == 'Trash'))
+                    trash_id = trq.first()
+                except Exception:
+                    trash_id = None
+                if trash_id is not None:
+                    tq = await sess2.scalars(select(ListState.id).where(ListState.id.in_(ids)).where(ListState.parent_list_id == trash_id))
+                    trashed = set(int(v) for v in tq.all())
             linked_map = {}
             if ids:
-                r3 = await sess2.exec(select(ItemLink.src_id).where(ItemLink.src_type=='list').where(ItemLink.tgt_type=='todo').where(ItemLink.tgt_id==todo_id).where(ItemLink.src_id.in_(ids)))
-                for (sid,) in r3.all():
+                r3 = await sess2.scalars(
+                    select(ItemLink.src_id)
+                    .where(ItemLink.src_type == 'list')
+                    .where(ItemLink.tgt_type == 'todo')
+                    .where(ItemLink.tgt_id == todo_id)
+                    .where(ItemLink.src_id.in_(ids))
+                )
+                for sid in r3.all():
                     try:
                         linked_map[int(sid)] = True
                     except Exception:
                         pass
-            active_collations = [{'list_id': int(r.list_id), 'name': names.get(int(r.list_id)), 'linked': bool(linked_map.get(int(r.list_id), False))} for r in rows if int(r.list_id) in names]
+            # Include only lists that exist for this user (in names) and are not trashed
+            active_collations = [
+                {
+                    'list_id': int(r.list_id),
+                    'name': names.get(int(r.list_id)),
+                    'linked': bool(linked_map.get(int(r.list_id), False)),
+                }
+                for r in rows if (int(r.list_id) in names and int(r.list_id) not in trashed)
+            ]
     except Exception:
+        # If anything fails here, log and fall back to empty so the page still renders
+        try:
+            logger.exception('Failed building active_collations for todo_id=%s user_id=%s', todo_id, getattr(current_user, 'id', None))
+        except Exception:
+            pass
         active_collations = []
 
     # pass plain dicts (with datetime objects preserved) to avoid lazy DB loads

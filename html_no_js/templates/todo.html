@@ -63,12 +63,21 @@
       </div>    
   </div>
   {% if active_collations is defined and active_collations|length > 0 %}
+    <style>
+      /* Collation dots: colored circles indicating inclusion (filled) or exclusion (outline) */
+      .collation-dots { display:inline-flex; gap:0.4rem; align-items:center; vertical-align:middle; }
+      .collation-dot { width: 14px; height: 14px; border-radius: 50%; padding: 0; border: 2px solid hsl(var(--dot-hue, 210), 75%, 45%); background: transparent; cursor: pointer; display:inline-block; line-height:0; }
+      .collation-dot[aria-pressed="true"] { background: hsl(var(--dot-hue, 210), 75%, 50%); border-color: hsl(var(--dot-hue, 210), 75%, 35%); }
+      .collation-dot:focus { outline: 2px solid hsl(var(--dot-hue, 210), 85%, 35%); outline-offset: 1px; }
+      .collation-dot .sr-only { position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden; }
+    </style>
     <div class="meta" style="margin:0.15rem 0 0.35rem 0">
       <strong>Collations:</strong>
-      <span>
+      <span class="collation-dots">
         {% for c in active_collations %}
-          <button type="button" class="collation-toggle" data-list-id="{{ c.list_id }}" data-todo-id="{{ todo.id }}" data-name="{{ c.name or ('List #' ~ c.list_id) }}" aria-pressed="{{ 'true' if c.linked else 'false' }}" title="{{ 'Remove from' if c.linked else 'Add to' }} {{ c.name }}" style="border:1px solid #ccc; border-radius:4px; padding:0 .35rem; margin-right:.25rem; background: {{ '#e6ffed' if c.linked else 'transparent' }}; color: {{ '#0366d6' if c.linked else 'inherit' }};">
-            {{ '✓' if c.linked else '+' }} {{ c.name or ('List #' ~ c.list_id) }}
+          {% set hue = (c.list_id * 47) % 360 %}
+          <button type="button" class="collation-dot" data-list-id="{{ c.list_id }}" data-todo-id="{{ todo.id }}" data-name="{{ c.name or ('List #' ~ c.list_id) }}" aria-pressed="{{ 'true' if c.linked else 'false' }}" title="{{ (c.linked and 'Remove from ' or 'Add to ') ~ (c.name or ('List #' ~ c.list_id)) }}" style="--dot-hue: {{ hue }};">
+            <span class="sr-only">{{ c.name or ('List #' ~ c.list_id) }} {{ 'included' if c.linked else 'not included' }}</span>
           </button>
         {% endfor %}
       </span>
@@ -84,7 +93,7 @@
             body: JSON.stringify(data||{})
           }).then(function(r){ return r.json(); });
         }
-        var buttons = document.querySelectorAll('button.collation-toggle');
+        var buttons = document.querySelectorAll('button.collation-dot');
         buttons.forEach(function(btn){
           btn.addEventListener('click', function(){
             var lid = parseInt(btn.getAttribute('data-list-id'),10);
@@ -97,10 +106,6 @@
               var linked = !!j.linked;
               btn.setAttribute('aria-pressed', linked ? 'true' : 'false');
               var nm = btn.getAttribute('data-name') || '';
-              btn.textContent = (linked ? '✓ ' : '+ ') + nm;
-              // update styles
-              btn.style.background = linked ? '#e6ffed' : 'transparent';
-              btn.style.color = linked ? '#0366d6' : 'inherit';
               btn.title = (linked ? 'Remove from ' : 'Add to ') + nm;
             }).catch(function(){});
           });

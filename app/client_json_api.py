@@ -1,9 +1,10 @@
 from typing import Optional
+from datetime import datetime
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse
 
 from .db import async_session
-from .models import ListState, ListHashtag, Hashtag, Todo, TodoHashtag, CompletionType, TodoCompletion, RecentListVisit, Category, UserCollation, ItemLink
+from .models import ListState, ListHashtag, Hashtag, Todo, TodoHashtag, CompletionType, TodoCompletion, RecentListVisit, Category, UserCollation, ItemLink, ListTrashMeta
 from .auth import get_current_user as _gcu
 from .utils import extract_hashtags, now_utc
 from sqlalchemy import select, func, or_, and_
@@ -156,9 +157,21 @@ async def list_user_collations(request: Request):
                 # Only expose collations pointing to the user's own lists
                 if owner_id == current_user.id:
                     names[int(lid)] = name
+        # Exclude lists that are currently in Trash (by parent_list_id to the user's Trash list)
+        trashed: set[int] = set()
+        if list_ids:
+            trash_id = None
+            try:
+                trq = await sess.scalars(select(ListState.id).where(ListState.owner_id == current_user.id).where(ListState.name == 'Trash'))
+                trash_id = trq.first()
+            except Exception:
+                trash_id = None
+            if trash_id is not None:
+                tq = await sess.scalars(select(ListState.id).where(ListState.id.in_(list_ids)).where(ListState.parent_list_id == trash_id))
+                trashed = set(int(v) for v in tq.all())
         out = [
             {'list_id': int(r.list_id), 'name': names.get(int(r.list_id)), 'active': bool(getattr(r, 'active', True))}
-            for r in rows if int(r.list_id) in names
+            for r in rows if (int(r.list_id) in names and int(r.list_id) not in trashed)
         ]
     return JSONResponse({'ok': True, 'collations': out})
 
@@ -237,10 +250,28 @@ async def get_collation_status(request: Request, todo_id: int):
             r2 = await sess.exec(select(ListState.id, ListState.name).where(ListState.id.in_(ids)).where(ListState.owner_id == current_user.id))
             for lid, name in r2.all():
                 names[int(lid)] = name
+        # Filter out collation lists that are currently in Trash (parent to user's Trash list)
+        trashed: set[int] = set()
+        if ids:
+            trash_id = None
+            try:
+                trq = await sess.scalars(select(ListState.id).where(ListState.owner_id == current_user.id).where(ListState.name == 'Trash'))
+                trash_id = trq.first()
+            except Exception:
+                trash_id = None
+            if trash_id is not None:
+                tq = await sess.scalars(select(ListState.id).where(ListState.id.in_(ids)).where(ListState.parent_list_id == trash_id))
+                trashed = set(int(v) for v in tq.all())
         linked_map = {}
         if ids:
-            res = await sess.exec(select(ItemLink.src_id).where(ItemLink.src_type=='list').where(ItemLink.tgt_type=='todo').where(ItemLink.tgt_id==todo_id).where(ItemLink.src_id.in_(ids)))
-            for (sid,) in res.all():
+            res = await sess.scalars(
+                select(ItemLink.src_id)
+                .where(ItemLink.src_type == 'list')
+                .where(ItemLink.tgt_type == 'todo')
+                .where(ItemLink.tgt_id == todo_id)
+                .where(ItemLink.src_id.in_(ids))
+            )
+            for sid in res.all():
                 try:
                     linked_map[int(sid)] = True
                 except Exception:
@@ -248,7 +279,7 @@ async def get_collation_status(request: Request, todo_id: int):
         out = []
         for r in rows:
             lid = int(r.list_id)
-            if lid not in names:
+            if (lid not in names) or (lid in trashed):
                 continue
             out.append({'list_id': lid, 'name': names.get(lid), 'linked': bool(linked_map.get(lid, False))})
     return JSONResponse({'ok': True, 'memberships': out})
@@ -276,6 +307,16 @@ async def toggle_collation_membership(request: Request, list_id: int):
         lst = await sess.get(ListState, list_id)
         if not lst or lst.owner_id != current_user.id:
             raise HTTPException(status_code=404, detail='list not found')
+        # Disallow toggling when the list is in Trash (parented to the user's Trash list)
+        try:
+            trq = await sess.scalars(select(ListState.id).where(ListState.owner_id == current_user.id).where(ListState.name == 'Trash'))
+            trash_id = trq.first()
+        except Exception:
+            trash_id = None
+        if trash_id is not None:
+            pq = await sess.scalars(select(ListState.id).where(ListState.id == list_id).where(ListState.parent_list_id == trash_id))
+            if pq.first() is not None:
+                raise HTTPException(status_code=409, detail='list is trashed')
         uc = await sess.get(UserCollation, (current_user.id, list_id))
         if not uc:
             raise HTTPException(status_code=403, detail='not a user collation')
@@ -283,13 +324,21 @@ async def toggle_collation_membership(request: Request, list_id: int):
         td = await sess.get(Todo, int(todo_id))
         if not td:
             raise HTTPException(status_code=404, detail='todo not found')
-        ql = await sess.exec(select(ListState).where(ListState.id == td.list_id))
+        # Load parent list as an ORM object to access attributes safely
+        ql = await sess.scalars(select(ListState).where(ListState.id == td.list_id))
         pl = ql.first()
         if not pl or pl.owner_id != current_user.id:
             raise HTTPException(status_code=403, detail='forbidden')
         # check existing link
-        q = await sess.exec(select(ItemLink).where(ItemLink.src_type=='list').where(ItemLink.src_id==list_id).where(ItemLink.tgt_type=='todo').where(ItemLink.tgt_id==int(todo_id)))
+        q = await sess.scalars(
+            select(ItemLink)
+            .where(ItemLink.src_type == 'list')
+            .where(ItemLink.src_id == list_id)
+            .where(ItemLink.tgt_type == 'todo')
+            .where(ItemLink.tgt_id == int(todo_id))
+        )
         existing = q.first()
+        # determine desired state
         want_link: bool
         if link_req is None:
             want_link = existing is None
@@ -297,13 +346,36 @@ async def toggle_collation_membership(request: Request, list_id: int):
             want_link = bool(link_req)
         if want_link and not existing:
             # compute next position
-            qpos = await sess.exec(select(ItemLink.position).where(ItemLink.src_type=='list').where(ItemLink.src_id==list_id))
-            vals = [v[0] if isinstance(v, (tuple,list)) else v for v in qpos.fetchall()]
             try:
-                pos = (max([vv for vv in vals if vv is not None]) + 1) if vals else 0
+                res = await sess.exec(
+                    select(func.max(ItemLink.position))
+                    .where(ItemLink.src_type == 'list')
+                    .where(ItemLink.src_id == list_id)
+                )
+                row = res.first()
+                if row is None:
+                    max_pos = None
+                else:
+                    try:
+                        # row may be a Row or scalar depending on driver
+                        max_pos = row[0] if isinstance(row, (tuple, list)) else (
+                            row if isinstance(row, (int, type(None))) else getattr(row, '_mapping', {}).get('max_1')
+                        )
+                    except Exception:
+                        max_pos = None
+                pos = (int(max_pos) + 1) if (max_pos is not None) else 0
             except Exception:
                 pos = 0
-            sess.add(ItemLink(src_type='list', src_id=list_id, tgt_type='todo', tgt_id=int(todo_id), position=pos, owner_id=current_user.id))
+            sess.add(
+                ItemLink(
+                    src_type='list',
+                    src_id=list_id,
+                    tgt_type='todo',
+                    tgt_id=int(todo_id),
+                    position=pos,
+                    owner_id=current_user.id,
+                )
+            )
             await sess.commit()
             return JSONResponse({'ok': True, 'linked': True})
         if (not want_link) and existing:

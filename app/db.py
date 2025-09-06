@@ -280,6 +280,36 @@ def _ensure_sqlite_minimal_migrations(url: str | None) -> None:
                     cur.execute("CREATE INDEX IF NOT EXISTS ix_usercollation_active ON usercollation(active)")
                 except Exception:
                     pass
+            # Ensure itemlink.owner_id column exists for older DBs and backfill from liststate
+            try:
+                cur.execute("PRAGMA table_info('itemlink')")
+                il_cols = [row[1] for row in cur.fetchall()]
+                if il_cols and 'owner_id' not in il_cols:
+                    try:
+                        cur.execute("ALTER TABLE itemlink ADD COLUMN owner_id INTEGER")
+                        # Best-effort backfill: for links where source is a list, set owner_id to that list's owner
+                        try:
+                            cur.execute(
+                                """
+                                UPDATE itemlink
+                                SET owner_id = (
+                                  SELECT liststate.owner_id FROM liststate WHERE liststate.id = itemlink.src_id
+                                )
+                                WHERE itemlink.src_type = 'list' AND owner_id IS NULL
+                                """
+                            )
+                        except Exception:
+                            pass
+                        # Create index for owner_id to speed lookups
+                        try:
+                            cur.execute("CREATE INDEX IF NOT EXISTS ix_itemlink_owner ON itemlink(owner_id)")
+                        except Exception:
+                            pass
+                        conn.commit()
+                    except Exception:
+                        pass
+            except Exception:
+                pass
             # Ensure category table has sort_alphanumeric column for older DBs
             try:
                 cur.execute("PRAGMA table_info('category')")
