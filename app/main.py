@@ -6182,7 +6182,16 @@ async def html_index(request: Request):
                         'override_priority': t.get('override_priority'),
                         'effective_priority': eff,
                     })
+                # avoid duplicating a list when a high-priority todo from the
+                # same list is already present in high_priority_items.
+                # Build a set of list_ids already present from todo entries.
+                todo_list_ids = set(it.get('list_id') for it in high_priority_items if it.get('kind') == 'todo')
+
                 for lst in high_priority_lists:
+                    if lst.get('id') in todo_list_ids:
+                        # a high-priority todo from this list is already shown;
+                        # skip adding the list entry to avoid duplication.
+                        continue
                     # compute primary as max(priority, override_priority) similar to todos
                     lp = lst.get('priority') if lst.get('priority') is not None else None
                     op = lst.get('override_priority') if lst.get('override_priority') is not None else None
