@@ -9040,6 +9040,11 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
                 except Exception:
                     pass
             # Per-todo linked map: which todos include each active collation
+            # Recompute todo_ids from current todo_rows (may include aggregated linked todos)
+            try:
+                todo_ids = [int(r['id']) for r in todo_rows]
+            except Exception:
+                todo_ids = []
             if todo_ids and active_collations:
                 ac_ids = [int(c['list_id']) for c in active_collations]
                 q_links = await sess.exec(

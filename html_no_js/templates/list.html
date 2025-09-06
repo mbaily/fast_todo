@@ -89,6 +89,9 @@
   .collation-dot[aria-pressed="true"] { background: hsl(var(--dot-hue, 210), 75%, 50%); border-color: hsl(var(--dot-hue, 210), 75%, 35%); }
   .collation-dot:focus { outline: 2px solid hsl(var(--dot-hue, 210), 85%, 35%); outline-offset: 1px; }
   .collation-dot .sr-only { position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden; }
+  /* Origin list link dot (anchor) – same size as collation dots */
+  .collation-origin-dot { width: 12px; height: 12px; border-radius: 50%; display:inline-block; border: 2px solid hsl(var(--dot-hue, 210), 75%, 35%); background: hsl(var(--dot-hue, 210), 75%, 50%); text-decoration: none; line-height:0; }
+  .collation-origin-dot:focus { outline: 2px solid hsl(var(--dot-hue, 210), 85%, 35%); outline-offset: 1px; }
 
   /* Create-todo form: make the input expand to fill the row and keep the Add button to the right.
      On very small screens the controls stack vertically. */
@@ -1133,6 +1136,10 @@
                         </button>
                       {% endfor %}
                     </span>
+                    {% if list.is_collation and t.is_linked and t.origin_list_id %}
+                      {% set ohue = (t.origin_list_id * 47) % 360 %}
+                      <a class="collation-origin-dot" href="/html_no_js/lists/{{ t.origin_list_id }}" title="Open list {{ t.origin_list_name or ('#' ~ t.origin_list_id) }}" aria-label="Open list {{ t.origin_list_name or ('#' ~ t.origin_list_id) }}" style="--dot-hue: {{ ohue }}; margin-left:0.25rem;"></a>
+                    {% endif %}
                   {% endif %}
                 </div>
                 {% if t.note %}
@@ -1180,6 +1187,10 @@
                         </button>
                       {% endfor %}
                     </span>
+                    {% if list.is_collation and t.is_linked and t.origin_list_id %}
+                      {% set ohue = (t.origin_list_id * 47) % 360 %}
+                      <a class="collation-origin-dot" href="/html_no_js/lists/{{ t.origin_list_id }}" title="Open list {{ t.origin_list_name or ('#' ~ t.origin_list_id) }}" aria-label="Open list {{ t.origin_list_name or ('#' ~ t.origin_list_id) }}" style="--dot-hue: {{ ohue }}; margin-left:0.25rem;"></a>
+                    {% endif %}
                   {% endif %}
                 </div>
                 {% if t.note %}
