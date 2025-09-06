@@ -6043,6 +6043,72 @@ async def html_index(request: Request):
                 # Lists whose priority or override_priority is >=7
                 hpl = [r for r in list_rows if ((r.get('override_priority') is not None and r.get('override_priority') >= 7) or (r.get('priority') is not None and r.get('priority') >= 7))]
                 high_priority_lists = hpl
+                # Merge todos and lists into a single sorted list by effective priority.
+                # Effective priority is override_priority when present, otherwise priority.
+                high_priority_items = []
+                for t in high_priority_todos:
+                    eff = None
+                    if t.get('override_priority') is not None:
+                        try:
+                            eff = int(t.get('override_priority'))
+                        except Exception:
+                            eff = t.get('override_priority')
+                    elif t.get('priority') is not None:
+                        try:
+                            eff = int(t.get('priority'))
+                        except Exception:
+                            eff = t.get('priority')
+                    high_priority_items.append({
+                        'kind': 'todo',
+                        'id': t.get('id'),
+                        'text': t.get('text'),
+                        'list_id': t.get('list_id'),
+                        'list_name': t.get('list_name'),
+                        'modified_at': t.get('modified_at'),
+                        'priority': t.get('priority'),
+                        'override_priority': t.get('override_priority'),
+                        'effective_priority': eff,
+                    })
+                for lst in high_priority_lists:
+                    eff = None
+                    if lst.get('override_priority') is not None:
+                        try:
+                            eff = int(lst.get('override_priority'))
+                        except Exception:
+                            eff = lst.get('override_priority')
+                    elif lst.get('priority') is not None:
+                        try:
+                            eff = int(lst.get('priority'))
+                        except Exception:
+                            eff = lst.get('priority')
+                    high_priority_items.append({
+                        'kind': 'list',
+                        'id': lst.get('id'),
+                        'name': lst.get('name'),
+                        'uncompleted_count': lst.get('uncompleted_count'),
+                        'priority': lst.get('priority'),
+                        'override_priority': lst.get('override_priority'),
+                        'effective_priority': eff,
+                        'modified_at': lst.get('modified_at'),
+                    })
+                # Sort by effective_priority desc, then by modified_at (newest first), then by name/id
+                def _sort_key(item):
+                    ep = item.get('effective_priority')
+                    # None -> push to end
+                    epv = ep if (ep is not None) else -1
+                    md = item.get('modified_at') or ''
+                    # Use negative epv so higher priority sorts first when reversed
+                    return (int(epv) if isinstance(epv, int) or (isinstance(epv, str) and epv.isdigit()) else epv, md or '')
+                try:
+                    high_priority_items.sort(key=lambda x: (_sort_key(x)[0], _sort_key(x)[1]), reverse=True)
+                except Exception:
+                    # fallback: leave unsorted if any issue
+                    pass
+                # expose merged list to templates
+                # keep existing high_priority_todos/high_priority_lists too for compatibility
+                context_high_priority_items = high_priority_items
+            else:
+                context_high_priority_items = []
         except Exception:
             high_priority_todos = []
             high_priority_lists = []
@@ -6290,10 +6356,10 @@ async def html_index(request: Request):
             logger.info('html_index: rendering index_ios_safari (ua-detected) ua=%s', ua[:200])
             return TEMPLATES.TemplateResponse(request, "index_ios_safari.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat})
         logger.info('html_index: rendering index.html (default) ua=%s', ua[:200])
-        return TEMPLATES.TemplateResponse(request, "index.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat})
+        return TEMPLATES.TemplateResponse(request, "index.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "high_priority_items": context_high_priority_items if 'context_high_priority_items' in locals() else [], "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat})
     except Exception:
         # Ensure we always return something even if logging fails
-        return TEMPLATES.TemplateResponse(request, "index.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "high_priority_todos": high_priority_todos if 'high_priority_todos' in locals() else [], "high_priority_lists": high_priority_lists if 'high_priority_lists' in locals() else [], "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences})
+        return TEMPLATES.TemplateResponse(request, "index.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "high_priority_todos": high_priority_todos if 'high_priority_todos' in locals() else [], "high_priority_lists": high_priority_lists if 'high_priority_lists' in locals() else [], "high_priority_items": context_high_priority_items if 'context_high_priority_items' in locals() else [], "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences})
 
 
 async def _prepare_index_context(request: Request, current_user: User | None) -> dict:
