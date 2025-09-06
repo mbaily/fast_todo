@@ -838,6 +838,8 @@ def is_ios_safari(request: Request) -> bool:
         return True
     return False
 
+ 
+
 
 async def get_session_timezone(request: Request) -> str | None:
     """Prefer timezone stored on the server-side Session row; fall back to tz cookie."""
@@ -9230,6 +9232,16 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
         _fn_link_label_cache.set(cache)
     except Exception:
         pass
+    # Load per-user list prefs (completed_after)
+    completed_after_pref = False
+    try:
+        async with async_session() as _psess:
+            from .models import UserListPrefs as _ULP
+            row = await _psess.get(_ULP, (current_user.id, int(list_id)))
+            if row is not None:
+                completed_after_pref = bool(getattr(row, 'completed_after', False))
+    except Exception:
+        completed_after_pref = False
     return TEMPLATES.TemplateResponse(
         request,
         "list.html",
@@ -9246,6 +9258,7 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
             "links": links,
             "active_collations": active_collations,
             "todo_collation_linked": {int(k): list(v) for k, v in todo_collation_linked.items()},
+            "completed_after": completed_after_pref,
         },
     )
 
@@ -9361,6 +9374,44 @@ async def html_update_list_priority(request: Request, list_id: int, priority: st
     accept = (request.headers.get('Accept') or '')
     if 'application/json' in accept.lower():
         return JSONResponse({'ok': True, 'id': list_id, 'priority': val})
+    ref = request.headers.get('Referer', f'/html_no_js/lists/{list_id}')
+    return RedirectResponse(url=ref, status_code=303)
+
+
+@app.post('/html_no_js/lists/{list_id}/completed_after')
+async def html_set_list_completed_after(request: Request, list_id: int, completed_after: str = Form(None), current_user: User = Depends(require_login)):
+    """Persist the 'completed after' toggle per-user for a specific list.
+
+    Accepts completed_after as truthy string ('1','true','yes','on').
+    CSRF protected; ensures the list is owned by the user.
+    """
+    # CSRF and ownership
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    val = False
+    if completed_after is not None:
+        val = str(completed_after).lower() in ('1','true','yes','on')
+    async with async_session() as sess:
+        lst = await sess.get(ListState, list_id)
+        if not lst:
+            raise HTTPException(status_code=404, detail='list not found')
+        if lst.owner_id != current_user.id:
+            raise HTTPException(status_code=403, detail='forbidden')
+        # Upsert prefs row
+        from .models import UserListPrefs
+        row = await sess.get(UserListPrefs, (current_user.id, int(list_id)))
+        if row is None:
+            row = UserListPrefs(user_id=current_user.id, list_id=int(list_id), completed_after=val)
+        else:
+            row.completed_after = val
+        sess.add(row)
+        await sess.commit()
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse({'ok': True, 'id': list_id, 'completed_after': val})
     ref = request.headers.get('Referer', f'/html_no_js/lists/{list_id}')
     return RedirectResponse(url=ref, status_code=303)
 

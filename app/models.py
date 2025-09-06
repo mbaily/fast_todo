@@ -331,3 +331,15 @@ class UserCollation(SQLModel, table=True):
     list_id: Optional[int] = Field(default=None, foreign_key='liststate.id', primary_key=True)
     active: bool = Field(default=True, index=True)
     created_at: datetime | None = Field(default_factory=now_utc)
+
+
+class UserListPrefs(SQLModel, table=True):
+    """Per-user, per-list UI preferences.
+
+    Composite primary key ensures a single row per (user, list).
+    Currently stores the 'completed after' toggle for list.html.
+    """
+    user_id: Optional[int] = Field(default=None, foreign_key='user.id', primary_key=True)
+    list_id: Optional[int] = Field(default=None, foreign_key='liststate.id', primary_key=True)
+    completed_after: bool = Field(default=False, index=True)
+    created_at: datetime | None = Field(default_factory=now_utc)

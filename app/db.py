@@ -280,6 +280,28 @@ def _ensure_sqlite_minimal_migrations(url: str | None) -> None:
                     cur.execute("CREATE INDEX IF NOT EXISTS ix_usercollation_active ON usercollation(active)")
                 except Exception:
                     pass
+            # Ensure userlistprefs table exists for per-user list prefs
+            try:
+                cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='userlistprefs'")
+                exists_ulp = cur.fetchone() is not None
+            except Exception:
+                exists_ulp = True
+            if not exists_ulp:
+                try:
+                    cur.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS userlistprefs (
+                          user_id INTEGER NOT NULL,
+                          list_id INTEGER NOT NULL,
+                          completed_after INTEGER DEFAULT 0 NOT NULL,
+                          created_at DATETIME,
+                          PRIMARY KEY (user_id, list_id)
+                        )
+                        """
+                    )
+                    cur.execute("CREATE INDEX IF NOT EXISTS ix_userlistprefs_completed_after ON userlistprefs(completed_after)")
+                except Exception:
+                    pass
             # Ensure itemlink.owner_id column exists for older DBs and backfill from liststate
             try:
                 cur.execute("PRAGMA table_info('itemlink')")

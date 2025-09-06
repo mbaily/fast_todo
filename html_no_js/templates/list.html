@@ -1384,18 +1384,21 @@
   <!-- the 'completed after' option is not available for hide icons -->
   {% if not list.hide_icons %}
   <div style="margin:0.5rem 0; display:flex; align-items:center; gap:0.5rem;">
-    <label style="display:inline-flex; align-items:center; gap:0.4rem;">
-      <input type="checkbox" id="completed-after-checkbox">
-      <span>completed after</span>
-    </label>
+    <form id="completed-after-form" method="post" action="/html_no_js/lists/{{ list.id }}/completed_after" style="display:inline-flex; align-items:center; gap:0.4rem;">
+      {{ csrf_field() }}
+      <input type="hidden" name="completed_after" id="completed-after-hidden" value="{{ 'true' if completed_after else 'false' }}">
+      <label style="display:inline-flex; align-items:center; gap:0.4rem;">
+        <input type="checkbox" id="completed-after-checkbox" {% if completed_after %}checked{% endif %}>
+        <span>completed after</span>
+      </label>
+    </form>
   </div>
 
   <script>
   (function(){
-    function setCookie(name, value, days){ var expires=''; if(days){ var d=new Date(); d.setTime(d.getTime() + (days*24*60*60*1000)); expires='; expires='+d.toUTCString(); } document.cookie = name + '=' + encodeURIComponent(value) + expires + '; path=/'; }
-    function getCookie(name){ var m = document.cookie.match('(?:^|; )' + name + '=([^;]*)'); return m ? decodeURIComponent(m[1]) : null; }
-
     var cb = document.getElementById('completed-after-checkbox');
+  var form = document.getElementById('completed-after-form');
+  var hidden = document.getElementById('completed-after-hidden');
     if (!cb) return;
 
     var initialized = false;
@@ -1406,10 +1409,7 @@
       var initialItems = Array.from(container.querySelectorAll(isTable ? 'tr.todo' : 'li.todo'));
       var originalOrder = initialItems.map(function(it){ return it.id; });
 
-      // init checkbox from cookie (namespaced per-list)
-      var cookieName = 'completed_after_list_{{ list.id }}';
-      var v = getCookie(cookieName);
-      cb.checked = v === '1';
+  // init from server-rendered value (already applied via checked attribute)
 
       function isCompletedElem(it){
         var chk = it.querySelector('form[action*="/complete"] button');
@@ -1439,7 +1439,20 @@
         } catch(e){ /* ignore */ }
       }
 
-      cb.addEventListener('change', function(){ setCookie(cookieName, cb.checked ? '1' : '0', 365); reorder(); });
+      cb.addEventListener('change', function(){
+        try {
+          if (hidden) hidden.value = cb.checked ? 'true' : 'false';
+          if (!form) { reorder(); return; }
+          var fd = new FormData(form);
+          // include csrf already in form; ensure completed_after present
+          if (!fd.has('completed_after')) fd.append('completed_after', cb.checked ? 'true' : 'false');
+          fetch(form.action, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+            .then(function(res){ if (!res.ok) throw new Error('save failed'); return res.json().catch(function(){ return null; }); })
+            .then(function(){ /* saved ok */ })
+            .catch(function(){ /* ignore; UI still updates locally */ })
+            .finally(function(){ reorder(); });
+        } catch(e){ reorder(); }
+      });
       // initial ordering based on cookie
       reorder();
     }
