@@ -143,6 +143,14 @@
                   {% endfor %}
                 </select>
               </form>
+              {# Collation controls (JS uses JSON endpoints; works only for owner which this page enforces) #}
+              <span id="collation-controls" class="meta" data-is-collation="{{ 'true' if list.is_collation|default(false) else 'false' }}" data-collation-active="{{ 'true' if list.collation_active|default(false) else 'false' }}" style="margin-left:0.5rem; display:inline-flex; align-items:center; gap:0.4rem;">
+                <button type="button" id="btn-collation-toggle" title="Mark or unmark this list as a collation list">{{ 'Unmark Collation' if list.is_collation|default(false) else 'Mark as Collation' }}</button>
+                <label style="display:inline-flex; align-items:center; gap:0.25rem;">
+                  <input type="checkbox" id="cb-collation-active" {% if list.is_collation|default(false) %}{% if list.collation_active|default(false) %}checked{% endif %}{% else %}disabled{% endif %}>
+                  <span>Active</span>
+                </label>
+              </span>
             {# {% endif %} #}
             {# Show list tags directly under the title per UX request #}
             {% if list and list.id and list.hashtags and list.hashtags|length > 0 %}
@@ -173,6 +181,55 @@
                 {% endfor %}
               </div>
             {% endif %}
+
+  <script>
+  // Collation controls: mark/unmark this list as a collation and toggle active state.
+  (function(){
+    try{
+      var LIST_ID = {{ list.id }};
+      var btn = document.getElementById('btn-collation-toggle');
+      var cb = document.getElementById('cb-collation-active');
+      var wrap = document.getElementById('collation-controls');
+      if (!btn || !cb || !wrap) return;
+      var state = { isCollation: (wrap.getAttribute('data-is-collation') === 'true'), active: (wrap.getAttribute('data-collation-active') === 'true'), loading: false };
+      function setUI(){
+        try{
+          btn.textContent = state.isCollation ? 'Unmark Collation' : 'Mark as Collation';
+          btn.disabled = !!state.loading;
+          cb.disabled = !state.isCollation;
+          cb.checked = !!(state.isCollation && state.active);
+          cb.parentElement.style.opacity = state.isCollation ? '1' : '0.6';
+        }catch(_){}
+      }
+      setUI();
+      function postJSON(url, body){ return fetch(url, { method:'POST', headers:{ 'Content-Type':'application/json', 'Accept':'application/json' }, credentials:'same-origin', body: JSON.stringify(body||{}) }).then(function(r){ return r.json(); }); }
+      function delJSON(url){ return fetch(url, { method:'DELETE', headers:{ 'Accept':'application/json' }, credentials:'same-origin' }).then(function(r){ return r.json(); }); }
+      // Already initialized from server-rendered attributes
+      // Toggle mark/unmark
+      btn.addEventListener('click', function(){
+        if (state.loading) return;
+        state.loading = true; setUI();
+        if (!state.isCollation){
+          postJSON('/client/json/collations', { list_id: LIST_ID, active: true }).then(function(j){
+            if (j && j.ok){ state.isCollation = true; state.active = (typeof j.active !== 'undefined') ? !!j.active : true; }
+          }).catch(function(){}).finally(function(){ state.loading = false; setUI(); });
+        } else {
+          delJSON('/client/json/collations/' + encodeURIComponent(LIST_ID)).then(function(j){
+            if (j && j.ok){ state.isCollation = false; state.active = false; }
+          }).catch(function(){}).finally(function(){ state.loading = false; setUI(); });
+        }
+      }, false);
+      // Toggle active
+      cb.addEventListener('change', function(){
+        var want = !!cb.checked;
+        postJSON('/client/json/collations/' + encodeURIComponent(LIST_ID) + '/active', { active: want }).then(function(j){
+          if (j && j.ok){ state.active = !!j.active; }
+          else { cb.checked = state.active; }
+        }).catch(function(){ cb.checked = state.active; });
+      }, false);
+    }catch(e){ /* ignore for no-js fallback */ }
+  })();
+  </script>
 
   {# Sublist toolbar: show if this list is owned by a todo and/or another list #}
   {% if list.parent_todo_id or list.parent_list_id %}

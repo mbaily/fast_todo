@@ -398,6 +398,27 @@ Navigation behavior
 
 Note insertion helper (optional)
 - On the todo page, a small “Insert link” combobox next to the Note uses your recently marked items to insert link markup for you.
+
+## Collation lists (grouping todos across lists)
+
+You can maintain multiple personal “collation” lists and quickly mark whether a todo belongs to any of them.
+
+- A collation is just a regular list you own, registered in your set of collations.
+- Collations can be active or inactive. Only active collations show a small toggle on each todo page so you can add/remove the todo to/from that collation with one click.
+- Membership is stored via ItemLink edges: src_type='list' (the collation list) → tgt_type='todo'.
+
+JSON endpoints (session auth):
+
+- GET /client/json/collations → { ok, collations: [{list_id, name, active}] }
+- POST /client/json/collations { list_id, active? } → register/update a collation for the user
+- POST /client/json/collations/{list_id}/active { active } → set active flag
+- GET /client/json/collations/status?todo_id=123 → { ok, memberships: [{list_id, name, linked}] }
+- POST /client/json/collations/{list_id}/toggle { todo_id, link? } → toggles or forces membership; returns { ok, linked }
+
+UI behavior:
+
+- On `todo.html`, active collations render buttons like “+ My Focus” / “✓ My Focus”. Clicking toggles membership via the JSON API.
+- To create a new collation list programmatically: POST /client/json/lists { name } then POST /client/json/collations { list_id }.
   - It first shows placeholders like “Todo #123” / “List #45”, then enriches to “123 — <title snippet>”.
   - When you click “Insert Link”, it inserts the correct `{{fn:link target=...}}` markup at the cursor in the note.
   - Mark items using the 🔖 button on list/todo pages; marks expire after a few minutes.

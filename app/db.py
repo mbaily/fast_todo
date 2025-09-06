@@ -212,6 +212,25 @@ def _ensure_sqlite_minimal_migrations(url: str | None) -> None:
                         pass
             except Exception:
                 pass
+            # Ensure new per-user collation fields exist on user table
+            try:
+                cur.execute("PRAGMA table_info('user')")
+                ucols = [row[1] for row in cur.fetchall()]
+                if ucols:
+                    if 'collation_list_id' not in ucols:
+                        try:
+                            cur.execute("ALTER TABLE user ADD COLUMN collation_list_id INTEGER")
+                            conn.commit()
+                        except Exception:
+                            pass
+                    if 'show_collation_indicator' not in ucols:
+                        try:
+                            cur.execute("ALTER TABLE user ADD COLUMN show_collation_indicator INTEGER DEFAULT 0 NOT NULL")
+                            conn.commit()
+                        except Exception:
+                            pass
+            except Exception:
+                pass
             # Ensure itemlink table exists for cross-entity links
             try:
                 cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='itemlink'")
@@ -237,6 +256,28 @@ def _ensure_sqlite_minimal_migrations(url: str | None) -> None:
                     )
                     cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_itemlink_edge ON itemlink(src_type, src_id, tgt_type, tgt_id)")
                     cur.execute("CREATE INDEX IF NOT EXISTS ix_itemlink_src ON itemlink(src_type, src_id, position)")
+                except Exception:
+                    pass
+            # Ensure usercollation table exists for per-user collations
+            try:
+                cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='usercollation'")
+                exists_uc = cur.fetchone() is not None
+            except Exception:
+                exists_uc = True
+            if not exists_uc:
+                try:
+                    cur.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS usercollation (
+                          user_id INTEGER NOT NULL,
+                          list_id INTEGER NOT NULL,
+                          active INTEGER DEFAULT 1 NOT NULL,
+                          created_at DATETIME,
+                          PRIMARY KEY (user_id, list_id)
+                        )
+                        """
+                    )
+                    cur.execute("CREATE INDEX IF NOT EXISTS ix_usercollation_active ON usercollation(active)")
                 except Exception:
                     pass
             # Ensure category table has sort_alphanumeric column for older DBs

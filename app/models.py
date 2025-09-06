@@ -165,6 +165,14 @@ class User(SQLModel, table=True):
     # Optional per-user default category for newly-created lists.
     # When set, new lists created by this user should be assigned this category.
     default_category_id: Optional[int] = Field(default=None, foreign_key="category.id")
+    # Optional per-user collation list id: when set, indicates which list acts
+    # as the user's personal collation/collection. Todos can be "linked" to
+    # this list via ItemLink rows (src_type='list', src_id=collation_list_id,
+    # tgt_type='todo', tgt_id=<todo_id>).
+    collation_list_id: Optional[int] = Field(default=None, foreign_key="liststate.id", index=True)
+    # When true, show a linked/unlinked indicator on todo pages for this user,
+    # allowing quick add/remove from their collation list.
+    show_collation_indicator: bool = Field(default=False, index=True)
 
 
 class Session(SQLModel, table=True):
@@ -309,3 +317,17 @@ class ItemLink(SQLModel, table=True):
     __table_args__ = (
         UniqueConstraint('src_type', 'src_id', 'tgt_type', 'tgt_id', name='uq_itemlink_edge'),
     )
+
+
+class UserCollation(SQLModel, table=True):
+    """Per-user collation list memberships with an active toggle.
+
+    Each row indicates that `list_id` is one of the user's collations. When
+    `active` is true, the UI should display inclusion indicators on todo pages
+    for this list. Linking a todo into a collation uses ItemLink rows with
+    src_type='list', src_id=list_id, tgt_type='todo'.
+    """
+    user_id: Optional[int] = Field(default=None, foreign_key='user.id', primary_key=True)
+    list_id: Optional[int] = Field(default=None, foreign_key='liststate.id', primary_key=True)
+    active: bool = Field(default=True, index=True)
+    created_at: datetime | None = Field(default_factory=now_utc)

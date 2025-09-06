@@ -3,7 +3,7 @@ from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse
 
 from .db import async_session
-from .models import ListState, ListHashtag, Hashtag, Todo, TodoHashtag, CompletionType, TodoCompletion, RecentListVisit, Category
+from .models import ListState, ListHashtag, Hashtag, Todo, TodoHashtag, CompletionType, TodoCompletion, RecentListVisit, Category, UserCollation, ItemLink
 from .auth import get_current_user as _gcu
 from .utils import extract_hashtags, now_utc
 from sqlalchemy import select, func, or_, and_
@@ -134,6 +134,204 @@ async def client_create_list(request: Request):
     except Exception:
         pass
     return JSONResponse(payload)
+
+
+# ===== Collations (per-user multiple collection lists) =====
+
+@router.get('/collations', response_class=JSONResponse)
+async def list_user_collations(request: Request):
+    try:
+        current_user = await _gcu(token=None, request=request)
+    except HTTPException:
+        raise HTTPException(status_code=401, detail='authentication required')
+    async with async_session() as sess:
+        q = await sess.exec(select(UserCollation).where(UserCollation.user_id == current_user.id))
+        rows = q.all()
+        # load list names
+        list_ids = [r.list_id for r in rows]
+        names = {}
+        if list_ids:
+            r2 = await sess.exec(select(ListState.id, ListState.name, ListState.owner_id).where(ListState.id.in_(list_ids)))
+            for lid, name, owner_id in r2.all():
+                # Only expose collations pointing to the user's own lists
+                if owner_id == current_user.id:
+                    names[int(lid)] = name
+        out = [
+            {'list_id': int(r.list_id), 'name': names.get(int(r.list_id)), 'active': bool(getattr(r, 'active', True))}
+            for r in rows if int(r.list_id) in names
+        ]
+    return JSONResponse({'ok': True, 'collations': out})
+
+
+@router.post('/collations', response_class=JSONResponse)
+async def create_user_collation(request: Request):
+    """Add a list to the user's set of collations. Body: {list_id:int, active?:bool}."""
+    try:
+        current_user = await _gcu(token=None, request=request)
+    except HTTPException:
+        raise HTTPException(status_code=401, detail='authentication required')
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    list_id = body.get('list_id')
+    if not list_id:
+        raise HTTPException(status_code=400, detail='list_id required')
+    active = bool(body.get('active', True))
+    async with async_session() as sess:
+        lst = await sess.get(ListState, int(list_id))
+        if not lst or lst.owner_id != current_user.id:
+            raise HTTPException(status_code=404, detail='list not found')
+        existing = await sess.get(UserCollation, (current_user.id, int(list_id)))
+        if existing:
+            existing.active = active
+            sess.add(existing)
+        else:
+            sess.add(UserCollation(user_id=current_user.id, list_id=int(list_id), active=active))
+        await sess.commit()
+    return JSONResponse({'ok': True, 'list_id': int(list_id), 'active': active})
+
+
+@router.post('/collations/{list_id}/active', response_class=JSONResponse)
+async def set_collation_active(request: Request, list_id: int):
+    """Set active flag for a user's collation list. Body: {active: bool}."""
+    try:
+        current_user = await _gcu(token=None, request=request)
+    except HTTPException:
+        raise HTTPException(status_code=401, detail='authentication required')
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    active = bool(body.get('active', True))
+    async with async_session() as sess:
+        lst = await sess.get(ListState, list_id)
+        if not lst or lst.owner_id != current_user.id:
+            raise HTTPException(status_code=404, detail='list not found')
+        row = await sess.get(UserCollation, (current_user.id, list_id))
+        if not row:
+            row = UserCollation(user_id=current_user.id, list_id=list_id, active=active)
+        else:
+            row.active = active
+        sess.add(row)
+        await sess.commit()
+    return JSONResponse({'ok': True, 'list_id': list_id, 'active': active})
+
+
+@router.get('/collations/status', response_class=JSONResponse)
+async def get_collation_status(request: Request, todo_id: int):
+    """Return membership map for active collations for the current user.
+    Response: { ok: true, memberships: [{list_id, name, linked}] }
+    """
+    try:
+        current_user = await _gcu(token=None, request=request)
+    except HTTPException:
+        raise HTTPException(status_code=401, detail='authentication required')
+    async with async_session() as sess:
+        # collations
+        q = await sess.exec(select(UserCollation).where(UserCollation.user_id == current_user.id).where(UserCollation.active == True))
+        rows = q.all()
+        ids = [r.list_id for r in rows]
+        names = {}
+        if ids:
+            r2 = await sess.exec(select(ListState.id, ListState.name).where(ListState.id.in_(ids)).where(ListState.owner_id == current_user.id))
+            for lid, name in r2.all():
+                names[int(lid)] = name
+        linked_map = {}
+        if ids:
+            res = await sess.exec(select(ItemLink.src_id).where(ItemLink.src_type=='list').where(ItemLink.tgt_type=='todo').where(ItemLink.tgt_id==todo_id).where(ItemLink.src_id.in_(ids)))
+            for (sid,) in res.all():
+                try:
+                    linked_map[int(sid)] = True
+                except Exception:
+                    pass
+        out = []
+        for r in rows:
+            lid = int(r.list_id)
+            if lid not in names:
+                continue
+            out.append({'list_id': lid, 'name': names.get(lid), 'linked': bool(linked_map.get(lid, False))})
+    return JSONResponse({'ok': True, 'memberships': out})
+
+
+@router.post('/collations/{list_id}/toggle', response_class=JSONResponse)
+async def toggle_collation_membership(request: Request, list_id: int):
+    """Toggle membership of a todo in a given collation. Body: {todo_id:int, link?:bool}.
+    If link is omitted, it toggles. Returns {ok, linked}.
+    """
+    try:
+        current_user = await _gcu(token=None, request=request)
+    except HTTPException:
+        raise HTTPException(status_code=401, detail='authentication required')
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    todo_id = body.get('todo_id')
+    link_req = body.get('link')
+    if not todo_id:
+        raise HTTPException(status_code=400, detail='todo_id required')
+    async with async_session() as sess:
+        # ensure list belongs to user and is a registered collation
+        lst = await sess.get(ListState, list_id)
+        if not lst or lst.owner_id != current_user.id:
+            raise HTTPException(status_code=404, detail='list not found')
+        uc = await sess.get(UserCollation, (current_user.id, list_id))
+        if not uc:
+            raise HTTPException(status_code=403, detail='not a user collation')
+        # ensure todo is visible via ownership of its parent list
+        td = await sess.get(Todo, int(todo_id))
+        if not td:
+            raise HTTPException(status_code=404, detail='todo not found')
+        ql = await sess.exec(select(ListState).where(ListState.id == td.list_id))
+        pl = ql.first()
+        if not pl or pl.owner_id != current_user.id:
+            raise HTTPException(status_code=403, detail='forbidden')
+        # check existing link
+        q = await sess.exec(select(ItemLink).where(ItemLink.src_type=='list').where(ItemLink.src_id==list_id).where(ItemLink.tgt_type=='todo').where(ItemLink.tgt_id==int(todo_id)))
+        existing = q.first()
+        want_link: bool
+        if link_req is None:
+            want_link = existing is None
+        else:
+            want_link = bool(link_req)
+        if want_link and not existing:
+            # compute next position
+            qpos = await sess.exec(select(ItemLink.position).where(ItemLink.src_type=='list').where(ItemLink.src_id==list_id))
+            vals = [v[0] if isinstance(v, (tuple,list)) else v for v in qpos.fetchall()]
+            try:
+                pos = (max([vv for vv in vals if vv is not None]) + 1) if vals else 0
+            except Exception:
+                pos = 0
+            sess.add(ItemLink(src_type='list', src_id=list_id, tgt_type='todo', tgt_id=int(todo_id), position=pos, owner_id=current_user.id))
+            await sess.commit()
+            return JSONResponse({'ok': True, 'linked': True})
+        if (not want_link) and existing:
+            await sess.delete(existing)
+            await sess.commit()
+            return JSONResponse({'ok': True, 'linked': False})
+        # no change
+        return JSONResponse({'ok': True, 'linked': existing is not None})
+
+
+@router.delete('/collations/{list_id}', response_class=JSONResponse)
+async def delete_user_collation(request: Request, list_id: int):
+    """Unmark a list as a user collation (remove the UserCollation row)."""
+    try:
+        current_user = await _gcu(token=None, request=request)
+    except HTTPException:
+        raise HTTPException(status_code=401, detail='authentication required')
+    async with async_session() as sess:
+        lst = await sess.get(ListState, list_id)
+        if not lst or lst.owner_id != current_user.id:
+            raise HTTPException(status_code=404, detail='list not found')
+        row = await sess.get(UserCollation, (current_user.id, list_id))
+        if not row:
+            return JSONResponse({'ok': True, 'removed': False})
+        # Optionally, do not cascade-delete ItemLinks; we only remove the collation registration.
+        await sess.delete(row)
+        await sess.commit()
+    return JSONResponse({'ok': True, 'removed': True})
 
 
 @router.get('/lists', response_class=JSONResponse)

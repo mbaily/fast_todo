@@ -19,6 +19,7 @@ from contextvars import ContextVar
 from sqlmodel import select
 from .models import Hashtag, TodoHashtag, ListHashtag, ServerState, CompletionType, SyncOperation, Tombstone, Category
 from .models import ItemLink
+from .models import UserCollation
 from .models import RecentListVisit
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import text, func
@@ -8658,6 +8659,14 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
             # expose parent list owner for nested list navigation (not yet used in UI)
             "parent_list_id": getattr(lst, 'parent_list_id', None),
         }
+        # Indicate if this list is one of the current user's collations and whether it's active
+        try:
+            uc_row = await sess.get(UserCollation, (current_user.id, int(list_id)))
+            list_row["is_collation"] = bool(uc_row is not None)
+            list_row["collation_active"] = bool(getattr(uc_row, 'active', True)) if uc_row is not None else False
+        except Exception:
+            list_row["is_collation"] = False
+            list_row["collation_active"] = False
         # If this list is owned by a todo, fetch the todo text for UI label
         if getattr(lst, 'parent_todo_id', None):
             try:
@@ -9974,8 +9983,32 @@ async def html_view_todo(request: Request, todo_id: int, current_user: User = De
             logger.info('TODO_LINKS id=%s links=%s', todo_id, str(links))
         except Exception:
             pass
+    # Active collations for this user and whether this todo is linked to each
+    active_collations: list[dict] = []
+    try:
+        async with async_session() as sess2:
+            q = await sess2.exec(select(UserCollation).where(UserCollation.user_id == current_user.id).where(UserCollation.active == True))
+            rows = q.all()
+            ids = [r.list_id for r in rows]
+            names = {}
+            if ids:
+                r2 = await sess2.exec(select(ListState.id, ListState.name).where(ListState.id.in_(ids)).where(ListState.owner_id == current_user.id))
+                for lid, name in r2.all():
+                    names[int(lid)] = name
+            linked_map = {}
+            if ids:
+                r3 = await sess2.exec(select(ItemLink.src_id).where(ItemLink.src_type=='list').where(ItemLink.tgt_type=='todo').where(ItemLink.tgt_id==todo_id).where(ItemLink.src_id.in_(ids)))
+                for (sid,) in r3.all():
+                    try:
+                        linked_map[int(sid)] = True
+                    except Exception:
+                        pass
+            active_collations = [{'list_id': int(r.list_id), 'name': names.get(int(r.list_id)), 'linked': bool(linked_map.get(int(r.list_id), False))} for r in rows if int(r.list_id) in names]
+    except Exception:
+        active_collations = []
+
     # pass plain dicts (with datetime objects preserved) to avoid lazy DB loads
-    return TEMPLATES.TemplateResponse(request, 'todo.html', {"request": request, "todo": todo_row, "completed": completed, "list": list_row, "csrf_token": csrf_token, "client_tz": client_tz, "tags": todo_tags, "all_hashtags": all_hashtags, 'sublists': sublists, 'links': links})
+    return TEMPLATES.TemplateResponse(request, 'todo.html', {"request": request, "todo": todo_row, "completed": completed, "list": list_row, "csrf_token": csrf_token, "client_tz": client_tz, "tags": todo_tags, "all_hashtags": all_hashtags, 'sublists': sublists, 'links': links, 'active_collations': active_collations})
 
 
 # ===== Links: add/remove for list and todo (no-JS HTML and JSON) =====

@@ -62,6 +62,53 @@
         </h2>      
       </div>    
   </div>
+  {% if active_collations is defined and active_collations|length > 0 %}
+    <div class="meta" style="margin:0.15rem 0 0.35rem 0">
+      <strong>Collations:</strong>
+      <span>
+        {% for c in active_collations %}
+          <button type="button" class="collation-toggle" data-list-id="{{ c.list_id }}" data-todo-id="{{ todo.id }}" data-name="{{ c.name or ('List #' ~ c.list_id) }}" aria-pressed="{{ 'true' if c.linked else 'false' }}" title="{{ 'Remove from' if c.linked else 'Add to' }} {{ c.name }}" style="border:1px solid #ccc; border-radius:4px; padding:0 .35rem; margin-right:.25rem; background: {{ '#e6ffed' if c.linked else 'transparent' }}; color: {{ '#0366d6' if c.linked else 'inherit' }};">
+            {{ '✓' if c.linked else '+' }} {{ c.name or ('List #' ~ c.list_id) }}
+          </button>
+        {% endfor %}
+      </span>
+    </div>
+    <script>
+    (function(){
+      try{
+        function postJSON(url, data){
+          return fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify(data||{})
+          }).then(function(r){ return r.json(); });
+        }
+        var buttons = document.querySelectorAll('button.collation-toggle');
+        buttons.forEach(function(btn){
+          btn.addEventListener('click', function(){
+            var lid = parseInt(btn.getAttribute('data-list-id'),10);
+            var tid = parseInt(btn.getAttribute('data-todo-id'),10);
+            var pressed = String(btn.getAttribute('aria-pressed')) === 'true';
+            // toggle desired state
+            var want = !pressed;
+            postJSON('/client/json/collations/'+lid+'/toggle', { todo_id: tid, link: want }).then(function(j){
+              if (!j || !j.ok) return;
+              var linked = !!j.linked;
+              btn.setAttribute('aria-pressed', linked ? 'true' : 'false');
+              var nm = btn.getAttribute('data-name') || '';
+              btn.textContent = (linked ? '✓ ' : '+ ') + nm;
+              // update styles
+              btn.style.background = linked ? '#e6ffed' : 'transparent';
+              btn.style.color = linked ? '#0366d6' : 'inherit';
+              btn.title = (linked ? 'Remove from ' : 'Add to ') + nm;
+            }).catch(function(){});
+          });
+        });
+      }catch(e){ /* no-js safe */ }
+    })();
+    </script>
+  {% endif %}
   <p class="meta" style="margin:0">List: <a href="/html_no_js/lists/{{ todo.list_id }}">{{ list.name if list else todo.list_id }}</a></p>
   {% if links is defined and links|length > 0 %}
     <div class="meta" style="margin:0.15rem 0 0.35rem 0">
