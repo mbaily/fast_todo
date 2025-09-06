@@ -6043,6 +6043,74 @@ async def html_index(request: Request):
                         max_p = pv
                 if max_p is not None:
                     row['override_priority'] = max_p
+
+            # If any lists on this page are marked as user collations, also
+            # consider the highest uncompleted priority among todos linked to
+            # those lists via ItemLink (src_type='list', tgt_type='todo').
+            try:
+                # Fetch collation list ids for this user that are present on this page
+                quc = await sess.exec(select(UserCollation.list_id).where(UserCollation.user_id == owner_id))
+                uc_ids_all = [r[0] if isinstance(r, (list, tuple)) else int(getattr(r, 'list_id', r)) for r in quc.all()]
+                collation_ids = [lid for lid in uc_ids_all if lid in list_ids]
+                if collation_ids:
+                    # Map list_id -> linked todo ids
+                    qlinks = await sess.exec(
+                        select(ItemLink.src_id, ItemLink.tgt_id)
+                        .where(ItemLink.src_type == 'list')
+                        .where(ItemLink.tgt_type == 'todo')
+                        .where(ItemLink.src_id.in_(collation_ids))
+                        .where(ItemLink.owner_id == owner_id)
+                    )
+                    link_rows = qlinks.all()
+                    coll_link_map: dict[int, list[int]] = {}
+                    linked_todo_ids: list[int] = []
+                    for src_id, tgt_id in link_rows:
+                        try:
+                            sid = int(src_id); tid = int(tgt_id)
+                        except Exception:
+                            continue
+                        coll_link_map.setdefault(sid, []).append(tid)
+                        linked_todo_ids.append(tid)
+                    if linked_todo_ids:
+                        # Fetch priorities for linked todos
+                        qtp = await sess.exec(select(Todo.id, Todo.priority).where(Todo.id.in_(linked_todo_ids)).where(Todo.priority != None))
+                        pri_map: dict[int, int] = {}
+                        for tid, pri in qtp.all():
+                            try:
+                                if pri is None:
+                                    continue
+                                pri_map[int(tid)] = int(pri)
+                            except Exception:
+                                continue
+                        # Determine completed set for linked todos as well
+                        try:
+                            qlcomp = await sess.exec(select(TodoCompletion.todo_id).join(CompletionType, CompletionType.id == TodoCompletion.completion_type_id).where(TodoCompletion.todo_id.in_(linked_todo_ids)).where(CompletionType.name == 'default').where(TodoCompletion.done == True))
+                            linked_completed = set(r[0] if isinstance(r, tuple) else r for r in qlcomp.all())
+                        except Exception:
+                            linked_completed = set()
+                        # Update override_priority for collation lists considering linked todos
+                        for row in list_rows:
+                            lid = row.get('id')
+                            if lid not in coll_link_map:
+                                continue
+                            max_p = row.get('override_priority')
+                            try:
+                                max_p = int(max_p) if max_p is not None else None
+                            except Exception:
+                                max_p = None
+                            for tid in coll_link_map.get(lid, []):
+                                if tid in linked_completed:
+                                    continue
+                                pv = pri_map.get(tid)
+                                if pv is None:
+                                    continue
+                                if max_p is None or pv > max_p:
+                                    max_p = pv
+                            if max_p is not None:
+                                row['override_priority'] = max_p
+            except Exception:
+                # Non-fatal; if any error occurs, skip collation-aware boost
+                pass
         except Exception:
             # failure computing overrides should not break index rendering
             pass
@@ -6715,7 +6783,7 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
 
         # (reuse existing logic: compute override_priority and uncompleted counts)
         try:
-            todo_q = await sess.scalars(select(Todo.id, Todo.list_id, Todo.priority).where(Todo.list_id.in_(list_ids)).where(Todo.priority != None))
+            todo_q = await sess.exec(select(Todo.id, Todo.list_id, Todo.priority).where(Todo.list_id.in_(list_ids)).where(Todo.priority != None))
             todo_rows = todo_q.all()
             todo_map: dict[int, list[tuple[int,int]]] = {}
             todo_ids = []
@@ -6747,6 +6815,67 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
                         max_p = pv
                 if max_p is not None:
                     row['override_priority'] = max_p
+
+            # Collation-aware: include highest uncompleted priority among
+            # todos linked into user collation lists on this page.
+            try:
+                quc = await sess.exec(select(UserCollation.list_id).where(UserCollation.user_id == owner_id))
+                uc_ids_all = [r[0] if isinstance(r, (list, tuple)) else int(getattr(r, 'list_id', r)) for r in quc.all()]
+                collation_ids = [lid for lid in uc_ids_all if lid in list_ids]
+                if collation_ids:
+                    qlinks = await sess.exec(
+                        select(ItemLink.src_id, ItemLink.tgt_id)
+                        .where(ItemLink.src_type == 'list')
+                        .where(ItemLink.tgt_type == 'todo')
+                        .where(ItemLink.src_id.in_(collation_ids))
+                        .where(ItemLink.owner_id == owner_id)
+                    )
+                    link_rows = qlinks.all()
+                    coll_link_map: dict[int, list[int]] = {}
+                    linked_todo_ids: list[int] = []
+                    for src_id, tgt_id in link_rows:
+                        try:
+                            sid = int(src_id); tid = int(tgt_id)
+                        except Exception:
+                            continue
+                        coll_link_map.setdefault(sid, []).append(tid)
+                        linked_todo_ids.append(tid)
+                    if linked_todo_ids:
+                        qtp = await sess.exec(select(Todo.id, Todo.priority).where(Todo.id.in_(linked_todo_ids)).where(Todo.priority != None))
+                        pri_map: dict[int, int] = {}
+                        for tid, pri in qtp.all():
+                            try:
+                                if pri is None:
+                                    continue
+                                pri_map[int(tid)] = int(pri)
+                            except Exception:
+                                continue
+                        try:
+                            qlcomp = await sess.exec(select(TodoCompletion.todo_id).join(CompletionType, CompletionType.id == TodoCompletion.completion_type_id).where(TodoCompletion.todo_id.in_(linked_todo_ids)).where(CompletionType.name == 'default').where(TodoCompletion.done == True))
+                            linked_completed = set(r[0] if isinstance(r, tuple) else r for r in qlcomp.all())
+                        except Exception:
+                            linked_completed = set()
+                        for row in list_rows:
+                            lid = row.get('id')
+                            if lid not in coll_link_map:
+                                continue
+                            max_p = row.get('override_priority')
+                            try:
+                                max_p = int(max_p) if max_p is not None else None
+                            except Exception:
+                                max_p = None
+                            for tid in coll_link_map.get(lid, []):
+                                if tid in linked_completed:
+                                    continue
+                                pv = pri_map.get(tid)
+                                if pv is None:
+                                    continue
+                                if max_p is None or pv > max_p:
+                                    max_p = pv
+                            if max_p is not None:
+                                row['override_priority'] = max_p
+            except Exception:
+                pass
         except Exception:
             pass
         except Exception:
