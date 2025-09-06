@@ -213,6 +213,14 @@
         <option value="">(Select a recently marked item)</option>
       </select>
       <button type="button" id="note-insert-link-{{ todo.id }}">Insert Link</button>
+      <form id="todo-sort-links-form-{{ todo.id }}" method="post" action="/html_no_js/todos/{{ todo.id }}/sort_links" style="display:inline; margin-left:0.5rem;">
+        {{ csrf_field() }}
+        <label style="display:inline-flex; align-items:center; gap:0.4rem;">
+          <input type="checkbox" id="note-sort-links-{{ todo.id }}" name="sort_links_cb" {% if todo.sort_links %}checked{% endif %} onchange="document.getElementById('note-sort-links-hidden-{{ todo.id }}').value = this.checked ? 'true' : 'false'; this.form.submit();">
+          <span>Sort Links</span>
+        </label>
+        <input type="hidden" name="sort_links" id="note-sort-links-hidden-{{ todo.id }}" value="{{ 'true' if todo.sort_links else 'false' }}">
+      </form>
     </div>
     <textarea id="note-textarea" class="full-bleed" name="note" rows="9">{{ todo.note or '' }}</textarea>
   </label><br>
@@ -222,7 +230,7 @@
       var KEY='ft_marks_v1'; var TTL=5*60*1000;
       function load(){ try { return JSON.parse(localStorage.getItem(KEY)||'{}')||{}; } catch(_){ return {}; } }
       function prune(o){ var t=Date.now(); var out={todos:{},lists:{}}; if(o.todos) for(var k in o.todos){ if((t-(o.todos[k]||0))<TTL) out.todos[k]=o.todos[k]; } if(o.lists) for(var k2 in o.lists){ if((t-(o.lists[k2]||0))<TTL) out.lists[k2]=o.lists[k2]; } return out; }
-      var sel=document.getElementById('note-link-target-{{ todo.id }}'); if(!sel) return;
+  var sel=document.getElementById('note-link-target-{{ todo.id }}'); if(!sel) return;
       var marks=prune(load());
       function addOpt(v,t,parent){ var o=document.createElement('option'); o.value=v; o.textContent=t; (parent||sel).appendChild(o); }
       var todoIds = marks.todos ? Object.keys(marks.todos).sort(function(a,b){return (+a)-(+b);}) : [];
@@ -286,8 +294,8 @@
   var markup = '{' + '{' + 'fn:link target=' + t + ':' + id + commentArg + '}' + '}';
         insertAtCursor(ta, (ta.value && ta.value.length ? '\n' : '') + markup + '\n');
         try { var evt = new Event('input', { bubbles: true }); ta.dispatchEvent(evt); } catch(_){}
-      }); }
-    }catch(e){ /* silent */ }
+      ); }
+    
   })();
   </script>
   {# Save button moved to page toolbar above; keep a hidden submit for progressive enhancement if needed #}
@@ -607,7 +615,36 @@
   if (hiddenCsrf && hiddenCsrf.value) csrf = hiddenCsrf.value;
   if (!csrf) csrf = getCookie('csrf_token');
   if (csrf) fd.append('_csrf', csrf);
+      // include Sort Links: prefer the visible checkbox state when available,
+      // but always synchronize the hidden input immediately before sending so
+      // the posted payload is consistent even if event handlers did not fire.
+      try{
+        var sortCb = form.querySelector('input[type="checkbox"][id^="note-sort-links-"]');
+        var sortHiddenField = form.querySelector('input[name="sort_links"]');
+        // Ensure a hidden field exists to carry the value
+        if (!sortHiddenField) {
+          try {
+            sortHiddenField = document.createElement('input');
+            sortHiddenField.type = 'hidden';
+            sortHiddenField.name = 'sort_links';
+            form.appendChild(sortHiddenField);
+          } catch(e) { sortHiddenField = null; }
+        }
+        var valueToSend = null;
+        if (sortCb) {
+          valueToSend = sortCb.checked ? 'true' : 'false';
+          if (sortHiddenField) sortHiddenField.value = valueToSend;
+        } else if (sortHiddenField) {
+          valueToSend = sortHiddenField.value;
+        }
+        if (valueToSend !== null) {
+          try { console && console.log && console.log('autosave: appending sort_links=', valueToSend); } catch(e) {}
+          fd.append('sort_links', valueToSend);
+        }
+      }catch(e){}
+      try { console && console.log && console.log('autosave: about to fetch', url); } catch(e) {}
       const res = await fetch(url, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
+      try { console && console.log && console.log('autosave: fetch completed, ok=', res && res.ok); } catch(e) {}
       if (!res.ok) throw new Error('save failed');
       setStatus('Saved');
       // Also update the toolbar save button to show saved status briefly

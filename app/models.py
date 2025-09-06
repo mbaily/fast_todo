@@ -124,6 +124,8 @@ class Todo(SQLModel, table=True):
     priority: Optional[int] = Field(default=None, index=True)
     # When true, render this todo's child sublists above tags/other metadata
     lists_up_top: bool = Field(default=False)
+    # When true, sort inline fn:link occurrences by priority when rendering the note
+    sort_links: bool = Field(default=False)
 
     # Relationship should reflect that a todo always has a parent list.
     list: ListState = Relationship(

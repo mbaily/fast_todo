@@ -35,6 +35,23 @@
   
  
 
+    {% if high_priority_todos and high_priority_todos|length > 0 or high_priority_lists and high_priority_lists|length > 0 %}
+      <h3 style="margin-top:0">High priority</h3>
+      <ul style="padding-left: 0; list-style: none; margin: 0 0 0.5rem 0;">
+        {% for t in (high_priority_todos | sort(attribute='modified_at') | reverse) %}
+          <li>
+            <a class="wrap-text{% if t.completed %} done{% endif %}" href="/html_no_js/todos/{{ t.id }}">{{ t.text }}</a>
+            <span> in <a href="/html_no_js/lists/{{ t.list_id }}">{{ t.list_name or t.list_id }}</a></span>
+          </li>
+        {% endfor %}
+        {% for lst in high_priority_lists %}
+          <li>
+            <a href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
     {% if pinned_todos and pinned_todos|length > 0 %}
   <!-- <h3 style="margin-top:0">Pinned</h3> -->
   <ul style="padding-left: 0; list-style: none; margin: 0;">

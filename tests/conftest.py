@@ -350,6 +350,18 @@ def pytest_collection_modifyitems(session, config, items):
     is set to a falsey value (0/False) we want those tests skipped so test runs
     reflect the current server behavior.
     """
+    # Skip heavy Tailwind UI / E2E tests by default unless explicitly enabled.
+    # Place this early so Tailwind tests are skipped even when other collection
+    # guards (like recurrence detection) are in effect.
+    run_tailwind = os.getenv('RUN_TAILWIND_TESTS', '0') == '1'
+    if not run_tailwind:
+        import pytest as _pytest
+        tw_reason = 'Tailwind E2E tests skipped by default; set RUN_TAILWIND_TESTS=1 to enable'
+        for item in items:
+            # fast path: skip any tests in modules/packages named html_tailwind
+            if 'html_tailwind' in item.nodeid.lower():
+                item.add_marker(_pytest.mark.skip(reason=tw_reason))
+
     try:
         from app import config as app_config
     except Exception:

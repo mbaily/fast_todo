@@ -4787,6 +4787,18 @@ async def _update_todo_internal(todo_id: int, payload: dict, current_user: User)
                 except Exception:
                     raise HTTPException(status_code=400, detail="priority must be an integer")
 
+        if 'sort_links' in payload:
+            try:
+                v = payload['sort_links']
+                if isinstance(v, str):
+                    vv = v.strip().lower()
+                    todo.sort_links = vv in ('1', 'true', 'yes', 'on')
+                else:
+                    todo.sort_links = bool(v)
+            except Exception:
+                # ignore invalid value
+                pass
+
         if 'completed' in payload:
             completed = payload['completed']
             if completed is not None:
@@ -6006,6 +6018,33 @@ async def html_index(request: Request):
         except Exception:
             # if DB lacks the pinned column or some error occurs, show no pinned todos
             pinned_todos = []
+        # Compute high-priority items (priority >= 7) from visible lists
+        high_priority_todos = []
+        high_priority_lists = []
+        try:
+            if vis_ids:
+                # Todos with priority >=7 in visible lists, newest modified first
+                qhp = select(Todo).where(Todo.list_id.in_(vis_ids)).where(Todo.priority >= 7).order_by(Todo.modified_at.desc())
+                hpres = await sess.exec(qhp)
+                hp_rows = hpres.all()
+                lm = {l.id: l.name for l in vis_lists}
+                high_priority_todos = [
+                    {
+                        'id': t.id,
+                        'text': t.text,
+                        'list_id': t.list_id,
+                        'list_name': lm.get(t.list_id),
+                        'modified_at': (t.modified_at.isoformat() if getattr(t, 'modified_at', None) else None),
+                        'priority': getattr(t, 'priority', None),
+                    }
+                    for t in hp_rows
+                ]
+                # Lists whose priority or override_priority is >=7
+                hpl = [r for r in list_rows if ((r.get('override_priority') is not None and r.get('override_priority') >= 7) or (r.get('priority') is not None and r.get('priority') >= 7))]
+                high_priority_lists = hpl
+        except Exception:
+            high_priority_todos = []
+            high_priority_lists = []
         # compute a small, near-term calendar summary for the index page
         calendar_occurrences = []
         try:
@@ -6245,15 +6284,15 @@ async def html_index(request: Request):
         user_default_cat = getattr(current_user, 'default_category_id', None)
         if force_ios:
             logger.info('html_index: rendering index_ios_safari (forced) ua=%s', ua[:200])
-            return TEMPLATES.TemplateResponse(request, "index_ios_safari.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat})
+            return TEMPLATES.TemplateResponse(request, "index_ios_safari.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat})
         if is_ios_safari(request):
             logger.info('html_index: rendering index_ios_safari (ua-detected) ua=%s', ua[:200])
-            return TEMPLATES.TemplateResponse(request, "index_ios_safari.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat})
+            return TEMPLATES.TemplateResponse(request, "index_ios_safari.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat})
         logger.info('html_index: rendering index.html (default) ua=%s', ua[:200])
-        return TEMPLATES.TemplateResponse(request, "index.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat})
+        return TEMPLATES.TemplateResponse(request, "index.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat})
     except Exception:
         # Ensure we always return something even if logging fails
-        return TEMPLATES.TemplateResponse(request, "index.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences})
+        return TEMPLATES.TemplateResponse(request, "index.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "high_priority_todos": high_priority_todos if 'high_priority_todos' in locals() else [], "high_priority_lists": high_priority_lists if 'high_priority_lists' in locals() else [], "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences})
 
 
 async def _prepare_index_context(request: Request, current_user: User | None) -> dict:
@@ -6267,7 +6306,7 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
             client_tz = await get_session_timezone(request)
         except Exception:
             client_tz = None
-        return {"request": request, "lists": [], "lists_by_category": {}, "csrf_token": None, "client_tz": client_tz, "pinned_todos": [], "cursors": None, "categories": [], "calendar_occurrences": [], "user_default_category_id": None, "current_user": None}
+        return {"request": request, "lists": [], "lists_by_category": {}, "csrf_token": None, "client_tz": client_tz, "pinned_todos": [], "high_priority_todos": [], "high_priority_lists": [], "cursors": None, "categories": [], "calendar_occurrences": [], "user_default_category_id": None, "current_user": None}
 
     # Reuse the same per-page/cursor logic as html_index (simplified: one page)
     per_page = 50
@@ -9350,6 +9389,8 @@ async def html_view_todo(request: Request, todo_id: int, current_user: User = De
             "priority": getattr(todo, 'priority', None),
             # persist UI preference so template can render checkbox state
             "lists_up_top": getattr(todo, 'lists_up_top', False),
+            # persist Sort Links preference so template can render checkbox state
+            "sort_links": getattr(todo, 'sort_links', False),
         }
         list_row = None
         if lst:
@@ -9541,6 +9582,80 @@ async def html_view_todo(request: Request, todo_id: int, current_user: User = De
             cache[f"list:{int(list_row.id)}"] = list_row.name
         _fn_link_label_cache.set(cache)
     except Exception:
+        pass
+    # If this todo requests sorting of inline fn:link tokens, pre-process the note
+    try:
+        if todo_row.get('sort_links') and todo_row.get('note'):
+            raw_note = str(todo_row.get('note') or '')
+            # find all fn:link tags and their spans
+            link_tag_re = re.compile(r"(\{\{\s*fn:link[^{\}]*\}\})")
+            parts = link_tag_re.split(raw_note)
+            # Collect link tokens with their original index in parts
+            link_indices = []
+            for idx, part in enumerate(parts):
+                if link_tag_re.fullmatch(part):
+                    link_indices.append((idx, part))
+            if len(link_indices) > 1:
+                # Resolve all targets and priorities in batch: parse each token to extract target=todo:ID or todo=ID
+                targets = []  # tuples (idx, kind, id, original_token)
+                for idx, token in link_indices:
+                    # crude parse to extract target id
+                    m = re.search(r"target\s*=\s*['\"]?(todo|list)[:]?([0-9]+)['\"]?", token)
+                    if not m:
+                        m = re.search(r"todo\s*=\s*['\"]?([0-9]+)['\"]?", token)
+                        if m:
+                            kind = 'todo'
+                            tid = int(m.group(1))
+                        else:
+                            kind = None
+                            tid = None
+                    else:
+                        kind = m.group(1)
+                        tid = int(m.group(2))
+                    if kind and tid:
+                        targets.append((idx, kind, int(tid), token))
+                # Batch fetch priorities for todos/lists
+                todo_ids = [t[2] for t in targets if t[1] == 'todo']
+                list_ids = [t[2] for t in targets if t[1] == 'list']
+                pr_map = {}
+                if todo_ids:
+                    try:
+                        q = await sess.exec(select(Todo.id, Todo.priority).where(Todo.id.in_(todo_ids)))
+                        for tid, pr in q.all():
+                            try:
+                                pr_map[f"todo:{int(tid)}"] = int(pr) if pr is not None else None
+                            except Exception:
+                                pr_map[f"todo:{int(tid)}"] = None
+                    except Exception:
+                        pass
+                if list_ids:
+                    try:
+                        q = await sess.exec(select(ListState.id, ListState.priority).where(ListState.id.in_(list_ids)))
+                        for lid, pr in q.all():
+                            try:
+                                pr_map[f"list:{int(lid)}"] = int(pr) if pr is not None else None
+                            except Exception:
+                                pr_map[f"list:{int(lid)}"] = None
+                    except Exception:
+                        pass
+                # Build a list of (priority, original_order, idx, token)
+                enriched = []
+                for order, (idx, kind, tid, token) in enumerate(targets):
+                    key = f"{kind}:{tid}"
+                    pr = pr_map.get(key)
+                    # Use -inf for None so they sort last
+                    sort_pr = pr if pr is not None else -9999
+                    enriched.append((sort_pr, order, idx, token))
+                # Sort by priority desc, then original order asc
+                enriched.sort(key=lambda x: (-x[0], x[1]))
+                # Replace the parts at the token indices in original order of indices with the sorted tokens
+                sorted_tokens = [e[3] for e in enriched]
+                for i, (orig_idx, _) in enumerate(link_indices):
+                    parts[orig_idx] = sorted_tokens[i]
+                # Reconstruct note
+                todo_row['note'] = ''.join(parts)
+    except Exception:
+        # On any failure, leave note unchanged
         pass
     # debug: log outgoing links structure for this todo (temporary)
     try:
@@ -10021,11 +10136,40 @@ async def html_edit_todo(request: Request, todo_id: int, text: str = Form(...), 
     payload = { 'text': text }
     if 'note' in form:
         payload['note'] = note
+    # Persist Sort Links preference when provided by the form (hidden input set by client-side JS)
+    if 'sort_links' in form:
+        payload['sort_links'] = form.get('sort_links')
     result = await _update_todo_internal(todo_id, payload, current_user)
     accept = request.headers.get('accept', '')
     if 'application/json' in accept.lower():
         # return JSON result for AJAX autosave clients
         return result
+    return RedirectResponse(url=f"/html_no_js/todos/{todo_id}", status_code=303)
+
+
+@app.post('/html_no_js/todos/{todo_id}/sort_links')
+async def html_set_sort_links(request: Request, todo_id: int, current_user: User = Depends(require_login)):
+    """Minimal endpoint to persist the sort_links preference from a checkbox toggle.
+
+    Accepts form POSTs with '_csrf' and 'sort_links' and forwards to the internal updater.
+    Returns JSON when client requests application/json.
+    """
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    payload = {}
+    if 'sort_links' in form:
+        payload['sort_links'] = form.get('sort_links')
+    # If no sort_links provided, treat as no-op
+    if payload:
+        result = await _update_todo_internal(todo_id, payload, current_user)
+    else:
+        result = {'ok': True}
+    accept = request.headers.get('accept', '')
+    if 'application/json' in accept.lower():
+        return JSONResponse(result)
     return RedirectResponse(url=f"/html_no_js/todos/{todo_id}", status_code=303)
 
 
