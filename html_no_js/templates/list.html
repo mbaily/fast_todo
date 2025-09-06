@@ -83,6 +83,12 @@
       .lists-list .list-item > .list-action-left { width: 6.5rem; flex-basis: 6.5rem; }
     }
   /* custom pseudo-element tooltip removed in favor of native title attribute */
+  /* Collation dots: colored circles indicating inclusion (filled) or exclusion (outline) */
+  .collation-dots { display:inline-flex; gap:0.35rem; align-items:center; vertical-align:middle; }
+  .collation-dot { width: 12px; height: 12px; border-radius: 50%; padding: 0; border: 2px solid hsl(var(--dot-hue, 210), 75%, 45%); background: transparent; cursor: pointer; display:inline-block; line-height:0; }
+  .collation-dot[aria-pressed="true"] { background: hsl(var(--dot-hue, 210), 75%, 50%); border-color: hsl(var(--dot-hue, 210), 75%, 35%); }
+  .collation-dot:focus { outline: 2px solid hsl(var(--dot-hue, 210), 85%, 35%); outline-offset: 1px; }
+  .collation-dot .sr-only { position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden; }
 
   /* Create-todo form: make the input expand to fill the row and keep the Add button to the right.
      On very small screens the controls stack vertically. */
@@ -238,6 +244,36 @@
     }catch(e){ /* ignore for no-js fallback */ }
   })();
   </script>
+  {% if active_collations is defined and active_collations|length > 0 %}
+  <script>
+    // Per-todo collation toggles on list page
+    (function(){
+      try{
+        function postJSON(url, data){
+          return fetch(url, { method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'}, credentials:'same-origin', body: JSON.stringify(data||{}) }).then(function(r){ return r.json(); });
+        }
+        // Event delegation so it works regardless of script position
+        document.addEventListener('click', function(ev){
+          var btn = ev.target && (ev.target.closest ? ev.target.closest('button.collation-dot') : null);
+          if (!btn) return;
+          ev.preventDefault();
+          var lid = parseInt(btn.getAttribute('data-list-id'),10);
+          var tid = parseInt(btn.getAttribute('data-todo-id'),10);
+          if (!lid || !tid) return;
+          var pressed = String(btn.getAttribute('aria-pressed')) === 'true';
+          var want = !pressed;
+          postJSON('/client/json/collations/'+lid+'/toggle', { todo_id: tid, link: want }).then(function(j){
+            if (!j || !j.ok) return;
+            var linked = !!j.linked;
+            btn.setAttribute('aria-pressed', linked ? 'true' : 'false');
+            var nm = btn.getAttribute('data-name') || '';
+            btn.title = (linked ? 'Remove from ' : 'Add to ') + nm;
+          }).catch(function(){});
+        }, false);
+      }catch(e){ /* no-js safe */ }
+    })();
+  </script>
+  {% endif %}
 
   {# Sublist toolbar: show if this list is owned by a todo and/or another list #}
   {% if list.parent_todo_id or list.parent_list_id %}
@@ -955,8 +991,10 @@
     {% if not list.hide_icons %}
       <div>
         <style>
-          /* Remove rounded boxes and default borders for icon buttons inside the table */
-          table td button, table td form button {
+          /* Remove rounded boxes and default borders for icon buttons inside the table
+             EXCEPT collation dots, which rely on border/background for visibility. */
+          table td button:not(.collation-dot),
+          table td form button:not(.collation-dot) {
             background: transparent !important;
             border: none !important;
             padding: 0 !important;
@@ -1054,6 +1092,17 @@
                 {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
                 <div class="todo-title-inline {% if t.completed %}done{% endif %}">
                   <a class="wrap-text{% if t.completed %} done{% endif %}" href="/html_no_js/todos/{{ t.id }}"{% if dt_iso %} data-created-at="{{ dt_iso }}"{% endif %}{% if dt_fmt %} data-date="{{ dt_fmt }}" title="{{ dt_fmt }}"{% endif %}>{{ t.text }}</a>{% if t.priority %} <span class="meta priority-inline"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>{% endif %}
+                  {% if active_collations is defined and active_collations|length > 0 %}
+                    {% set linked_ids = todo_collation_linked.get(t.id, []) %}
+                    <span class="collation-dots" style="margin-left:0.35rem;">
+                      {% for c in active_collations %}
+                        {% set hue = (c.list_id * 47) % 360 %}
+                        <button type="button" class="collation-dot" data-list-id="{{ c.list_id }}" data-todo-id="{{ t.id }}" data-name="{{ c.name or ('List #' ~ c.list_id) }}" aria-pressed="{{ 'true' if c.list_id in linked_ids else 'false' }}" title="{{ ((c.list_id in linked_ids) and 'Remove from ' or 'Add to ') ~ (c.name or ('List #' ~ c.list_id)) }}" style="--dot-hue: {{ hue }};">
+                          <span class="sr-only">{{ c.name or ('List #' ~ c.list_id) }} {{ 'included' if (c.list_id in linked_ids) else 'not included' }}</span>
+                        </button>
+                      {% endfor %}
+                    </span>
+                  {% endif %}
                 </div>
                 {% if t.note %}
                   <div class="meta line-clamp-1 wrap-text">{{ t.note }}</div>
@@ -1090,6 +1139,17 @@
                     <a class="wrap-text{% if t.completed %} done{% endif %}" href="/html_no_js/todos/{{ t.id }}"{% if dt_iso %} data-created-at="{{ dt_iso }}"{% endif %}{% if dt_fmt %} data-date="{{ dt_fmt }}" title="{{ dt_fmt }}"{% endif %}>{{ t.text }}</a>{% if t.priority %} <span class="meta priority-inline"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>{% endif %}
                     <a href="/html_no_js/todos/{{ t.id }}" class="todo-open-link" aria-label="View todo {{ t.id }}" style="margin-left:0.25rem; text-decoration:none;">🔎</a>
                   </span>
+                  {% if active_collations is defined and active_collations|length > 0 %}
+                    {% set linked_ul = todo_collation_linked.get(t.id, []) %}
+                    <span class="collation-dots" style="margin-left:0.35rem;">
+                      {% for c in active_collations %}
+                        {% set hue = (c.list_id * 47) % 360 %}
+                        <button type="button" class="collation-dot" data-list-id="{{ c.list_id }}" data-todo-id="{{ t.id }}" data-name="{{ c.name or ('List #' ~ c.list_id) }}" aria-pressed="{{ 'true' if c.list_id in linked_ul else 'false' }}" title="{{ ((c.list_id in linked_ul) and 'Remove from ' or 'Add to ') ~ (c.name or ('List #' ~ c.list_id)) }}" style="--dot-hue: {{ hue }};">
+                          <span class="sr-only">{{ c.name or ('List #' ~ c.list_id) }} {{ 'included' if (c.list_id in linked_ul) else 'not included' }}</span>
+                        </button>
+                      {% endfor %}
+                    </span>
+                  {% endif %}
                 </div>
                 {% if t.note %}
                   <p class="note-text"><span class="note-body">{{ t.note | linkify }}</span></p>

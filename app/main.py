@@ -8631,7 +8631,7 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
         # sort with reverse to get priority high-to-low and newest first for ties
         todo_rows.sort(key=_todo_display_sort_key, reverse=True)
 
-        # fetch hashtags for all todos in this list
+    # fetch hashtags for all todos in this list
         todo_ids = [r['id'] for r in todo_rows]
 
         
@@ -8821,7 +8821,7 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
                 pass
         except Exception:
             sublists = []
-        # Fetch outgoing links from this list (to todos or lists), order by position then created_at
+    # Fetch outgoing links from this list (to todos or lists), order by position then created_at
         links: list[dict] = []
         try:
             qlnk = select(ItemLink).where(ItemLink.src_type == 'list').where(ItemLink.src_id == list_id).order_by(ItemLink.position.asc().nullslast(), ItemLink.created_at.asc())
@@ -8879,6 +8879,97 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
                 links.append(d)
         except Exception:
             links = []
+        # Active collations for this user and per-todo linkage map
+        active_collations: list[dict] = []
+        todo_collation_linked: dict[int, set[int]] = {}
+        try:
+            # gather this user's active collations
+            q_uc = await sess.exec(select(UserCollation).where(UserCollation.user_id == current_user.id).where(UserCollation.active == True))
+            uc_rows = q_uc.all()
+            if ENABLE_VERBOSE_DEBUG:
+                try:
+                    logger.info('collation-debug(list:%s,user:%s): uc_rows=%s', list_id, getattr(current_user, 'id', None), [int(getattr(r, 'list_id', 0) or 0) for r in uc_rows])
+                except Exception:
+                    pass
+            col_ids = [int(r.list_id) for r in uc_rows]
+            names: dict[int, str] = {}
+            if col_ids:
+                q_names = await sess.exec(
+                    select(ListState.id, ListState.name)
+                    .where(ListState.id.in_(col_ids))
+                    .where(ListState.owner_id == current_user.id)
+                )
+                for lid, name in q_names.all():
+                    try:
+                        names[int(lid)] = name
+                    except Exception:
+                        continue
+            if ENABLE_VERBOSE_DEBUG:
+                try:
+                    logger.info('collation-debug(list:%s,user:%s): names.keys=%s', list_id, getattr(current_user, 'id', None), sorted(list(names.keys())))
+                except Exception:
+                    pass
+            # Exclude collations that are currently in the user's Trash
+            trashed: set[int] = set()
+            if col_ids:
+                trash_id = None
+                try:
+                    q_trash = await sess.scalars(select(ListState.id).where(ListState.owner_id == current_user.id).where(ListState.name == 'Trash'))
+                    trash_id = q_trash.first()
+                except Exception:
+                    trash_id = None
+                if trash_id is not None:
+                    q_tr = await sess.scalars(
+                        select(ListState.id)
+                        .where(ListState.id.in_(col_ids))
+                        .where(ListState.parent_list_id == trash_id)
+                    )
+                    trashed = set(int(v) for v in q_tr.all())
+            if ENABLE_VERBOSE_DEBUG:
+                try:
+                    logger.info('collation-debug(list:%s,user:%s): trashed_ids=%s', list_id, getattr(current_user, 'id', None), sorted(list(trashed)))
+                except Exception:
+                    pass
+            # Build final active collations list (only existing, owned, and not trashed)
+            active_collations = [
+                { 'list_id': int(r.list_id), 'name': names.get(int(r.list_id)) }
+                for r in uc_rows
+                if (int(r.list_id) in names and int(r.list_id) not in trashed)
+            ]
+            if ENABLE_VERBOSE_DEBUG:
+                try:
+                    logger.info('collation-debug(list:%s,user:%s): active_collations=%s', list_id, getattr(current_user, 'id', None), [int(c.get('list_id')) for c in active_collations])
+                except Exception:
+                    pass
+            # Per-todo linked map: which todos include each active collation
+            if todo_ids and active_collations:
+                ac_ids = [int(c['list_id']) for c in active_collations]
+                q_links = await sess.exec(
+                    select(ItemLink.src_id, ItemLink.tgt_id)
+                    .where(ItemLink.src_type == 'list')
+                    .where(ItemLink.tgt_type == 'todo')
+                    .where(ItemLink.tgt_id.in_(todo_ids))
+                    .where(ItemLink.src_id.in_(ac_ids))
+                )
+                for src_id, tgt_id in q_links.all():
+                    try:
+                        tid = int(tgt_id); lid = int(src_id)
+                    except Exception:
+                        continue
+                    s = todo_collation_linked.get(tid)
+                    if s is None:
+                        s = set()
+                        todo_collation_linked[tid] = s
+                    s.add(lid)
+            if ENABLE_VERBOSE_DEBUG:
+                try:
+                    logger.info('collation-debug(list:%s,user:%s): todo_ids=%s linked_counts=%s', list_id, getattr(current_user, 'id', None), todo_ids, {int(k): len(v) for k, v in todo_collation_linked.items()})
+                except Exception:
+                    pass
+        except Exception:
+            # fall back silently if collation computation fails
+            active_collations = []
+            todo_collation_linked = {}
     from .auth import create_csrf_token
     csrf_token = create_csrf_token(current_user.username)
     # Best-effort: record that the current user visited this list so the
@@ -8907,7 +8998,24 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
         _fn_link_label_cache.set(cache)
     except Exception:
         pass
-    return TEMPLATES.TemplateResponse(request, "list.html", {"request": request, "list": list_row, "todos": todo_rows, "csrf_token": csrf_token, "client_tz": client_tz, "completion_types": completion_types, "all_hashtags": all_hashtags, "categories": categories, "sublists": sublists, "links": links})
+    return TEMPLATES.TemplateResponse(
+        request,
+        "list.html",
+        {
+            "request": request,
+            "list": list_row,
+            "todos": todo_rows,
+            "csrf_token": csrf_token,
+            "client_tz": client_tz,
+            "completion_types": completion_types,
+            "all_hashtags": all_hashtags,
+            "categories": categories,
+            "sublists": sublists,
+            "links": links,
+            "active_collations": active_collations,
+            "todo_collation_linked": {int(k): list(v) for k, v in todo_collation_linked.items()},
+        },
+    )
 
 
 # ===== Tiny lookup endpoint for names/titles (used by Note combobox) =====

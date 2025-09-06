@@ -146,8 +146,8 @@ async def list_user_collations(request: Request):
     except HTTPException:
         raise HTTPException(status_code=401, detail='authentication required')
     async with async_session() as sess:
-        q = await sess.exec(select(UserCollation).where(UserCollation.user_id == current_user.id))
-        rows = q.all()
+        # Use scalars() to retrieve ORM instances rather than Row objects
+        rows = (await sess.scalars(select(UserCollation).where(UserCollation.user_id == current_user.id))).all()
         # load list names
         list_ids = [r.list_id for r in rows]
         names = {}
@@ -242,8 +242,7 @@ async def get_collation_status(request: Request, todo_id: int):
         raise HTTPException(status_code=401, detail='authentication required')
     async with async_session() as sess:
         # collations
-        q = await sess.exec(select(UserCollation).where(UserCollation.user_id == current_user.id).where(UserCollation.active == True))
-        rows = q.all()
+        rows = (await sess.scalars(select(UserCollation).where(UserCollation.user_id == current_user.id).where(UserCollation.active == True))).all()
         ids = [r.list_id for r in rows]
         names = {}
         if ids:
