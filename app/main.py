@@ -1973,8 +1973,39 @@ async def html_tailwind_search(request: Request):
                 rlh = await sess.exec(qlh)
                 for l in rlh.all():
                     lists_by_id.setdefault(l.id, l)
+            # Build list results including priority and hashtags
+            list_ids = [l.id for l in lists_by_id.values()]
+            list_tags_map: dict[int, list[str]] = {}
+            if list_ids:
+                try:
+                    qlt = (
+                        select(ListHashtag.list_id, Hashtag.tag)
+                        .join(Hashtag, Hashtag.id == ListHashtag.hashtag_id)
+                        .where(ListHashtag.list_id.in_(list_ids))
+                    )
+                    for row in (await sess.exec(qlt)).all():
+                        # row may be (list_id, tag) or a single object depending on driver
+                        if isinstance(row, (tuple, list)) and len(row) >= 2:
+                            lid, tag = row[0], row[1]
+                        else:
+                            # fallback: try to attribute access
+                            try:
+                                lid = row.list_id
+                                tag = row.tag
+                            except Exception:
+                                continue
+                        list_tags_map.setdefault(int(lid), []).append(tag)
+                except Exception:
+                    list_tags_map = {}
+
             results['lists'] = [
-                {'id': l.id, 'name': l.name, 'completed': getattr(l, 'completed', False)}
+                {
+                    'id': l.id,
+                    'name': l.name,
+                    'completed': getattr(l, 'completed', False),
+                    'priority': getattr(l, 'priority', None),
+                    'tags': sorted(list_tags_map.get(int(l.id), [])) if list_tags_map else [],
+                }
                 for l in lists_by_id.values()
                 if not (exclude_completed and getattr(l, 'completed', False))
             ]
@@ -7250,10 +7281,64 @@ async def html_search(request: Request):
                     for tid, done_val, ctid in (await sess.exec(qdone)).all():
                         if done_val:
                             completed_ids.add(int(tid))
+                # gather todo hashtags
+                todo_ids = list(todos_acc.keys())
+                todo_tags_map: dict[int, list[str]] = {}
+                if todo_ids:
+                    try:
+                        qth = (
+                            select(TodoHashtag.todo_id, Hashtag.tag)
+                            .join(Hashtag, Hashtag.id == TodoHashtag.hashtag_id)
+                            .where(TodoHashtag.todo_id.in_(todo_ids))
+                        )
+                        for row in (await sess.exec(qth)).all():
+                            if isinstance(row, (tuple, list)) and len(row) >= 2:
+                                tid, tag = row[0], row[1]
+                            else:
+                                try:
+                                    tid = row.todo_id
+                                    tag = row.tag
+                                except Exception:
+                                    continue
+                            todo_tags_map.setdefault(int(tid), []).append(tag)
+                    except Exception:
+                        todo_tags_map = {}
+
                 results['todos'] = [
-                    {'id': t.id, 'text': t.text, 'note': t.note, 'list_id': t.list_id, 'list_name': lm.get(t.list_id), 'completed': (int(t.id) in completed_ids)}
+                    {
+                        'id': t.id,
+                        'text': t.text,
+                        'note': t.note,
+                        'list_id': t.list_id,
+                        'list_name': lm.get(t.list_id),
+                        'completed': (int(t.id) in completed_ids),
+                        'priority': getattr(t, 'priority', None),
+                        'tags': sorted(todo_tags_map.get(int(t.id), [])) if todo_tags_map else [],
+                    }
                     for t in todos_acc.values() if not (exclude_completed and (int(t.id) in completed_ids))
                 ]
+
+                # Build a combined ordered list: lists first (in their current order), then todos
+                combined: list[dict] = []
+                idx = 0
+                for l in results.get('lists', []):
+                    entry = dict(type='list', id=l.get('id'), name=l.get('name'), completed=l.get('completed'), priority=l.get('priority'), tags=l.get('tags', []), orig_index=idx)
+                    combined.append(entry)
+                    idx += 1
+                for t in results.get('todos', []):
+                    entry = dict(type='todo', id=t.get('id'), text=t.get('text'), note=t.get('note'), list_id=t.get('list_id'), list_name=t.get('list_name'), completed=t.get('completed'), priority=t.get('priority'), tags=t.get('tags', []), orig_index=idx)
+                    combined.append(entry)
+                    idx += 1
+
+                # Sort by priority: highest numeric first, lower next, then None last. Preserve original order for equal priorities.
+                def priority_sort_key(item):
+                    p = item.get('priority')
+                    # highest first -> use negative; None -> place after all numbers
+                    primary = (-int(p)) if (p is not None) else float('inf')
+                    return (primary, item.get('orig_index', 0))
+
+                combined.sort(key=priority_sort_key)
+                results['combined'] = combined
     client_tz = await get_session_timezone(request)
     csrf_token = None
     from .auth import create_csrf_token

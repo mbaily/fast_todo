@@ -11,49 +11,51 @@
   </label>
     <button type="submit" style="margin-left:0.5rem">Search</button>
   </form>
-  {% if results.lists and results.lists|length > 0 %}
-    <h3>Matching lists</h3>
-    <ul class="lists-list">
-      {% for l in results.lists %}
-        <li class="list-item">
-          <div class="list-main">
-            <a class="list-title {% if l.completed %}done{% endif %}" href="/html_no_js/lists/{{ l.id }}">{{ l.name }}</a>
-      {% if l.tags and l.tags|length > 0 %}
-              <div class="tags meta">
-        {% for tag in (l.tags | sort) %}
-                  <a class="tag-chip" href="/html_no_js/search?q={{ tag|urlencode }}">{{ tag }}</a>
-                {% endfor %}
-              </div>
-            {% endif %}
-          </div>
-        </li>
-      {% endfor %}
-    </ul>
-  {% endif %}
-
-  {% if results.todos and results.todos|length > 0 %}
-    <h3>Matching todos</h3>
-    <ul class="todos-list">
-      {% for t in results.todos %}
-        <li class="todo">
-          <span class="pin-icon">�</span>
-          <div class="todo-content">
-            <div class="todo-main">
-              <div class="{% if t.completed %}done{% endif %}"><a href="/html_no_js/todos/{{ t.id }}">{{ t.text }}</a></div>
-        {% if t.tags and t.tags|length > 0 %}
-                <div class="tags meta">
-          {% for tag in (t.tags | sort) %}
+  {% if results.combined and results.combined|length > 0 %}
+    <h3>Matching items</h3>
+    <ul class="combined-list">
+      {% for it in results.combined %}
+        {% if it.type == 'list' %}
+          <li class="list-item">
+            <div class="list-main">
+              <span class="list-inline">
+                  <span class="match-icon">📁</span>
+                  <a class="list-title {% if it.completed %}done{% endif %}" href="/html_no_js/lists/{{ it.id }}">{{ it.name }}</a>
+                {% if it.priority %}
+                  <span class="meta priority-inline" title="List priority {{ it.priority }}" style="margin-left:0.5rem;"><span class="priority-circle">{{ circ.get(it.priority, it.priority) }}</span></span>
+                {% endif %}
+                {% if it.tags and it.tags|length > 0 %}
+                  {% for tag in (it.tags | sort) %}
                     <a class="tag-chip" href="/html_no_js/search?q={{ tag|urlencode }}">{{ tag }}</a>
                   {% endfor %}
-                </div>
-              {% endif %}
-              {% if t.note %}
-                <div class="meta note-text">{{ t.note }}</div>
-                <div class="meta">in <a href="/html_no_js/lists/{{ t.list_id }}">{{ t.list_name or t.list_id }}</a></div>
-              {% endif %}
+                {% endif %}
+              </span>
             </div>
-          </div>
-        </li>
+          </li>
+        {% else %}
+          <li class="todo">
+            <span class="match-icon">📝</span>
+            <div class="todo-content">
+              <div class="todo-main">
+                <span class="todo-inline">
+                  <a href="/html_no_js/todos/{{ it.id }}" class="{% if it.completed %}done{% endif %}">{{ it.text }}</a>
+                  {% if it.priority %}
+                    <span class="meta priority-inline" title="Priority {{ it.priority }}" style="margin-left:0.5rem;"><span class="priority-circle">{{ circ.get(it.priority, it.priority) }}</span></span>
+                  {% endif %}
+                  {% if it.tags and it.tags|length > 0 %}
+                    {% for tag in (it.tags | sort) %}
+                      <a class="tag-chip" href="/html_no_js/search?q={{ tag|urlencode }}">{{ tag }}</a>
+                    {% endfor %}
+                  {% endif %}
+                  {% if it.note %}
+                    <span class="meta note-text">{{ it.note }}</span>
+                    <span class="meta">in <a href="/html_no_js/lists/{{ it.list_id }}">{{ it.list_name or it.list_id }}</a></span>
+                  {% endif %}
+                </span>
+              </div>
+            </div>
+          </li>
+        {% endif %}
       {% endfor %}
     </ul>
   {% endif %}
