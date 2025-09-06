@@ -41,12 +41,17 @@
         {% for t in (high_priority_todos | sort(attribute='modified_at') | reverse) %}
           <li>
             <a class="wrap-text{% if t.completed %} done{% endif %}" href="/html_no_js/todos/{{ t.id }}">{{ t.text }}</a>
+            {% if t.priority %} {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}<span class="muted priority-inline"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span>{% if t.override_priority is not none %}<span class="priority-circle priority-override">{{ circ.get(t.override_priority, t.override_priority) }}</span>{% endif %}</span>{% endif %}
             <span> in <a href="/html_no_js/lists/{{ t.list_id }}">{{ t.list_name or t.list_id }}</a></span>
           </li>
         {% endfor %}
         {% for lst in high_priority_lists %}
           <li>
             <a href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>
+            {% if lst.priority %} {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}<span class="muted priority-inline"><span class="priority-circle">{{ circ.get(lst.priority, lst.priority) }}</span></span>{% endif %}
+            {% if lst.override_priority and (lst.priority is none or lst.override_priority > lst.priority) %}
+              <span class="muted priority-inline priority-override" title="Highest uncompleted todo priority"><span class="priority-circle">{{ circ.get(lst.override_priority, lst.override_priority) }}</span></span>
+            {% endif %}
           </li>
         {% endfor %}
       </ul>
