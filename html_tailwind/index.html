@@ -37,6 +37,11 @@
           <input id="tw-newlist-name" type="text" placeholder="New list name" class="px-1 py-1 rounded-md border border-slate-700 bg-slate-800 text-sm text-slate-100" />
           <button id="tw-create-list" class="px-1 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded-md text-sm">Create</button>
         </div>
+        <!-- Quick add todo control for Tailwind index -->
+        <div style="margin-top:0.5rem; display:flex; gap:0.5rem; align-items:center;">
+          <input id="tw-quick-add-text" placeholder="Quick todo" class="px-1 py-1 rounded-md border border-slate-700 bg-slate-800 text-sm text-slate-100" style="flex:1; min-width:0;" />
+          <button id="tw-quick-add-btn" class="px-2 py-1 bg-sky-600 text-white rounded-md text-sm">Add</button>
+        </div>
       <!-- server-rendered content: pinned, calendar, lists grouped by category -->
       <main class="mt-1">
 
@@ -242,6 +247,34 @@
 
     </div>
     <script src="/static/html_tailwind/tailwind_moved_old_script_blocks.js"></script>
+<script>
+// Quick-add handler for tailwind index
+(function(){
+  try{
+    var input = document.getElementById('tw-quick-add-text');
+    var btn = document.getElementById('tw-quick-add-btn');
+    if (!input || !btn) return;
+    async function findQuick(){
+      var anchors = Array.from(document.querySelectorAll('a[href*="/html_no_js/lists/"]'));
+      for (var i=0;i<anchors.length;i++){ if ((anchors[i].textContent||'').trim()==='Quick'){ var m = (anchors[i].href||'').match(/lists\/(\d+)/); if (m) return Number(m[1]); } }
+      return null;
+    }
+    btn.addEventListener('click', async function(){
+      var text = (input.value||'').trim(); if (!text) return;
+      btn.disabled = true;
+      try{
+        var listId = await findQuick();
+        if (!listId){ var r = await fetch('/lists', { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name: 'Quick' }) }); if (!r.ok) throw new Error('create list failed'); var j = await r.json(); listId = j.id; }
+        var t = await fetch('/todos', { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ text: text, list_id: listId, priority: 7 }) });
+        if (!t.ok) throw new Error('create todo failed');
+  input.value='';
+  try { window.location.reload(); } catch(e) { window.location.href = '/html_no_js/'; }
+      }catch(e){ console && console.error && console.error(e); alert('Add failed'); }
+      finally{ btn.disabled = false; }
+    }, false);
+  }catch(e){}
+})();
+</script>
   </body>
 </html>
 

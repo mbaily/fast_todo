@@ -113,6 +113,74 @@
       <button type="submit">Create</button>
     </form>
 
+    <!-- Quick add todo for iOS standalone -->
+    <form id="quick-add-form" autocomplete="off" style="margin:0.6rem 0; display:flex; gap:0.5rem; align-items:center;">
+      {% if csrf_token %}
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+      {% endif %}
+      <input id="quick-add-text" placeholder="Quick todo" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" style="flex:1 1 auto; min-width:0;">
+      <button id="quick-add-btn" type="button">Add</button>
+    </form>
+    <script>
+    (function(){
+      var form = document.getElementById('quick-add-form'); if (!form) return;
+      var input = document.getElementById('quick-add-text'); var btn = document.getElementById('quick-add-btn');
+      try{
+        var pending = sessionStorage.getItem('ft_quick_pending');
+        if (pending){
+          (async function(pt){
+            try{
+              var tryId = await findQuickListId();
+              if (tryId){
+                await fetch('/todos', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify({ text: pt, list_id: tryId, priority: 7 }) });
+              }
+            }catch(e){}
+            try { sessionStorage.removeItem('ft_quick_pending'); } catch(e){}
+          })(pending);
+        }
+      }catch(e){}
+      async function findQuickListId(){
+        try{
+          var anchors = Array.from(document.querySelectorAll('a[href^="/html_no_js/lists/"]'));
+          for (var i=0;i<anchors.length;i++){ var a = anchors[i]; if ((a.textContent||'').trim() === 'Quick'){
+              var m = (a.getAttribute('href')||'').match(/\/(?:html_no_js\/)?lists\/(\d+)/);
+              if (m) return Number(m[1]);
+          }}
+        }catch(e){}
+        return null;
+      }
+      btn.addEventListener('click', async function(){
+        var text = input.value && input.value.trim(); if (!text) return;
+        btn.disabled = true;
+        try{
+          var listId = await findQuickListId();
+          if (!listId){
+            try{
+              var res = await fetch('/lists', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify({ name: 'Quick' }) });
+              if (res && res.ok){ try{ var j = await res.json(); listId = j && j.id; } catch(e){} }
+            }catch(e){}
+          }
+          if (!listId){
+            try{
+              try { sessionStorage.setItem('ft_quick_pending', text); } catch(e){}
+              var formBody = new URLSearchParams(); formBody.append('name','Quick');
+              var csrf = document.querySelector('input[name="_csrf"]'); if (csrf && csrf.value) formBody.append('_csrf', csrf.value);
+              await fetch('/html_no_js/lists/create', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: formBody.toString() });
+              try { window.location.reload(); return; } catch(e){}
+            }catch(e){}
+          }
+          if (!listId) throw new Error('could not determine Quick list id');
+          var tres = await fetch('/todos', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify({ text: text, list_id: listId, priority: 7 }) });
+          if (!tres.ok) throw new Error('create todo failed');
+          input.value = '';
+          input.focus();
+          try { window.location.reload(); } catch(e){}
+        }catch(err){ console && console.error && console.error('Quick add failed', err); try{ alert('Add failed'); }catch(_){}}
+        finally{ btn.disabled = false; }
+      }, false);
+    })();
+    </script>
+
     {% if cursors %}
       <nav>
         {% if cursors.has_prev %}

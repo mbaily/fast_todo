@@ -116,6 +116,11 @@
           <input id="todoNote" placeholder="Note (optional)" />
           <button>Create (offline-capable)</button>
         </form>
+        <!-- Quick-add (direct server create for immediate visibility) -->
+        <div style="margin-top:0.5rem; display:flex; gap:0.5rem; align-items:center;">
+          <input id="pwa-quick-add-text" placeholder="Quick todo" />
+          <button id="pwa-quick-add-btn" type="button">Add</button>
+        </div>
         <!-- Optional per-op queue UI for visibility and cancellation -->
         <section>
           <h3>Queue</h3>
@@ -148,5 +153,28 @@
     <script src="/static/pwa/sw-register.js"></script>
     <script src="/static/pwa/app.js"></script>
   <script src="/static/js/fn-button.js"></script>
+  <script>
+  (function(){
+    var inp = document.getElementById('pwa-quick-add-text'); var btn = document.getElementById('pwa-quick-add-btn');
+    if (!inp || !btn) return;
+    async function findQuickId(){ var a = document.querySelector('a[href*="/html_no_js/lists/"]'); if (!a) return null; return null; }
+    btn.addEventListener('click', async function(){
+      var text = (inp.value||'').trim(); if (!text) return;
+      btn.disabled = true;
+      try{
+        // Create list if missing
+        var listId = null;
+        // POST list
+  var lr = await fetch('/lists', { method: 'POST', credentials: 'same-origin', headers: {'Content-Type':'application/json','Accept':'application/json'}, body: JSON.stringify({ name: 'Quick' }) });
+        if (!lr.ok) throw new Error('create list failed'); var lj = await lr.json(); listId = lj.id;
+  var tr = await fetch('/todos', { method: 'POST', credentials: 'same-origin', headers: {'Content-Type':'application/json','Accept':'application/json'}, body: JSON.stringify({ text: text, list_id: listId, priority: 7 }) });
+        if (!tr.ok) throw new Error('create todo failed');
+  inp.value = '';
+  try { window.location.reload(); } catch(e) { try{ window.location.href = '/html_no_js/'; }catch(e){} }
+      }catch(e){ console && console.error && console.error(e); alert('Add failed'); }
+      finally{ btn.disabled = false; }
+    }, false);
+  })();
+  </script>
   </body>
 </html>

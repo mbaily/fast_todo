@@ -150,6 +150,102 @@
     <input name="q" placeholder="Search lists and todos" value="{{ request.query_params.get('q','') }}">
     <button type="submit">Search</button>
   </form>
+  <!-- Quick add todo: add a todo into a top-level list named 'Quick' (create if missing) -->
+  <form id="quick-add-form" autocomplete="off" style="margin:0.4rem 0; display:flex; gap:0.5rem; align-items:center;">
+    {{ csrf_field() }}
+    <input id="quick-add-text" placeholder="Quick todo" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" style="flex:1 1 auto; min-width:0;">
+    <button id="quick-add-btn" type="button">Add</button>
+  </form>
+  <script>
+  (function(){
+    var form = document.getElementById('quick-add-form'); if (!form) return;
+    var input = document.getElementById('quick-add-text'); var btn = document.getElementById('quick-add-btn');
+    // On page load, check for pending quick-add saved across reloads
+    try{
+      var pending = sessionStorage.getItem('ft_quick_pending');
+      if (pending){
+        (async function(pt){
+          try{
+            // try to find Quick list and post todo
+            var tryId = await findQuickListId();
+            if (tryId){
+              await fetch('/todos', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify({ text: pt, list_id: tryId, priority: 7 }) });
+            }
+          }catch(e){}
+          try { sessionStorage.removeItem('ft_quick_pending'); } catch(e){}
+        })(pending);
+      }
+    }catch(e){}
+    async function findQuickListId(){
+      try{
+        // Look for rendered top-level list anchor with exact text 'Quick'
+        var anchors = Array.from(document.querySelectorAll('a[href^="/html_no_js/lists/"]'));
+        for (var i=0;i<anchors.length;i++){ var a = anchors[i]; if ((a.textContent||'').trim() === 'Quick'){
+            var m = (a.getAttribute('href')||'').match(/\/(?:html_no_js\/)?lists\/(\d+)/);
+            if (m) return Number(m[1]);
+        }}
+      }catch(e){}
+      return null;
+    }
+  btn.addEventListener('click', async function(){
+      var text = input.value && input.value.trim(); if (!text) return;
+      console.debug('quick-add: button clicked, text=', text);
+      btn.disabled = true;
+      try{
+        var listId = await findQuickListId();
+        console.debug('quick-add: findQuickListId ->', listId);
+        if (!listId){
+          // create 'Quick' list via JSON API (preferred)
+          try{
+            console.debug('quick-add: creating Quick list via /lists');
+            var res = await fetch('/lists', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify({ name: 'Quick' }) });
+            console.debug('quick-add: /lists response status=', res.status, 'ok=', res.ok);
+            if (res){
+              try{ var j = await res.json(); console.debug('quick-add: /lists response json=', j); listId = j && j.id; } catch(e){ console.debug('quick-add: /lists json parse failed', e); }
+            }
+          }catch(e){}
+        }
+        // Fallback: if JSON API didn't return an id, submit the HTML form endpoint and re-scan for the Quick anchor
+        if (!listId){
+          try{
+            // Save pending todo text across the reload so we can finish creation after the server renders the new list
+            try { sessionStorage.setItem('ft_quick_pending', text); } catch(e){}
+            var formBody = new URLSearchParams(); formBody.append('name','Quick');
+            var csrf = document.querySelector('input[name="_csrf"]'); if (csrf && csrf.value) formBody.append('_csrf', csrf.value);
+            await fetch('/html_no_js/lists/create', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: formBody.toString() });
+            // Reload so the new list appears in DOM; pending todo will be created on load
+            try { window.location.reload(); return; } catch(e) { /* ignore */ }
+          }catch(e){}
+        }
+  if (!listId) throw new Error('could not determine Quick list id');
+  // create todo with priority 7 via JSON API
+  console.debug('quick-add: POST /todos payload', { text: text, list_id: listId, priority: 7 });
+  var tres = await fetch('/todos', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify({ text: text, list_id: listId, priority: 7 }) });
+  console.debug('quick-add: /todos response status=', tres.status, 'ok=', tres.ok);
+  try{
+    var todo_txt = await tres.text();
+    console.debug('quick-add: /todos raw response text length=', todo_txt && todo_txt.length, 'content=', todo_txt);
+    // attempt to parse as JSON
+    try{ var todo = JSON.parse(todo_txt); console.debug('quick-add: /todos parsed json=', todo); }
+    catch(e){ console.debug('quick-add: /todos parse json failed', e); var todo = null; }
+    if (!tres.ok) throw new Error('create todo failed status=' + tres.status);
+  }catch(e){ throw e; }
+  // Clear input and focus
+  input.value = '';
+  input.focus();
+  try{ console && console.log && console.log('quick-add todos response', todo); }catch(e){}
+  // Refresh index so the created todo appears in the Quick list without navigating away
+  try { window.location.reload(); } catch(e){}
+      }catch(err){ console && console.error && console.error('Quick add failed', err); try{ alert('Add failed'); }catch(_){}}
+      finally{ btn.disabled = false; }
+    }, false);
+    // Ensure pressing Enter in the input triggers the same quick-add flow
+    form.addEventListener('submit', function(ev){
+      try{ ev.preventDefault(); }catch(e){}
+      try{ btn.click(); }catch(e){}
+    }, false);
+  })();
+  </script>
     <form method="post" action="/html_no_js/lists/create">
   {% if user_default_category_id is defined and user_default_category_id is not none %}
   <input type="hidden" name="category_id" value="{{ user_default_category_id }}">
