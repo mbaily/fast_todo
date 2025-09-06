@@ -6122,22 +6122,71 @@ async def html_index(request: Request):
         # Compute uncompleted todo counts per list (exclude completions marked done)
         try:
             qcnt = await sess.exec(select(Todo.list_id, func.count(Todo.id)).where(Todo.list_id.in_(list_ids)).outerjoin(TodoCompletion, TodoCompletion.todo_id == Todo.id).group_by(Todo.list_id))
-            # fallback approach: count by filtering completions where done=True via a subquery
             counts = {}
             for lid, cnt in qcnt.all():
                 counts[lid] = int(cnt or 0)
-            # Adjust counts by subtracting completed todos (if completion records mark them done)
+            # Subtract completed todos (if completion records mark them done)
             try:
                 qcomp = await sess.exec(select(Todo.id, Todo.list_id).join(TodoCompletion, TodoCompletion.todo_id == Todo.id).join(CompletionType, CompletionType.id == TodoCompletion.completion_type_id).where(Todo.list_id.in_(list_ids)).where(CompletionType.name == 'default').where(TodoCompletion.done == True))
                 for tid, lid in qcomp.all():
                     counts[lid] = max(0, counts.get(lid, 0) - 1)
             except Exception:
-                # ignore; keep counts as-is
                 pass
+
+            # Collation-aware: add linked, uncompleted todos to marked collation lists
+            extra_counts: dict[int, int] = {}
+            try:
+                quc = await sess.exec(select(UserCollation.list_id).where(UserCollation.user_id == owner_id))
+                uc_ids_all = [r[0] if isinstance(r, (list, tuple)) else int(getattr(r, 'list_id', r)) for r in quc.all()]
+                collation_ids = [lid for lid in uc_ids_all if lid in list_ids]
+                if collation_ids:
+                    qlinks = await sess.exec(
+                        select(ItemLink.src_id, ItemLink.tgt_id)
+                        .where(ItemLink.src_type == 'list')
+                        .where(ItemLink.tgt_type == 'todo')
+                        .where(ItemLink.src_id.in_(collation_ids))
+                        .where(ItemLink.owner_id == owner_id)
+                    )
+                    link_rows = qlinks.all()
+                    coll_link_map: dict[int, set[int]] = {}
+                    all_linked_ids: set[int] = set()
+                    for src_id, tgt_id in link_rows:
+                        try:
+                            sid = int(src_id); tid = int(tgt_id)
+                        except Exception:
+                            continue
+                        all_linked_ids.add(tid)
+                        coll_link_map.setdefault(sid, set()).add(tid)
+                    if all_linked_ids:
+                        # Completed set among linked todos
+                        try:
+                            qlcomp = await sess.exec(select(TodoCompletion.todo_id).join(CompletionType, CompletionType.id == TodoCompletion.completion_type_id).where(TodoCompletion.todo_id.in_(list(all_linked_ids))).where(CompletionType.name == 'default').where(TodoCompletion.done == True))
+                            linked_completed = set(r[0] if isinstance(r, tuple) else r for r in qlcomp.all())
+                        except Exception:
+                            linked_completed = set()
+                        # Map linked todo -> its source list to avoid double-counting if same-list
+                        qtl = await sess.exec(select(Todo.id, Todo.list_id).where(Todo.id.in_(list(all_linked_ids))))
+                        todo_src_map: dict[int, int] = {int(tid): int(lid) for tid, lid in qtl.all()}
+                        for lid, tids in coll_link_map.items():
+                            extra = 0
+                            for tid in set(tids):
+                                if tid in linked_completed:
+                                    continue
+                                # don't double-count todos that already belong to this list
+                                if todo_src_map.get(int(tid)) == int(lid):
+                                    continue
+                                extra += 1
+                            if extra:
+                                extra_counts[int(lid)] = extra
+            except Exception:
+                # ignore collation-aware extras on error
+                pass
+
             for row in list_rows:
-                row['uncompleted_count'] = counts.get(row.get('id'), 0)
+                lid = row.get('id')
+                base = counts.get(lid, 0)
+                row['uncompleted_count'] = base + extra_counts.get(lid, 0)
         except Exception:
-            # non-fatal: leave uncompleted_count as None
             pass
         # group lists by category for easier template rendering
         lists_by_category: dict[int, list[dict]] = {}
@@ -6894,8 +6943,55 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
                     counts[lid] = max(0, counts.get(lid, 0) - 1)
             except Exception:
                 pass
+
+            # Collation-aware extras
+            extra_counts: dict[int, int] = {}
+            try:
+                quc = await sess.exec(select(UserCollation.list_id).where(UserCollation.user_id == owner_id))
+                uc_ids_all = [r[0] if isinstance(r, (list, tuple)) else int(getattr(r, 'list_id', r)) for r in quc.all()]
+                collation_ids = [lid for lid in uc_ids_all if lid in list_ids]
+                if collation_ids:
+                    qlinks = await sess.exec(
+                        select(ItemLink.src_id, ItemLink.tgt_id)
+                        .where(ItemLink.src_type == 'list')
+                        .where(ItemLink.tgt_type == 'todo')
+                        .where(ItemLink.src_id.in_(collation_ids))
+                        .where(ItemLink.owner_id == owner_id)
+                    )
+                    link_rows = qlinks.all()
+                    coll_link_map: dict[int, set[int]] = {}
+                    all_linked_ids: set[int] = set()
+                    for src_id, tgt_id in link_rows:
+                        try:
+                            sid = int(src_id); tid = int(tgt_id)
+                        except Exception:
+                            continue
+                        coll_link_map.setdefault(sid, set()).add(tid)
+                        all_linked_ids.add(tid)
+                    if all_linked_ids:
+                        try:
+                            qlcomp = await sess.exec(select(TodoCompletion.todo_id).join(CompletionType, CompletionType.id == TodoCompletion.completion_type_id).where(TodoCompletion.todo_id.in_(list(all_linked_ids))).where(CompletionType.name == 'default').where(TodoCompletion.done == True))
+                            linked_completed = set(r[0] if isinstance(r, tuple) else r for r in qlcomp.all())
+                        except Exception:
+                            linked_completed = set()
+                        qtl = await sess.exec(select(Todo.id, Todo.list_id).where(Todo.id.in_(list(all_linked_ids))))
+                        todo_src_map: dict[int, int] = {int(tid): int(lid) for tid, lid in qtl.all()}
+                        for lid, tids in coll_link_map.items():
+                            extra = 0
+                            for tid in set(tids):
+                                if tid in linked_completed:
+                                    continue
+                                if todo_src_map.get(int(tid)) == int(lid):
+                                    continue
+                                extra += 1
+                            if extra:
+                                extra_counts[int(lid)] = extra
+            except Exception:
+                pass
+
             for row in list_rows:
-                row['uncompleted_count'] = counts.get(row.get('id'), 0)
+                lid = row.get('id')
+                row['uncompleted_count'] = counts.get(lid, 0) + extra_counts.get(lid, 0)
         except Exception:
             pass
 
