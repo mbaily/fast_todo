@@ -88,14 +88,14 @@
         function postJSON(url, data){
           return fetch(url, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
             credentials: 'same-origin',
             body: JSON.stringify(data||{})
           }).then(function(r){ return r.json(); });
         }
         var buttons = document.querySelectorAll('button.collation-dot');
         buttons.forEach(function(btn){
-          btn.addEventListener('click', function(){
+    btn.addEventListener('click', function(){
             var lid = parseInt(btn.getAttribute('data-list-id'),10);
             var tid = parseInt(btn.getAttribute('data-todo-id'),10);
             var pressed = String(btn.getAttribute('aria-pressed')) === 'true';
@@ -264,7 +264,7 @@
       <select id="note-link-target-{{ todo.id }}">
         <option value="">(Select a recently marked item)</option>
       </select>
-      <button type="button" id="note-insert-link-{{ todo.id }}">Insert Link</button>
+  <button type="button" id="note-insert-link-{{ todo.id }}" onclick="try{if(window.__ft_insert_selected_link){window.__ft_insert_selected_link();}}catch(e){}">Insert Link</button>
       <form id="todo-sort-links-form-{{ todo.id }}" method="post" action="/html_no_js/todos/{{ todo.id }}/sort_links" style="display:inline; margin-left:0.5rem;">
         {{ csrf_field() }}
         <label style="display:inline-flex; align-items:center; gap:0.4rem;">
@@ -284,6 +284,46 @@
       function prune(o){ var t=Date.now(); var out={todos:{},lists:{}}; if(o.todos) for(var k in o.todos){ if((t-(o.todos[k]||0))<TTL) out.todos[k]=o.todos[k]; } if(o.lists) for(var k2 in o.lists){ if((t-(o.lists[k2]||0))<TTL) out.lists[k2]=o.lists[k2]; } return out; }
   var sel=document.getElementById('note-link-target-{{ todo.id }}'); if(!sel) return;
       var marks=prune(load());
+      // Wire Insert Link button as early as possible to avoid later errors preventing it
+      var btn=document.getElementById('note-insert-link-{{ todo.id }}');
+      var ta=document.getElementById('note-textarea');
+      if (btn && sel && ta){
+        // Disable button until a valid selection is made
+        function isValidSelection(){ var v = sel.value||''; return v && v.indexOf(':')>0; }
+        try { btn.disabled = !isValidSelection(); } catch(_){ }
+        try { sel.addEventListener('change', function(){ try{ btn.disabled = !isValidSelection(); }catch(_){ } }); } catch(_){ }
+        try { console && console.log && console.log('ft:insert wired for', {{ todo.id }}); } catch(_){ }
+        try { btn.setAttribute('data-ft-insert-ready', '1'); window.dispatchEvent(new CustomEvent('ft:insert_ready', { detail: { todoId: {{ todo.id }} } })); } catch(_){ }
+        btn.addEventListener('click', function(ev){
+          try{ ev && ev.preventDefault && ev.preventDefault(); ev && ev.stopPropagation && ev.stopPropagation(); }catch(_){ }
+          var v = sel.value||''; try { console && console.log && console.log('ft:insert click value=', v); } catch(_){ }
+          if(!v){ alert('Select a marked item first.'); return; }
+          var parts=v.split(':'); if(parts.length!==2){ alert('Invalid selection'); return; }
+          var t=parts[0], id=parts[1];
+          // Derive a human-readable comment (list name or todo text snippet)
+          var opt = sel.options[sel.selectedIndex];
+          var human = '';
+          if (opt){
+            human = opt.getAttribute('data-snippet') || '';
+            if (!human){
+              var txt = (opt.textContent||'').trim();
+              var sep = ' — ';
+              var idx = txt.indexOf(sep);
+              // Only use extracted part after separator; otherwise leave empty to avoid generic labels
+              human = (idx >= 0) ? txt.slice(idx+sep.length).trim() : '';
+            }
+          }
+          // Normalize whitespace and escape for inclusion in quoted arg
+          function esc(s){ return String(s||'').replace(/\s+/g,' ').replace(/\\/g,'\\\\').replace(/"/g,'\\"'); }
+          var commentArg = human ? (', comment="'+esc(human)+'"') : '';
+          var markup = '{' + '{' + 'fn:link target=' + t + ':' + id + commentArg + '}' + '}';
+          insertAtCursor(ta, (ta.value && ta.value.length ? '\n' : '') + markup + '\n');
+          try { ta.setAttribute('data-ft-inserted', '1'); } catch(_){ }
+          try { var evt = new Event('input', { bubbles: true }); ta.dispatchEvent(evt); } catch(_){ }
+          // Fire a custom event so tests or integrations can await insertion deterministically
+          try { window.dispatchEvent(new CustomEvent('ft:insert_link', { detail: { target: t, id: id, markup: markup } })); } catch(_){ }
+        });
+      }
       function addOpt(v,t,parent){ var o=document.createElement('option'); o.value=v; o.textContent=t; (parent||sel).appendChild(o); }
       var todoIds = marks.todos ? Object.keys(marks.todos).sort(function(a,b){return (+a)-(+b);}) : [];
       var listIds = marks.lists ? Object.keys(marks.lists).sort(function(a,b){return (+a)-(+b);}) : [];
@@ -320,34 +360,63 @@
           }
         }catch(_){ /* ignore */ }
       }
-      var btn=document.getElementById('note-insert-link-{{ todo.id }}');
-      var ta=document.getElementById('note-textarea');
       function insertAtCursor(textarea, ins){ try{ var start = textarea.selectionStart||0; var end = textarea.selectionEnd||0; var v = textarea.value||''; textarea.value = v.slice(0,start) + ins + v.slice(end); var pos = start + ins.length; textarea.setSelectionRange(pos,pos); textarea.focus(); }catch(_){ /* ignore */ } }
-  if (btn && sel && ta){ btn.addEventListener('click', function(){
-        var v = sel.value||''; if(!v){ alert('Select a marked item first.'); return; }
-        var parts=v.split(':'); if(parts.length!==2){ alert('Invalid selection'); return; }
-        var t=parts[0], id=parts[1];
-        // Derive a human-readable comment (list name or todo text snippet)
-        var opt = sel.options[sel.selectedIndex];
-        var human = '';
-        if (opt){
-          human = opt.getAttribute('data-snippet') || '';
-          if (!human){
-            var txt = (opt.textContent||'').trim();
-            var sep = ' — ';
-            var idx = txt.indexOf(sep);
-            // Only use extracted part after separator; otherwise leave empty to avoid generic labels
-            human = (idx >= 0) ? txt.slice(idx+sep.length).trim() : '';
-          }
-        }
-        // Normalize whitespace and escape for inclusion in quoted arg
-        function esc(s){ return String(s||'').replace(/\s+/g,' ').replace(/\\/g,'\\\\').replace(/"/g,'\\"'); }
-  var commentArg = human ? (', comment="'+esc(human)+'"') : '';
-  var markup = '{' + '{' + 'fn:link target=' + t + ':' + id + commentArg + '}' + '}';
-        insertAtCursor(ta, (ta.value && ta.value.length ? '\n' : '') + markup + '\n');
-        try { var evt = new Event('input', { bubbles: true }); ta.dispatchEvent(evt); } catch(_){}
-      ); }
+      try {
+        window.__ft_insert_selected_link = function(){
+          try{
+            var v = sel && sel.value ? sel.value : '';
+            if(!v) return false;
+            var parts=v.split(':'); if(parts.length!==2) return false;
+            var t=parts[0], id=parts[1];
+            var opt = sel.options[sel.selectedIndex];
+            var human = '';
+            if (opt){
+              human = opt.getAttribute('data-snippet') || '';
+              if (!human){
+                var txt = (opt.textContent||'').trim();
+                var sep = ' — ';
+                var idx = txt.indexOf(sep);
+                human = (idx >= 0) ? txt.slice(idx+sep.length).trim() : '';
+              }
+            }
+            function esc(s){ return String(s||'').replace(/\s+/g,' ').replace(/\\/g,'\\\\').replace(/"/g,'\\"'); }
+            var commentArg = human ? (', comment="'+esc(human)+'"') : '';
+            var markup = '{' + '{' + 'fn:link target=' + t + ':' + id + commentArg + '}' + '}';
+            insertAtCursor(ta, (ta.value && ta.value.length ? '\n' : '') + markup + '\n');
+            try { ta.setAttribute('data-ft-inserted', '1'); } catch(_){ }
+            try { var evt = new Event('input', { bubbles: true }); ta.dispatchEvent(evt); } catch(_){ }
+            try { window.dispatchEvent(new CustomEvent('ft:insert_link', { detail: { target: t, id: id, markup: markup } })); } catch(_){ }
+            return true;
+          }catch(_){ return false; }
+        };
+      } catch(_){ }
     
+  })();
+  </script>
+  <script>
+  // Defensive init: ensure the Insert Link combobox is populated from marks even if earlier scripts were skipped
+  (function(){
+    try {
+      var sel = document.getElementById('note-link-target-{{ todo.id }}');
+      if (!sel) return;
+      // If options already exist (besides the placeholder), skip
+      if (sel.querySelector('option[value^="todo:"]') || sel.querySelector('option[value^="list:"]')) return;
+      var raw = localStorage.getItem('ft_marks_v1');
+      if (!raw) return;
+      var o; try { o = JSON.parse(raw)||{}; } catch(_) { o = {}; }
+      var t = Date.now(); var TTL = 5*60*1000;
+      var todos = []; var lists = [];
+      if (o.todos) { Object.keys(o.todos).forEach(function(k){ if ((t - (o.todos[k]||0)) < TTL) todos.push(k); }); }
+      if (o.lists) { Object.keys(o.lists).forEach(function(k){ if ((t - (o.lists[k]||0)) < TTL) lists.push(k); }); }
+      if (!todos.length && !lists.length) return;
+      function addOpt(parent, v, txt){ var opt = document.createElement('option'); opt.value=v; opt.textContent=txt; parent.appendChild(opt); }
+      var ogT = document.createElement('optgroup'); ogT.label='Todos';
+      var ogL = document.createElement('optgroup'); ogL.label='Lists';
+      if (todos.length) sel.appendChild(ogT);
+      if (lists.length) sel.appendChild(ogL);
+      todos.sort(function(a,b){return (+a)-(+b);}).forEach(function(id){ addOpt(ogT, 'todo:'+id, 'Todo #'+id); });
+      lists.sort(function(a,b){return (+a)-(+b);}).forEach(function(id){ addOpt(ogL, 'list:'+id, 'List #'+id); });
+    } catch(e) { /* ignore */ }
   })();
   </script>
   {# Save button moved to page toolbar above; keep a hidden submit for progressive enhancement if needed #}
@@ -843,6 +912,44 @@
     });
   } catch(e) { /* ignore */ }
 })();
+        // Fallback: ensure the insert-link helper exists after full script load
+        (function(){
+          try{
+            if (typeof window.__ft_insert_selected_link === 'function') return;
+            var sel = document.getElementById('note-link-target-{{ todo.id }}');
+            var ta = document.getElementById('note-textarea');
+            if (!sel || !ta) return;
+            function insertAtCursor(textarea, ins){ try{ var start = textarea.selectionStart||0; var end = textarea.selectionEnd||0; var v = textarea.value||''; textarea.value = v.slice(0,start) + ins + v.slice(end); var pos = start + ins.length; textarea.setSelectionRange(pos,pos); textarea.focus(); }catch(_){ /* ignore */ } }
+            window.__ft_insert_selected_link = function(){
+              try{
+                var v = sel && sel.value ? sel.value : '';
+                if(!v) return false;
+                var parts = v.split(':'); if (parts.length !== 2) return false;
+                var t = parts[0], id = parts[1];
+                var opt = sel.options[sel.selectedIndex];
+                var human = '';
+                if (opt){
+                  human = opt.getAttribute('data-snippet') || '';
+                  if (!human){
+                    var txt = (opt.textContent||'').trim();
+                    var sep = ' — ';
+                    var idx = txt.indexOf(sep);
+                    human = (idx >= 0) ? txt.slice(idx+sep.length).trim() : '';
+                  }
+                }
+                function esc(s){ return String(s||'').replace(/\s+/g,' ').replace(/\\/g,'\\\\').replace(/"/g,'\\"'); }
+                var commentArg = human ? (', comment="'+esc(human)+'"') : '';
+                var markup = '{' + '{' + 'fn:link target=' + t + ':' + id + commentArg + '}' + '}';
+                insertAtCursor(ta, (ta.value && ta.value.length ? '\n' : '') + markup + '\n');
+                try { ta.setAttribute('data-ft-inserted', '1'); } catch(_){ }
+                try { var evt = new Event('input', { bubbles: true }); ta.dispatchEvent(evt); } catch(_){ }
+                try { window.dispatchEvent(new CustomEvent('ft:insert_link', { detail: { target: t, id: id, markup: markup } })); } catch(_){ }
+                return true;
+              }catch(_){ return false; }
+            };
+          }catch(_){ }
+        })();
+        </script>
 
 </script>
 <script>
