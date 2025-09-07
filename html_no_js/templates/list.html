@@ -1405,14 +1405,18 @@
 
     function attachOnce(container){
       if (initialized) return; initialized = true;
-      var isTable = !!container.closest('table');
-      var initialItems = Array.from(container.querySelectorAll(isTable ? 'tr.todo' : 'li.todo'));
+  var isTable = !!container.closest('table');
+  // In table layout, rows do not have class="todo"; match by id prefix
+  var initialItems = Array.from(container.querySelectorAll(isTable ? 'tr[id^="todo-"]' : 'li.todo'));
       var originalOrder = initialItems.map(function(it){ return it.id; });
 
   // init from server-rendered value (already applied via checked attribute)
 
       function isCompletedElem(it){
-        var chk = it.querySelector('form[action*="/complete"] button');
+        // Only consider the default completion control when deciding if a row is completed.
+        // Extra completion types also use "/complete_type" endpoints and must not flip
+        // the ordering. The default checkbox form is marked with data-default-completion="true".
+        var chk = it.querySelector('form[data-default-completion="true"] button');
         if (chk && chk.textContent && chk.textContent.indexOf('☑') !== -1) return true;
         if (it.querySelector('.todo-title-inline.done')) return true;
         return false;
@@ -1420,7 +1424,7 @@
 
       function reorder(){
         try {
-          var currentItems = Array.from(container.querySelectorAll(isTable ? 'tr.todo' : 'li.todo'));
+          var currentItems = Array.from(container.querySelectorAll(isTable ? 'tr[id^="todo-"]' : 'li.todo'));
           var map = {};
           currentItems.forEach(function(it){ if (it.id) map[it.id] = it; });
 

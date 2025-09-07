@@ -400,7 +400,7 @@ Note insertion helper (optional)
 - On the todo page, a small “Insert link” combobox next to the Note uses your recently marked items to insert link markup for you.
 
 ## Collation lists (grouping todos across lists)
-
+  
 You can maintain multiple personal “collation” lists and quickly mark whether a todo belongs to any of them.
 
 - A collation is just a regular list you own, registered in your set of collations.
