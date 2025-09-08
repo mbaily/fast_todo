@@ -1,4 +1,5 @@
 import os
+import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from fastapi import Depends, HTTPException, status, Request
@@ -7,6 +8,7 @@ from typing import Optional
 from sqlmodel import select
 from passlib.context import CryptContext
 from jose import JWTError, jwt
+from jose.exceptions import ExpiredSignatureError
 from pydantic import BaseModel
 from .models import User
 from .db import async_session
@@ -22,9 +24,23 @@ logger = logging.getLogger(__name__)
 # predictable value for local testing to avoid breaking tests when the env var
 # is not supplied. Do NOT use the fallback in production.
 SECRET_KEY = os.getenv("SECRET_KEY", "CHANGE_ME_IN_ENV_FOR_TESTS")
+# Optionally allow verification of CSRF tokens with previous/alternate secrets.
+# This is verification-only and lets CSRF tokens continue working across a
+# controlled SECRET_KEY rotation or accidental dev restarts where the key
+# changed. New tokens are always signed with SECRET_KEY.
+_CSRF_VERIFY_KEYS_ENV = os.getenv("CSRF_VERIFY_KEYS", "").strip()
+CSRF_VERIFY_KEYS = [k for k in (s.strip() for s in _CSRF_VERIFY_KEYS_ENV.split(",")) if k]
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
 CSRF_TOKEN_EXPIRE_MINUTES = 60
+
+# Log a minimal fingerprint of the active secret and count of fallback keys to
+# help diagnose CSRF failures across restarts without leaking secrets.
+try:
+    _sk_fp = hashlib.sha256(SECRET_KEY.encode("utf-8")).hexdigest()[:12]
+    logger.info("auth init: secret_fp=%s csrf_verify_keys=%d", _sk_fp, len(CSRF_VERIFY_KEYS))
+except Exception:
+    pass
 
 # prefer a pure-Python, widely-available scheme for tests and portability;
 # keep bcrypt as a fallback if available.
@@ -123,10 +139,39 @@ def create_csrf_token(username: str, expires_delta: Optional[timedelta] = None) 
 
 
 def verify_csrf_token(token: str, username: str) -> bool:
+    """Verify a CSRF JWT for the given username.
+
+    Tries SECRET_KEY first, then any keys from CSRF_VERIFY_KEYS as
+    verification-only fallback during key rotations/restarts. Emits
+    structured logs for easier diagnosis (expired vs signature mismatch vs
+    subject/type mismatch).
+    """
+    logger.info('verify_csrf_token called: token_present=%s token_len=%s username=%s', bool(token), (len(token) if token else 0), username)
+    if not token:
+        return False
+
+    def _try_decode(tok: str):
+        keys = [SECRET_KEY] + CSRF_VERIFY_KEYS
+        last_err: Optional[Exception] = None
+        for idx, key in enumerate(keys):
+            try:
+                payload = jwt.decode(tok, key, algorithms=[ALGORITHM])
+                return payload, idx
+            except ExpiredSignatureError as e:
+                logger.info('verify_csrf_token failed: expired key_index=%s msg=%s', idx, str(e))
+                return None, idx
+            except JWTError as e:
+                last_err = e
+                continue
+        if last_err is not None:
+            logger.warning('verify_csrf_token failed: signature_mismatch tried_keys=%d last_err=%s', 1 + len(CSRF_VERIFY_KEYS), str(last_err))
+        return None, None
+
     try:
-        logger.info('verify_csrf_token called: token_present=%s token_len=%s username=%s', bool(token), (len(token) if token else 0), username)
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        logger.info('verify_csrf_token decoded payload keys: %s', list(payload.keys()))
+        payload, used_idx = _try_decode(token)
+        if not payload:
+            return False
+        logger.info('verify_csrf_token decoded payload keys: %s using_key_index=%s', list(payload.keys()), used_idx)
         if payload.get("type") != "csrf":
             logger.info('verify_csrf_token failed: type mismatch (expected csrf, got %s)', payload.get('type'))
             return False
@@ -135,9 +180,6 @@ def verify_csrf_token(token: str, username: str) -> bool:
             return False
         logger.info('verify_csrf_token success for user=%s', username)
         return True
-    except JWTError as e:
-        logger.info('verify_csrf_token JWTError: %s', str(e))
-        return False
     except Exception as e:
         logger.exception('verify_csrf_token unexpected exception: %s', str(e))
         return False

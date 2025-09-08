@@ -113,7 +113,7 @@ WantedBy=multi-user.target
 
 ## SECRET_KEY and environment configuration
 
-The app uses a `SECRET_KEY` to sign JWT access tokens. Keep this key private and persistent between server restarts unless you intentionally want to invalidate sessions.
+The app uses a `SECRET_KEY` to sign JWT access tokens and CSRF tokens. Keep this key private and persistent between server restarts unless you intentionally want to invalidate sessions.
 
 - Windows (development/local)
   - The PowerShell startup script will create `fast_todo.env` in the project root and write a generated `SECRET_KEY` into it if one is not found. That file will be loaded for the running process when you start the server via the script.
@@ -122,6 +122,23 @@ The app uses a `SECRET_KEY` to sign JWT access tokens. Keep this key private and
 - Debian / Linux (server)
   - For a durable server place the secret in a system location that your service can read. A common pattern is a file under `/etc/` (for example `/etc/fast_todo/env`) or as an environment variable in your systemd service unit. The scripts accept an externally-provided `SECRET_KEY` (e.g. `SECRET_KEY=yourkey scripts/run_server_debian.sh`).
   - Rotating the `SECRET_KEY` will invalidate previously issued JWTs. Users may need to log out and log back in after rotation.
+
+CSRF tokens across restarts or rotations
+
+- To avoid CSRF failures immediately after a restart where `SECRET_KEY` changed (common in development if scripts generate a new key each run), the server can be configured to accept CSRF tokens signed with one or more previous secrets for verification only.
+- Set `CSRF_VERIFY_KEYS` to a comma-separated list of previous secrets. New tokens are always signed with `SECRET_KEY`; the entries in `CSRF_VERIFY_KEYS` are used only to verify existing CSRF tokens until they expire.
+
+Examples
+
+```bash
+# systemd EnvironmentFile=/etc/default/fast_todo
+SECRET_KEY=your-current-production-secret
+CSRF_VERIFY_KEYS=prior-secret-1,prior-secret-2
+```
+
+Notes
+- This helps browsers continue to POST successfully after a controlled key rotation or dev restart without forcing an immediate logout/login, as long as the CSRF token hasn’t expired.
+- For production, prefer a persistent `SECRET_KEY` managed outside the repo (EnvironmentFile, vault, etc.). The fallback list is optional and meant to smooth planned rotations.
 
 Security notes
   - Do not commit `fast_todo.env` or any file containing `SECRET_KEY` to version control. Treat it like a secret.

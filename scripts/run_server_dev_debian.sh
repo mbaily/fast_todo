@@ -89,31 +89,43 @@ else
 fi
 
 
-ENV_FILE="/etc/default/fast_todo"
-echo hello1
+ENV_FILE_SYSTEM="/etc/default/fast_todo"
+ENV_FILE_LOCAL="fast_todo.env"
 
-# Load SECRET_KEY only, ignore the rest (avoid sourcing untrusted code)
-if [ -f "$ENV_FILE" ]; then
-  # shellcheck disable=SC1090
-  SECRET_KEY=$(grep -E '^SECRET_KEY=' "$ENV_FILE" | head -n1 | cut -d= -f2-)
-  # Remove surrounding quotes if present
-  SECRET_KEY=${SECRET_KEY#\"}
-  SECRET_KEY=${SECRET_KEY%\"}
-  export SECRET_KEY
-else
-  echo "Warning: $ENV_FILE not found; SECRET_KEY not set" >&2
+# Load SECRET_KEY (and optionally CSRF_VERIFY_KEYS) from environment files.
+# Priority: system env file (if you run as a service) -> repo-local fast_todo.env.
+if [ -f "$ENV_FILE_SYSTEM" ]; then
+  SECRET_KEY=$(grep -E '^SECRET_KEY=' "$ENV_FILE_SYSTEM" | head -n1 | cut -d= -f2- || true)
+  CSRF_VERIFY_KEYS=$(grep -E '^CSRF_VERIFY_KEYS=' "$ENV_FILE_SYSTEM" | head -n1 | cut -d= -f2- || true)
+  SECRET_KEY=${SECRET_KEY#\"}; SECRET_KEY=${SECRET_KEY%\"}
+  CSRF_VERIFY_KEYS=${CSRF_VERIFY_KEYS#\"}; CSRF_VERIFY_KEYS=${CSRF_VERIFY_KEYS%\"}
+  export SECRET_KEY CSRF_VERIFY_KEYS
+fi
+
+if [ -z "${SECRET_KEY-}" ] && [ -f "$ENV_FILE_LOCAL" ]; then
+  SECRET_KEY=$(grep -E '^SECRET_KEY=' "$ENV_FILE_LOCAL" | head -n1 | cut -d= -f2- || true)
+  CSRF_VERIFY_KEYS=$(grep -E '^CSRF_VERIFY_KEYS=' "$ENV_FILE_LOCAL" | head -n1 | cut -d= -f2- || true)
+  SECRET_KEY=${SECRET_KEY#\"}; SECRET_KEY=${SECRET_KEY%\"}
+  CSRF_VERIFY_KEYS=${CSRF_VERIFY_KEYS#\"}; CSRF_VERIFY_KEYS=${CSRF_VERIFY_KEYS%\"}
+  export SECRET_KEY CSRF_VERIFY_KEYS
 fi
 
 # Ensure SECRET_KEY is set in the environment
 if [ -z "${SECRET_KEY-}" ]; then
-  echo "[run_server] SECRET_KEY not set; generating a temporary one for this session"
+  echo "[run_server] SECRET_KEY not set; generating and persisting to $ENV_FILE_LOCAL"
   SECRET_KEY_VAL=$(python - <<'PY'
 import secrets
 print(secrets.token_hex(32))
 PY
 )
   export SECRET_KEY="$SECRET_KEY_VAL"
-  echo "[run_server] Generated SECRET_KEY (exported for this process). For production, set SECRET_KEY in the service environment."
+  # Write to repo-local env file so dev restarts reuse the same key
+  {
+    echo "SECRET_KEY=$SECRET_KEY_VAL"
+    # Preserve existing CSRF_VERIFY_KEYS if present, otherwise leave blank
+    if [ -n "${CSRF_VERIFY_KEYS-}" ]; then echo "CSRF_VERIFY_KEYS=$CSRF_VERIFY_KEYS"; fi
+  } > "$ENV_FILE_LOCAL"
+  echo "[run_server] Wrote SECRET_KEY to $ENV_FILE_LOCAL (do not commit this file)."
 fi
 
 # Ensure DATABASE_URL is set (default to local fast_todo.db with aiosqlite)
