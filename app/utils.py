@@ -39,6 +39,16 @@ NUMBER_WORDS = {
 GENERIC_ANCHOR_BLACKLIST = {'now', 'today', 'tonight', 'tonite', 'this', 'next'}
 
 
+# Read date ordering preference from app config at module import time. This
+# centralizes the behavior so the parser only respects the `DATE_ORDER`
+# configuration variable (values: 'DMY' or 'MDY'). Fall back to 'DMY'.
+try:
+    from app import config as _config
+    DATE_ORDER = getattr(_config, 'DATE_ORDER', 'DMY').upper()
+except Exception:
+    DATE_ORDER = 'DMY'
+
+
 def _contains_generic_anchor(s: str) -> bool:
     """Return True if any generic anchor token appears as a word in s."""
     if not s:
@@ -281,25 +291,31 @@ def extract_dates(text: str | None) -> list[datetime]:
         # for common date formats (numeric dd/mm or dd-mm, and month-name
         # with day). This avoids cases where search_dates captures a larger
         # span that includes recurrence tokens (e.g. 'every 2 weeks 5/9').
-        # Read date ordering preference from config (DMY or MDY). Import here
-        # to avoid circular imports at module load time.
-        try:
-            from app import config as _config
-            DATE_ORDER = getattr(_config, 'DATE_ORDER', 'DMY')
-        except Exception:
-            DATE_ORDER = 'DMY'
+    # DATE_ORDER is read at module import (see module-level DATE_ORDER)
 
         def _explicit_date_substrings(t: str) -> list[datetime]:
             out_local: list[datetime] = []
             try:
                 # numeric patterns like 5/9 or 05-09 or 2025/09/05
-                num_re = re.compile(r"\b(\d{1,4})[./-](\d{1,2})(?:[./-](\d{2,4}))?\b")
-                # Default numeric triplet interpretation to day/month[/year]
-                # (Australian-style). If the first token is a 4-digit year we
-                # treat the pattern as YYYY/MM/DD. If a token is >12 it is
-                # treated as the day to disambiguate.
+                # Note: we intentionally exclude hyphen-only two-token numeric
+                # tokens like '1-2' or '12-31' because those are often non-date
+                # identifiers (e.g., ranges or version numbers). We keep slashes
+                # and dots as valid separators for dates.
+                num_re = re.compile(r"\b(\d{1,4})([./-])(\d{1,2})(?:\2(\d{2,4}))?\b")
+                # Default numeric triplet interpretation: consult configured
+                # DATE_ORDER. If the first token is a 4-digit year we treat
+                # the pattern as YYYY/MM/DD. If a token is >12 it is treated
+                # as the day to disambiguate.
                 for m in num_re.finditer(t):
-                    g1, g2, g3 = m.group(1), m.group(2), m.group(3)
+                    g1, sep, g2, g3 = m.group(1), m.group(2), m.group(3), m.group(4)
+                    # ignore hyphen separators when the pattern is only two
+                    # numeric tokens separated by a hyphen (e.g., '1-2' or
+                    # '12-31') because those are not reliable date forms
+                    # in this corpus. Accept hyphens when a third token
+                    # (year) is present (e.g., '2025-12-31').
+                    if sep == '-' and g3 is None:
+                        # skip this match as a date
+                        continue
                     try:
                         a = int(g1)
                         b = int(g2)
@@ -358,7 +374,13 @@ def extract_dates(text: str | None) -> list[datetime]:
                         elif b > 12 and 1 <= a <= 12 and 1 <= b <= 31:
                             day, mon = b, a
                         else:
-                            day, mon = a, b
+                            # ambiguous two-token numeric pattern: follow the
+                            # configured DATE_ORDER ('DMY' or 'MDY') to decide
+                            # whether the first token is day or month.
+                            if DATE_ORDER == 'MDY':
+                                mon, day = a, b
+                            else:
+                                day, mon = a, b
                         y = year or now_utc().year
                     # sanity ranges
                     if 1 <= mon <= 12 and 1 <= day <= 31:
@@ -447,19 +469,27 @@ def extract_dates(text: str | None) -> list[datetime]:
             # appending the current year. This helps users who enter dates
             # like 'Starfield 22/8' without the year.
             try:
-                dm_match = re.search(r"\b(\d{1,2})[./-](\d{1,2})\b", text)
+                dm_match = re.search(r"\b(\d{1,2})([./-])(\d{1,2})\b", text)
                 if dm_match:
-                    a = int(dm_match.group(1))
-                    b = int(dm_match.group(2))
-                    # Interpret ambiguous numeric patterns as day/month (Australian-style)
-                    # unless one token is clearly >12 which forces that token to be the day.
+                    # ignore hyphen-only two-token patterns like '1-2' or '12-31'
+                    if dm_match.group(2) == '-':
+                        dm_match = None
+                    else:
+                        a = int(dm_match.group(1))
+                        b = int(dm_match.group(3))
+                    # Interpret ambiguous numeric patterns according to the
+                    # configured DATE_ORDER unless one token is clearly >12
+                    # which forces that token to be the day.
                     if a > 12 and 1 <= b <= 12 and 1 <= a <= 31:
                         day, mon = a, b
                     elif b > 12 and 1 <= a <= 12 and 1 <= b <= 31:
                         day, mon = b, a
                     else:
-                        # default to day/month (e.g., '5/9' -> 5 Sep)
-                        day, mon = a, b
+                        # ambiguous: decide using DATE_ORDER
+                        if DATE_ORDER == 'MDY':
+                            mon, day = a, b
+                        else:
+                            day, mon = a, b
                     # sanity: valid ranges for month/day
                     if 1 <= mon <= 12 and 1 <= day <= 31:
                         # Construct a naive datetime for the current year and mark as UTC
@@ -656,21 +686,29 @@ def extract_dates_meta(text: str | None) -> list[dict]:
             # expand across years.
             try:
                 # Find all numeric month/day tokens like 5/8, 05-09, etc.
-                dm_matches = list(re.finditer(r"\b(\d{1,2})[./-](\d{1,2})\b", text))
+                dm_matches = list(re.finditer(r"\b(\d{1,2})([./-])(\d{1,2})\b", text))
                 if dm_matches:
                     cy = now_utc().year
                     from datetime import datetime as _dt
                     for dm_match in dm_matches:
+                        # skip hyphen-only pairs like '1-2' or '12-31' as those
+                        # are often ranges or identifiers, not dates. Accept
+                        # hyphens when a third token (year) exists elsewhere.
+                        if dm_match.group(2) == '-':
+                            continue
                         a = int(dm_match.group(1))
-                        b = int(dm_match.group(2))
-                        # Interpret ambiguous numeric patterns as day/month (Australian-style)
+                        b = int(dm_match.group(3))
+                        # Interpret ambiguous numeric patterns according to the
+                        # configured DATE_ORDER (DMY or MDY)
                         if a > 12 and 1 <= b <= 12 and 1 <= a <= 31:
                             day, mon = a, b
                         elif b > 12 and 1 <= a <= 12 and 1 <= b <= 31:
                             day, mon = b, a
                         else:
-                            # default to day/month (e.g., '5/9' -> 5 Sep)
-                            day, mon = a, b
+                            if DATE_ORDER == 'MDY':
+                                mon, day = a, b
+                            else:
+                                day, mon = a, b
                         if 1 <= mon <= 12 and 1 <= day <= 31:
                             # Try to construct a datetime for the current year; if invalid
                             # (e.g., Feb 29 on non-leap year) try the next few years.
@@ -690,7 +728,6 @@ def extract_dates_meta(text: str | None) -> list[dict]:
                 # Also handle month-name + day patterns like 'Jan 22' or 'January 22'
                 # so phrases like 'Event Jan 22' are recognized as yearless matches.
                 month_names = {m[:3].lower(): i+1 for i, m in enumerate(MONTHS_EN)}
-                # Find all month-name + day patterns (e.g., 'May 8', 'May 8th')
                 md_matches = list(re.finditer(r"\b([A-Za-z]{3,9})\s+(\d{1,2})\b", text))
                 if md_matches:
                     cy = now_utc().year
@@ -726,6 +763,88 @@ def extract_dates_meta(text: str | None) -> list[dict]:
             # prevents spans like '25th today' from producing a date.
             if _contains_generic_anchor(match_text) or (len(match_text.strip().split()) == 1 and match_text.strip().lower() in NUMBER_WORDS):
                 continue
+
+            # If the matched span is a numeric sequence with separators (e.g.
+            # '12/9/25' or '5.9'), prefer our explicit numeric parsing which
+            # respects the configured DATE_ORDER rather than trusting
+            # dateparser's default ambiguous interpretation.
+            num_re = re.compile(r"\b(\d{1,4})([./-])(\d{1,2})(?:\2(\d{2,4}))?\b")
+            num_m = num_re.search(match_text)
+            if num_m:
+                g1 = num_m.group(1)
+                sep = num_m.group(2)
+                g2 = num_m.group(3)
+                g3 = num_m.group(4)
+                # skip hyphen-only two-token patterns like '1-2' or '12-31'
+                if sep == '-' and g3 is None:
+                    # fall back to dateparser's dt below (but we won't treat
+                    # this as a date if it's clearly ambiguous later)
+                    pass
+                else:
+                    try:
+                        a = int(g1)
+                        b = int(g2)
+                    except Exception:
+                        a = b = None
+                    year_val = None
+                    if g3:
+                        try:
+                            ytmp = int(g3)
+                            if len(g3) == 2:
+                                ytmp += 2000
+                            year_val = ytmp
+                        except Exception:
+                            year_val = None
+                    # Decide ordering using rules similar to _explicit_date_substrings
+                    if g3:
+                        if len(g1) == 4:
+                            y = a
+                            mon = b
+                            try:
+                                day = int(g3)
+                            except Exception:
+                                day = 1
+                        else:
+                            if a > 12 and 1 <= b <= 12 and 1 <= a <= 31:
+                                day, mon = a, b
+                            elif b > 12 and 1 <= a <= 12 and 1 <= b <= 31:
+                                day, mon = b, a
+                            else:
+                                if DATE_ORDER == 'MDY':
+                                    mon, day = a, b
+                                else:
+                                    day, mon = a, b
+                            y = year_val or now_utc().year
+                    else:
+                        if a is None or b is None:
+                            # fallback to dateparser's dt below
+                            pass
+                        else:
+                            if a > 12 and 1 <= b <= 12 and 1 <= a <= 31:
+                                day, mon = a, b
+                            elif b > 12 and 1 <= a <= 12 and 1 <= b <= 31:
+                                day, mon = b, a
+                            else:
+                                if DATE_ORDER == 'MDY':
+                                    mon, day = a, b
+                                else:
+                                    day, mon = a, b
+                            y = year_val or now_utc().year
+                    # If we were able to interpret numeric tokens, build dt and
+                    # append with year_explicit depending on whether a year was present.
+                    if 'mon' in locals() and 1 <= mon <= 12 and 1 <= day <= 31:
+                        try:
+                            from datetime import datetime as _dt
+                            cand = _dt(y, mon, day, tzinfo=timezone.utc)
+                            out.append({'year_explicit': bool(year_val), 'match_text': match_text, 'dt': cand, 'month': mon, 'day': day})
+                            continue
+                        except Exception:
+                            # fall back to dateparser dt if our construction fails
+                            pass
+
+            # Default: accept dateparser's result but normalize tz and expose
+            # month/day; note: dateparser may interpret ambiguous numeric
+            # triplets in MDY order by default if not overridden.
             # Detect explicit 4-digit year token in the matched substring
             year_present = bool(re.search(r"\b\d{4}\b", match_text))
             if dt.tzinfo is None:
@@ -1104,6 +1223,26 @@ def parse_date_and_recurrence(text: str) -> tuple[datetime | None, dict | None]:
         matched_text = None
         dt = None
         results = None
+
+        # Prefer our year-aware meta extractor which respects the configured
+        # DATE_ORDER. If it finds a numeric match, use that dt as the anchor
+        # and attempt to parse an immediately following recurrence phrase.
+        try:
+            metas = extract_dates_meta(text)
+            if metas:
+                first = metas[0]
+                dt = first.get('dt')
+                mt = first.get('match_text')
+                rec = None
+                if mt:
+                    idx = text.find(mt)
+                    following = text[idx + len(mt): idx + len(mt) + 200] if idx >= 0 else ''
+                    rec = parse_recurrence_phrase(following)
+                return dt, rec
+        except Exception:
+            # If meta extraction fails for any reason fall through to
+            # the existing DateDataParser/search-based logic below.
+            logger.exception('parse_date_and_recurrence: meta extraction failed')
 
         if _DATE_DATA_PARSER is not None:
             res = _DATE_DATA_PARSER.get_date_data(text)

@@ -136,6 +136,42 @@ SECRET_KEY=your-current-production-secret
 CSRF_VERIFY_KEYS=prior-secret-1,prior-secret-2
 ```
 
+## Date parsing / locale
+
+The server contains heuristics to extract dates and recurrence phrases from
+freeform todo titles and notes. Two configuration points control how numeric
+dates and synthesized datetimes are interpreted:
+
+- `DATE_ORDER` (env / `app.config.DATE_ORDER`): controls numeric ordering for
+  ambiguous numeric dates such as `5/9` or `12/9/25`. Valid values are
+  `DMY` (day-month-year) or `MDY` (month-day-year). The default is `DMY`
+  (Australian-style). You can override it with the environment variable
+  `DATE_ORDER=MDY`.
+
+- `DEFAULT_TIMEZONE` (env / `app.config.DEFAULT_TIMEZONE`): the IANA timezone
+  name the server should use for formatting or synthesizing local datetimes
+  when needed. Default: `Australia/Melbourne`.
+
+Examples (systemd / env file):
+
+```bash
+# Australian day/month ordering and Melbourne local timezone
+DATE_ORDER=DMY
+DEFAULT_TIMEZONE=Australia/Melbourne
+
+# US style month/day ordering
+# DATE_ORDER=MDY
+```
+
+Notes
+- The parser uses targeted numeric heuristics: if a numeric triplet includes a
+  4-digit year it is interpreted as `YYYY/MM/DD`. Otherwise the configured
+  `DATE_ORDER` is used for disambiguation. See `app/utils.py` around the
+  `_explicit_date_substrings` logic for the exact heuristics.
+- `extract_dates_meta` will mark whether a match included an explicit 4-digit
+  year (`year_explicit`) so callers can resolve yearless matches against a
+  calendar window or creation time.
+
 Notes
 - This helps browsers continue to POST successfully after a controlled key rotation or dev restart without forcing an immediate logout/login, as long as the CSRF token hasn’t expired.
 - For production, prefer a persistent `SECRET_KEY` managed outside the repo (EnvironmentFile, vault, etc.). The fallback list is optional and meant to smooth planned rotations.

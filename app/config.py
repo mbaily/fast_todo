@@ -27,6 +27,11 @@ ENABLE_RECURRING_DETECTION = True
 # parsing. Accept lowercase variants.
 DATE_ORDER = os.getenv('DATE_ORDER', 'DMY').upper()
 
+# Default server timezone name (IANA). Set to Melbourne/Australia by default.
+# Can be overridden via environment or app/local_config.py. Used by date
+# formatting and any synthesized datetimes that should reflect local walltime.
+DEFAULT_TIMEZONE = os.getenv('DEFAULT_TIMEZONE', 'Australia/Melbourne')
+
 
 DOKUWIKI_NOTE_LINK_PREFIX = os.getenv('DOKUWIKI_NOTE_LINK_PREFIX', 'https://myserver.hopto.org/dokuwiki/doku.php?')
 
