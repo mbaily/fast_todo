@@ -250,41 +250,52 @@
   cb.disabled = true;
       const csrf = getCookie('csrf_token') || '';
       const body = `_csrf=${encodeURIComponent(csrf)}&hash=${encodeURIComponent(hash)}`;
-      fetch('/occurrence/complete', { method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded'}, body: body, credentials: 'same-origin' })
-        .then(async r => {
-          let j = null;
-          try { j = await r.json(); } catch (e) { j = { error: 'invalid-json' }; }
-          console.log('DEBUG: complete_response', { status: r.status, body: j });
-          // if server responded with non-OK or payload indicates failure, revert
-          if (!r.ok || (j && typeof j.ok !== 'undefined' && !j.ok)) {
-            cb.checked = false;
-          }
-        })
-        .catch(err => {
-          console.error('DEBUG: complete_error', err);
+      (async () => {
+        // Helper to retry once after attempting CSRF refresh
+        async function postComplete() {
+          const r = await fetch('/occurrence/complete', { method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded'}, body: body, credentials: 'same-origin' });
+          return r;
+        }
+        let r = await postComplete();
+        if (r.status === 403) {
+          try {
+            // If middleware hinted a refresh or token likely expired, request a refresh and retry once
+            await fetch('/csrf/refresh', { method: 'POST', credentials: 'same-origin' });
+          } catch (e) { /* ignore */ }
+          r = await postComplete();
+        }
+        let j = null;
+        try { j = await r.json(); } catch (e) { j = { error: 'invalid-json' }; }
+        console.log('DEBUG: complete_response', { status: r.status, body: j });
+        if (!r.ok || (j && typeof j.ok !== 'undefined' && !j.ok)) {
           cb.checked = false;
-        })
-  .finally(() => { cb.disabled = false; window.__occInFlight[hash] = false; window.__occLastProcessed[hash] = Date.now(); });
+        }
+      })().catch(err => { console.error('DEBUG: complete_error', err); cb.checked = false; })
+      .finally(() => { cb.disabled = false; window.__occInFlight[hash] = false; window.__occLastProcessed[hash] = Date.now(); });
     } else {
   // mark in-flight and disable checkbox to avoid duplicate clicks and optimistic race
   window.__occInFlight[hash] = true;
   cb.disabled = true;
       const csrf = getCookie('csrf_token') || '';
       const body = `_csrf=${encodeURIComponent(csrf)}&hash=${encodeURIComponent(hash)}`;
-      fetch('/occurrence/uncomplete', { method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded'}, body: body, credentials: 'same-origin' })
-        .then(async r => {
-          let j = null;
-          try { j = await r.json(); } catch (e) { j = { error: 'invalid-json' }; }
-          console.log('DEBUG: uncomplete_response', { status: r.status, body: j });
-          if (!r.ok || (j && typeof j.ok !== 'undefined' && !j.ok)) {
-            cb.checked = true;
-          }
-        })
-        .catch(err => {
-          console.error('DEBUG: uncomplete_error', err);
+      (async () => {
+        async function postUncomplete() {
+          const r = await fetch('/occurrence/uncomplete', { method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded'}, body: body, credentials: 'same-origin' });
+          return r;
+        }
+        let r = await postUncomplete();
+        if (r.status === 403) {
+          try { await fetch('/csrf/refresh', { method: 'POST', credentials: 'same-origin' }); } catch (e) {}
+          r = await postUncomplete();
+        }
+        let j = null;
+        try { j = await r.json(); } catch (e) { j = { error: 'invalid-json' }; }
+        console.log('DEBUG: uncomplete_response', { status: r.status, body: j });
+        if (!r.ok || (j && typeof j.ok !== 'undefined' && !j.ok)) {
           cb.checked = true;
-        })
-  .finally(() => { cb.disabled = false; window.__occInFlight[hash] = false; window.__occLastProcessed[hash] = Date.now(); });
+        }
+      })().catch(err => { console.error('DEBUG: uncomplete_error', err); cb.checked = true; })
+      .finally(() => { cb.disabled = false; window.__occInFlight[hash] = false; window.__occLastProcessed[hash] = Date.now(); });
     }
   });
   </script>

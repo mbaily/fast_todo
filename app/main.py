@@ -6,7 +6,7 @@ from sqlalchemy import delete as sqlalchemy_delete
 from sqlalchemy import and_, or_
 from .db import async_session, init_db
 from .models import ListState, Todo, CompletionType, TodoCompletion, User
-from .auth import get_current_user, create_access_token, require_login, CSRF_TOKEN_EXPIRE_MINUTES
+from .auth import get_current_user, create_access_token, require_login, CSRF_TOKEN_EXPIRE_MINUTES, CSRF_TOKEN_EXPIRE_SECONDS
 from pydantic import BaseModel
 from .utils import now_utc, normalize_hashtag
 from datetime import datetime, timedelta, timezone
@@ -1897,12 +1897,22 @@ class _CSRFMiddleware(BaseHTTPMiddleware):
                         need_issue = True
                 if need_issue:
                     _issue_csrf_cookie(response, user.username)
+                    try:
+                        # Hint clients that a refreshed CSRF cookie was set so they can retry once.
+                        response.headers['X-CSRF-Refreshed'] = '1'
+                    except Exception:
+                        pass
         except Exception:
             logger.exception('csrf refresh middleware failed')
         return response
 
 
-app.add_middleware(_CSRFMiddleware, threshold_seconds=300)
+# Refresh threshold: refresh when less than 1/10th of CSRF lifetime remains, min 60s, max 5 minutes.
+try:
+    _thresh = max(60, min(300, max(1, CSRF_TOKEN_EXPIRE_SECONDS // 10)))
+except Exception:
+    _thresh = 300
+app.add_middleware(_CSRFMiddleware, threshold_seconds=_thresh)
 
 
 @app.get("/")
@@ -3280,7 +3290,9 @@ async def mark_occurrence_completed(request: Request, hash: str = Form(...), cur
     # cookie 'csrf_token'. Log masked token info when verbose debugging is enabled.
     if not auth_hdr:
         form = await request.form()
-        token = form.get('_csrf') or request.cookies.get('csrf_token')
+        form_token = form.get('_csrf')
+        cookie_token = request.cookies.get('csrf_token')
+        token = form_token or cookie_token
         try:
                 if ENABLE_VERBOSE_DEBUG:
                     import hashlib
@@ -3318,9 +3330,27 @@ async def mark_occurrence_completed(request: Request, hash: str = Form(...), cur
             logger.exception('occurrence/complete: verbose debug block failed')
 
         from .auth import verify_csrf_token
-        if not token or not verify_csrf_token(token, current_user.username):
+        ok = False
+        used = None
+        if form_token:
             try:
-                logger.warning('/occurrence/complete CSRF verification failed for user=%s token_present=%s', getattr(current_user, 'username', None), bool(token))
+                ok = verify_csrf_token(form_token, current_user.username)
+            except Exception:
+                logger.exception('verify_csrf_token(form) raised an exception')
+                ok = False
+            if ok:
+                used = 'form'
+        if not ok and cookie_token:
+            try:
+                ok = verify_csrf_token(cookie_token, current_user.username)
+            except Exception:
+                logger.exception('verify_csrf_token(cookie) raised an exception')
+                ok = False
+            if ok:
+                used = 'cookie'
+        if not ok:
+            try:
+                logger.warning('/occurrence/complete CSRF verification failed for user=%s tokens_present form=%s cookie=%s', getattr(current_user, 'username', None), bool(form_token), bool(cookie_token))
             except Exception:
                 pass
             # Additional immediate diagnostics: log token expiry/sub if available
@@ -3422,7 +3452,9 @@ async def unmark_occurrence_completed(request: Request, hash: str = Form(...), c
 
     if not auth_hdr:
         form = await request.form()
-        token = form.get('_csrf') or request.cookies.get('csrf_token')
+        form_token = form.get('_csrf')
+        cookie_token = request.cookies.get('csrf_token')
+        token = form_token or cookie_token
         try:
             if ENABLE_VERBOSE_DEBUG:
                 import hashlib
@@ -3460,9 +3492,27 @@ async def unmark_occurrence_completed(request: Request, hash: str = Form(...), c
             logger.exception('occurrence/uncomplete: verbose debug block failed')
 
         from .auth import verify_csrf_token
-        if not token or not verify_csrf_token(token, current_user.username):
+        ok = False
+        used = None
+        if form_token:
             try:
-                logger.warning('/occurrence/uncomplete CSRF verification failed for user=%s token_present=%s', getattr(current_user, 'username', None), bool(token))
+                ok = verify_csrf_token(form_token, current_user.username)
+            except Exception:
+                logger.exception('verify_csrf_token(form) raised an exception')
+                ok = False
+            if ok:
+                used = 'form'
+        if not ok and cookie_token:
+            try:
+                ok = verify_csrf_token(cookie_token, current_user.username)
+            except Exception:
+                logger.exception('verify_csrf_token(cookie) raised an exception')
+                ok = False
+            if ok:
+                used = 'cookie'
+        if not ok:
+            try:
+                logger.warning('/occurrence/uncomplete CSRF verification failed for user=%s tokens_present form=%s cookie=%s', getattr(current_user, 'username', None), bool(form_token), bool(cookie_token))
             except Exception:
                 pass
             # Additional immediate diagnostics: log token expiry/sub if available

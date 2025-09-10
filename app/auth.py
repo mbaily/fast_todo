@@ -32,7 +32,26 @@ _CSRF_VERIFY_KEYS_ENV = os.getenv("CSRF_VERIFY_KEYS", "").strip()
 CSRF_VERIFY_KEYS = [k for k in (s.strip() for s in _CSRF_VERIFY_KEYS_ENV.split(",")) if k]
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
-CSRF_TOKEN_EXPIRE_MINUTES = 60
+# CSRF expiry configuration: prefer explicit seconds if provided; otherwise fall back to minutes (default 60m)
+def _get_csrf_expiry_seconds() -> int:
+    sec_env = os.getenv("CSRF_TOKEN_EXPIRE_SECONDS")
+    if sec_env:
+        try:
+            v = int(sec_env)
+            if v > 0:
+                return v
+        except Exception:
+            pass
+    # fallback to minutes
+    try:
+        mins = int(os.getenv("CSRF_TOKEN_EXPIRE_MINUTES", "60"))
+    except Exception:
+        mins = 60
+    return max(1, mins * 60)
+
+CSRF_TOKEN_EXPIRE_SECONDS = _get_csrf_expiry_seconds()
+# Provide minutes for logging/backwards references
+CSRF_TOKEN_EXPIRE_MINUTES = max(1, CSRF_TOKEN_EXPIRE_SECONDS // 60)
 
 # Log a minimal fingerprint of the active secret and count of fallback keys to
 # help diagnose CSRF failures across restarts without leaking secrets.
@@ -132,7 +151,8 @@ def create_csrf_token(username: str, expires_delta: Optional[timedelta] = None) 
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=CSRF_TOKEN_EXPIRE_MINUTES)
+    # Use seconds-based expiry to honor fine-grained settings
+    expire = datetime.now(timezone.utc) + timedelta(seconds=CSRF_TOKEN_EXPIRE_SECONDS)
     # Use numeric epoch seconds for exp to avoid library-specific serialization
     to_encode.update({"exp": int(expire.timestamp())})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
