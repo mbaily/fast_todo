@@ -151,8 +151,8 @@ def create_csrf_token(username: str, expires_delta: Optional[timedelta] = None) 
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
-    # Use seconds-based expiry to honor fine-grained settings
-    expire = datetime.now(timezone.utc) + timedelta(seconds=CSRF_TOKEN_EXPIRE_SECONDS)
+        # Use seconds-based expiry to honor fine-grained settings
+        expire = datetime.now(timezone.utc) + timedelta(seconds=CSRF_TOKEN_EXPIRE_SECONDS)
     # Use numeric epoch seconds for exp to avoid library-specific serialization
     to_encode.update({"exp": int(expire.timestamp())})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
