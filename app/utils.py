@@ -1,4 +1,6 @@
 from datetime import datetime, timezone
+import os
+import json
 import logging
 import re
 from typing import List, Tuple, Optional
@@ -47,6 +49,78 @@ try:
     DATE_ORDER = getattr(_config, 'DATE_ORDER', 'DMY').upper()
 except Exception:
     DATE_ORDER = 'DMY'
+
+# Lightweight assertion logging helper used by runtime instrumentation.
+def _asserts_enabled() -> bool:
+    """Check the runtime config flag for index-calendar assertions.
+
+    We read the flag at call time rather than module-import time so that
+    processes spawned by the reloader will respect the environment the
+    process was started with.
+    """
+    try:
+        from app import config as _config_local
+        return bool(getattr(_config_local, 'ENABLE_INDEX_CALENDAR_ASSERTS', False))
+    except Exception:
+        return False
+
+
+def index_calendar_assert(msg: str, *, extra: dict | None = None) -> None:
+    """Append an assertion message to scripts/index_calendar.log when enabled.
+
+    This helper checks the runtime flag each call. There is also an
+    environment override `FORCE_INDEX_CALENDAR_ASSERTS=1` that forces
+    writing even if the runtime flag is not set (handy for short-lived
+    quick tests).
+    """
+    try:
+        # quick env override for interactive debugging
+        if os.getenv('FORCE_INDEX_CALENDAR_ASSERTS', '').lower() in ('1', 'true', 'yes', 'on'):
+            enabled = True
+        else:
+            enabled = _asserts_enabled()
+        if not enabled:
+            return
+        import inspect, hashlib
+        from datetime import datetime as _dt
+        fn = os.path.join(os.getcwd(), 'scripts', 'index_calendar.log')
+        # identify caller frame for file/line info (skip this helper frame)
+        caller = None
+        try:
+            st = inspect.stack()
+            # stack[0] == current frame, stack[1] == caller
+            if len(st) > 2:
+                caller = st[2]
+            elif len(st) > 1:
+                caller = st[1]
+        except Exception:
+            caller = None
+        caller_file = None
+        caller_line = None
+        try:
+            if caller is not None:
+                caller_file = caller.filename
+                caller_line = caller.lineno
+        except Exception:
+            caller_file = None
+            caller_line = None
+
+        # small deterministic id for the assertion type/value
+        try:
+            _hash_src = f"{msg}:{_dt.now(timezone.utc).isoformat()}"
+            assertion_id = hashlib.sha1(_hash_src.encode('utf-8')).hexdigest()[:10]
+        except Exception:
+            assertion_id = None
+
+        entry = {'ts': _dt.now(timezone.utc).isoformat(), 'msg': msg, 'assertion_id': assertion_id, 'pid': os.getpid(), 'source_file': caller_file, 'source_line': caller_line}
+        if extra:
+            entry['extra'] = extra
+        # make file writes resilient to concurrent processes
+        with open(fn, 'a', encoding='utf-8') as fh:
+            fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    except Exception:
+        # Do not raise from debug logging; surface to server.log
+        logger.exception('failed to write index_calendar assertion')
 
 
 def _contains_generic_anchor(s: str) -> bool:

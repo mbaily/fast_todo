@@ -32,6 +32,20 @@ DATE_ORDER = os.getenv('DATE_ORDER', 'DMY').upper()
 # formatting and any synthesized datetimes that should reflect local walltime.
 DEFAULT_TIMEZONE = os.getenv('DEFAULT_TIMEZONE', 'Australia/Melbourne')
 
+# Enable lightweight assertion logging to help debug calendar/index mismatches.
+# When True, assertion messages will be appended to `scripts/index_calendar.log`.
+# Set via environment variable ENABLE_INDEX_CALENDAR_ASSERTS=1 to enable.
+ENABLE_INDEX_CALENDAR_ASSERTS = _trueish(os.getenv('ENABLE_INDEX_CALENDAR_ASSERTS', '0'))
+
+# Number of days before/after now to include in the small index calendar
+# (default 1 keeps previous behavior). Increasing this will let near-future
+# explicit dates (like '12/9/25') show up on the index page without changing
+# the broader /calendar/occurrences API window.
+try:
+    INDEX_CALENDAR_DAYS = int(os.getenv('INDEX_CALENDAR_DAYS', '1'))
+except Exception:
+    INDEX_CALENDAR_DAYS = 1
+
 
 DOKUWIKI_NOTE_LINK_PREFIX = os.getenv('DOKUWIKI_NOTE_LINK_PREFIX', 'https://myserver.hopto.org/dokuwiki/doku.php?')
 

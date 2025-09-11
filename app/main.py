@@ -1246,6 +1246,25 @@ except Exception:
 # serve static assets (manifest, service-worker, icons, pwa helper JS, etc.)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+
+# Startup instrumentation: write a marker to scripts/index_calendar.log when
+# assertion logging is enabled so we can detect the feature is active in logs.
+@app.on_event('startup')
+async def _index_calendar_startup_marker():
+    try:
+        from .utils import index_calendar_assert
+        # remove existing log to provide a fresh trace for this run
+        try:
+            fn = os.path.join(os.getcwd(), 'scripts', 'index_calendar.log')
+            if os.path.exists(fn):
+                os.remove(fn)
+        except Exception:
+            pass
+        index_calendar_assert('startup_enabled', extra={'pid': os.getpid()})
+    except Exception:
+        # Be silent on failure; do not prevent startup
+        logger.exception('failed to write index_calendar startup marker')
+
 # include JSON API router for web clients
 try:
     from .client_json_api import router as json_api_router
@@ -6719,8 +6738,12 @@ async def html_index(request: Request):
             from dateutil.rrule import rrulestr
 
             now = now_utc()
-            cal_start = now - _td(days=1)
-            cal_end = now + _td(days=1)
+            try:
+                days = int(getattr(config, 'INDEX_CALENDAR_DAYS', 1))
+            except Exception:
+                days = 1
+            cal_start = now - _td(days=days)
+            cal_end = now + _td(days=days)
 
             # fetch user's completed occ_hashes and active ignore scopes once
             qc = await sess.exec(select(CompletedOccurrence).where(CompletedOccurrence.user_id == owner_id))
@@ -6731,6 +6754,14 @@ async def html_index(request: Request):
             occ_ignore_hashes = set(r.scope_hash for r in ign_rows if getattr(r, 'scope_type', '') == 'occurrence' and r.scope_hash)
             list_ignore_ids = set(str(r.scope_key) for r in ign_rows if getattr(r, 'scope_type', '') == 'list')
             todo_from_scopes = [r for r in ign_rows if getattr(r, 'scope_type', '') == 'todo_from']
+
+            # Diagnostic: write the sets we will use for filtering so we can
+            # correlate why specific occurrences are dropped.
+            try:
+                from .utils import index_calendar_assert
+                index_calendar_assert('index_filter_state', extra={'done_set_count': len(done_set), 'occ_ignore_count': len(occ_ignore_hashes), 'list_ignore_count': len(list_ignore_ids), 'todo_from_count': len(todo_from_scopes)})
+            except Exception:
+                pass
 
             # visible lists/todos for this user (owned or public)
             try:
@@ -6754,6 +6785,13 @@ async def html_index(request: Request):
                     else:
                         qtt = await sess.exec(select(models.Todo).where(models.Todo.list_id.in_(vis_ids)))
                     vis_todos = qtt.all()
+                    try:
+                        # targeted diagnostic: record whether todo 441 is present
+                        from .utils import index_calendar_assert
+                        has_441_in_vis = any(getattr(t, 'id', None) == 441 for t in vis_todos)
+                        index_calendar_assert('vis_441_presence', extra={'in_vis': bool(has_441_in_vis), 'vis_count': len(vis_todos)})
+                    except Exception:
+                        pass
                 except Exception:
                     vis_todos = []
 
@@ -6768,12 +6806,42 @@ async def html_index(request: Request):
                     occ_hash = occurrence_hash(item_type, item_id, occ_dt, rrule_str or '', title)
                     # completed
                     if occ_hash in done_set:
+                        try:
+                            from .utils import index_calendar_assert
+                            index_calendar_assert('occ_rejected_completed', extra={'item_type': item_type, 'item_id': item_id, 'occurrence': occ_dt.isoformat(), 'occ_hash': occ_hash})
+                            try:
+                                if item_id == 441:
+                                    index_calendar_assert('todo_441_trace', extra={'reason': 'rejected_completed', 'occurrence': occ_dt.isoformat(), 'occ_hash': occ_hash})
+                            except Exception:
+                                pass
+                        except Exception:
+                            pass
                         return None
                     # occurrence-level ignore
                     if occ_hash in occ_ignore_hashes:
+                        try:
+                            from .utils import index_calendar_assert
+                            index_calendar_assert('occ_rejected_occ_ignore', extra={'item_type': item_type, 'item_id': item_id, 'occurrence': occ_dt.isoformat(), 'occ_hash': occ_hash})
+                            try:
+                                if item_id == 441:
+                                    index_calendar_assert('todo_441_trace', extra={'reason': 'rejected_occ_ignore', 'occurrence': occ_dt.isoformat(), 'occ_hash': occ_hash})
+                            except Exception:
+                                pass
+                        except Exception:
+                            pass
                         return None
                     # list-level ignore
                     if item_type == 'list' and str(item_id) in list_ignore_ids:
+                        try:
+                            from .utils import index_calendar_assert
+                            index_calendar_assert('occ_rejected_list_ignore', extra={'list_id': item_id, 'occurrence': occ_dt.isoformat(), 'occ_hash': occ_hash})
+                            try:
+                                if item_id == 441:
+                                    index_calendar_assert('todo_441_trace', extra={'reason': 'rejected_list_ignore', 'occurrence': occ_dt.isoformat(), 'occ_hash': occ_hash})
+                            except Exception:
+                                pass
+                        except Exception:
+                            pass
                         return None
                     # todo_from scopes
                     for r in todo_from_scopes:
@@ -6782,13 +6850,43 @@ async def html_index(request: Request):
                                 continue
                             r_from = getattr(r, 'from_dt', None)
                             if r_from is None:
+                                try:
+                                    from .utils import index_calendar_assert
+                                    index_calendar_assert('occ_rejected_todo_from_no_from', extra={'todo_id': item_id})
+                                    try:
+                                        if item_id == 441:
+                                            index_calendar_assert('todo_441_trace', extra={'reason': 'rejected_todo_from_no_from'})
+                                    except Exception:
+                                        pass
+                                except Exception:
+                                    pass
                                 return None
                             if r_from.tzinfo is None:
                                 r_from = r_from.replace(tzinfo=timezone.utc)
                             if occ_dt >= r_from:
+                                try:
+                                    from .utils import index_calendar_assert
+                                    index_calendar_assert('occ_rejected_todo_from_range', extra={'todo_id': item_id, 'occurrence': occ_dt.isoformat(), 'from_dt': r_from.isoformat()})
+                                    try:
+                                        if item_id == 441:
+                                            index_calendar_assert('todo_441_trace', extra={'reason': 'rejected_todo_from_range', 'occurrence': occ_dt.isoformat(), 'from_dt': r_from.isoformat()})
+                                    except Exception:
+                                        pass
+                                except Exception:
+                                    pass
                                 return None
                         except Exception:
                             continue
+                    try:
+                        from .utils import index_calendar_assert
+                        index_calendar_assert('occ_allowed', extra={'item_type': item_type, 'item_id': item_id, 'occurrence': occ_dt.isoformat(), 'occ_hash': occ_hash})
+                        try:
+                            if item_id == 441:
+                                index_calendar_assert('todo_441_trace', extra={'reason': 'allowed', 'occurrence': occ_dt.isoformat(), 'occ_hash': occ_hash})
+                        except Exception:
+                            pass
+                    except Exception:
+                        pass
                     return occ_hash
                 except Exception:
                     return None
@@ -6807,6 +6905,12 @@ async def html_index(request: Request):
                             oh = _occ_allowed('list', l.id, od, rec_rrule, title=(l.name or ''), list_id=None)
                             if oh:
                                 calendar_occurrences.append({'occurrence_dt': od.isoformat(), 'item_type': 'list', 'id': l.id, 'list_id': None, 'title': l.name, 'occ_hash': oh, 'is_recurring': True, 'rrule': rec_rrule})
+                                try:
+                                    # assertion logging for index/calendar debugging
+                                    from .utils import index_calendar_assert
+                                    index_calendar_assert('list_occurrence_added', extra={'list_id': l.id, 'occurrence_dt': od.isoformat(), 'match_source': 'list-rrule'})
+                                except Exception:
+                                    pass
                     except Exception:
                         pass
                 # explicit dates from list name (handle year-explicit and yearless)
@@ -6819,7 +6923,12 @@ async def html_index(request: Request):
                                 if d and d >= cal_start and d <= cal_end:
                                     oh = _occ_allowed('list', l.id, d, '', title=(l.name or ''), list_id=None)
                                     if oh:
-                                        calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'list', 'id': l.id, 'list_id': None, 'title': l.name, 'occ_hash': oh, 'is_recurring': False, 'rrule': ''})
+                                            calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'list', 'id': l.id, 'list_id': None, 'title': l.name, 'occ_hash': oh, 'is_recurring': False, 'rrule': ''})
+                                            try:
+                                                from .utils import index_calendar_assert
+                                                index_calendar_assert('list_explicit_added', extra={'list_id': l.id, 'match_text': m.get('match_text'), 'occurrence_dt': d.isoformat()})
+                                            except Exception:
+                                                pass
                             else:
                                 # yearless: resolve candidates using same policy as calendar_occurrences
                                 try:
@@ -6846,10 +6955,25 @@ async def html_index(request: Request):
 
             # expand todos: persisted rrule, inline rrule, explicit dates
             for t in vis_todos:
+                try:
+                    if getattr(t, 'id', None) == 441:
+                        try:
+                            from .utils import index_calendar_assert
+                            index_calendar_assert('todo_441_enter', extra={'todo_id': 441, 'text': t.text, 'note_present': bool(getattr(t, 'note', None)), 'recurrence_rrule': getattr(t, 'recurrence_rrule', None), 'recurrence_dtstart': str(getattr(t, 'recurrence_dtstart', None))})
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
                 rec_rrule = getattr(t, 'recurrence_rrule', None)
                 rec_dtstart = getattr(t, 'recurrence_dtstart', None)
                 if rec_rrule:
                     try:
+                        if getattr(t, 'id', None) == 441:
+                            try:
+                                from .utils import index_calendar_assert
+                                index_calendar_assert('todo_441_rec_rrule', extra={'todo_id': 441, 'rec_rrule': rec_rrule, 'rec_dtstart': str(rec_dtstart)})
+                            except Exception:
+                                pass
                         if rec_dtstart and rec_dtstart.tzinfo is None:
                             rec_dtstart = rec_dtstart.replace(tzinfo=timezone.utc)
                         r = rrulestr(rec_rrule, dtstart=rec_dtstart)
@@ -6858,6 +6982,11 @@ async def html_index(request: Request):
                             oh = _occ_allowed('todo', t.id, od, rec_rrule, title=(t.text or ''), list_id=t.list_id)
                             if oh:
                                 calendar_occurrences.append({'occurrence_dt': od.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': True, 'rrule': rec_rrule, 'priority': getattr(t, 'priority', None)})
+                                try:
+                                    from .utils import index_calendar_assert
+                                    index_calendar_assert('todo_rrule_added', extra={'todo_id': t.id, 'occurrence_dt': od.isoformat(), 'source': 'persisted-rrule'})
+                                except Exception:
+                                    pass
                     except Exception:
                         pass
                 else:
@@ -6865,6 +6994,12 @@ async def html_index(request: Request):
                     try:
                         from .utils import parse_text_to_rrule, parse_text_to_rrule_string
                         r_obj, dtstart = parse_text_to_rrule(t.text + '\n' + (t.note or ''))
+                        if getattr(t, 'id', None) == 441:
+                            try:
+                                from .utils import index_calendar_assert
+                                index_calendar_assert('todo_441_inline_parse', extra={'todo_id': 441, 'r_obj_present': r_obj is not None, 'dtstart': str(dtstart)})
+                            except Exception:
+                                pass
                         if r_obj is not None:
                             if dtstart and dtstart.tzinfo is None:
                                 dtstart = dtstart.replace(tzinfo=timezone.utc)
@@ -6873,12 +7008,58 @@ async def html_index(request: Request):
                             for od in occs:
                                 oh = _occ_allowed('todo', t.id, od, rrule_str_local, title=(t.text or ''), list_id=t.list_id)
                                 if oh:
-                                    calendar_occurrences.append({'occurrence_dt': od.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': True, 'rrule': rrule_str_local, 'priority': getattr(t, 'priority', None)})
+                                        calendar_occurrences.append({'occurrence_dt': od.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': True, 'rrule': rrule_str_local, 'priority': getattr(t, 'priority', None)})
+                                        try:
+                                            from .utils import index_calendar_assert
+                                            index_calendar_assert('todo_rrule_added_inline', extra={'todo_id': t.id, 'occurrence_dt': od.isoformat(), 'source': 'inline-rrule'})
+                                        except Exception:
+                                            pass
                     except Exception:
                         pass
                 # explicit dates from text/note (handle year-explicit and yearless)
                 try:
                     meta = extract_dates_meta(t.text + '\n' + (t.note or ''))
+                    # Diagnostic: dump a JSON-serializable sanitized meta for todo 441
+                    # Convert any datetime objects to ISO strings and only include
+                    # a small set of stable keys so entries can be written.
+                    try:
+                        if getattr(t, 'id', None) == 441:
+                            from .utils import index_calendar_assert
+                            def _sanitize_entry(m):
+                                out = {}
+                                for k, v in (m or {}).items():
+                                    try:
+                                        # convert datetimes to ISO
+                                        if hasattr(v, 'isoformat') and callable(getattr(v, 'isoformat')):
+                                            out[k] = v.isoformat()
+                                        else:
+                                            # only include primitive types or str()
+                                            if isinstance(v, (str, int, float, bool, type(None))):
+                                                out[k] = v
+                                            else:
+                                                out[k] = str(v)
+                                    except Exception:
+                                        out[k] = str(v)
+                                return out
+
+                            sanitized_meta = [_sanitize_entry(m) for m in (meta or [])]
+                            try:
+                                index_calendar_assert('todo_441_meta', extra={'todo_id': 441, 'meta_count': len(sanitized_meta), 'meta': sanitized_meta})
+                            except Exception:
+                                # best-effort; don't fail index assembly if logging fails
+                                pass
+                    except Exception:
+                        pass
+                    # One-off unconditional diagnostic for todo id 441 to capture parser output (sanitized)
+                    try:
+                        if getattr(t, 'id', None) == 441:
+                            try:
+                                from .utils import index_calendar_assert
+                                index_calendar_assert('todo_441_debug', extra={'todo_id': 441, 'text': t.text, 'recurrence_dtstart': str(getattr(t, 'recurrence_dtstart', None)), 'meta_count': len(meta) if meta is not None else 0})
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
                     for m in meta:
                         try:
                             if m.get('year_explicit'):
@@ -6886,7 +7067,12 @@ async def html_index(request: Request):
                                 if d and d >= cal_start and d <= cal_end:
                                     oh = _occ_allowed('todo', t.id, d, '', title=(t.text or ''), list_id=t.list_id)
                                     if oh:
-                                        calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': False, 'rrule': '', 'priority': getattr(t, 'priority', None)})
+                                            calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': False, 'rrule': '', 'priority': getattr(t, 'priority', None)})
+                                            try:
+                                                from .utils import index_calendar_assert
+                                                index_calendar_assert('todo_explicit_added', extra={'todo_id': t.id, 'match_text': m.get('match_text'), 'occurrence_dt': d.isoformat()})
+                                            except Exception:
+                                                pass
                             else:
                                 # yearless: resolve the candidate(s) using todo created_at
                                 try:
@@ -6970,9 +7156,44 @@ async def html_index(request: Request):
                     except Exception:
                         o['effective_priority'] = None
 
+                # Emit a pre-trim snapshot with occ_hash and effective_priority so we
+                # can correlate which occurrences existed before sorting/truncation.
+                try:
+                    from .utils import index_calendar_assert
+                    occs_for_log_pre = []
+                    for o in calendar_occurrences:
+                        occs_for_log_pre.append({
+                            'item_type': o.get('item_type'),
+                            'id': o.get('id'),
+                            'occurrence_dt': o.get('occurrence_dt'),
+                            'occ_hash': o.get('occ_hash'),
+                            'effective_priority': o.get('effective_priority'),
+                            'rrule': o.get('rrule', ''),
+                        })
+                    index_calendar_assert('pre_trim_occurrences', extra={'occurrences': occs_for_log_pre, 'count': len(occs_for_log_pre)})
+                except Exception:
+                    pass
+
                 # sort by (-priority, occurrence_dt) so higher priorities come first and earlier occurrences first on ties
                 calendar_occurrences.sort(key=lambda x: (-(int(x.get('effective_priority')) if x.get('effective_priority') is not None else -9999), _parse_dt_str(x.get('occurrence_dt'))))
                 calendar_occurrences = calendar_occurrences[:20]
+
+                # Emit a post-trim snapshot for the final set used by index rendering.
+                try:
+                    from .utils import index_calendar_assert
+                    occs_for_log_post = []
+                    for o in calendar_occurrences:
+                        occs_for_log_post.append({
+                            'item_type': o.get('item_type'),
+                            'id': o.get('id'),
+                            'occurrence_dt': o.get('occurrence_dt'),
+                            'occ_hash': o.get('occ_hash'),
+                            'effective_priority': o.get('effective_priority'),
+                            'rrule': o.get('rrule', ''),
+                        })
+                    index_calendar_assert('post_trim_occurrences', extra={'occurrences': occs_for_log_post, 'count': len(occs_for_log_post)})
+                except Exception:
+                    pass
             except Exception:
                 # fallback: previous behavior (sort by occurrence datetime ascending)
                 calendar_occurrences.sort(key=lambda x: x.get('occurrence_dt'))
@@ -7015,6 +7236,21 @@ async def html_index(request: Request):
             logger.info('html_index: rendering index_ios_safari (ua-detected) ua=%s', ua[:200])
             return TEMPLATES.TemplateResponse(request, "index_ios_safari.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat})
         logger.info('html_index: rendering index.html (default) ua=%s', ua[:200])
+        try:
+            from .utils import index_calendar_assert
+            # write full calendar_occurrences before compacting/sorting so
+            # we can see the exact set the index is using.
+            try:
+                # serializable shallow copy
+                occs_for_log = [{'item_type': o.get('item_type'), 'id': o.get('id'), 'occurrence_dt': o.get('occurrence_dt'), 'rrule': o.get('rrule', ''), 'is_recurring': o.get('is_recurring', False)} for o in calendar_occurrences]
+                index_calendar_assert('calendar_occurrences_snapshot', extra={'occurrences': occs_for_log})
+            except Exception:
+                index_calendar_assert('calendar_occurrences_snapshot', extra={'count': len(calendar_occurrences)})
+            # write a final snapshot and check for presence of todo id 441
+            has_441 = any((o.get('item_type') == 'todo' and str(o.get('id')) == '441') for o in calendar_occurrences)
+            index_calendar_assert('index_render_snapshot', extra={'count': len(calendar_occurrences), 'has_441': bool(has_441)})
+        except Exception:
+            pass
         return TEMPLATES.TemplateResponse(request, "index.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "high_priority_items": context_high_priority_items if 'context_high_priority_items' in locals() else [], "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat})
     except Exception:
         # Ensure we always return something even if logging fails
@@ -7360,8 +7596,12 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
             from dateutil.rrule import rrulestr
 
             now = now_utc()
-            cal_start = now - _td(days=1)
-            cal_end = now + _td(days=1)
+            try:
+                days = int(getattr(config, 'INDEX_CALENDAR_DAYS', 1))
+            except Exception:
+                days = 1
+            cal_start = now - _td(days=days)
+            cal_end = now + _td(days=days)
 
             qc = await sess.exec(select(CompletedOccurrence).where(CompletedOccurrence.user_id == owner_id))
             done_rows = qc.all()
@@ -7389,6 +7629,13 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
                     vis_todos = qtt.all()
                 except Exception:
                     vis_todos = []
+
+            # Emit a snapshot of visible todos/lists (ids only) for diagnostic tracing
+            try:
+                from .utils import index_calendar_assert
+                index_calendar_assert('vis_snapshot', extra={'vis_todo_ids': [str(t.id) for t in vis_todos], 'vis_list_ids': [str(l.id) for l in vis_lists]})
+            except Exception:
+                pass
 
             def _occ_allowed(item_type, item_id, occ_dt, rrule_str, title=None, list_id=None):
                 try:
@@ -7439,20 +7686,55 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
                         try:
                             if m.get('year_explicit'):
                                 d = m.get('dt')
+                                if d:
+                                    try:
+                                        from .utils import index_calendar_assert
+                                        index_calendar_assert('list_candidate_evaluated', extra={'list_id': l.id, 'match_text': m.get('match_text'), 'candidate': d.isoformat(), 'cal_start': cal_start.isoformat(), 'cal_end': cal_end.isoformat()})
+                                    except Exception:
+                                        pass
                                 if d and d >= cal_start and d <= cal_end:
                                     oh = _occ_allowed('list', l.id, d, '', title=(l.name or ''), list_id=None)
                                     if oh:
                                         calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'list', 'id': l.id, 'list_id': None, 'title': l.name, 'occ_hash': oh, 'is_recurring': False, 'rrule': ''})
+                                    else:
+                                        try:
+                                            from .utils import index_calendar_assert
+                                            index_calendar_assert('list_candidate_filtered', extra={'list_id': l.id, 'candidate': d.isoformat(), 'reason': 'occ_not_allowed'})
+                                        except Exception:
+                                            pass
+                                else:
+                                    try:
+                                        from .utils import index_calendar_assert
+                                        index_calendar_assert('list_candidate_out_of_window', extra={'list_id': l.id, 'candidate': d.isoformat() if d else None, 'cal_start': cal_start.isoformat(), 'cal_end': cal_end.isoformat()})
+                                    except Exception:
+                                        pass
                             else:
                                 try:
                                     created = getattr(l, 'created_at', None) or now
                                     candidates = resolve_yearless_date(int(m.get('month')), int(m.get('day')), created, window_start=cal_start, window_end=cal_end)
                                     if isinstance(candidates, list):
                                         for d in candidates:
-                                            if d and d >= cal_start and d <= cal_end:
-                                                oh = _occ_allowed('list', l.id, d, '', title=(l.name or ''), list_id=None)
-                                                if oh:
-                                                    calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'list', 'id': l.id, 'list_id': None, 'title': l.name, 'occ_hash': oh, 'is_recurring': False, 'rrule': ''})
+                                                try:
+                                                    from .utils import index_calendar_assert
+                                                    index_calendar_assert('list_yearless_candidate_evaluated', extra={'list_id': l.id, 'match_text': m.get('match_text'), 'candidate': d.isoformat(), 'cal_start': cal_start.isoformat(), 'cal_end': cal_end.isoformat()})
+                                                except Exception:
+                                                    pass
+                                                if d and d >= cal_start and d <= cal_end:
+                                                    oh = _occ_allowed('list', l.id, d, '', title=(l.name or ''), list_id=None)
+                                                    if oh:
+                                                        calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'list', 'id': l.id, 'list_id': None, 'title': l.name, 'occ_hash': oh, 'is_recurring': False, 'rrule': ''})
+                                                    else:
+                                                        try:
+                                                            from .utils import index_calendar_assert
+                                                            index_calendar_assert('list_candidate_filtered', extra={'list_id': l.id, 'candidate': d.isoformat(), 'reason': 'occ_not_allowed'})
+                                                        except Exception:
+                                                            pass
+                                                else:
+                                                    try:
+                                                        from .utils import index_calendar_assert
+                                                        index_calendar_assert('list_yearless_candidate_out_of_window', extra={'list_id': l.id, 'candidate': d.isoformat() if d else None})
+                                                    except Exception:
+                                                        pass
                                     else:
                                         d = candidates
                                         if d and d >= cal_start and d <= cal_end:
@@ -7502,20 +7784,56 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
                         try:
                             if m.get('year_explicit'):
                                 d = m.get('dt')
+                                # evaluation log
+                                if d:
+                                    try:
+                                        from .utils import index_calendar_assert
+                                        index_calendar_assert('todo_candidate_evaluated', extra={'todo_id': t.id, 'match_text': m.get('match_text'), 'candidate': d.isoformat(), 'cal_start': cal_start.isoformat(), 'cal_end': cal_end.isoformat()})
+                                    except Exception:
+                                        pass
                                 if d and d >= cal_start and d <= cal_end:
                                     oh = _occ_allowed('todo', t.id, d, '', title=(t.text or ''), list_id=t.list_id)
                                     if oh:
                                         calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': False, 'rrule': '', 'priority': getattr(t, 'priority', None)})
+                                    else:
+                                        try:
+                                            from .utils import index_calendar_assert
+                                            index_calendar_assert('todo_candidate_filtered', extra={'todo_id': t.id, 'candidate': d.isoformat(), 'reason': 'occ_not_allowed'})
+                                        except Exception:
+                                            pass
+                                else:
+                                    try:
+                                        from .utils import index_calendar_assert
+                                        index_calendar_assert('todo_candidate_out_of_window', extra={'todo_id': t.id, 'candidate': d.isoformat() if d else None, 'cal_start': cal_start.isoformat(), 'cal_end': cal_end.isoformat()})
+                                    except Exception:
+                                        pass
                             else:
                                 try:
                                     created = getattr(t, 'created_at', None) or now
                                     candidates = resolve_yearless_date(int(m.get('month')), int(m.get('day')), created, window_start=cal_start, window_end=cal_end)
                                     if isinstance(candidates, list):
                                         for d in candidates:
+                                            try:
+                                                from .utils import index_calendar_assert
+                                                index_calendar_assert('todo_yearless_candidate_evaluated', extra={'todo_id': t.id, 'match_text': m.get('match_text'), 'candidate': d.isoformat(), 'cal_start': cal_start.isoformat(), 'cal_end': cal_end.isoformat()})
+                                            except Exception:
+                                                pass
                                             if d and d >= cal_start and d <= cal_end:
                                                 oh = _occ_allowed('todo', t.id, d, '', title=(t.text or ''), list_id=t.list_id)
                                                 if oh:
                                                     calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': False, 'rrule': '', 'priority': getattr(t, 'priority', None)})
+                                                else:
+                                                    try:
+                                                        from .utils import index_calendar_assert
+                                                        index_calendar_assert('todo_candidate_filtered', extra={'todo_id': t.id, 'candidate': d.isoformat(), 'reason': 'occ_not_allowed'})
+                                                    except Exception:
+                                                        pass
+                                            else:
+                                                try:
+                                                    from .utils import index_calendar_assert
+                                                    index_calendar_assert('todo_yearless_candidate_out_of_window', extra={'todo_id': t.id, 'candidate': d.isoformat() if d else None})
+                                                except Exception:
+                                                    pass
                                     else:
                                         d = candidates
                                         if d and d >= cal_start and d <= cal_end:
