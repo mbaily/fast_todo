@@ -740,7 +740,17 @@ window.addEventListener && window.addEventListener('storage', function(ev){
     }catch(e){ return []; }
   }
 
-  async function refreshAllTags(){
+  async function fetchListTags(listId){
+    try{
+      var resp = await fetch('/lists/' + encodeURIComponent(listId) + '/hashtags', { credentials: 'same-origin' });
+      if (!resp.ok) return [];
+      var data = await resp.json();
+      return data.hashtags || [];
+    }catch(e){ return []; }
+  }
+
+  async function refreshAllTags(force){
+    force = !!force;
     var containers = document.querySelectorAll('.all-tags-inline');
     containers.forEach(async function(c){
       var lid = c.getAttribute('data-list-id');
@@ -748,25 +758,35 @@ window.addEventListener && window.addEventListener('storage', function(ev){
       var listTags = [];
       try{ listTags = listTagsJson ? JSON.parse(listTagsJson) : []; }catch(e){ listTags = []; }
 
-      // If server already rendered tag anchors, prefer leaving the SSR intact
-      // unless the user explicitly asked to "Show all tags" (checkbox checked).
-      var hasServerRendered = !!(c.querySelector && c.querySelector('.tag-chip'));
+  // If server already rendered tag anchors, prefer leaving the SSR intact
+  // unless the user explicitly asked to "Show all tags" (checkbox checked).
+  // Detect any anchor in the container (server markup may use different classes).
+  var hasServerRendered = !!(c.querySelector && (c.querySelector('.tag-chip') || c.querySelector('a')));
 
       if (!checkbox.checked){
-        if (hasServerRendered) {
-          // preserve SSR: do nothing
+        if (!force){
+          // preserve SSR when possible on passive (non-user) loads
+          if (hasServerRendered) {
+            return;
+          }
+          // no SSR anchors, fall back to rendering listTags (server-provided JSON)
+          if (listTags && listTags.length) renderTagsInto(c, listTags);
+          else { c.innerHTML = ''; c.setAttribute('aria-hidden','true'); }
           return;
         }
-        // no SSR anchors, fall back to rendering listTags (server-provided JSON)
-        if (listTags && listTags.length) renderTagsInto(c, listTags);
+        // user explicitly unticked: fetch list-only tags from the API and render
+        var list_only = await fetchListTags(lid);
+        if (list_only && list_only.length) renderTagsInto(c, list_only);
         else { c.innerHTML = ''; c.setAttribute('aria-hidden','true'); }
         return;
       }
 
       // checkbox checked: fetch combined tags and render. If server anchors
-      // exist and match what we'd render, skip to avoid unnecessary DOM churn.
+      // exist and match what we'd render, skip to avoid unnecessary DOM churn
+      // unless this is a user-initiated toggle (force=true) — force should
+      // guarantee the DOM reflects the user's action.
       var combined = await fetchCombinedTags(lid);
-      if (hasServerRendered && Array.isArray(listTags) && Array.isArray(combined) && arraysEqual(listTags, combined)) {
+      if (!force && hasServerRendered && Array.isArray(listTags) && Array.isArray(combined) && arraysEqual(listTags, combined)) {
         return;
       }
       if (combined && combined.length) renderTagsInto(c, combined);
@@ -775,8 +795,11 @@ window.addEventListener && window.addEventListener('storage', function(ev){
   }
 
   checkbox.addEventListener('change', function(){
-    setCookie('show_all_tags', checkbox.checked ? '1' : '0', 365);
-    refreshAllTags();
+  // record the preference and kick off a refresh for the user action.
+  setCookie('show_all_tags', checkbox.checked ? '1' : '0', 365);
+  try{ console.debug('show_all_tags changed ->', checkbox.checked); }catch(e){}
+  // user toggle should force a DOM update even if arraysEqual would otherwise skip it
+  refreshAllTags(true);
   });
 
   // Do NOT auto-invoke refresh on load. Preserve server-rendered anchors by default.

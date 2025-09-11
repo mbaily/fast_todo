@@ -4433,18 +4433,29 @@ async def get_list_hashtags(
         # optionally include todo-level tags
         todo_tags: list[str] = []
         if include_todo_tags:
+            # Collect todo-level tags in deterministic order (by Todo.id then TodoHashtag.id)
+            # and preserve first-seen order when deduplicating so the combined list
+            # matches server-side SSR merging which iterates todos in order.
             qtt = (
-                select(Hashtag.tag)
-                .distinct()
+                select(Todo.id, Hashtag.tag)
                 .join(TodoHashtag, TodoHashtag.hashtag_id == Hashtag.id)
                 .join(Todo, Todo.id == TodoHashtag.todo_id)
                 .where(Todo.list_id == list_id)
+                # Order by Todo id then tag text to be deterministic and avoid
+                # referencing ORM attributes that may not be present in some envs.
+                .order_by(Todo.id.asc(), Hashtag.tag.asc())
             )
             tres = await sess.exec(qtt)
+            seen = set()
             for row in tres.all():
-                val = row[0] if isinstance(row, (tuple, list)) else row
-                if isinstance(val, str) and val:
+                # row is (todo_id, tag)
+                try:
+                    _tid, val = row
+                except Exception:
+                    val = row[1] if isinstance(row, (tuple, list)) and len(row) > 1 else row[0]
+                if isinstance(val, str) and val and val not in seen:
                     todo_tags.append(val)
+                    seen.add(val)
 
         # return shape: preserve backwards compatibility when include_todo_tags is false
         if not include_todo_tags and not combine:
@@ -6346,7 +6357,11 @@ async def html_index(request: Request):
         todo_tags_map: dict[int, list[str]] = {}
         try:
             if show_all_tags and list_ids:
-                qtl = await sess.exec(select(Todo.id, Todo.list_id).where(Todo.list_id.in_(list_ids)))
+                # Order todos deterministically by id so merged todo-tags preserve
+                # a stable order that matches the API's ordering used elsewhere.
+                qtl = await sess.exec(
+                    select(Todo.id, Todo.list_id).where(Todo.list_id.in_(list_ids)).order_by(Todo.id.asc())
+                )
                 tlrows = qtl.all()
                 todo_ids_all: list[int] = []
                 for tid, lid in tlrows:
