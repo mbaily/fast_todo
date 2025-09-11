@@ -7014,11 +7014,37 @@ async def html_index(request: Request):
                                             index_calendar_assert('todo_rrule_added_inline', extra={'todo_id': t.id, 'occurrence_dt': od.isoformat(), 'source': 'inline-rrule'})
                                         except Exception:
                                             pass
+                                        # Broad diagnostic: log computed occ_hash immediately so we can trace when occurrences are generated
+                                        try:
+                                            from .utils import index_calendar_assert
+                                            index_calendar_assert('todo_occ_computed', extra={'todo_id': t.id, 'occ_hash': oh, 'occurrence_dt': od.isoformat(), 'source': 'inline-rrule'})
+                                        except Exception:
+                                            pass
                     except Exception:
                         pass
                 # explicit dates from text/note (handle year-explicit and yearless)
                 try:
                     meta = extract_dates_meta(t.text + '\n' + (t.note or ''))
+                    # Unconditional diagnostic for todo 442: compute canonical occ_hash(es)
+                    try:
+                        if getattr(t, 'id', None) == 442:
+                            try:
+                                from .utils import occurrence_hash, index_calendar_assert
+                                # compute occ_hash for each meta candidate (year-explicit or resolved yearless)
+                                _cands = []
+                                for _m in (meta or []):
+                                    try:
+                                        dt_candidate = _m.get('dt')
+                                        if dt_candidate:
+                                            oh_live = occurrence_hash('todo', t.id, dt_candidate, rrule=None, title=(t.text or ''))
+                                            _cands.append({'occurrence_dt': dt_candidate.isoformat() if hasattr(dt_candidate, 'isoformat') else str(dt_candidate), 'occ_hash_live': oh_live, 'match_text': _m.get('match_text')})
+                                    except Exception:
+                                        continue
+                                index_calendar_assert('todo_442_unconditional_occ_hashes', extra={'todo_id': 442, 'candidates': _cands})
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
                     # Diagnostic: dump a JSON-serializable sanitized meta for todo 441
                     # Convert any datetime objects to ISO strings and only include
                     # a small set of stable keys so entries can be written.
@@ -7060,6 +7086,16 @@ async def html_index(request: Request):
                                 pass
                     except Exception:
                         pass
+                    # TEMP DEBUG: force a trace for todo id 442 so we can capture parser/occurrence decisions
+                    try:
+                        if getattr(t, 'id', None) == 442:
+                            try:
+                                from .utils import index_calendar_assert
+                                index_calendar_assert('todo_442_forced_debug', extra={'todo_id': 442, 'text': t.text, 'recurrence_dtstart': str(getattr(t, 'recurrence_dtstart', None)), 'meta_count': len(meta) if meta is not None else 0})
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
                     for m in meta:
                         try:
                             if m.get('year_explicit'):
@@ -7073,11 +7109,29 @@ async def html_index(request: Request):
                                                 index_calendar_assert('todo_explicit_added', extra={'todo_id': t.id, 'match_text': m.get('match_text'), 'occurrence_dt': d.isoformat()})
                                             except Exception:
                                                 pass
+                                            # Broad diagnostic: log computed occ_hash immediately for explicit dates
+                                            try:
+                                                from .utils import index_calendar_assert
+                                                index_calendar_assert('todo_occ_computed', extra={'todo_id': t.id, 'occ_hash': oh, 'occurrence_dt': d.isoformat(), 'source': 'explicit-date'})
+                                            except Exception:
+                                                pass
                             else:
                                 # yearless: resolve the candidate(s) using todo created_at
                                 try:
+                                    # normalize created_at to the start of day so
+                                    # yearless candidates on the same calendar day
+                                    # are considered even if the todo was created
+                                    # later in the day (fixes missing same-day matches
+                                    # like todo 442).
                                     created = getattr(t, 'created_at', None) or now
-                                    candidates = resolve_yearless_date(int(m.get('month')), int(m.get('day')), created, window_start=cal_start, window_end=cal_end)
+                                    try:
+                                        if created.tzinfo is None:
+                                            created = created.replace(tzinfo=timezone.utc)
+                                        # use midnight of created date to allow same-day matches
+                                        created_midnight = created.replace(hour=0, minute=0, second=0, microsecond=0)
+                                    except Exception:
+                                        created_midnight = created
+                                    candidates = resolve_yearless_date(int(m.get('month')), int(m.get('day')), created_midnight, window_start=cal_start, window_end=cal_end)
                                     if isinstance(candidates, list):
                                         for d in candidates:
                                             if d and d >= cal_start and d <= cal_end:
