@@ -340,7 +340,43 @@
               {% if lst.created_at %}
                 <div class="meta">cr. {{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</div>
               {% endif %}
-              <div class="all-tags-inline" data-list-id="{{ lst.id }}" data-list-tags='{{ lst.hashtags | tojson }}' aria-hidden="true"></div>
+                {# SSR: prefer server-provided combined hashtags (computed in handler) when available #}
+                {% if lst.combined is defined and lst.combined is not none %}
+                  {% set combined = lst.combined %}
+                {% else %}
+                  {% set combined = [] %}
+                  {% if lst.hashtags %}
+                    {% for t in lst.hashtags %}
+                      {% if t not in combined %}
+                        {% set combined = combined + [t] %}
+                      {% endif %}
+                    {% endfor %}
+                  {% endif %}
+                  {% if lists is defined %}
+                    {% for lrow in lists %}
+                      {% if lrow.id == lst.id %}
+                        {% if lrow.hashtags is defined and lrow.hashtags %}
+                          {% for t in lrow.hashtags %}
+                            {% if t not in combined %}
+                              {% set combined = combined + [t] %}
+                            {% endif %}
+                          {% endfor %}
+                        {% endif %}
+                      {% endif %}
+                    {% endfor %}
+                  {% endif %}
+                {% endif %}
+              <div class="all-tags-inline" data-list-id="{{ lst.id }}" data-list-tags='{{ combined|default([]) | tojson }}' data-combined='{{ combined|default([]) | tojson }}' aria-hidden="true">
+                {# Debug: emit combined length and server-side combined map so we can confirm values in snapshot #}
+                <!-- combined_len: {{ combined|length }} -->
+                <!-- server_list_combined_snapshot_marker -->
+                {% if combined|length > 0 %}
+                  {% set csorted = combined | sort %}
+                  {% for tag in csorted %}
+                    &nbsp;<a href="/html_no_js/search?q={{ tag|urlencode }}" class="tag-chip">{{ tag }}</a>
+                  {% endfor %}
+                {% endif %}
+              </div>
             </div>
           </li>
         {% endfor %}
@@ -381,7 +417,41 @@
                 {% if lst.created_at %}
                   <div class="meta">cr. {{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</div>
                 {% endif %}
-                <div class="all-tags-inline" data-list-id="{{ lst.id }}" data-list-tags='{{ lst.hashtags | tojson }}' aria-hidden="true"></div>
+                {# Build combined tags first so data-combined and anchors can be rendered into the div below #}
+                {# Prefer server-computed `lst.combined` when present (keeps behavior consistent with uncategorized block) #}
+                {% if lst.combined is defined and lst.combined is not none %}
+                  {% set combined = lst.combined %}
+                {% else %}
+                  {% set combined = [] %}
+                  {% if lst.hashtags %}
+                    {% for t in lst.hashtags %}
+                      {% if t not in combined %}
+                        {% set combined = combined + [t] %}
+                      {% endif %}
+                    {% endfor %}
+                  {% endif %}
+                  {% if lists is defined %}
+                    {% for lrow in lists %}
+                      {% if lrow.id == lst.id %}
+                        {% if lrow.hashtags is defined and lrow.hashtags %}
+                          {% for t in lrow.hashtags %}
+                            {% if t not in combined %}
+                              {% set combined = combined + [t] %}
+                            {% endif %}
+                          {% endfor %}
+                        {% endif %}
+                      {% endif %}
+                    {% endfor %}
+                  {% endif %}
+                {% endif %}
+                <div class="all-tags-inline" data-list-id="{{ lst.id }}" data-list-tags='{{ combined|default([]) | tojson }}' data-combined='{{ combined|default([]) | tojson }}' aria-hidden="true">
+                {% if combined|length > 0 %}
+                  {% set csorted = combined | sort %}
+                  {% for tag in csorted %}
+                    &nbsp;<a href="/html_no_js/search?q={{ tag|urlencode }}" class="tag-chip">{{ tag }}</a>
+                  {% endfor %}
+                {% endif %}
+                </div>
               </div>
             </li>
           {% endfor %}
@@ -633,6 +703,13 @@ window.addEventListener && window.addEventListener('storage', function(ev){
 
   var checkbox = document.getElementById('show-all-tags-checkbox');
   if (!checkbox) return;
+  // helper: shallow array equality for small tag arrays
+  function arraysEqual(a,b){
+    if (!Array.isArray(a) || !Array.isArray(b)) return false;
+    if (a.length !== b.length) return false;
+    for (var i=0;i<a.length;i++){ if (String(a[i]) !== String(b[i])) return false; }
+    return true;
+  }
   // initialize state
   var state = getCookie('show_all_tags') === '1';
   checkbox.checked = state;
@@ -670,14 +747,28 @@ window.addEventListener && window.addEventListener('storage', function(ev){
       var listTagsJson = c.getAttribute('data-list-tags');
       var listTags = [];
       try{ listTags = listTagsJson ? JSON.parse(listTagsJson) : []; }catch(e){ listTags = []; }
+
+      // If server already rendered tag anchors, prefer leaving the SSR intact
+      // unless the user explicitly asked to "Show all tags" (checkbox checked).
+      var hasServerRendered = !!(c.querySelector && c.querySelector('.tag-chip'));
+
       if (!checkbox.checked){
-        // render only the server-provided list tags
+        if (hasServerRendered) {
+          // preserve SSR: do nothing
+          return;
+        }
+        // no SSR anchors, fall back to rendering listTags (server-provided JSON)
         if (listTags && listTags.length) renderTagsInto(c, listTags);
         else { c.innerHTML = ''; c.setAttribute('aria-hidden','true'); }
         return;
       }
-      // checkbox checked: fetch combined tags and render
+
+      // checkbox checked: fetch combined tags and render. If server anchors
+      // exist and match what we'd render, skip to avoid unnecessary DOM churn.
       var combined = await fetchCombinedTags(lid);
+      if (hasServerRendered && Array.isArray(listTags) && Array.isArray(combined) && arraysEqual(listTags, combined)) {
+        return;
+      }
       if (combined && combined.length) renderTagsInto(c, combined);
       else { c.innerHTML = ''; c.setAttribute('aria-hidden','true'); }
     });
@@ -688,8 +779,8 @@ window.addEventListener && window.addEventListener('storage', function(ev){
     refreshAllTags();
   });
 
-  // initialize rendering on load (renders server-provided list tags when unchecked)
-  refreshAllTags();
+  // Do NOT auto-invoke refresh on load. Preserve server-rendered anchors by default.
+  // Client will update tags only when the user toggles the checkbox.
 })();
 </script>
 

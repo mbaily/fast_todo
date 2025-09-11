@@ -968,11 +968,7 @@ def _sse_debug(event: str, payload: dict):
 def is_ios_safari(request: Request) -> bool:
     """Conservative check for iOS Safari: User-Agent contains 'iPhone' or 'iPad' or 'iPod' and 'Safari' but not 'CriOS' or 'FxiOS' (Chrome/Firefox on iOS)."""
     ua = (request.headers.get('user-agent') or '').lower()
-    if not ua:
-        return False
-    if ('iphone' in ua or 'ipad' in ua or 'ipod' in ua) and 'safari' in ua and 'crios' not in ua and 'fxios' not in ua:
-        return True
-    return False
+    return ('iphone' in ua or 'ipad' in ua or 'ipod' in ua) and 'safari' in ua and 'crios' not in ua and 'fxios' not in ua
 
  
 
@@ -6293,6 +6289,14 @@ async def html_index(request: Request):
             rows = qlh.all()
             for lid, tag in rows:
                 tag_map.setdefault(lid, []).append(tag)
+        # Diagnostic: snapshot the tag_map keys and a small sample for debugging
+        try:
+            from .utils import index_calendar_assert
+            # limit sample size to avoid huge logs
+            sample = {str(k): v for i, (k, v) in enumerate(tag_map.items()) if i < 20}
+            index_calendar_assert('tag_map_snapshot', extra={'list_ids_requested': [str(x) for x in list_ids], 'tag_map_count': len(tag_map), 'tag_map_sample': sample})
+        except Exception:
+            pass
         for l in lists:
             list_rows.append({
                 "id": l.id,
@@ -6310,6 +6314,104 @@ async def html_index(request: Request):
                 "uncompleted_count": None,
                 "hide_icons": getattr(l, 'hide_icons', False),
             })
+        # Diagnostic: record the hashtags attached to each list_row (sample up to 50)
+        try:
+            from .utils import index_calendar_assert
+            sample_rows = [{ 'id': r['id'], 'hashtags': r.get('hashtags', []) } for r in list_rows[:50]]
+            index_calendar_assert('list_rows_hashtags', extra={'sample_list_rows': sample_rows})
+        except Exception:
+            pass
+
+        # Respect a show_all_tags preference coming from the client. The client
+        # can send this as a query param ?show_all_tags=1 or via a cookie
+        # 'show_all_tags'. When enabled, include hashtags present on todos in
+        # each list in the server-side `combined` values (same behaviour as
+        # the client-side "Show All Tags" DOM updater).
+        show_all_tags = False
+        try:
+            qval = request.query_params.get('show_all_tags')
+            if qval is not None:
+                show_all_tags = str(qval).lower() in ('1', 'true', 'yes', 'on')
+            else:
+                cval = request.cookies.get('show_all_tags')
+                if cval is not None:
+                    show_all_tags = str(cval).lower() in ('1', 'true', 'yes', 'on')
+        except Exception:
+            show_all_tags = False
+
+        # If show_all_tags is enabled, fetch all todo ids for the lists on the
+        # page and the hashtags attached to those todos so we can include them
+        # in the combined list below.
+        list_todo_map: dict[int, list[int]] = {}
+        todo_tags_map: dict[int, list[str]] = {}
+        try:
+            if show_all_tags and list_ids:
+                qtl = await sess.exec(select(Todo.id, Todo.list_id).where(Todo.list_id.in_(list_ids)))
+                tlrows = qtl.all()
+                todo_ids_all: list[int] = []
+                for tid, lid in tlrows:
+                    try:
+                        tid_i = int(tid)
+                        lid_i = int(lid)
+                    except Exception:
+                        continue
+                    list_todo_map.setdefault(lid_i, []).append(tid_i)
+                    todo_ids_all.append(tid_i)
+                if todo_ids_all:
+                    qth_all = await sess.exec(select(TodoHashtag.todo_id, Hashtag.tag).join(Hashtag, Hashtag.id == TodoHashtag.hashtag_id).where(TodoHashtag.todo_id.in_(todo_ids_all)))
+                    for tid, tag in qth_all.all():
+                        try:
+                            tid_i = int(tid)
+                        except Exception:
+                            continue
+                        if isinstance(tag, str) and tag:
+                            todo_tags_map.setdefault(tid_i, []).append(tag)
+        except Exception:
+            # Non-fatal; if any DB issue occurs, simply behave as if flag disabled
+            list_todo_map = {}
+            todo_tags_map = {}
+        # Compute a server-side "combined" hashtag list for each list_row by
+        # merging any hashtags present on the ORM `lists` objects and the
+        # `hashtags` attached to the converted `list_rows`. This ensures the
+        # template can reliably render SSR anchors without depending on client
+        # DOM population or subtle template scoping issues.
+        try:
+            # Map ORM list id -> ORM object for quick lookup
+            list_obj_map = {l.id: l for l in lists} if lists else {}
+            for row in list_rows:
+                combined = []
+                try:
+                    orm = list_obj_map.get(row.get('id'))
+                    # Pull any hashtags persisted directly on the ORM object first
+                    if orm is not None and getattr(orm, 'hashtags', None):
+                        for t in getattr(orm, 'hashtags'):
+                            if t and t not in combined:
+                                combined.append(t)
+                except Exception:
+                    pass
+                # Merge hashtags attached to the list_row dict (from tag_map)
+                try:
+                    for t in row.get('hashtags', []) or []:
+                        if t and t not in combined:
+                            combined.append(t)
+                except Exception:
+                    pass
+                # If the client asked for all tags, also include hashtags found
+                # on todos that belong to this list (preserve order: list-level
+                # tags first, then todo-level tags not already present).
+                try:
+                    if show_all_tags:
+                        lid = row.get('id')
+                        todo_ids_for_list = list_todo_map.get(int(lid), []) if lid is not None else []
+                        for tid in todo_ids_for_list:
+                            for t in todo_tags_map.get(tid, []):
+                                if t and t not in combined:
+                                    combined.append(t)
+                except Exception:
+                    pass
+                row['combined'] = combined
+        except Exception:
+            pass
         # Determine highest uncompleted todo priority per list (if any)
         try:
             todo_q = await sess.exec(select(Todo.id, Todo.list_id, Todo.priority).where(Todo.list_id.in_(list_ids)).where(Todo.priority != None))
@@ -7285,31 +7387,52 @@ async def html_index(request: Request):
         user_default_cat = getattr(current_user, 'default_category_id', None)
         if force_ios:
             logger.info('html_index: rendering index_ios_safari (forced) ua=%s', ua[:200])
-            return TEMPLATES.TemplateResponse(request, "index_ios_safari.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat})
+            return TEMPLATES.TemplateResponse(request, "index_ios_safari.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "show_all_tags": show_all_tags})
         if is_ios_safari(request):
             logger.info('html_index: rendering index_ios_safari (ua-detected) ua=%s', ua[:200])
-            return TEMPLATES.TemplateResponse(request, "index_ios_safari.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat})
+            return TEMPLATES.TemplateResponse(request, "index_ios_safari.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "show_all_tags": show_all_tags})
+
         logger.info('html_index: rendering index.html (default) ua=%s', ua[:200])
         try:
             from .utils import index_calendar_assert
             # write full calendar_occurrences before compacting/sorting so
             # we can see the exact set the index is using.
             try:
-                # serializable shallow copy
-                occs_for_log = [{'item_type': o.get('item_type'), 'id': o.get('id'), 'occurrence_dt': o.get('occurrence_dt'), 'rrule': o.get('rrule', ''), 'is_recurring': o.get('is_recurring', False)} for o in calendar_occurrences]
+                occs_for_log = [
+                    {'item_type': o.get('item_type'), 'id': o.get('id'), 'occurrence_dt': o.get('occurrence_dt'), 'rrule': o.get('rrule', ''), 'is_recurring': o.get('is_recurring', False)}
+                    for o in calendar_occurrences
+                ]
                 index_calendar_assert('calendar_occurrences_snapshot', extra={'occurrences': occs_for_log})
             except Exception:
                 index_calendar_assert('calendar_occurrences_snapshot', extra={'count': len(calendar_occurrences)})
-            # write a final snapshot and check for presence of todo id 441
+
             has_441 = any((o.get('item_type') == 'todo' and str(o.get('id')) == '441') for o in calendar_occurrences)
             index_calendar_assert('index_render_snapshot', extra={'count': len(calendar_occurrences), 'has_441': bool(has_441)})
-        except Exception:
-            pass
-        return TEMPLATES.TemplateResponse(request, "index.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "high_priority_items": context_high_priority_items if 'context_high_priority_items' in locals() else [], "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat})
-    except Exception:
-        # Ensure we always return something even if logging fails
-        return TEMPLATES.TemplateResponse(request, "index.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "high_priority_todos": high_priority_todos if 'high_priority_todos' in locals() else [], "high_priority_lists": high_priority_lists if 'high_priority_lists' in locals() else [], "high_priority_items": context_high_priority_items if 'context_high_priority_items' in locals() else [], "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences})
 
+            try:
+                lc = {}
+                for lr in (list_rows or []):
+                    try:
+                        lid = int(lr.get('id'))
+                    except Exception:
+                        continue
+                    comb = lr.get('combined') if isinstance(lr, dict) else None
+                    if comb is None:
+                        comb = lr.get('hashtags') if isinstance(lr, dict) else None
+                    lc[lid] = comb or []
+                index_calendar_assert('list_combined_snapshot', extra={'list_combined': lc})
+            except Exception:
+                pass
+        except Exception:
+            # swallow any logging errors but continue to render
+            pass
+
+        return TEMPLATES.TemplateResponse(request, "index.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "high_priority_items": context_high_priority_items if 'context_high_priority_items' in locals() else [], "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "show_all_tags": show_all_tags})
+
+    except Exception:
+        # swallow unexpected errors during template-selection/logging but allow the
+        # handler to continue (mirrors previous defensive style in this module)
+        pass
 
 async def _prepare_index_context(request: Request, current_user: User | None) -> dict:
     """Prepare the context dict used by index templates (shared by html_no_js and html_tailwind).
@@ -7322,7 +7445,21 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
             client_tz = await get_session_timezone(request)
         except Exception:
             client_tz = None
-        return {"request": request, "lists": [], "lists_by_category": {}, "csrf_token": None, "client_tz": client_tz, "pinned_todos": [], "high_priority_todos": [], "high_priority_lists": [], "cursors": None, "categories": [], "calendar_occurrences": [], "user_default_category_id": None, "current_user": None}
+        return {
+            "request": request,
+            "lists": [],
+            "lists_by_category": {},
+            "csrf_token": None,
+            "client_tz": client_tz,
+            "pinned_todos": [],
+            "high_priority_todos": [],
+            "high_priority_lists": [],
+            "cursors": None,
+            "categories": [],
+            "calendar_occurrences": [],
+            "user_default_category_id": None,
+            "current_user": None,
+        }
 
     # Reuse the same per-page/cursor logic as html_index (simplified: one page)
     per_page = 50
@@ -7402,6 +7539,14 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
                 "uncompleted_count": None,
                 "hide_icons": getattr(l, 'hide_icons', False),
             })
+
+        # Diagnostic: record the hashtags attached to each list_row (sample up to 50)
+        try:
+            from .utils import index_calendar_assert
+            sample_rows = [{ 'id': r['id'], 'hashtags': r.get('hashtags', []) } for r in list_rows[:50]]
+            index_calendar_assert('list_rows_hashtags', extra={'sample_list_rows': sample_rows})
+        except Exception:
+            pass
 
         # (reuse existing logic: compute override_priority and uncompleted counts)
         try:

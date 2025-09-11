@@ -259,7 +259,37 @@
                     <span class="muted priority-inline priority-override" title="Highest uncompleted todo priority"><span class="priority-circle">{{ circ.get(lst.override_priority, lst.override_priority) }}</span></span>
                   {% endif %}
                   {% if lst.created_at %}<span class="muted"> cr. {{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</span>{% endif %}
-                  <div class="all-tags-inline" data-list-id="{{ lst.id }}" data-list-tags='{{ lst.hashtags | tojson }}' aria-hidden="true" style="display:inline-block;margin-left:0.5rem;"></div>
+                  <div class="all-tags-inline" data-list-id="{{ lst.id }}" data-list-tags='{{ lst.hashtags | tojson }}' aria-hidden="true" style="display:inline-block;margin-left:0.5rem;">
+                    {# SSR combined tags for iOS standalone: include list-level hashtags and merge any available todo/list tags if present. #}
+                    {% set combined = [] %}
+                    {% if lst.hashtags %}
+                      {% for t in lst.hashtags %}
+                        {% if t not in combined %}
+                          {% do combined.append(t) %}
+                        {% endif %}
+                      {% endfor %}
+                    {% endif %}
+                    {# If a tag_map / lists context is available, try to merge additional tags from server data structures #}
+                    {% if lists is defined %}
+                      {% for lrow in lists %}
+                        {% if lrow.id == lst.id %}
+                          {% if lrow.hashtags is defined and lrow.hashtags %}
+                            {% for t in lrow.hashtags %}
+                              {% if t not in combined %}
+                                {% do combined.append(t) %}
+                              {% endif %}
+                            {% endfor %}
+                          {% endif %}
+                        {% endif %}
+                      {% endfor %}
+                    {% endif %}
+                    {% if combined|length > 0 %}
+                      {% set csorted = combined | sort %}
+                      {% for tag in csorted %}
+                        &nbsp;<a href="/html_no_js/search?q={{ tag|urlencode }}" style="background:#012383;color:#ffffff;border-radius:999px;text-decoration:none;font-size:0.95em;">{{ tag }}</a>
+                      {% endfor %}
+                    {% endif %}
+                  </div>
                 </li>
               {% endfor %}
           </ul>
