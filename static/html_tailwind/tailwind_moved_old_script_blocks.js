@@ -171,8 +171,9 @@
 
             }
         });
-        // initialize from saved state: trigger change to load tags if needed
-        if (globalBox.checked){ globalBox.dispatchEvent(new Event('change')); }
+    // initialize from saved state: do NOT trigger change on load.
+    // Preserve server-side rendered tags by default; only user actions should
+    // force client-side fetching to avoid unnecessary DOM updates on page reload.
     }
     // when unchecked, remove only appended combined tags
     if (globalBox){

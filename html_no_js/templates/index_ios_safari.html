@@ -496,8 +496,8 @@
           }
 
           checkbox.addEventListener('change', function(){ setCookie('show_all_tags', checkbox.checked ? '1' : '0', 365); refreshAllTags(); });
-          // Initialize rendering on load (renders server tags by default if unchecked)
-          refreshAllTags();
+          // Do NOT auto-invoke refresh on load. Preserve server-rendered anchors by default.
+          // Client will update tags only when the user toggles the checkbox.
         })();
         // Hide Completed lists for iOS template (persist via cookie)
         (function(){

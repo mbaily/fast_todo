@@ -337,6 +337,12 @@ TEMPLATES = Jinja2Templates(directory="html_no_js/templates")
 # requiring a full server restart. Also clear any cached templates on
 # render for extra safety.
 TEMPLATES.env.auto_reload = True
+# Enable the 'do' extension which some templates use (eg. index_ios_safari.html)
+try:
+    TEMPLATES.env.add_extension('jinja2.ext.do')
+except Exception:
+    # fail closed: if extension can't be added, keep running without raising
+    logger.exception('failed to add jinja2.ext.do extension to TEMPLATES.env')
 TEMPLATES.env.filters['server_local_dt'] = format_server_local
 TEMPLATES.env.filters['in_tz'] = format_in_timezone
 # Expose config in Jinja templates (e.g., for DOKUWIKI_NOTE_LINK_PREFIX)
@@ -7400,12 +7406,49 @@ async def html_index(request: Request):
     # Log which template we will render and why (truncate UA to avoid huge logs)
     try:
         user_default_cat = getattr(current_user, 'default_category_id', None)
+        def _render_and_log(template_name: str, ctx: dict):
+            """Render template to string, log its length, and return a TemplateResponse.
+
+            This helper uses the Jinja environment to render the template to a
+            string first so we can log the final payload length in server
+            logs for diagnostics. If rendering to string fails for any reason,
+            fall back to returning the regular TemplateResponse to preserve
+            prior behaviour.
+            """
+            try:
+                # Render to string first so we can measure length
+                tpl = TEMPLATES.env.get_template(template_name)
+                rendered = tpl.render(**ctx)
+                try:
+                    logger.info('html_index: rendered template=%s length=%d', template_name, len(rendered))
+                except Exception:
+                    logger.info('html_index: rendered template=%s length=?', template_name)
+                # Return a TemplateResponse using the already-rendered string
+                # via HTMLResponse to ensure cookies/headers set downstream
+                from fastapi.responses import HTMLResponse
+                resp = HTMLResponse(content=rendered)
+                # Ensure request context is available to template consumers
+                try:
+                    # copy common headers or cookies if needed later; keep minimal
+                    pass
+                except Exception:
+                    pass
+                return resp
+            except Exception:
+                # On any failure, log and fall back to TemplateResponse
+                logger.exception('html_index: failed to pre-render %s; falling back', template_name)
+                return TEMPLATES.TemplateResponse(request, template_name, ctx)
+
         if force_ios:
             logger.info('html_index: rendering index_ios_safari (forced) ua=%s', ua[:200])
-            return TEMPLATES.TemplateResponse(request, "index_ios_safari.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "show_all_tags": show_all_tags})
+            circ_map = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'}
+            ctx = {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "show_all_tags": show_all_tags, "circ": circ_map}
+            return _render_and_log("index_ios_safari.html", ctx)
         if is_ios_safari(request):
             logger.info('html_index: rendering index_ios_safari (ua-detected) ua=%s', ua[:200])
-            return TEMPLATES.TemplateResponse(request, "index_ios_safari.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "show_all_tags": show_all_tags})
+            circ_map = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'}
+            ctx = {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "show_all_tags": show_all_tags, "circ": circ_map}
+            return _render_and_log("index_ios_safari.html", ctx)
 
         logger.info('html_index: rendering index.html (default) ua=%s', ua[:200])
         try:
@@ -7442,7 +7485,24 @@ async def html_index(request: Request):
             # swallow any logging errors but continue to render
             pass
 
-        return TEMPLATES.TemplateResponse(request, "index.html", {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "high_priority_items": context_high_priority_items if 'context_high_priority_items' in locals() else [], "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "show_all_tags": show_all_tags})
+        circ_map = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'}
+        ctx = {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "high_priority_items": context_high_priority_items if 'context_high_priority_items' in locals() else [], "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "show_all_tags": show_all_tags, "circ": circ_map}
+        try:
+            # non-fatal pre-render to log payload length for diagnostics
+            try:
+                tpl = TEMPLATES.env.get_template("index.html")
+                rendered = tpl.render(**ctx)
+                try:
+                    logger.info('html_index: rendered template=%s length=%d', 'index.html', len(rendered))
+                except Exception:
+                    logger.info('html_index: rendered template=%s length=?', 'index.html')
+            except Exception:
+                logger.exception('html_index: pre-render for logging failed')
+        except Exception:
+            # ignore logging errors
+            pass
+
+        return TEMPLATES.TemplateResponse(request, "index.html", ctx)
 
     except Exception:
         # swallow unexpected errors during template-selection/logging but allow the
