@@ -19,6 +19,14 @@ I use it on client windows and linux PCs (with Google Chrome), and my ipad and i
 If you need to write or store more extensive documentation, I recommend dokuwiki (open-source).
 
 
+## Server and Client
+
+The server is Python + FastAPI.
+
+The main web client as of 2025-09-12 is called html_no_js. The other clients are prototypes or skeletons.
+The name html_no_js is now a misnomer as there is some javascript used to update the DOM, and other things.
+
+
 ## Quick server usage (Windows and Debian)
 
 This project can run either as a local app on Windows or as a server on a Linux machine (for example a mini PC running Debian).
