@@ -1,5 +1,18 @@
 New Requirements
 
-1. The top of the recent.html page above the heading 'Recently Visited Lists' shows a link to the hashtags page. The hashtags page has look with hashtags appearing exactly like in index.html (it's a blue hashtag chip with border and white text).. The hashtags appear not one per line but instead in a single line that wraps. The hashtags have a link to seearch exactly like index.html.
+1. The top of the recent.html page above the heading 'Recently Visited Lists' shows a link to the hashtags page. The hashtags page has look with hashtags appearing exactly like in index.html (it's a blue hashtag chip with border and white text).. The hashtags appear not one per line but instead in a single line that wraps. The hashtags have a link to seearch exactly like index.html. Only the hashtags for a user are shown (current user is logged in).
 
+3. The hashtags page will have, after the list of hashtags, a checkbox 'Select' and a button delete. The checkbox 'Select' always starts off unticked for this page. If the user ticks 'Select', while 'Select' is ticked, the hashtags, when clicked, instead of linking to search, toggle selection of the hashtag. A selected hashtag turns red, and unselected turns to normal blue. Only if 'Select' is ticked, and the user clicks on the 'Delete' button, a browser confirmation dialog box is shown to confir deletion of the hashtags, and the hashtags going to be deleted are listed in this dialog box. If the uesr clicks OK the selected hashtags are deleted from the DB (no trash). Otherwise no hashtags are deleted. If 'Select' is ticked, the 'Delete' button does nothing.
 
+4. The hashtags/delete endpoint is allowed for a user. It shouldn't return admin required for a user who owns the hashtags.
+
+5. all the hashtags that a user can normally see or has created are shown in the hashtags page.
+
+Don't use bash or unix utilities. Only use python, uv, and pytest, or node, npm, and npx.
+Don't use bash. Use .venv/bin/python to run test scripts.
+Or you can use node, npm or npx.
+Use the 'uv pip' command, don't use pip. uv is installed, use 'uv' or 'uv pip'.
+uv command is not in the venv. Just use 'uv'.
+URL is https://0.0.0.0:10443/html_no_js
+username mbaily
+password mypass

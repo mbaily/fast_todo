@@ -10142,9 +10142,109 @@ async def api_lookup_names(request: Request, current_user: User = Depends(requir
 async def html_no_js_hashtags(request: Request, current_user: User = Depends(require_login)):
     """Unlinked page to list all Hashtag rows."""
     async with async_session() as sess:
-        q = await sess.scalars(select(Hashtag).order_by(Hashtag.tag.asc()))
-        hashtags = q.all()
-    return TEMPLATES.TemplateResponse(request, 'hashtags.html', {'request': request, 'hashtags': hashtags})
+        # Only show hashtags that are associated with lists/todos visible to the current user.
+        # Visible lists: owner == current_user.id
+        # Visible todos: todos whose ListState.owner_id is current_user.id or NULL (public)
+        try:
+            # Build an EXISTS-based query: select Hashtag rows where either
+            # a ListHashtag exists linking to a ListState owned by current_user
+            # OR a TodoHashtag exists linking to a Todo whose ListState is owned
+            # by current_user or is public (owner_id IS NULL).
+            from sqlalchemy import exists, and_, or_
+            lh_exists = exists().where(and_(ListHashtag.hashtag_id == Hashtag.id, ListHashtag.list_id == ListState.id, ListState.owner_id == current_user.id))
+            th_exists = exists().where(and_(TodoHashtag.hashtag_id == Hashtag.id, TodoHashtag.todo_id == Todo.id, Todo.list_id == ListState.id, or_(ListState.owner_id == current_user.id, ListState.owner_id == None)))
+            q = select(Hashtag).where(or_(lh_exists, th_exists)).order_by(Hashtag.tag.asc())
+            res = await sess.exec(q)
+            # some SQLModel/SQLAlchemy versions return a ScalarResult without
+            # a .scalars() helper; use .all() which works across versions.
+            hashtags = res.all()
+        except Exception:
+            logger.exception('failed to load hashtags for user id=%s', getattr(current_user, 'id', None))
+            hashtags = []
+    from .auth import create_csrf_token
+    csrf_token = create_csrf_token(current_user.username)
+    debug_flag = str(request.query_params.get('debug','')).lower() in ('1','true','yes')
+    return TEMPLATES.TemplateResponse(request, 'hashtags.html', {'request': request, 'hashtags': hashtags, 'csrf_token': csrf_token, 'current_user': current_user, 'debug': debug_flag})
+
+
+@app.post('/html_no_js/hashtags/delete')
+async def html_no_js_hashtags_delete(request: Request, current_user: User = Depends(require_login)):
+    """Delete one or more hashtags (admin only). Expects form field `tags` as comma-separated tag values (e.g. #tag1,#tag2)."""
+    # CSRF check
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    # require admin to perform global deletes, except when the current user
+    # owns all associated lists/todos for the requested tags (in which case
+    # allow the owner to delete their own tags).
+    tags_raw = form.get('tags', '') or ''
+    # tags may be comma-separated; allow whitespace
+    tags_list = [t.strip() for t in tags_raw.split(',') if t and t.strip()]
+    if not tags_list:
+        # nothing to do
+        ref = request.headers.get('Referer', '/html_no_js/hashtags')
+        return RedirectResponse(url=ref, status_code=303)
+    # normalize tags using normalize_hashtag where appropriate; tolerate tags already normalized
+    norm_tags: list[str] = []
+    for t in tags_list:
+        try:
+            nt = normalize_hashtag(t)
+        except Exception:
+            # ignore invalid tokens
+            continue
+        norm_tags.append(nt)
+    if not norm_tags:
+        ref = request.headers.get('Referer', '/html_no_js/hashtags')
+        return RedirectResponse(url=ref, status_code=303)
+    # perform deletion: remove association rows then hashtag rows
+    from sqlalchemy import delete as sa_delete
+    async with async_session() as sess:
+        try:
+            # find matching hashtag rows
+            qh_res = await sess.exec(select(Hashtag).where(Hashtag.tag.in_(norm_tags)))
+            hs = qh_res.all()
+            ids = [int(h.id) for h in hs]
+            if not ids:
+                # nothing matched
+                ref = request.headers.get('Referer', '/html_no_js/hashtags')
+                return RedirectResponse(url=ref, status_code=303)
+
+            # Determine owners of associated lists and todos for these hashtag ids
+            q_list_assoc = select(ListState.owner_id).join(ListHashtag, ListHashtag.list_id == ListState.id).where(ListHashtag.hashtag_id.in_(ids))
+            la_res = await sess.exec(q_list_assoc)
+            # la_res.all() returns list of rows which may be simple values; normalize to set
+            list_owner_ids = {r for r in la_res.all() if r is not None}
+            q_todo_assoc = select(ListState.owner_id).join(Todo, Todo.list_id == ListState.id).join(TodoHashtag, TodoHashtag.todo_id == Todo.id).where(TodoHashtag.hashtag_id.in_(ids))
+            ta_res = await sess.exec(q_todo_assoc)
+            todo_owner_ids = {r for r in ta_res.all() if r is not None}
+
+            assoc_owner_ids = list_owner_ids.union(todo_owner_ids)
+            # If there are no associated owner ids (only associations to lists with NULL owner), treat as public and require admin
+            allow_owner_delete = False
+            if assoc_owner_ids:
+                # allow non-admin if and only if the only owner id present is the current user
+                if assoc_owner_ids == {current_user.id}:
+                    allow_owner_delete = True
+
+            if not getattr(current_user, 'is_admin', False) and not allow_owner_delete:
+                raise HTTPException(status_code=403, detail='admin required')
+
+            # delete associations and hashtags
+            if ids:
+                await sess.exec(sa_delete(ListHashtag).where(ListHashtag.hashtag_id.in_(ids)))
+                await sess.exec(sa_delete(TodoHashtag).where(TodoHashtag.hashtag_id.in_(ids)))
+                await sess.exec(sa_delete(Hashtag).where(Hashtag.id.in_(ids)))
+                await sess.commit()
+        except Exception:
+            await sess.rollback()
+            raise
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse({'ok': True, 'deleted': norm_tags})
+    ref = request.headers.get('Referer', '/html_no_js/hashtags')
+    return RedirectResponse(url=ref, status_code=303)
 
 
 @app.post('/html_no_js/lists/{list_id}/priority')

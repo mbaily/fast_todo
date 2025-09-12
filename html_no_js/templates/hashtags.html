@@ -9,15 +9,82 @@
     header { margin-top: 0 !important; }
     /* Ensure chips flow inline and wrap to next lines naturally */
     .tags-wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
+    .tag-selected { background: rgba(255,0,0,0.85); border-color: rgba(255,120,120,0.9); }
   </style>
   <h2>Hashtags</h2>
+  {% if debug %}
+    <div style="margin:0.5rem 0; color:var(--muted); font-size:0.9rem;">Debug: user={% if current_user %}{{ current_user.username }} (id={{ current_user.id }}){% else %}(anon){% endif %}, visible_tags={{ hashtags|length }}</div>
+  {% endif %}
   {% if hashtags and hashtags|length > 0 %}
-    <div class="tags-wrap" aria-label="All hashtags">
-      {% for h in hashtags %}
-        <a class="tag-chip" href="/html_no_js/search?q={{ h.tag|urlencode }}">{{ h.tag }}</a>
-      {% endfor %}
-    </div>
+    <form id="hashtags-delete-form" method="post" action="/html_no_js/hashtags/delete">
+      {{ csrf_field() }}
+      {% if debug %}
+        <div style="margin:0.5rem 0; color:var(--muted); font-size:0.9rem;">Debug: user={{ current_user.username }} (id={{ current_user.id }}), visible_tags={{ hashtags|length }}</div>
+      {% endif %}
+      <div class="tags-wrap" aria-label="All hashtags" id="hashtags-wrap">
+        {% for h in hashtags %}
+          <a class="tag-chip" href="/html_no_js/search?q={{ h.tag|urlencode }}" data-tag="{{ h.tag }}">{{ h.tag }}</a>
+        {% endfor %}
+      </div>
+      <div style="margin:0.5rem 0; display:flex; gap:1rem; align-items:center;">
+        <label><input type="checkbox" id="select-mode-checkbox"> Select hashtags</label>
+        <button id="delete-selected-btn" type="button">Delete</button>
+        <input type="hidden" name="tags" id="delete-tags-input" value="">
+      </div>
+    </form>
   {% else %}
     <div class="meta">No hashtags found.</div>
   {% endif %}
+  <script>
+    (function(){
+      var selectChk = document.getElementById('select-mode-checkbox');
+      var wrap = document.getElementById('hashtags-wrap');
+      var deleteBtn = document.getElementById('delete-selected-btn');
+      var tagsInput = document.getElementById('delete-tags-input');
+      if (!wrap) return;
+      // track selection state via dataset on anchor
+      wrap.addEventListener('click', function(ev){
+        var a = ev.target && (ev.target.closest ? ev.target.closest('a.tag-chip') : null);
+        if (!a) return;
+        var isSelect = selectChk && selectChk.checked;
+        if (!isSelect) return; // normal navigation
+        ev.preventDefault();
+        var tag = a.getAttribute('data-tag');
+        var sel = a.dataset.selected === '1';
+        if (sel) {
+          a.dataset.selected = '0';
+          a.classList.remove('tag-selected');
+        } else {
+          a.dataset.selected = '1';
+          a.classList.add('tag-selected');
+        }
+      }, false);
+
+      deleteBtn.addEventListener('click', function(ev){
+        var isSelect = selectChk && selectChk.checked;
+        if (!isSelect) {
+          // when not in select mode, Delete button does nothing
+          return;
+        }
+        // gather selected tags
+        var nodes = Array.from(wrap.querySelectorAll('a.tag-chip'));
+        var sel = nodes.filter(function(n){ return n.dataset.selected === '1'; }).map(function(n){ return n.getAttribute('data-tag'); });
+        if (!sel || sel.length === 0) {
+          alert('No hashtags selected');
+          return;
+        }
+        // show confirmation listing tags
+        var msg = 'Delete the following hashtags?\n\n' + sel.join('\n');
+        if (!window.confirm(msg)) return;
+        // submit form
+        tagsInput.value = sel.join(',');
+        var form = document.getElementById('hashtags-delete-form');
+        try { form.submit(); } catch(e){
+          // fallback: POST via fetch
+          var data = new FormData(); data.append('_csrf', (document.querySelector('input[name="_csrf"]')||{value:''}).value); data.append('tags', sel.join(','));
+          fetch(form.action, { method: 'POST', body: data, credentials: 'same-origin' }).then(function(){ window.location.reload(); }).catch(function(){ window.location.reload(); });
+        }
+      }, false);
+    })();
+  </script>
 {% endblock %}
