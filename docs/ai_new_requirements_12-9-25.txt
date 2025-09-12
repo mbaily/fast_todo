@@ -1,0 +1,5 @@
+New Requirements
+
+1. The top of the recent.html page above the heading 'Recently Visited Lists' shows a link to the hashtags page. The hashtags page has look with hashtags appearing exactly like in index.html (it's a blue hashtag chip with border and white text).. The hashtags appear not one per line but instead in a single line that wraps. The hashtags have a link to seearch exactly like index.html.
+
+

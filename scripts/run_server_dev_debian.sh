@@ -60,7 +60,7 @@ fi
 # Create venv if missing
 if [ ! -d "$VENV_DIR" ]; then
   echo "[run_server] Creating virtualenv in $VENV_DIR"
-  $PY -m venv "$VENV_DIR"
+  uv venv "$VENV_DIR"
 fi
 
 # Activate venv
@@ -68,24 +68,24 @@ fi
 source "$VENV_DIR/bin/activate"
 
 # Upgrade pip
-python -m pip install --upgrade pip setuptools wheel >/dev/null
+#python -m pip install --upgrade pip setuptools wheel >/dev/null
 
 # Install dependencies: prefer a real requirements file if it's valid; otherwise use known set
 if [ -f "$REQ_FILE" ]; then
   echo "[run_server] Installing from $REQ_FILE"
-  python -m pip install -r "$REQ_FILE"
+  uv pip install -r "$REQ_FILE"
 elif [ -f "$REQ_FILE_DOC" ]; then
   # fallback: the documented requirements file may be human-readable; try to detect
   if grep -E '^[a-zA-Z0-9_.-]+' "$REQ_FILE_DOC" | grep -q -v '^```' ; then
     echo "[run_server] Installing from $REQ_FILE_DOC"
-    python -m pip install -r "$REQ_FILE_DOC"
+    uv pip install -r "$REQ_FILE_DOC"
   else
     echo "[run_server] $REQ_FILE_DOC appears to be documentation; installing common packages instead"
-    python -m pip install --no-cache-dir "${PIP_PACKAGES[@]}"
+     uv pi install --no-cache-dir "${PIP_PACKAGES[@]}"
   fi
 else
   echo "[run_server] No requirements file found; installing common packages"
-  python -m pip install --no-cache-dir "${PIP_PACKAGES[@]}"
+  uv pip install --no-cache-dir "${PIP_PACKAGES[@]}"
 fi
 
 

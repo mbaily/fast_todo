@@ -4,7 +4,7 @@ from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
 from .auth import require_login
 from .db import async_session
-from .models import ListState, Todo, Tombstone, SyncOperation, PushSubscription, User
+from .models import ListState, Todo, Tombstone, SyncOperation, PushSubscription, User, Category
 from .utils import now_utc
 from sqlalchemy import select
 import json
@@ -32,30 +32,48 @@ async def sync_get(since: Optional[str] = None, current_user: User = Depends(req
         except Exception:
             raise HTTPException(status_code=400, detail='invalid since timestamp')
     async with async_session() as sess:
-        ql = select(ListState).where((ListState.owner_id == current_user.id) | (ListState.owner_id == None))
+        ql = select(ListState).where((ListState.owner_id == current_user.id) | (ListState.owner_id is None))
         if since_dt:
-            ql = ql.where(ListState.modified_at != None).where(ListState.modified_at > since_dt)
+            ql = ql.where(ListState.modified_at is not None).where(ListState.modified_at > since_dt)
         resl = await sess.exec(ql)
         list_objs = resl.scalars().all()
         lists = [
             {
-                "id": l.id,
-                "name": l.name,
-                "owner_id": l.owner_id,
-                "created_at": (l.created_at.isoformat() if l.created_at else None),
-                "modified_at": (l.modified_at.isoformat() if l.modified_at else None),
+                "id": lst.id,
+                "name": lst.name,
+                "owner_id": lst.owner_id,
+                "created_at": (lst.created_at.isoformat() if lst.created_at else None),
+                "modified_at": (lst.modified_at.isoformat() if lst.modified_at else None),
+                "category_id": lst.category_id,
+                "parent_todo_id": lst.parent_todo_id,
+                "parent_list_id": lst.parent_list_id,
             }
-            for l in list_objs
+            for lst in list_objs
+        ]
+
+        # categories
+        qc = select(Category)
+        resc = await sess.exec(qc)
+        category_objs = resc.scalars().all()
+        categories = [
+            {
+                "id": cat.id,
+                "name": cat.name,
+                "position": cat.position,
+                "sort_alphanumeric": cat.sort_alphanumeric,
+            }
+            for cat in category_objs
         ]
 
         # todos in those lists
-        list_ids = [l['id'] for l in lists]
+        list_ids = [item['id'] for item in lists]
         qt = select(Todo)
         if list_ids:
             qt = qt.where(Todo.list_id.in_(list_ids))
         else:
             if since_dt:
-                qt = qt.where(Todo.modified_at != None).where(Todo.modified_at > since_dt)
+                qt = qt.where(Todo.modified_at != None)  # noqa: E711
+                qt = qt.where(Todo.modified_at > since_dt)
             else:
                 qt = qt.where(False)
         rest = await sess.exec(qt)
@@ -77,7 +95,8 @@ async def sync_get(since: Optional[str] = None, current_user: User = Depends(req
     # tombstones
     tombstones = []
     if since_dt:
-        qtomb = select(Tombstone).where(Tombstone.created_at != None).where(Tombstone.created_at > since_dt)
+        qtomb = select(Tombstone).where(Tombstone.created_at != None)  # noqa: E711
+        qtomb = qtomb.where(Tombstone.created_at > since_dt)
         tres = await sess.exec(qtomb)
         tomb_objs = tres.scalars().all()
         tombstones = [
@@ -85,7 +104,7 @@ async def sync_get(since: Optional[str] = None, current_user: User = Depends(req
             for t in tomb_objs
         ]
 
-    return {"lists": lists, "todos": todos, "tombstones": tombstones, "server_ts": now_utc().isoformat()}
+    return {"lists": lists, "todos": todos, "categories": categories, "tombstones": tombstones, "server_ts": now_utc().isoformat()}
 
 
 @router.post('/sync')
@@ -257,11 +276,14 @@ class PushSubIn(BaseModel):
 async def push_subscribe(payload: PushSubIn, current_user: User = Depends(require_login)):
     # store minimal subscription info in PushSubscription.result_json-like field
     async with async_session() as sess:
-        ps = PushSubscription(user_id=current_user.id, subscription_json=json.dumps({'endpoint': payload.endpoint, 'keys': payload.keys}))
-    sess.add(ps)
-    await sess.commit()
-    await sess.refresh(ps)
-    return JSONResponse({'ok': True, 'id': ps.id})
+        ps = PushSubscription(
+            user_id=current_user.id,
+            subscription_json=json.dumps({'endpoint': payload.endpoint, 'keys': payload.keys}),
+        )
+        sess.add(ps)
+        await sess.commit()
+        await sess.refresh(ps)
+        return JSONResponse({'ok': True, 'id': ps.id})
 
 
 @router.post('/push/unsubscribe')

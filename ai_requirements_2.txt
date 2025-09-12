@@ -1,6 +1,6 @@
-1. Implemented a test_pwa/ client in directory test_pwa/ which uses a python curses tui to explorer the usual data for a particular user, but using only the pwa related endpoints. It first thing it does is allow them to logon, then it syncs their whole data to the local app. 
+1. Implemented a test_pwa/ client in directory test_pwa/ which uses a python tk gui to explorer the usual data for a particular user, but using only the pwa related endpoints. It first thing it does is allow them to logon, then it syncs their whole data to the local app. 
 
-2. The test_pwa allows the user to explore their data, and also to add new items, edit existing items, and delete items, whilst offline.
+2. The test_pwa allows the user to explore their data  (read-only) whilst offline using TK gui.
 
 3. If the user is offline, the app will queue up any changes they make, and then when they go back online, it will sync those changes to the server.
 
@@ -13,3 +13,36 @@
 7. If you need to add or edit server endpoints related to pwa to accomplish these requirements, do so.
 
 8. Use ruff to lint the code, and pytest to test the code.
+
+9. test_pwa/ client must support HTTPS and default to self-signed certs are accepted.
+
+10. The functional parts of the test_pwa are isolated from the actual curses UI for easier testing and then the UI will be wired up to those.
+
+11. The test_pwa/ client core functionality should be tested with seperately run unit tests against a running dev server. Test basic login with test_pwa
+URL https://0.0.0.0:10443
+username mbaily
+password mypass
+
+The tests should exercise basic login, fetching data, adding data, editing data, deleting data, and syncing data.
+
+12. The test_pwa/ client should have a key to clear all local data.
+
+13. Make the test_pwa show what it's actions are in a log window that can be scrolled. A log of events like logon, sync activity, etc.
+
+14. Using the TK gui the user can see the counts for synced todos lists and categories and can drill down to see the actual items. Todos, lists, sublists and todos can be seen and browsed (read-only). The TK gui reflects whatever is in the local storage at the moment. If the local storage is cleared, the TK will reflect that.
+
+15. The URL, username anvd password should be configurable in a config file. This configuration should be documented in README.md.
+
+16. The source code should be thoroughly tested in a seperate unit test file using pytest, before handoff.
+
+17. You can double-click on a todo or list item in the TK gui to see the full details of that item in a popup window.
+
+18. The TK gui client should retrieve all the fields in the db or sqlmodel for each list and todo and allow the user to see the field values. It should also show the type of item in the gui (e.g. todo, list, or category).
+
+19. The completed field is also shown for lists and todos accuretely true/false.
+
+20. You can hit Ctrl-F in the GUI to pop up a search box to search for the id of an item. Then it will highlight that item in the list if found.
+
+21. In the todo or list picker in the TK Gui, not just one level of parent is shown but the whole hierarchy of parents and children are reflected in the TK gui. These are always resolved on todo Id OR list id. A list can be a child of a todo by todo ID and a todo can be a child of a list by list ID.
+
+22. The categories in the db represent the top level of the hierarchy. Underneath categories are lists but not any todos. Lists have a category_id field for this which represents the category id of the category they are under. Lists with no category id which are top level lists (no other parent) are shown under a special category called "Uncategorized". Or if there is an "Uncategorized" category in the db, and the lists have their category_id as that "Uncategorized" category id, they are shown under that category.
