@@ -14,12 +14,12 @@
   <label><input type="checkbox" id="hide-completed-checkbox"> Hide completed</label>
   <span class="meta" style="margin-left:0.5rem; color: var(--muted, #6b7280);">(default: on)</span>
   <!-- Added toggle to include uncompleted unprioritised todos at the end -->
-  <label style="margin-left:1rem"><input type="checkbox" id="uncompleted-as-well-checkbox"> Uncompleted as well</label>
+  <label style="margin-left:1rem"><input type="checkbox" id="uncompleted-as-well-checkbox">Uncompleted items with no priority</label>
   </div>
   <p class="meta">Lists (highest priority first)</p>
   <ul class="lists-list">
     {% for l in lists if l.priority is not none %}
-      <li class="list-item"><a class="list-title" href="/html_no_js/lists/{{ l.id }}">{{ l.name }}</a>
+  <li class="list-item"><a class="list-title{% if l.completed %} done{% endif %}" href="/html_no_js/lists/{{ l.id }}">{{ l.name }}</a>
         <span class="meta priority-inline" style="margin-left:0.5rem"><span class="priority-circle">{{ circled.get(l.priority, l.priority) }}</span></span>
       </li>
     {% endfor %}
@@ -35,7 +35,7 @@
       {% for t, l in todos_unprio %}
         {# expose modified timestamp for client-side sorting; fallback to created if missing #}
         {% set modified_iso = t.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') if t.modified_at else (t.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S')) %}
-        <li class="todo no-priority-todo" data-modified-at="{{ modified_iso }}" style="display:none"><div class="todo-content"><div class="todo-main"><div class="todo-title-inline"><a class="wrap-text" href="/html_no_js/todos/{{ t.id }}">{{ t.text }}</a></div><div class="meta">in <a href="/html_no_js/lists/{{ l.id }}">{{ l.name }}</a></div></div></div></li>
+        <li class="todo no-priority-todo" data-modified-at="{{ modified_iso }}" style="display:none"><div class="todo-content"><div class="todo-main"><div class="todo-title-inline"><a class="wrap-text{% if t.completed %} done{% endif %}" href="/html_no_js/todos/{{ t.id }}">{{ t.text }}</a></div><div class="meta">in <a href="/html_no_js/lists/{{ l.id }}">{{ l.name }}</a></div></div></div></li>
       {% endfor %}
     {% endif %}
   </ul>

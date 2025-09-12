@@ -16,3 +16,5 @@ uv command is not in the venv. Just use 'uv'.
 URL is https://0.0.0.0:10443/html_no_js
 username mbaily
 password mypass
+
+6. in priorities page, completed list's names and todo's text appear in strikethrough (but not the priority circle).
