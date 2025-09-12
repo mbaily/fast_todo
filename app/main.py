@@ -2562,6 +2562,18 @@ async def html_priorities(request: Request, current_user: User = Depends(require
             return p if p is not None else -999
 
         lists_sorted = sorted(lists, key=_list_priority_key, reverse=True)
+        # Build lightweight list view models (avoid mutating ORM objects)
+        lists_vm = [
+            {
+                'id': getattr(l, 'id', None),
+                'name': getattr(l, 'name', ''),
+                'priority': getattr(l, 'priority', None),
+                'completed': bool(getattr(l, 'completed', False)),
+                'modified_at': getattr(l, 'modified_at', None),
+                'created_at': getattr(l, 'created_at', None),
+            }
+            for l in lists_sorted
+        ]
         todos_sorted = sorted(todos, key=_todo_priority_key, reverse=True)
         # Compute completion flags for prioritised todos (without mutating ORM objects)
         prior_ids = [getattr(tl[0], 'id', None) for tl in todos_sorted if getattr(tl[0], 'id', None) is not None]
@@ -2614,6 +2626,9 @@ async def html_priorities(request: Request, current_user: User = Depends(require
 
         # Instrumentation: log a couple of samples to verify completed flag
         try:
+            if lists_vm:
+                l0 = lists_vm[0]
+                logger.info('DEBUG_STRIKETHROUGH: list vm sample id=%s name=%s completed=%s', l0.get('id'), l0.get('name'), l0.get('completed'))
             if todos_vm:
                 t0 = todos_vm[0][0]
                 logger.info('DEBUG_STRIKETHROUGH: vm sample id=%s name=%s completed=%s', t0.get('id'), t0.get('text'), t0.get('completed'))
@@ -2626,7 +2641,7 @@ async def html_priorities(request: Request, current_user: User = Depends(require
         # leave todos_unprio unsorted here; client-side will sort by modified date when shown
     return TEMPLATES.TemplateResponse(request, 'priorities.html', {
         'request': request,
-        'lists': lists_sorted,
+        'lists': lists_vm,
         'todos': todos_vm,
         'todos_unprio': todos_unprio_vm,
         'client_tz': await get_session_timezone(request)

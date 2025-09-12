@@ -6,6 +6,8 @@
       :root { --page-top-gap: 0; --page-top-margin: 0; }
       /* also collapse any extra margin on the main content for strict flush */
       main { margin-top: 0; }
+  /* Apply strike-through to completed list titles (todos handled separately) */
+  .list-title.done { text-decoration: line-through; color: #6b7280; }
     </style>
   {% endblock %}
   <h2>Priority summary</h2>
