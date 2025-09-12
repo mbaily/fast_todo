@@ -2563,6 +2563,32 @@ async def html_priorities(request: Request, current_user: User = Depends(require
 
         lists_sorted = sorted(lists, key=_list_priority_key, reverse=True)
         todos_sorted = sorted(todos, key=_todo_priority_key, reverse=True)
+        # Compute completion flags for prioritised todos (without mutating ORM objects)
+        prior_ids = [getattr(tl[0], 'id', None) for tl in todos_sorted if getattr(tl[0], 'id', None) is not None]
+        done_ids: set[int] = set()
+        if prior_ids:
+            try:
+                res_done = await sess.exec(
+                    select(TodoCompletion.todo_id).where(
+                        TodoCompletion.todo_id.in_(prior_ids)
+                    ).where(TodoCompletion.done == True)
+                )
+                rows = res_done.all()
+                # rows may be a list of tuples or scalars depending on backend
+                for r in rows:
+                    if isinstance(r, tuple):
+                        done_ids.add(r[0])
+                    else:
+                        try:
+                            done_ids.add(int(r))
+                        except Exception:
+                            try:
+                                done_ids.add(int(getattr(r, 'todo_id')))
+                            except Exception:
+                                pass
+            except Exception:
+                # if completion lookup fails, leave done_ids empty
+                done_ids = set()
         # Additionally, fetch unprioritised todos (no per-todo priority) that are not completed
         todos_unprio = []
         qt3_stmt = select(Todo).where(Todo.priority == None)
@@ -2578,8 +2604,33 @@ async def html_priorities(request: Request, current_user: User = Depends(require
                 if qc.first():
                     continue
                 todos_unprio.append((t, lst))
+        # Build lightweight view models that include a computed 'completed' flag without mutating ORM objects
+        def _compute_completed(todo: Todo) -> bool:
+            tid = getattr(todo, 'id', None)
+            return bool(tid in done_ids) if tid is not None else False
+
+        todos_vm = [({'id': t.id, 'text': t.text, 'priority': t.priority, 'completed': _compute_completed(t), 'modified_at': getattr(t, 'modified_at', None), 'created_at': getattr(t, 'created_at', None)}, l) for (t, l) in todos_sorted]
+        todos_unprio_vm = [({'id': t.id, 'text': t.text, 'priority': t.priority, 'completed': False, 'modified_at': getattr(t, 'modified_at', None), 'created_at': getattr(t, 'created_at', None)}, l) for (t, l) in todos_unprio]
+
+        # Instrumentation: log a couple of samples to verify completed flag
+        try:
+            if todos_vm:
+                t0 = todos_vm[0][0]
+                logger.info('DEBUG_STRIKETHROUGH: vm sample id=%s name=%s completed=%s', t0.get('id'), t0.get('text'), t0.get('completed'))
+            if todos_unprio_vm:
+                u0 = todos_unprio_vm[0][0]
+                logger.info('DEBUG_STRIKETHROUGH: vm unprio sample id=%s name=%s completed=%s', u0.get('id'), u0.get('text'), u0.get('completed'))
+        except Exception:
+            pass
+
         # leave todos_unprio unsorted here; client-side will sort by modified date when shown
-    return TEMPLATES.TemplateResponse(request, 'priorities.html', {'request': request, 'lists': lists_sorted, 'todos': todos_sorted, 'todos_unprio': todos_unprio, 'client_tz': await get_session_timezone(request)})
+    return TEMPLATES.TemplateResponse(request, 'priorities.html', {
+        'request': request,
+        'lists': lists_sorted,
+        'todos': todos_vm,
+        'todos_unprio': todos_unprio_vm,
+        'client_tz': await get_session_timezone(request)
+    })
 
 
 def _parse_iso_to_utc(s: Optional[str]) -> Optional[datetime]:
