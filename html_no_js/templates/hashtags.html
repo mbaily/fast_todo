@@ -1,17 +1,23 @@
 {% extends "base.html" %}
 
-{% block title %}Hashtags{% endblock %}
+{% block title %}Hashtags — Fast Todo (no-js){% endblock %}
 
 {% block content %}
-  <h1>Hashtags</h1>
-  <p>This page is intentionally unlinked from the main UI; it lists all hashtags in the DB.</p>
-  {% if hashtags %}
-    <ul>
+  <style>
+    /* Keep page header tight and align with rest of no-js UI */
+    body { margin-top: 0 !important; }
+    header { margin-top: 0 !important; }
+    /* Ensure chips flow inline and wrap to next lines naturally */
+    .tags-wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
+  </style>
+  <h2>Hashtags</h2>
+  {% if hashtags and hashtags|length > 0 %}
+    <div class="tags-wrap" aria-label="All hashtags">
       {% for h in hashtags %}
-        <li>{{ h.tag }} (id={{ h.id }})</li>
+        <a class="tag-chip" href="/html_no_js/search?q={{ h.tag|urlencode }}">{{ h.tag }}</a>
       {% endfor %}
-    </ul>
+    </div>
   {% else %}
-    <p>No hashtags found.</p>
+    <div class="meta">No hashtags found.</div>
   {% endif %}
 {% endblock %}
