@@ -5,7 +5,9 @@ and check seeded recurrence phrases across specified months.
 
 Usage: python3 scripts/local_check_recurrences.py --db fast_todo.db.server_copy --months 2025-08,2025-09,2025-10 --out report.json
 """
-import asyncio, os, json
+import asyncio
+import os
+import json
 from datetime import datetime, timezone
 from sqlmodel import select
 
@@ -15,8 +17,8 @@ os.environ['PYTHONPATH'] = os.environ.get('PYTHONPATH','') + ':' + ROOT
 
 from app.db import async_session, init_db
 from app.models import User, ListState, Todo
-from app.utils import parse_text_to_rrule, parse_text_to_rrule_string, extract_dates_meta, now_utc
-from dateutil.rrule import rrulestr, rrule
+from app.utils import parse_text_to_rrule, parse_text_to_rrule_string, extract_dates_meta
+from dateutil.rrule import rrulestr
 
 async def compute_occurrences_for_window(owner_username, start_dt, end_dt, max_per_item=100):
     async with async_session() as sess:

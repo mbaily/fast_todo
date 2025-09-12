@@ -152,7 +152,14 @@ def test_e2e_tailwind_login_create_logout(live_server):
         tail = ''
 
     # Look for common error markers
-    markers = ['Traceback (most recent call last):', 'Exception in ASGI application', 'jinja2.exceptions', 'Traceback', 'Traceback (most recent call last)', 'ERROR:']
+    markers = [
+        'Traceback (most recent call last):',
+        'Exception in ASGI application',
+        'jinja2.exceptions',
+        'Traceback',
+        'Traceback (most recent call last)',
+        'ERROR:',
+    ]
     found = [m for m in markers if m in tail]
     # Also consider any 5xx responses captured from the browser
     if server_5xx:
@@ -212,7 +219,8 @@ def test_e2e_tailwind_checkbox_toggle(live_server):
             page.wait_for_selector('#todo-list-full-body', timeout=10000)
 
             # Find incomplete todos (those with ⬜ symbol)
-            incomplete_buttons = page.query_selector_all('#todo-list-full-body button:has-text("⬜")')
+            selector = '#todo-list-full-body button:has-text("⬜")'
+            incomplete_buttons = page.query_selector_all(selector)
 
             if not incomplete_buttons:
                 pytest.fail("No incomplete todos found on the page")
@@ -233,14 +241,15 @@ def test_e2e_tailwind_checkbox_toggle(live_server):
             updated_buttons = page.query_selector_all('#todo-list-full-body button')
             found_complete = False
             for button in updated_buttons:
-                if "✅" in button.inner_text() and todo_text.replace("⬜", "").strip() in button.inner_text():
+                btn_text = button.inner_text()
+                if "✅" in btn_text and todo_text.replace("⬜", "").strip() in btn_text:
                     found_complete = True
-                    print(f"Todo successfully marked complete: {button.inner_text()}")
+                    print(f"Todo successfully marked complete: {btn_text}")
                     break
 
             if not found_complete:
                 # Check if the original button still exists but with different text
-                current_buttons = page.query_selector_all('#todo-list-full-body button:has-text("⬜")')
+                current_buttons = page.query_selector_all(selector)
                 if len(current_buttons) == len(incomplete_buttons):
                     pytest.fail("Checkbox click did not change the todo state - still shows as incomplete")
                 else:
@@ -265,13 +274,19 @@ def test_e2e_tailwind_checkbox_toggle(live_server):
     except Exception:
         tail = ''
 
-    markers = ['Traceback (most recent call last):', 'Exception in ASGI application', 'jinja2.exceptions', 'Traceback', 'ERROR:']
+    markers = [
+        'Traceback (most recent call last):',
+        'Exception in ASGI application',
+        'jinja2.exceptions',
+        'Traceback',
+        'ERROR:',
+    ]
     found = [m for m in markers if m in tail]
     if server_5xx:
         found.append(f'5xx_responses:{server_5xx}')
 
     if found:
-        excerpt = tail[-4000:] if len(tail) > 4000 else tail
+        _ = tail[-4000:] if len(tail) > 4000 else tail
 @pytest.mark.skipif(not RUN_E2E, reason='E2E tests disabled unless RUN_E2E=1')
 def test_e2e_tailwind_checkbox_toggle_detailed(live_server):
     """Detailed test for checkbox toggle that monitors API calls and JavaScript errors."""
@@ -434,11 +449,20 @@ def test_e2e_tailwind_checkbox_toggle_detailed(live_server):
     except Exception:
         tail = ''
 
-    markers = ['Traceback (most recent call last):', 'Exception in ASGI application', 'jinja2.exceptions', 'Traceback', 'ERROR:']
+    markers = [
+        'Traceback (most recent call last):',
+        'Exception in ASGI application',
+        'jinja2.exceptions',
+        'Traceback',
+        'ERROR:',
+    ]
     found = [m for m in markers if m in tail]
     if server_5xx:
         found.append(f'5xx_responses:{server_5xx}')
 
     if found:
         excerpt = tail[-4000:] if len(tail) > 4000 else tail
-        pytest.fail(f"Server-side exceptions detected during detailed checkbox test: {found}\n--- log excerpt ---\n{excerpt}")
+        pytest.fail(
+            "Server-side exceptions detected during detailed checkbox test: "
+            f"{found}\n--- log excerpt ---\n{excerpt}"
+        )

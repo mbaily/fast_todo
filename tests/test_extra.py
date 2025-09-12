@@ -1,6 +1,5 @@
 import pytest
-from httpx import AsyncClient, ASGITransport
-from app.main import app
+from httpx import AsyncClient
 
 pytestmark = pytest.mark.asyncio
 
@@ -14,7 +13,7 @@ async def test_cannot_delete_default_list_and_reassign(ensure_db, client: AsyncC
     temp = r.json()
     r2 = await client.post("/todos", json={"text": "temp task", "list_id": temp["id"]})
     assert r2.status_code == 200
-    todo = r2.json()
+    _ = r2.json()
 
     # create a dedicated default list for this test to avoid colliding
     # with any existing global list name owned by other tests/users.

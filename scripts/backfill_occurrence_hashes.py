@@ -63,7 +63,6 @@ async def run(db_url, user_filter, start_date, end_date, out_path, commit=False,
     from app.models import User, ListState, Todo
     # import parser helper
     from app.utils import parse_text_to_rrule_string
-    from dateutil import rrule as _rrule
 
     await init_db()
     win_start = datetime.fromisoformat(start_date + 'T00:00:00+00:00')
@@ -106,7 +105,7 @@ async def run(db_url, user_filter, start_date, end_date, out_path, commit=False,
             title = t.text
             try:
                 dtstart, rrule_text = parse_text_to_rrule_string(text)
-            except Exception as e:
+            except Exception:
                 dtstart, rrule_text = None, None
             occs = []
             # if rrule_text present, expand

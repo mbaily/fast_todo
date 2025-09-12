@@ -6,7 +6,6 @@ import httpx
 import os
 from sqlmodel import select
 import warnings
-import os
 import traceback
 import weakref
 try:
@@ -176,7 +175,6 @@ class AutoAuthAsyncClient(_OrigAsyncClient):
     async def __aenter__(self):
         client = await super().__aenter__()
         # ensure a stable test user exists and fetch a token
-        from app.db import async_session
         from app.models import User
         from app.auth import pwd_context
 
@@ -224,7 +222,7 @@ class AutoAuthAsyncClient(_OrigAsyncClient):
 # available for manual use but prefer explicit authentication via the
 # `client` fixture to avoid interfering with tests that exercise HTML
 # session login/logout flows.
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport
 
 # ensure project root is on PYTHONPATH for test runs
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -232,8 +230,6 @@ sys.path.insert(0, str(ROOT))
 
 from app.main import app
 from app.db import init_db, async_session
-from app.models import ListState
-from sqlmodel import select
 
 
 # --- Test helpers for stubbing heavy date parsing ---

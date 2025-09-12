@@ -23,7 +23,7 @@ async def test_calendar_occurrences_expansion(client, monkeypatch, use_fake_extr
     # create a todo containing a recurring phrase (anchor date 2025-08-25)
     resp = await client.post('/todos', json={'list_id': list_id, 'text': 'Pay subscription on 2025-08-25 every 2 weeks'})
     assert resp.status_code == 200
-    todo = resp.json()
+    _ = resp.json()
 
     # request occurrences for next 30 days
     start = datetime(2025, 8, 24, tzinfo=timezone.utc).isoformat()

@@ -3,7 +3,14 @@ import uuid
 from sqlmodel import select
 from sqlalchemy.exc import IntegrityError
 from app.db import async_session
-from app.models import ListState, CompletionType, Hashtag, ListHashtag, Todo, TodoCompletion
+from app.models import (
+    ListState,
+    CompletionType,
+    Hashtag,
+    ListHashtag,
+    Todo,
+    TodoCompletion,
+)
 
 pytestmark = pytest.mark.asyncio
 

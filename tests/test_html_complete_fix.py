@@ -1,6 +1,5 @@
 import pytest
 from app.auth import create_csrf_token
-from sqlmodel import select
 
 
 @pytest.mark.asyncio

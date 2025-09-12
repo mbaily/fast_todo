@@ -10,14 +10,13 @@ from .auth import get_current_user, create_access_token, require_login, CSRF_TOK
 from pydantic import BaseModel
 from .utils import now_utc, normalize_hashtag
 from datetime import datetime, timedelta, timezone
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
 from contextlib import asynccontextmanager
 import json
 import asyncio
 import os
 from contextvars import ContextVar
-from sqlmodel import select
-from .models import Hashtag, TodoHashtag, ListHashtag, ServerState, CompletionType, SyncOperation, Tombstone, Category
+from .models import Hashtag, TodoHashtag, ListHashtag, ServerState, Tombstone, Category
 from .models import ItemLink
 from .models import UserCollation
 from .models import RecentListVisit
@@ -28,11 +27,11 @@ from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, Stre
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from .utils import format_server_local, format_in_timezone
-from .utils import extract_hashtags, normalize_hashtag
+from .utils import extract_hashtags
 from .utils import extract_dates
 from .utils import extract_dates_meta
 from .utils import remove_hashtags_from_text
-from .utils import parse_text_to_rrule, recurrence_dict_to_rrule_string, recurrence_dict_to_rrule_params, parse_text_to_rrule_string, parse_date_and_recurrence
+from .utils import parse_text_to_rrule, recurrence_dict_to_rrule_params, parse_text_to_rrule_string
 from .models import Session
 import logging
 from . import config
@@ -106,7 +105,9 @@ def _csrf_token_info(token: str | None):
         info['hash'] = hashlib.sha256((token or '').encode('utf-8')).hexdigest()[:12] if token else None
         if not token:
             return info
-        import base64, json, datetime
+        import base64
+        import json
+        import datetime
         parts = token.split('.')
         if len(parts) >= 2:
             payload = json.loads(base64.urlsafe_b64decode(parts[1] + '=='))
@@ -713,7 +714,8 @@ def render_fn_tags(text: str | None) -> Markup:
                                     from .db import _sqlite_path_from_url as _sqlite_path_from_url
                                     path = _sqlite_path_from_url(_DB_URL)
                                     if path:
-                                        import sqlite3, os as _os
+                                        import sqlite3
+                                        import os as _os
                                         abs_path = _os.path.abspath(path)
                                         if _os.path.exists(abs_path):
                                             con = sqlite3.connect(abs_path)
@@ -758,7 +760,8 @@ def render_fn_tags(text: str | None) -> Markup:
                                 from .db import _sqlite_path_from_url as _sqlite_path_from_url
                                 path = _sqlite_path_from_url(_DB_URL)
                                 if path:
-                                    import sqlite3, os as _os
+                                    import sqlite3
+                                    import os as _os
                                     abs_path = _os.path.abspath(path)
                                     if _os.path.exists(abs_path):
                                         con = sqlite3.connect(abs_path)
@@ -772,7 +775,8 @@ def render_fn_tags(text: str | None) -> Markup:
                                             link_tags = [r[0] for r in rows if r and isinstance(r[0], str) and r[0]]
                                             if os.getenv('DEBUG_FN_LINKS', '0').lower() in ('1','true','yes'):
                                                 try:
-                                                    import os as _os, time as _time
+                                                    import os as _os
+                                                    import time as _time
                                                     _os.makedirs('debug_logs', exist_ok=True)
                                                     with open(_os.path.join('debug_logs', 'fn_link_debug.log'), 'a', encoding='utf-8') as _f:
                                                         _ts = _time.strftime('%Y-%m-%d %H:%M:%S')
@@ -789,7 +793,8 @@ def render_fn_tags(text: str | None) -> Markup:
                         # Final debug snapshot of what will be rendered
                         if os.getenv('DEBUG_FN_LINKS', '0').lower() in ('1','true','yes'):
                             try:
-                                import os as _os, time as _time
+                                import os as _os
+                                import time as _time
                                 _os.makedirs('debug_logs', exist_ok=True)
                                 with open(_os.path.join('debug_logs', 'fn_link_debug.log'), 'a', encoding='utf-8') as _f:
                                     _ts = _time.strftime('%Y-%m-%d %H:%M:%S')
@@ -855,7 +860,8 @@ def render_fn_tags(text: str | None) -> Markup:
                         try:
                             if os.getenv('DEBUG_FN_LINKS', '0').lower() in ('1','true','yes'):
                                 try:
-                                    import os as _os, time as _time
+                                    import os as _os
+                                    import time as _time
                                     _os.makedirs('debug_logs', exist_ok=True)
                                     with open(_os.path.join('debug_logs', 'fn_link_debug.log'), 'a', encoding='utf-8') as _f:
                                         _ts = _time.strftime('%Y-%m-%d %H:%M:%S')
@@ -886,7 +892,8 @@ def render_fn_tags(text: str | None) -> Markup:
                                         from .db import _sqlite_path_from_url as _sqlite_path_from_url
                                         path = _sqlite_path_from_url(_DB_URL)
                                         if path:
-                                            import sqlite3, os as _os
+                                            import sqlite3
+                                            import os as _os
                                             abs_path = _os.path.abspath(path)
                                             if _os.path.exists(abs_path):
                                                 con = sqlite3.connect(abs_path)
@@ -1239,7 +1246,6 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 # Log CSRF expiry configuration at startup
 try:
-    import math
     mins = CSRF_TOKEN_EXPIRE_SECONDS / 60.0
     logger.info('config: CSRF_TOKEN_EXPIRE_SECONDS=%d (~%.1f minutes)', CSRF_TOKEN_EXPIRE_SECONDS, mins)
 except Exception:
@@ -1289,6 +1295,16 @@ except Exception as e:
     import traceback
     traceback.print_exc()
 
+
+# include PWA sync and push router
+try:
+    from .pwa_sync import router as pwa_sync_router
+    app.include_router(pwa_sync_router)
+    print("INFO: pwa_sync router loaded successfully")
+except Exception as e:
+    print(f"WARNING: Failed to load pwa_sync router: {e}")
+    import traceback
+    traceback.print_exc()
 
 # Templates for Tailwind client (minimal, separate directory)
 TEMPLATES_TAILWIND = Jinja2Templates(directory="html_tailwind")
@@ -1628,7 +1644,7 @@ async def html_tailwind_login(request: Request):
     if not username or not password:
         return JSONResponse({'ok': False, 'error': 'missing_credentials'}, status_code=400)
 
-    from .auth import authenticate_user, create_access_token, get_user_by_username, verify_password
+    from .auth import create_access_token, get_user_by_username, verify_password
     user = await get_user_by_username(username)
     ok = False
     if user:
@@ -2074,7 +2090,9 @@ class _CSRFMiddleware(BaseHTTPMiddleware):
                     need_issue = True
                 else:
                     try:
-                        import base64, json, datetime
+                        import base64
+                        import json
+                        import datetime
                         parts = token.split('.')
                         if len(parts) >= 2:
                             payload = json.loads(base64.urlsafe_b64decode(parts[1] + '=='))
@@ -3525,7 +3543,10 @@ async def mark_occurrence_completed(request: Request, hash: str = Form(...), cur
         except Exception:
             pass
         try:
-            import base64, json, datetime, hashlib
+            import base64
+            import json
+            import datetime
+            import hashlib
             tok_hash = hashlib.sha256((token or '').encode('utf-8')).hexdigest()[:12] if token else None
             parts = (token or '').split('.')
             token_sub = token_exp_iso = token_seconds_left = token_expired = None
@@ -3574,7 +3595,9 @@ async def mark_occurrence_completed(request: Request, hash: str = Form(...), cur
             # Additional immediate diagnostics: log token expiry/sub if available
             try:
                 if token:
-                    import base64, json, datetime
+                    import base64
+                    import json
+                    import datetime
                     try:
                         parts = token.split('.')
                         if len(parts) >= 2:
@@ -3722,7 +3745,9 @@ async def unmark_occurrence_completed(request: Request, hash: str = Form(...), c
                         token_expired = None
                         token_sub = None
                         try:
-                            import base64, json, datetime
+                            import base64
+                            import json
+                            import datetime
                             parts = (token or '').split('.')
                             if len(parts) >= 2:
                                 payload = json.loads(base64.urlsafe_b64decode(parts[1] + '=='))
@@ -3770,7 +3795,9 @@ async def unmark_occurrence_completed(request: Request, hash: str = Form(...), c
             # Additional immediate diagnostics: log token expiry/sub if available
             try:
                 if token:
-                    import base64, json, datetime
+                    import base64
+                    import json
+                    import datetime
                     try:
                         parts = token.split('.')
                         if len(parts) >= 2:
@@ -5101,7 +5128,7 @@ async def _create_todo_internal(text: str, note: Optional[str], list_id: int, pr
         except Exception:
             clean_text = text
         # compute recurrence metadata for the todo text/note and persist
-        from .utils import parse_text_to_rrule_string, parse_date_and_recurrence, recurrence_dict_to_rrule_string
+        from .utils import parse_text_to_rrule_string, parse_date_and_recurrence
         dtstart_val, rrule_str = parse_text_to_rrule_string(text or '')
         _, recdict = parse_date_and_recurrence(text or '')
         import json
@@ -8466,7 +8493,7 @@ async def api_get_list_sublists(list_id: int, current_user: User = Depends(requi
             return sublist_data
         except HTTPException:
             raise
-        except Exception as e:
+        except Exception:
             logger.exception('Failed to get sublists for list %s', list_id)
             return []
 
@@ -9074,7 +9101,7 @@ async def html_login_get(request: Request):
 
 @app.post('/html_no_js/login')
 async def html_login_post(request: Request, username: str = Form(...), password: str = Form(...)):
-    from .auth import authenticate_user, create_access_token, get_user_by_username, verify_password
+    from .auth import create_access_token, get_user_by_username, verify_password
     try:
         csrf_assert(True, 'csrf_login_nojs_begin', accept=(request.headers.get('Accept') or ''), tz=request.cookies.get('tz'))
     except Exception:
@@ -9187,7 +9214,7 @@ async def html_pwa_login_post(request: Request, username: str = Form(...), passw
     This mirrors the behavior of the html_no_js login flow so PWA clients
     will get the same session and access cookies.
     """
-    from .auth import authenticate_user, create_access_token, get_user_by_username, verify_password
+    from .auth import create_access_token, get_user_by_username, verify_password
     try:
         csrf_assert(True, 'csrf_login_pwa_begin', accept=(request.headers.get('Accept') or ''))
     except Exception:
@@ -9378,282 +9405,7 @@ async def html_set_list_category(request: Request, list_id: int, category_id: Op
     return RedirectResponse(url=ref, status_code=303)
 
 
-class SyncOp(BaseModel):
-    op: str
-    payload: dict
 
-
-class SyncRequest(BaseModel):
-    ops: List[SyncOp]
-
-
-@app.get('/sync')
-async def sync_get(since: Optional[str] = None, current_user: User = Depends(require_login)):
-    """Return lists and todos modified since the optional ISO8601 timestamp.
-    The result includes lists the user owns or public lists (owner_id is None).
-    """
-    since_dt = None
-    if since:
-        try:
-            since_dt = datetime.fromisoformat(since)
-        except Exception:
-            raise HTTPException(status_code=400, detail='invalid since timestamp')
-    async with async_session() as sess:
-        # lists visible to the user (owned or public)
-        ql = select(ListState).where((ListState.owner_id == current_user.id) | (ListState.owner_id == None))
-        if since_dt:
-            ql = ql.where(ListState.modified_at != None).where(ListState.modified_at > since_dt)
-        resl = await sess.exec(ql)
-        lists = [ _serialize_list(l) for l in resl.all() ]
-
-        # todos in those lists
-        list_ids = [l['id'] for l in lists]
-        qt = select(Todo)
-        if list_ids:
-            qt = qt.where(Todo.list_id.in_(list_ids))
-        else:
-            # if no lists changed, still allow checking todos modified since
-            if since_dt:
-                qt = qt.where(Todo.modified_at != None).where(Todo.modified_at > since_dt)
-            else:
-                qt = qt.where(False)
-        rest = await sess.exec(qt)
-    todos = [ _serialize_todo(t) for t in rest.all() ]
-    # tombstones since the requested time so clients can remove deleted items
-    tombstones = []
-    if since_dt:
-        qtomb = select(Tombstone).where(Tombstone.created_at != None).where(Tombstone.created_at > since_dt)
-        tres = await sess.exec(qtomb)
-        tombstones = [{'item_type': t.item_type, 'item_id': t.item_id, 'created_at': t.created_at.isoformat() if t.created_at else None} for t in tres.all()]
-    # also return a server timestamp so clients can safely mark the sync boundary
-    return {"lists": lists, "todos": todos, "tombstones": tombstones, "server_ts": now_utc().isoformat()}
-
-
-@app.post('/sync')
-async def sync_post(req: SyncRequest, current_user: User = Depends(require_login)):
-    """Accept a batch of simple operations from a PWA client. This is a
-    minimal server-side handler: it performs create/update/delete for
-    todos and lists and returns per-op results. The client should ensure
-    idempotency (this handler does not persist idempotency keys).
-    """
-    results: List[Dict[str, Any]] = []
-    async with async_session() as sess:
-        for op in req.ops:
-            name = op.op
-            payload = op.payload or {}
-            # idempotency key provided by client to dedupe retries
-            op_id = payload.get('op_id')
-            if op_id:
-                qop = await sess.exec(select(SyncOperation).where(SyncOperation.op_id == op_id).where(SyncOperation.user_id == current_user.id))
-                existing = qop.first()
-                if existing:
-                    # return previously-recorded result for this op
-                    try:
-                        prev = json.loads(existing.result_json) if existing.result_json else {'op': name, 'status': 'ok', 'id': existing.server_id}
-                    except Exception:
-                        prev = {'op': name, 'status': 'ok', 'id': existing.server_id}
-                    results.append(prev)
-                    continue
-            try:
-                if name == 'create_list':
-                    client_id = payload.get('client_id')
-                    lst = ListState(name=payload.get('name'), owner_id=current_user.id)
-                    sess.add(lst)
-                    await sess.commit()
-                    await sess.refresh(lst)
-                    out = {'op': name, 'status': 'ok', 'id': lst.id}
-                    if client_id is not None:
-                        out['client_id'] = client_id
-                    results.append(out)
-                    # persist idempotency record if requested
-                    if op_id:
-                        so = SyncOperation(user_id=current_user.id, op_id=op_id, op_name=name, client_id=client_id, server_id=lst.id, result_json=json.dumps(out))
-                        sess.add(so)
-                        await sess.commit()
-
-                elif name == 'delete_list':
-                    lid = payload.get('id')
-                    q = await sess.scalars(select(ListState).where(ListState.id == lid))
-                    lst = q.first()
-                    if not lst:
-                        results.append({'op': name, 'status': 'not_found', 'id': lid})
-                        continue
-                    if lst.owner_id != current_user.id:
-                        results.append({'op': name, 'status': 'forbidden', 'id': lid})
-                        continue
-                    # capture todos that belong to this list
-                    qtodos = await sess.exec(select(Todo.id).where(Todo.list_id == lid))
-                    todo_ids = [t for t in qtodos.all()]
-                    # remove list-level artifacts
-                    await sess.exec(sqlalchemy_delete(CompletionType).where(CompletionType.list_id == lid))
-                    await sess.exec(sqlalchemy_delete(ListHashtag).where(ListHashtag.list_id == lid))
-                    # delete the list row
-                    await sess.exec(sqlalchemy_delete(ListState).where(ListState.id == lid))
-                    await sess.commit()
-                    # adjust server default if needed
-                    qs = await sess.exec(select(ServerState))
-                    ss = qs.first()
-                    if ss and ss.default_list_id == lid:
-                        qpick = await sess.exec(select(ListState).order_by(ListState.modified_at.desc(), ListState.created_at.desc()))
-                        pick = qpick.first()
-                        if pick:
-                            old = ss.default_list_id
-                            ss.default_list_id = pick.id
-                            logger.info("server default list changed from %s to %s after deletion", old, pick.id)
-                        else:
-                            ss.default_list_id = None
-                            logger.info("server default list cleared (no lists remain) after deletion of %s", lid)
-                        sess.add(ss)
-                        await sess.commit()
-                    # record tombstones and delete todos and link rows
-                    if todo_ids:
-                        for tid in todo_ids:
-                            ts = Tombstone(item_type='todo', item_id=tid)
-                            sess.add(ts)
-                        await sess.commit()
-                        await sess.exec(sqlalchemy_delete(TodoCompletion).where(TodoCompletion.todo_id.in_(todo_ids)))
-                        await sess.exec(sqlalchemy_delete(TodoHashtag).where(TodoHashtag.todo_id.in_(todo_ids)))
-                        await sess.exec(sqlalchemy_delete(Todo).where(Todo.id.in_(todo_ids)))
-                        await sess.commit()
-                    out = {'op': name, 'status': 'ok', 'id': lid}
-                    results.append(out)
-                    if op_id:
-                        try:
-                            so = SyncOperation(user_id=current_user.id, op_id=op_id, op_name=name, server_id=lid, result_json=json.dumps(out))
-                            sess.add(so)
-                            await sess.commit()
-                        except IntegrityError:
-                            await sess.rollback()
-
-                elif name == 'create_todo':
-                    text = payload.get('text')
-                    note = payload.get('note')
-                    list_id = payload.get('list_id')
-                    if list_id is None:
-                        results.append({'op': name, 'status': 'bad_request', 'reason': 'list_id required'})
-                    else:
-                        ql = await sess.exec(select(ListState).where(ListState.id == list_id))
-                        lst = ql.first()
-                        if not lst:
-                            results.append({'op': name, 'status': 'list_not_found', 'list_id': list_id})
-                        elif lst.owner_id not in (None, current_user.id):
-                            results.append({'op': name, 'status': 'forbidden', 'list_id': list_id})
-                        else:
-                            client_id = payload.get('client_id')
-                            todo = Todo(text=text, note=note, list_id=list_id)
-                            sess.add(todo)
-                            await sess.commit()
-                            await sess.refresh(todo)
-                            # touch parent list modified_at
-                            try:
-                                await _touch_list_modified(sess, int(todo.list_id) if getattr(todo, 'list_id', None) is not None else None)
-                                await sess.commit()
-                            except Exception:
-                                await sess.rollback()
-                            out = {'op': name, 'status': 'ok', 'id': todo.id}
-                            if client_id is not None:
-                                out['client_id'] = client_id
-                            results.append(out)
-                            if op_id:
-                                so = SyncOperation(user_id=current_user.id, op_id=op_id, op_name=name, client_id=client_id, server_id=todo.id, result_json=json.dumps(out))
-                                sess.add(so)
-                                await sess.commit()
-
-                elif name == 'update_todo':
-                    tid = payload.get('id')
-                    q = await sess.scalars(select(Todo).where(Todo.id == tid))
-                    todo = q.first()
-                    if not todo:
-                        results.append({'op': name, 'status': 'not_found', 'id': tid})
-                    else:
-                        # check ownership via list
-                        ql = await sess.exec(select(ListState).where(ListState.id == todo.list_id))
-                        lst = ql.first()
-                        if lst and lst.owner_id not in (None, current_user.id):
-                            results.append({'op': name, 'status': 'forbidden', 'id': tid})
-                        else:
-                            old_list_id = int(todo.list_id) if getattr(todo, 'list_id', None) is not None else None
-                            # apply provided fields
-                            if 'text' in payload:
-                                    todo.text = payload.get('text')
-                            if 'note' in payload:
-                                    todo.note = payload.get('note')
-                            if 'list_id' in payload:
-                                new_list_id = payload.get('list_id')
-                                # validate target list and ownership rules
-                                ql2 = await sess.exec(select(ListState).where(ListState.id == new_list_id))
-                                new_lst = ql2.first()
-                                if not new_lst:
-                                    results.append({'op': name, 'status': 'list_not_found', 'list_id': new_list_id})
-                                    continue
-                                if new_lst.owner_id not in (None, current_user.id):
-                                    results.append({'op': name, 'status': 'forbidden', 'list_id': new_list_id})
-                                    continue
-                                todo.list_id = new_list_id
-                            todo.modified_at = now_utc()
-                            sess.add(todo)
-                            await sess.commit()
-                            await sess.refresh(todo)
-                            # touch parent list modified_at (and old list if moved)
-                            try:
-                                new_list_id_int = int(todo.list_id) if getattr(todo, 'list_id', None) is not None else None
-                                await _touch_list_modified(sess, new_list_id_int)
-                                if old_list_id is not None and old_list_id != new_list_id_int:
-                                    await _touch_list_modified(sess, old_list_id)
-                                await sess.commit()
-                            except Exception:
-                                await sess.rollback()
-                            out = {'op': name, 'status': 'ok', 'id': todo.id}
-                            results.append(out)
-                            if op_id:
-                                try:
-                                    so = SyncOperation(user_id=current_user.id, op_id=op_id, op_name=name, server_id=todo.id, result_json=json.dumps(out))
-                                    sess.add(so)
-                                    await sess.commit()
-                                except IntegrityError:
-                                    await sess.rollback()
-
-                elif name == 'delete_todo':
-                    tid = payload.get('id')
-                    q = await sess.scalars(select(Todo).where(Todo.id == tid))
-                    todo = q.first()
-                    if not todo:
-                        results.append({'op': name, 'status': 'not_found', 'id': tid})
-                    else:
-                        # check ownership via list
-                        ql = await sess.exec(select(ListState).where(ListState.id == todo.list_id))
-                        lst = ql.first()
-                        if lst and lst.owner_id not in (None, current_user.id):
-                            results.append({'op': name, 'status': 'forbidden', 'id': tid})
-                        else:
-                            parent_list_id = int(todo.list_id) if getattr(todo, 'list_id', None) is not None else None
-                            # delete dependent rows first, then the todo
-                            await sess.exec(sqlalchemy_delete(TodoCompletion).where(TodoCompletion.todo_id == tid))
-                            await sess.exec(sqlalchemy_delete(TodoHashtag).where(TodoHashtag.todo_id == tid))
-                            await sess.exec(sqlalchemy_delete(Todo).where(Todo.id == tid))
-                            await sess.commit()
-                            # touch parent list modified_at
-                            try:
-                                await _touch_list_modified(sess, parent_list_id)
-                                await sess.commit()
-                            except Exception:
-                                await sess.rollback()
-                            out = {'op': name, 'status': 'ok', 'id': tid}
-                            results.append(out)
-                            if op_id:
-                                try:
-                                    so = SyncOperation(user_id=current_user.id, op_id=op_id, op_name=name, server_id=tid, result_json=json.dumps(out))
-                                    sess.add(so)
-                                    await sess.commit()
-                                except IntegrityError:
-                                    await sess.rollback()
-
-                else:
-                    results.append({'op': name, 'status': 'unsupported'})
-            except Exception:
-                logger.exception('error processing sync op %s', op.op)
-                results.append({'op': name, 'status': 'error'})
-    return {'results': results}
 
 
 @app.get('/__debug_setcookie')

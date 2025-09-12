@@ -1,5 +1,4 @@
 import pytest
-from sqlmodel import select
 
 pytestmark = pytest.mark.asyncio
 
@@ -30,7 +29,10 @@ async def test_get_list_hashtags_include_todo_tags_returns_separate_keys(ensure_
     await client.post(f"/todos/{t1['id']}/hashtags", params={'tag': 'A'})
     await client.post(f"/todos/{t2['id']}/hashtags", params={'tag': 'B'})
 
-    g = await client.get(f"/lists/{lst['id']}/hashtags", params={'include_todo_tags': '1'})
+    g = await client.get(
+        f"/lists/{lst['id']}/hashtags",
+        params={'include_todo_tags': '1'},
+    )
     assert g.status_code == 200
     body = g.json()
     assert body['list_id'] == lst['id']
@@ -48,7 +50,10 @@ async def test_get_list_hashtags_combine_returns_deduped(ensure_db, client):
     await client.post(f"/todos/{t1['id']}/hashtags", params={'tag': 'x'})
     await client.post(f"/todos/{t1['id']}/hashtags", params={'tag': 'y'})
 
-    g = await client.get(f"/lists/{lst['id']}/hashtags", params={'include_todo_tags': '1', 'combine': '1'})
+    g = await client.get(
+        f"/lists/{lst['id']}/hashtags",
+        params={'include_todo_tags': '1', 'combine': '1'},
+    )
     assert g.status_code == 200
     body = g.json()
     assert 'hashtags' in body

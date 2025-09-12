@@ -1,4 +1,3 @@
-import pytest
 from datetime import datetime, timezone
 
 from app.utils import resolve_yearless_date

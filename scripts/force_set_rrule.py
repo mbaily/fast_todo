@@ -2,7 +2,8 @@
 """
 Force-set recurrence_rrule for a todo matching exact text.
 """
-import asyncio, os
+import asyncio
+import os
 from sqlmodel import select
 from app.db import async_session, init_db
 from app.models import Todo

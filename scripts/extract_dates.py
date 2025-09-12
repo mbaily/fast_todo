@@ -16,7 +16,7 @@ import json
 import os
 import re
 import sqlite3
-from typing import Iterable, List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple
 
 
 DATE_REGEXES: List[Tuple[str, re.Pattern]] = [

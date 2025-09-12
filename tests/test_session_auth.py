@@ -47,7 +47,11 @@ async def test_session_login_create_and_logout(prepare_db):
     # create user and login via HTML form to get session cookie
     await create_user("sessuser", "pw123")
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        r = await client.post("/html_no_js/login", data={"username": "sessuser", "password": "pw123"}, follow_redirects=True)
+        await client.post(
+            "/html_no_js/login",
+            data={"username": "sessuser", "password": "pw123"},
+            follow_redirects=True,
+        )
         # cookie should be set in the client's cookie jar after following the redirect
         assert client.cookies.get('session_token') is not None
 
@@ -58,7 +62,7 @@ async def test_session_login_create_and_logout(prepare_db):
         lid = lst['id']
 
         # Now logout via html endpoint; this should remove cookies and server session
-        rlog = await client.post('/html_no_js/logout')
+        await client.post('/html_no_js/logout')
         # client cookie jar should no longer have session_token
         assert client.cookies.get('session_token') is None
 
@@ -76,7 +80,11 @@ async def test_other_user_cannot_delete(prepare_db):
 
     # alice logs in and creates a list
     async with AsyncClient(transport=transport, base_url="http://test") as aclient:
-        ra = await aclient.post('/html_no_js/login', data={'username': 'alice', 'password': 'a1'}, follow_redirects=True)
+        await aclient.post(
+            '/html_no_js/login',
+            data={'username': 'alice', 'password': 'a1'},
+            follow_redirects=True,
+        )
         # rely on server behavior (creating a list) rather than brittle client cookie inspection
         r = await aclient.post('/lists', params={'name': 'alice-list'})
         assert r.status_code == 200
@@ -84,7 +92,11 @@ async def test_other_user_cannot_delete(prepare_db):
 
     # bob logs in and attempts to delete alice's list
     async with AsyncClient(transport=transport, base_url="http://test") as bclient:
-        rb = await bclient.post('/html_no_js/login', data={'username': 'bob', 'password': 'b1'}, follow_redirects=True)
+        await bclient.post(
+            '/html_no_js/login',
+            data={'username': 'bob', 'password': 'b1'},
+            follow_redirects=True,
+        )
         rdel = await bclient.delete(f"/lists/{lid}")
         # should be forbidden
         assert rdel.status_code == 403

@@ -9,7 +9,6 @@ initializes the DB schema (best-effort), and prints username and password_hash.
 """
 import os
 import asyncio
-from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
 
 def _get_db_url():

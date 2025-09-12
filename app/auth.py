@@ -4,7 +4,6 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
-from typing import Optional
 from sqlmodel import select
 from passlib.context import CryptContext
 from jose import JWTError, jwt
@@ -12,7 +11,6 @@ from jose.exceptions import ExpiredSignatureError
 from pydantic import BaseModel
 from .models import User
 from .db import async_session
-from sqlmodel import select
 import secrets
 from .models import Session
 import logging

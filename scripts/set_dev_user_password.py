@@ -3,7 +3,8 @@
 Set a hashed password for dev_user in the specified DB copy so token login works.
 Usage: python3 scripts/set_dev_user_password.py --db /path/to/fast_todo.db.server_copy --password dev
 """
-import asyncio, os
+import asyncio
+import os
 from sqlmodel import select
 
 from app.db import async_session, init_db

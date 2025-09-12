@@ -1,5 +1,4 @@
-import pytest
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from dateutil import rrule as dr
 from app.utils import (
     parse_recurrence_phrase,

@@ -1,5 +1,5 @@
 import pytest
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 
 # Tests for year-resolution behavior implemented in calendar occurrences
 

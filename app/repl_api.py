@@ -11,7 +11,7 @@ Safety notes:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Iterable, List as TList, Optional, Tuple, Union, Callable
+from typing import Any, Optional, Tuple, Union
 import asyncio
 import threading
 import io
@@ -22,7 +22,7 @@ import re
 from sqlmodel import select
 
 from .db import async_session
-from .models import ListState, Todo, Hashtag, ListHashtag, TodoHashtag, User
+from .models import ListState, Todo, User
 
 
 # --- Thread-local loop management for blocking helpers ---

@@ -1,4 +1,3 @@
-import json
 import uuid
 import pytest
 
@@ -31,7 +30,10 @@ async def test_sync_get_and_post(client):
     # POST sync create_list and create_todo with client_ids
     ops = {
         'ops': [
-            {'op': 'create_list', 'payload': {'name': 'PWA Test', 'client_id': 'c_l_1'}},
+            {
+                'op': 'create_list',
+                'payload': {'name': 'PWA Test', 'client_id': 'c_l_1'},
+            },
         ]
     }
     resp = await client.post('/sync', json=ops)
@@ -42,15 +44,26 @@ async def test_sync_get_and_post(client):
     list_id = results[0]['id']
 
     # create a todo in that list
-    ops = {'ops': [{'op': 'create_todo', 'payload': {'text': 'pwa todo', 'note': 'note', 'list_id': list_id, 'client_id': 'c_t_1'}}]}
+    ops = {
+        'ops': [
+            {
+                'op': 'create_todo',
+                'payload': {
+                    'text': 'pwa todo',
+                    'note': 'note',
+                    'list_id': list_id,
+                    'client_id': 'c_t_1',
+                },
+            },
+        ]
+    }
     resp = await client.post('/sync', json=ops)
     assert resp.status_code == 200
     r = resp.json().get('results')[0]
     assert r['status'] == 'ok'
     assert r.get('client_id') == 'c_t_1'
 
-    # Now GET /sync since server_ts should return the created list/todo when using old since
-    server_ts = (await client.get('/sync')).json()['server_ts']
+    # Now GET /sync since should return the created list/todo when using old since
     # query with a since in the past to ensure we pick up changes
     resp = await client.get('/sync', params={'since': '2000-01-01T00:00:00+00:00'})
     data = resp.json()
@@ -61,12 +74,35 @@ async def test_sync_get_and_post(client):
 @pytest.mark.asyncio
 async def test_sync_create_todo_idempotency(client):
     # create a list first
-    resp = await client.post('/sync', json={'ops': [{'op': 'create_list', 'payload': {'name': 'Idempotency List'}}]})
+    resp = await client.post(
+        '/sync',
+        json={
+            'ops': [
+                {
+                    'op': 'create_list',
+                    'payload': {'name': 'Idempotency List'},
+                }
+            ]
+        },
+    )
     assert resp.status_code == 200
     list_id = resp.json()['results'][0]['id']
 
     op_id = 'op-create-todo-1'
-    ops = {'ops': [{'op': 'create_todo', 'payload': {'text': 'idem todo', 'note': 'note', 'list_id': list_id, 'client_id': 'c1', 'op_id': op_id}}]}
+    ops = {
+        'ops': [
+            {
+                'op': 'create_todo',
+                'payload': {
+                    'text': 'idem todo',
+                    'note': 'note',
+                    'list_id': list_id,
+                    'client_id': 'c1',
+                    'op_id': op_id,
+                },
+            }
+        ]
+    }
     r1 = await client.post('/sync', json=ops)
     assert r1.status_code == 200
     res1 = r1.json()['results'][0]
@@ -81,7 +117,11 @@ async def test_sync_create_todo_idempotency(client):
     assert res2.get('id') == first_id
 
     # Ensure only one todo with that text exists via sync GET
-    data = (await client.get('/sync', params={'since': '2000-01-01T00:00:00+00:00'})).json()
+    data = (
+        await client.get(
+            '/sync', params={'since': '2000-01-01T00:00:00+00:00'}
+        )
+    ).json()
     matches = [t for t in data['todos'] if t['text'] == 'idem todo']
     assert len(matches) == 1
 
@@ -89,13 +129,37 @@ async def test_sync_create_todo_idempotency(client):
 @pytest.mark.asyncio
 async def test_sync_update_todo_idempotency(client):
     # create a list and a todo
-    resp = await client.post('/sync', json={'ops': [{'op': 'create_list', 'payload': {'name': 'Update Idem List'}}]})
+    resp = await client.post(
+        '/sync',
+        json={
+            'ops': [
+                {'op': 'create_list', 'payload': {'name': 'Update Idem List'}}
+            ]
+        },
+    )
     list_id = resp.json()['results'][0]['id']
-    resp = await client.post('/sync', json={'ops': [{'op': 'create_todo', 'payload': {'text': 'to update', 'note': '', 'list_id': list_id}}]})
+    resp = await client.post(
+        '/sync',
+        json={
+            'ops': [
+                {
+                    'op': 'create_todo',
+                    'payload': {'text': 'to update', 'note': '', 'list_id': list_id},
+                }
+            ]
+        },
+    )
     todo_id = resp.json()['results'][0]['id']
 
     op_id = f'op-update-{uuid.uuid4()}'
-    ops = {'ops': [{'op': 'update_todo', 'payload': {'id': todo_id, 'text': 'updated text', 'op_id': op_id}}]}
+    ops = {
+        'ops': [
+            {
+                'op': 'update_todo',
+                'payload': {'id': todo_id, 'text': 'updated text', 'op_id': op_id},
+            }
+        ]
+    }
     r1 = await client.post('/sync', json=ops)
     assert r1.status_code == 200
     res1 = r1.json()['results'][0]
@@ -110,7 +174,11 @@ async def test_sync_update_todo_idempotency(client):
     assert res2['id'] == todo_id
 
     # ensure the todo was updated and only one exists
-    data = (await client.get('/sync', params={'since': '2000-01-01T00:00:00+00:00'})).json()
+    data = (
+        await client.get(
+            '/sync', params={'since': '2000-01-01T00:00:00+00:00'}
+        )
+    ).json()
     matches = [t for t in data['todos'] if t['id'] == todo_id]
     assert len(matches) == 1
     assert matches[0]['text'] == 'updated text'
@@ -119,9 +187,26 @@ async def test_sync_update_todo_idempotency(client):
 @pytest.mark.asyncio
 async def test_sync_delete_todo_idempotency(client):
     # create a list and a todo
-    resp = await client.post('/sync', json={'ops': [{'op': 'create_list', 'payload': {'name': 'Delete Idem List'}}]})
+    resp = await client.post(
+        '/sync',
+        json={
+            'ops': [
+                {'op': 'create_list', 'payload': {'name': 'Delete Idem List'}}
+            ]
+        },
+    )
     list_id = resp.json()['results'][0]['id']
-    resp = await client.post('/sync', json={'ops': [{'op': 'create_todo', 'payload': {'text': 'to delete', 'note': '', 'list_id': list_id}}]})
+    resp = await client.post(
+        '/sync',
+        json={
+            'ops': [
+                {
+                    'op': 'create_todo',
+                    'payload': {'text': 'to delete', 'note': '', 'list_id': list_id},
+                }
+            ]
+        },
+    )
     todo_id = resp.json()['results'][0]['id']
 
     op_id = f'op-delete-{uuid.uuid4()}'
@@ -138,6 +223,68 @@ async def test_sync_delete_todo_idempotency(client):
     assert res2['status'] == 'ok'
 
     # ensure the todo is gone
-    data = (await client.get('/sync', params={'since': '2000-01-01T00:00:00+00:00'})).json()
+    data = (
+        await client.get(
+            '/sync', params={'since': '2000-01-01T00:00:00+00:00'}
+        )
+    ).json()
     matches = [t for t in data['todos'] if t['id'] == todo_id]
     assert len(matches) == 0
+
+
+@pytest.mark.asyncio
+async def test_sync_update_conflict(client):
+    # create a list and a todo
+    resp = await client.post(
+        '/sync',
+        json={
+            'ops': [
+                {'op': 'create_list', 'payload': {'name': 'Conflict List'}}
+            ]
+        },
+    )
+    list_id = resp.json()['results'][0]['id']
+    resp = await client.post(
+        '/sync',
+        json={
+            'ops': [
+                {
+                    'op': 'create_todo',
+                    'payload': {
+                        'text': 'conflict todo',
+                        'note': '',
+                        'list_id': list_id,
+                    },
+                },
+            ]
+        },
+    )
+    todo_id = resp.json()['results'][0]['id']
+
+    # fetch current modified_at via GET /sync
+    data_resp = await client.get(
+        '/sync', params={'since': '2000-01-01T00:00:00+00:00'}
+    )
+    todo_list = data_resp.json().get('todos', [])
+    # capture server copy (unused variable placeholder to satisfy test flow)
+    _ = [t for t in todo_list if t['id'] == todo_id][0]
+
+    # Simulate a stale client: provide an older base_modified_at
+    stale_base = '2000-01-01T00:00:00+00:00'
+    ops = {
+        'ops': [
+            {
+                'op': 'update_todo',
+                'payload': {
+                    'id': todo_id,
+                    'text': 'client update',
+                    'base_modified_at': stale_base,
+                },
+            }
+        ]
+    }
+    r = await client.post('/sync', json=ops)
+    assert r.status_code == 200
+    res = r.json()['results'][0]
+    assert res['status'] == 'conflict'
+    assert 'server' in res and res['server']['id'] == todo_id

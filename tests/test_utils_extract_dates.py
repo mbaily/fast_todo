@@ -1,4 +1,3 @@
-import pytest
 from datetime import date, timezone
 from app.utils import extract_dates
 

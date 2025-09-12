@@ -1,5 +1,4 @@
 import pytest
-from app.main import app
 pytestmark = pytest.mark.asyncio
 
 
@@ -47,7 +46,10 @@ async def test_completion_types_and_mark_done(client):
     r = await client.post("/todos", json={"text": "complete me", "list_id": lst['id']})
     todo = r.json()
     todo_id = todo["id"]
-    r2 = await client.post(f"/todos/{todo_id}/complete", params={"completion_type": "default", "done": True})
+    r2 = await client.post(
+        f"/todos/{todo_id}/complete",
+        params={"completion_type": "default", "done": True},
+    )
     assert r2.status_code == 200
     r3 = await client.get(f"/todos/{todo_id}")
     got = r3.json()
@@ -55,4 +57,4 @@ async def test_completion_types_and_mark_done(client):
     if isinstance(comps, dict):
         assert any(bool(v) for v in comps.values())
     else:
-        assert any(c.get("done") for c in (comps or [])) 
+        assert any(c.get("done") for c in (comps or []))

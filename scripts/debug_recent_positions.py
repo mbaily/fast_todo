@@ -3,7 +3,7 @@ import uuid
 from httpx import AsyncClient
 from app.main import app
 from app.db import async_session
-from app.models import User, ListState, Session as SessionModel, RecentListVisit
+from app.models import User, ListState, Session as SessionModel
 
 async def main():
     async with async_session() as sess:

@@ -40,7 +40,10 @@ async def test_remove_nonexistent_hashtag_from_list_returns_404(ensure_db, clien
     r = await client.post("/lists", params={"name": "hlist"})
     lst = r.json()
     # try to remove a tag that does not exist
-    r2 = await client.delete(f"/lists/{lst['id']}/hashtags", params={"tag": "missing"})
+    r2 = await client.delete(
+        f"/lists/{lst['id']}/hashtags",
+        params={"tag": "missing"},
+    )
     assert r2.status_code == 404
 
 
@@ -49,7 +52,10 @@ async def test_list_state_toggle(ensure_db, client: AsyncClient):
     r = await client.post("/lists", params={"name": "stateful"})
     lst = r.json()
     # toggle expanded and hide_done
-    r2 = await client.post(f"/lists/{lst['id']}/state", params={"expanded": False, "hide_done": True})
+    r2 = await client.post(
+        f"/lists/{lst['id']}/state",
+        params={"expanded": False, "hide_done": True},
+    )
     assert r2.status_code == 200
     got = r2.json()
     assert got["expanded"] is False
@@ -79,7 +85,7 @@ async def test_defer_returns_iso_and_admin_clears_immediate(ensure_db, client: A
     r4 = await client.get(f"/todos/{tid}")
     assert r4.status_code == 200
     assert r4.json()['deferred_until'] is None
-        
+
 
 async def test_concurrent_completion_markings(ensure_db, client: AsyncClient):
     # use authenticated client fixture

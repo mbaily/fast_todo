@@ -1,0 +1,15 @@
+1. Implemented a test_pwa/ client in directory test_pwa/ which uses a python curses tui to explorer the usual data for a particular user, but using only the pwa related endpoints. It first thing it does is allow them to logon, then it syncs their whole data to the local app. 
+
+2. The test_pwa allows the user to explore their data, and also to add new items, edit existing items, and delete items, whilst offline.
+
+3. If the user is offline, the app will queue up any changes they make, and then when they go back online, it will sync those changes to the server.
+
+4. The app will also periodically check for updates from the server, and if it finds any, it will sync those changes to the local app.
+
+5. The app will also handle any conflicts that arise when syncing changes, by prompting the user to resolve them.
+
+6. The app will also provide a way for the user to manually trigger a sync, in case they want to ensure that their changes are saved to the server immediately.
+
+7. If you need to add or edit server endpoints related to pwa to accomplish these requirements, do so.
+
+8. Use ruff to lint the code, and pytest to test the code.

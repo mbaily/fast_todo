@@ -46,10 +46,16 @@ async def test_plain_dates_resolve_to_next_year_only(client):
     # query occurrences for next_year and ensure the dates appear
     start = datetime(next_year, 1, 1, tzinfo=timezone.utc).isoformat()
     end = datetime(next_year, 12, 31, tzinfo=timezone.utc).isoformat()
-    resp = await client.get('/calendar/occurrences', params={'start': start, 'end': end})
+    resp = await client.get(
+        '/calendar/occurrences', params={'start': start, 'end': end}
+    )
     assert resp.status_code == 200
     occ = resp.json().get('occurrences', [])
-    days_next = [o['occurrence_dt'][:10] for o in occ if o['item_type'] == 'todo' and o.get('id') in (tid1, tid2)]
+    days_next = [
+        o['occurrence_dt'][:10]
+        for o in occ
+        if o['item_type'] == 'todo' and o.get('id') in (tid1, tid2)
+    ]
 
     assert f"{next_year}-01-01" in days_next
     assert f"{next_year}-03-05" in days_next
@@ -57,10 +63,16 @@ async def test_plain_dates_resolve_to_next_year_only(client):
     # query occurrences for the year after next and ensure the dates do NOT appear
     start2 = datetime(year_after, 1, 1, tzinfo=timezone.utc).isoformat()
     end2 = datetime(year_after, 12, 31, tzinfo=timezone.utc).isoformat()
-    resp2 = await client.get('/calendar/occurrences', params={'start': start2, 'end': end2})
+    resp2 = await client.get(
+        '/calendar/occurrences', params={'start': start2, 'end': end2}
+    )
     assert resp2.status_code == 200
     occ2 = resp2.json().get('occurrences', [])
-    days_after = [o['occurrence_dt'][:10] for o in occ2 if o['item_type'] == 'todo' and o.get('id') in (tid1, tid2)]
+    days_after = [
+        o['occurrence_dt'][:10]
+        for o in occ2
+        if o['item_type'] == 'todo' and o.get('id') in (tid1, tid2)
+    ]
 
     assert f"{year_after}-01-01" not in days_after
     assert f"{year_after}-03-05" not in days_after

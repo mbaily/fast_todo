@@ -10,7 +10,6 @@ import argparse
 import asyncio
 import os
 
-from sqlmodel import select
 
 # Ensure app is importable when running from repo root
 import sys

@@ -3,7 +3,7 @@ import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from app.main import app
 from app.db import async_session, init_db
-from app.models import User, ListState, Todo
+from app.models import User
 from app.auth import pwd_context
 from sqlmodel import select
 

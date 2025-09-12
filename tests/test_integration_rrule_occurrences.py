@@ -1,12 +1,14 @@
 import pytest
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
 from dateutil import rrule
 
 
 @pytest.mark.asyncio
 async def test_parse_text_to_rrule_occurrences(client):
     # Ask the API to parse a date + recurrence
-    resp = await client.post('/parse_text_to_rrule', data={'text': '2025-08-25 every 2 weeks'})
+    resp = await client.post(
+        '/parse_text_to_rrule', data={'text': '2025-08-25 every 2 weeks'}
+    )
     assert resp.status_code == 200
     j = resp.json()
     dt_iso = j.get('dtstart')

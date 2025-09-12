@@ -2,11 +2,12 @@
 """
 Find the todo by text and persist recurrence_rrule and recurrence_dtstart using parser.
 """
-import asyncio, os
+import asyncio
+import os
 from sqlmodel import select
 from app.db import async_session, init_db
-from app.models import Todo, User, ListState
-from app.utils import parse_text_to_rrule_string, parse_recurrence_phrase, parse_date_and_recurrence, now_utc
+from app.models import Todo
+from app.utils import parse_text_to_rrule_string, parse_recurrence_phrase, now_utc
 
 async def run(text):
     await init_db()

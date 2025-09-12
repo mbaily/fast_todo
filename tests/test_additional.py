@@ -1,9 +1,7 @@
 import pytest
-import asyncio
-from sqlmodel import select
 from datetime import timedelta
 from app.db import async_session
-from app.models import Todo, CompletionType, ListState
+from app.models import Todo
 from app.utils import now_utc
 
 pytestmark = pytest.mark.asyncio

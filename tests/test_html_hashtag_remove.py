@@ -25,13 +25,21 @@ async def test_html_remove_todo_hashtag(ensure_db, client):
         qh = await sess.exec(select(Hashtag).where(Hashtag.tag == '#tag'))
         h = qh.first()
         assert h is not None
-        ql = await sess.exec(select(TodoHashtag).where(TodoHashtag.todo_id == tid).where(TodoHashtag.hashtag_id == h.id))
+        ql = await sess.exec(
+            select(TodoHashtag)
+            .where(TodoHashtag.todo_id == tid)
+            .where(TodoHashtag.hashtag_id == h.id)
+        )
         link = ql.first()
         assert link is not None
     # perform HTML remove using CSRF token
     csrf = create_csrf_token('testuser')
     form = {'_csrf': csrf, 'tag': '#tag'}
-    rr = await client.post(f'/html_no_js/todos/{tid}/hashtags/remove', data=form, headers={'referer': f'/html_no_js/todos/{tid}'})
+    rr = await client.post(
+        f'/html_no_js/todos/{tid}/hashtags/remove',
+        data=form,
+        headers={'referer': f'/html_no_js/todos/{tid}'},
+    )
     # should redirect back to the todo page
     assert rr.status_code in (303, 200)
     # now ensure the link row is gone
@@ -55,10 +63,18 @@ async def test_html_remove_todo_hashtag_requires_csrf(ensure_db, client):
     assert ra.status_code == 200
 
     # missing CSRF token should be rejected
-    rr = await client.post(f'/html_no_js/todos/{tid}/hashtags/remove', data={'tag': '#x'}, headers={'referer': f'/html_no_js/todos/{tid}'})
+    rr = await client.post(
+        f'/html_no_js/todos/{tid}/hashtags/remove',
+        data={'tag': '#x'},
+        headers={'referer': f'/html_no_js/todos/{tid}'},
+    )
     assert rr.status_code == 403
 
     # invalid CSRF token (wrong subject) should also be rejected
     bad = create_csrf_token('nobody')
-    rr2 = await client.post(f'/html_no_js/todos/{tid}/hashtags/remove', data={'_csrf': bad, 'tag': '#x'}, headers={'referer': f'/html_no_js/todos/{tid}'})
+    rr2 = await client.post(
+        f'/html_no_js/todos/{tid}/hashtags/remove',
+        data={'_csrf': bad, 'tag': '#x'},
+        headers={'referer': f'/html_no_js/todos/{tid}'},
+    )
     assert rr2.status_code == 403

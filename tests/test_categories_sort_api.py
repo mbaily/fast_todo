@@ -1,5 +1,4 @@
 import pytest
-from sqlmodel import select
 
 
 @pytest.mark.asyncio

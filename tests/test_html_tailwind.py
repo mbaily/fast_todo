@@ -1,10 +1,5 @@
-import asyncio
 import pytest
 from fastapi.testclient import TestClient
-from httpx import AsyncClient
-import pytest
-from fastapi.testclient import TestClient
-from httpx import AsyncClient
 from app.main import app
 
 
@@ -26,11 +21,17 @@ async def test_whoami_anonymous(client):
 @pytest.mark.asyncio
 async def test_login_logout_flow(client):
     # Attempt login with invalid payload
-    resp = client.post('/html_tailwind/login', json={'username': 'invalid', 'password': 'bad'})
+    resp = client.post(
+        '/html_tailwind/login',
+        json={'username': 'invalid', 'password': 'bad'},
+    )
     assert resp.status_code in (400, 401)
 
     # Try to login with an existing account 'mbaily' (common dev user in repo)
-    resp = client.post('/html_tailwind/login', json={'username': 'mbaily', 'password': 'password'})
+    resp = client.post(
+        '/html_tailwind/login',
+        json={'username': 'mbaily', 'password': 'password'},
+    )
     if resp.status_code == 200:
         data = resp.json()
         assert data.get('ok') is True

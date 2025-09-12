@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from sqlmodel import select
 
 from app.db import async_session
-from app.models import Todo, ListState
+from app.models import Todo
 
 
 @pytest.mark.asyncio

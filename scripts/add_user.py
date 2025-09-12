@@ -10,7 +10,8 @@ record with a hashed password.
 # Make the script runnable from the project root or from anywhere by
 # adding the project root to sys.path. This locates the top-level `app`
 # package (parent of the scripts/ directory).
-import os, sys
+import os
+import sys
 proj_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if proj_root not in sys.path:
         sys.path.insert(0, proj_root)

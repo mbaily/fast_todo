@@ -56,7 +56,8 @@ async def test_user_flow_basic(prepare_db):
         t1 = await client.post("/todos", json={"text": "buy milk", "list_id": lid})
         t2 = await client.post("/todos", json={"text": "buy eggs", "list_id": lid})
         assert t1.status_code == 200 and t2.status_code == 200
-        todo1 = t1.json(); todo2 = t2.json()
+        todo1 = t1.json()
+        todo2 = t2.json()
 
         # get todo
         g = await client.get(f"/todos/{todo1['id']}")
@@ -94,7 +95,8 @@ async def test_delete_list_and_reassign(prepare_db):
         r1 = await client.post("/lists", params={"name": "A"})
         r2 = await client.post("/lists", params={"name": "B"})
         assert r1.status_code == 200 and r2.status_code == 200
-        la = r1.json(); lb = r2.json()
+        la = r1.json()
+        lb = r2.json()
 
         # create a todo in A
         t = await client.post("/todos", json={"text": "taskA", "list_id": la['id']})
@@ -148,7 +150,7 @@ async def test_multi_user_full_flow(prepare_db):
             lsts = await acli2.get("/lists")
             alist = next((l for l in lsts.json() if l.get("name") == unique_name), None)
             assert alist
-            tlist = await acli2.get("/lists/{}/completion_types".format(alist['id']))
+            await acli2.get("/lists/{}/completion_types".format(alist['id']))
             # get one todo id via listing todos by id (we'll fetch a todo id directly)
             # create another todo and capture id
             newt = await acli2.post("/todos", json={"text": "another", "list_id": alist['id']})

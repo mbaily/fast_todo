@@ -39,6 +39,10 @@ def test_extract_matches_expected(phrase, expected):
 
     if isinstance(expected, list):
         for e in expected:
-            assert e in iso_results, f"expected {e} in {iso_results} for phrase '{phrase}'"
+            assert e in iso_results, (
+                f"expected {e} in {iso_results} for phrase '{phrase}'"
+            )
     else:
-        assert expected in iso_results, f"expected {expected} in {iso_results} for phrase '{phrase}'"
+        assert expected in iso_results, (
+            f"expected {expected} in {iso_results} for phrase '{phrase}'"
+        )

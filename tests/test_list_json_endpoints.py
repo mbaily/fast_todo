@@ -3,7 +3,7 @@ import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from app.main import app
 from app.db import async_session, init_db
-from app.models import User, ListState
+from app.models import User
 from app.auth import pwd_context
 from sqlmodel import select
 
@@ -46,7 +46,11 @@ async def test_patch_list_and_hashtags_json(prepare_db):
     await create_user('itestuser', 'pw')
     async with AsyncClient(transport=transport, base_url='http://test') as client:
         # login via html_no_js flow to get session cookie
-        r = await client.post('/html_no_js/login', data={'username': 'itestuser', 'password': 'pw'}, follow_redirects=True)
+        r = await client.post(
+            '/html_no_js/login',
+            data={'username': 'itestuser', 'password': 'pw'},
+            follow_redirects=True,
+        )
         assert r.status_code in (200, 302, 303)
 
         # create a list
@@ -77,6 +81,8 @@ async def test_patch_list_and_hashtags_json(prepare_db):
         assert 'hashtags' in data and any('tag1' in t for t in data['hashtags'])
 
         # Remove tag via JSON endpoint
-        rrem = await client.request('DELETE', f'/lists/{lid}/hashtags/json', json={'tag': 'tag1'})
+        rrem = await client.request(
+            'DELETE', f'/lists/{lid}/hashtags/json', json={'tag': 'tag1'}
+        )
         assert rrem.status_code == 200
         assert rrem.json().get('removed') in ('#tag1', 'tag1')

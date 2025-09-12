@@ -8,7 +8,6 @@ Usage:
 Outputs JSON to stdout.
 """
 import argparse
-import asyncio
 import sys
 import urllib.parse
 
@@ -51,7 +50,10 @@ if has_requests:
     except Exception as e:
         print('login failed:', e, file=sys.stderr); sys.exit(3)
     headers = {'Authorization': f'Bearer {token}'}
-    import calendar, datetime, re, json
+    import calendar
+    import datetime
+    import re
+    import json
     flags = re.IGNORECASE if args.ignore_case else 0
     compiled = [re.compile(p, flags) for p in (args.pattern or [])]
     occurrences = []
@@ -100,7 +102,9 @@ if has_requests:
     out = {'occurrences': occurrences, 'truncated': False, 'window_start': overall_start, 'window_end': overall_end}
 else:
     # fallback: use urllib and manual token retrieval
-    import urllib.request, json, ssl
+    import urllib.request
+    import json
+    import ssl
     ctx = None
     if args.insecure:
         ctx = ssl.create_default_context(); ctx.check_hostname=False; ctx.verify_mode=ssl.CERT_NONE
@@ -112,7 +116,12 @@ else:
     except Exception as e:
         print('login failed:', e, file=sys.stderr); sys.exit(3)
     # urllib fallback: iterate months similarly
-    import urllib.request, json, ssl, calendar, datetime, re
+    import urllib.request
+    import json
+    import ssl
+    import calendar
+    import datetime
+    import re
     flags = re.IGNORECASE if args.ignore_case else 0
     compiled = [re.compile(p, flags) for p in (args.pattern or [])]
     occurrences = []
@@ -163,7 +172,7 @@ try:
     import datetime as _dt
     # parse overall window into datetimes
     def _parse_iso(s):
-        from datetime import datetime, timezone
+        from datetime import datetime
         return datetime.fromisoformat(s.replace('Z', '+00:00'))
     win_start = _parse_iso(out['window_start'])
     win_end = _parse_iso(out['window_end'])

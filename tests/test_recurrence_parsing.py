@@ -1,6 +1,5 @@
-import pytest
 from app.utils import parse_recurrence_phrase, parse_date_and_recurrence
-from datetime import datetime, timezone
+from datetime import datetime
 
 
 def test_parse_recurrence_every_n_weeks():

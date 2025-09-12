@@ -73,7 +73,6 @@ def bench(file_path: str):
 
 
 if __name__ == '__main__':
-    import sys
     p = argparse.ArgumentParser()
     p.add_argument('--file', default='data/date_samples.txt')
     p.add_argument('--languages', type=str, default='')

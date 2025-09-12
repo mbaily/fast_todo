@@ -1,5 +1,5 @@
 from typing import List, Optional
-from datetime import datetime, timezone
+from datetime import datetime
 from .utils import now_utc
 from sqlmodel import SQLModel, Field, Relationship
 from sqlalchemy import UniqueConstraint
@@ -294,6 +294,18 @@ class SshPublicKey(SQLModel, table=True):
     enabled: bool = Field(default=True, index=True)
     created_at: datetime | None = Field(default_factory=now_utc)
 
+
+class PushSubscription(SQLModel, table=True):
+    """Stores a user's Web Push subscription details as JSON.
+
+    subscription_json: JSON-encoded dict with endpoint and keys per the
+    Web Push protocol (endpoint, keys.p256dh, keys.auth).
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key='user.id', index=True)
+    subscription_json: str
+    enabled: bool = Field(default=True, index=True)
+    created_at: datetime | None = Field(default_factory=now_utc)
 
 class ItemLink(SQLModel, table=True):
     """Directed links from a source item (todo or list) to a target item (todo or list).

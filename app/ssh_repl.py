@@ -32,7 +32,7 @@ try:
 except Exception:
     # If file handler can't be created (permissions), continue with default logger
     pass
-from .models import SshPublicKey, User
+from .models import SshPublicKey
 from .db import async_session
 from sqlmodel import select
 from .repl_api import run_code_for_user
@@ -125,7 +125,6 @@ class ReplSSHSession(asyncssh.SSHServerSession):
         self._chan = None
         self._inp = b''
         # Create a persistent REPL instance for this session so cd/pwd persist
-        from .repl_api import Repl
         try:
             # lazy import and create Repl bound to the user after auth
             self._repl = None

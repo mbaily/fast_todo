@@ -13,7 +13,6 @@ import asyncio
 import os
 import sys
 
-from importlib import import_module
 
 parser = argparse.ArgumentParser(description='Change a user password in the DB')
 parser.add_argument('--db', required=False, default='./fast_todo.db', help='SQLAlchemy DATABASE_URL (sqlite+aiosqlite:///./fast_todo.db) or path')

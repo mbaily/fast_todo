@@ -1,7 +1,7 @@
 import pytest
 from datetime import datetime, timezone
-from app.db import async_session, init_db
-from app.models import ListState, Hashtag
+from app.db import async_session
+from app.models import Hashtag
 from sqlmodel import select
 
 pytestmark = pytest.mark.asyncio

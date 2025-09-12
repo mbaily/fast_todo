@@ -4,7 +4,6 @@ Add a single todo to the 'recurrence-test' list for dev_user and print persisted
 """
 import asyncio
 import os
-from pathlib import Path
 from sqlmodel import select
 from app.db import async_session, init_db
 from app.models import User, ListState, Todo

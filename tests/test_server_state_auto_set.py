@@ -1,6 +1,6 @@
 import pytest
 from app.db import async_session, init_db
-from app.models import ServerState, ListState
+from app.models import ServerState
 from sqlmodel import select
 
 pytestmark = pytest.mark.asyncio

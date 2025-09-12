@@ -1,6 +1,6 @@
 import pytest
 from app.db import async_session, init_db
-from app.models import ServerState, ListState
+from app.models import ServerState
 from sqlmodel import select
 
 pytestmark = pytest.mark.asyncio
@@ -43,8 +43,8 @@ async def test_delete_list_reassigns_todos_to_server_default(client):
 async def test_clearing_default_allows_deleting_list_and_reassigns(client):
     # create two lists A and B
     ra = await client.post('/lists', params={'name': 'A-delete'})
-    rb = await client.post('/lists', params={'name': 'B-receive'})
-    a = ra.json(); b = rb.json()
+    await client.post('/lists', params={'name': 'B-receive'})
+    a = ra.json()
 
     # set default to A
     rset = await client.post(f"/server/default_list/{a['id']}")

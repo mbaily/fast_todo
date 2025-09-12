@@ -9,11 +9,8 @@ This will print occurrences JSON and allow grepping for a todo id or text.
 import asyncio
 import argparse
 import json
-import os
-from typing import Any
 
 from app.main import calendar_occurrences
-from app.db import DATABASE_URL
 
 
 async def run(start: str | None, end: str | None):

@@ -5,7 +5,7 @@ from httpx import AsyncClient, ASGITransport
 from app.main import app
 from app.db import init_db
 from app.models import User
-from app.auth import pwd_context, create_access_token, SECRET_KEY, ALGORITHM
+from app.auth import pwd_context, create_access_token, SECRET_KEY
 from jose import jwt
 from datetime import timedelta
 from sqlmodel import select

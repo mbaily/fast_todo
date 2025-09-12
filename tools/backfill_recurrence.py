@@ -14,7 +14,6 @@ from app.models import Todo
 import asyncio
 import json
 import logging
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)

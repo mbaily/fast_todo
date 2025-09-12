@@ -5,7 +5,7 @@ from app.main import app
 from app.db import async_session, init_db
 from app.models import User
 from app.auth import pwd_context, create_access_token
-from jose import JWTError, jwt
+from jose import jwt
 from datetime import timedelta
 from sqlmodel import select
 

@@ -1,5 +1,4 @@
 import asyncio
-from datetime import datetime, timedelta
 import pytest
 from sqlmodel import select
 from app.models import RecentListVisit, ListState, User

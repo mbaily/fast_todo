@@ -4,7 +4,7 @@ from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse
 
 from .db import async_session
-from .models import ListState, ListHashtag, Hashtag, Todo, TodoHashtag, CompletionType, TodoCompletion, RecentListVisit, Category, UserCollation, ItemLink, ListTrashMeta
+from .models import ListState, ListHashtag, Hashtag, Todo, TodoHashtag, CompletionType, TodoCompletion, Category, UserCollation, ItemLink
 from .auth import get_current_user as _gcu
 from .utils import extract_hashtags, now_utc
 from sqlalchemy import select, func, or_, and_

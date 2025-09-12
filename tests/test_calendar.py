@@ -1,5 +1,4 @@
 import pytest
-import asyncio
 from datetime import datetime, timezone, timedelta
 from app.utils import extract_dates
 
@@ -39,7 +38,7 @@ async def test_calendar_events_endpoint(client, use_fake_extract_dates, monkeypa
     if resp.status_code != 200:
         raise AssertionError(f"create todo failed: {resp.status_code} {resp.text}")
     todo = resp.json()
-    todo_id = todo['id']
+    _ = todo['id']
 
     # create a todo with deferred_until
     future = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()

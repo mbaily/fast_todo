@@ -10,7 +10,9 @@ TEST_FILE = Path(__file__).with_name('recurrence_phrases.json')
 
 
 EXPECTED = {
-    "Water pot plant every 2nd Sunday of every month": "FREQ=WEEKLY;INTERVAL=2;BYDAY=SU",
+    "Water pot plant every 2nd Sunday of every month": (
+        "FREQ=WEEKLY;INTERVAL=2;BYDAY=SU"
+    ),
     "Pay rent on 2025-09-01 every month": "FREQ=MONTHLY",
     "Team sync 2025-08-01 every week": "FREQ=WEEKLY",
     "Gym every other day": "FREQ=DAILY;INTERVAL=2",
@@ -36,7 +38,9 @@ EXPECTED = {
     "Rotate backups every other month": "FREQ=MONTHLY;INTERVAL=2",
     "Every Monday morning meeting": "FREQ=WEEKLY;BYDAY=MO",
     "Pay rent on the last day of every month": "FREQ=MONTHLY;BYMONTHDAY=-1",
-    "Water pot plant every 2nd Sunday of every month at 9am": "FREQ=WEEKLY;INTERVAL=2;BYDAY=SU",
+    "Water pot plant every 2nd Sunday of every month at 9am": (
+        "FREQ=WEEKLY;INTERVAL=2;BYDAY=SU"
+    ),
 }
 
 
@@ -49,4 +53,6 @@ def test_parse_phrases_produce_expected_rrule(item):
     expected = EXPECTED.get(text)
     assert expected is not None, f"no expected rrule provided for: {text}"
     # Normalize spacing & case before comparison
-    assert r.strip().upper() == expected.strip().upper(), f"rrule mismatch for '{text}': got '{r}' expected '{expected}'"
+    assert r.strip().upper() == expected.strip().upper(), (
+        f"rrule mismatch for '{text}': got '{r}' expected '{expected}'"
+    )

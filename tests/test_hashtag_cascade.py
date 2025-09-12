@@ -1,6 +1,4 @@
 import pytest
-from httpx import ASGITransport, AsyncClient
-from app.main import app
 from app.db import async_session
 from sqlmodel import select
 

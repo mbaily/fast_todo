@@ -7,7 +7,6 @@ It checks for the column and issues an `ALTER TABLE` where supported.
 import os
 import sys
 from sqlalchemy import text
-from sqlalchemy import inspect
 from sqlalchemy.exc import OperationalError
 
 # Import project's DB engine

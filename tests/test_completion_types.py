@@ -1,8 +1,6 @@
 import pytest
-from httpx import AsyncClient, ASGITransport
-from app.main import app
 from app.db import init_db, async_session
-from app.models import ListState, CompletionType
+from app.models import ListState
 from sqlmodel import select
 
 pytestmark = pytest.mark.asyncio

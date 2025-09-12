@@ -3,7 +3,6 @@ import os
 import json
 import logging
 import re
-from typing import List, Tuple, Optional
 try:
     import dateparser.search
     import dateparser
@@ -81,7 +80,8 @@ def index_calendar_assert(msg: str, *, extra: dict | None = None) -> None:
             enabled = _asserts_enabled()
         if not enabled:
             return
-        import inspect, hashlib
+        import inspect
+        import hashlib
         from datetime import datetime as _dt
         fn = os.path.join(os.getcwd(), 'scripts', 'index_calendar.log')
         # identify caller frame for file/line info (skip this helper frame)
@@ -1499,7 +1499,6 @@ def recurrence_dict_to_rrule_string(rec: dict) -> str:
     if 'byweekday' in rec and rec.get('byweekday'):
         vals = []
         try:
-            from dateutil import rrule as _rrule
             wd_map = {'MO': 'MO', 'TU': 'TU', 'WE': 'WE', 'TH': 'TH', 'FR': 'FR', 'SA': 'SA', 'SU': 'SU'}
         except Exception:
             wd_map = {'MO': 'MO', 'TU': 'TU', 'WE': 'WE', 'TH': 'TH', 'FR': 'FR', 'SA': 'SA', 'SU': 'SU'}

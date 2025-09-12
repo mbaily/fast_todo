@@ -6,7 +6,6 @@ Usage: python tools/bench_dateparser.py --file data/date_samples.txt
 from __future__ import annotations
 import time
 import argparse
-from statistics import mean
 
 try:
     import dateparser.search

@@ -1,7 +1,7 @@
 import pytest
 from sqlmodel import select
-from app.db import async_session, init_db
-from app.models import Hashtag, TodoCompletion, CompletionType
+from app.db import async_session
+from app.models import Hashtag, TodoCompletion
 
 pytestmark = pytest.mark.asyncio
 
@@ -23,7 +23,9 @@ async def test_delete_completion_type_removes_todocompletions(client):
     assert rc.status_code == 200
 
     # mark todo complete with that type
-    r3 = await client.post(f'/todos/{tid}/complete', params={'completion_type': 'temp', 'done': True})
+    r3 = await client.post(
+        f'/todos/{tid}/complete', params={'completion_type': 'temp', 'done': True}
+    )
     assert r3.status_code == 200
 
     # ensure there's a TodoCompletion for that todo
@@ -38,7 +40,9 @@ async def test_delete_completion_type_removes_todocompletions(client):
 
     # ensure TodoCompletion rows removed
     async with async_session() as sess:
-        q2 = await sess.exec(select(TodoCompletion).where(TodoCompletion.todo_id == tid))
+        q2 = await sess.exec(
+            select(TodoCompletion).where(TodoCompletion.todo_id == tid)
+        )
         assert q2.first() is None
 
 
@@ -46,7 +50,8 @@ async def test_hashtag_uniqueness_across_lists(client):
     # create two lists
     r1 = await client.post('/lists', params={'name': 'hl1'})
     r2 = await client.post('/lists', params={'name': 'hl2'})
-    l1 = r1.json(); l2 = r2.json()
+    l1 = r1.json()
+    l2 = r2.json()
 
     # add same hashtag text to both lists
     a1 = await client.post(f"/lists/{l1['id']}/hashtags", params={'tag': 'shared'})

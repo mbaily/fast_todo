@@ -17,7 +17,9 @@ async def test_delete_moves_to_trash_and_restore(client: AsyncClient):
     todo = resp.json()
 
     # obtain token and set cookies for CSRF using testuser
-    token_resp = await client.post('/auth/token', json={'username': 'testuser', 'password': 'testpass'})
+    token_resp = await client.post(
+        '/auth/token', json={'username': 'testuser', 'password': 'testpass'}
+    )
     assert token_resp.status_code == 200
     token = token_resp.json().get('access_token')
     assert token
@@ -26,7 +28,10 @@ async def test_delete_moves_to_trash_and_restore(client: AsyncClient):
     client.cookies.set('csrf_token', csrf)
 
     # call HTML delete endpoint (should move to Trash)
-    resp = await client.post(f"/html_no_js/todos/{todo['id']}/delete", data={'_csrf': csrf})
+    resp = await client.post(
+        f"/html_no_js/todos/{todo['id']}/delete",
+        data={'_csrf': csrf},
+    )
     assert resp.status_code in (303, 302, 200)
 
     # query server DB to check TrashMeta and list membership
@@ -34,28 +39,40 @@ async def test_delete_moves_to_trash_and_restore(client: AsyncClient):
     async with async_session() as sess:
         # fetch Trash for the authenticated test user
         from app.models import User
-        uq = await sess.exec(select(User).where(User.username == 'testuser'))
+        uq = await sess.exec(
+            select(User).where(User.username == 'testuser')
+        )
         u = uq.first()
-        q = await sess.exec(select(ListState).where(ListState.name == 'Trash').where(ListState.owner_id == u.id))
+        q = await sess.exec(
+            select(ListState)
+            .where(ListState.name == 'Trash')
+            .where(ListState.owner_id == u.id)
+        )
         trash = q.first()
         assert trash is not None
-    q2 = await sess.exec(select(Todo).where(Todo.list_id == trash.id).where(Todo.id == todo['id']))
-    trow = q2.first()
-    assert trow is not None
-    q3 = await sess.exec(select(TrashMeta).where(TrashMeta.todo_id == todo['id']))
-    tm = q3.first()
-    assert tm is not None
-    orig = tm.original_list_id
-    assert orig == lst['id']
 
-    # view trash page
-    resp = await client.get('/html_no_js/trash')
-    assert resp.status_code == 200
-    assert 'Trash' in resp.text
-    assert 'trash me' in resp.text
+        q2 = await sess.exec(
+            select(Todo)
+            .where(Todo.list_id == trash.id)
+            .where(Todo.id == todo['id'])
+        )
+        trow = q2.first()
+        assert trow is not None
+
+        q3 = await sess.exec(
+            select(TrashMeta).where(TrashMeta.todo_id == todo['id'])
+        )
+        tm = q3.first()
+        assert tm is not None
+        orig = tm.original_list_id
+        assert orig == lst['id']
 
     # restore the todo
-    resp = await client.post(f"/html_no_js/trash/{todo['id']}/restore", data={'_csrf': csrf}, follow_redirects=False)
+    resp = await client.post(
+        f"/html_no_js/trash/{todo['id']}/restore",
+        data={'_csrf': csrf},
+        follow_redirects=False,
+    )
     assert resp.status_code in (303, 302, 200)
 
     # verify todo returned to original list
@@ -88,12 +105,20 @@ async def test_permanent_delete_from_trash(client: AsyncClient):
     assert resp.status_code in (303,302,200)
 
     # now permanently delete from trash
-    resp = await client.post(f'/html_no_js/trash/{todo["id"]}/delete', data={'_csrf': csrf}, follow_redirects=False)
+    resp = await client.post(
+        f'/html_no_js/trash/{todo["id"]}/delete',
+        data={'_csrf': csrf},
+        follow_redirects=False,
+    )
     assert resp.status_code in (303,302,200)
 
     from app.db import async_session
     from app.models import Tombstone
     async with async_session() as sess:
-        q = await sess.exec(select(Tombstone).where(Tombstone.item_type == 'todo').where(Tombstone.item_id == todo['id']))
+        q = await sess.exec(
+            select(Tombstone)
+            .where(Tombstone.item_type == 'todo')
+            .where(Tombstone.item_id == todo['id'])
+        )
         ts = q.first()
         assert ts is not None

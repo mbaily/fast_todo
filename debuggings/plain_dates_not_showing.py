@@ -13,8 +13,6 @@ import sys
 import argparse
 import subprocess
 import time
-import urllib.request
-import urllib.parse
 import json
 import requests
 

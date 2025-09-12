@@ -5,7 +5,7 @@ from app.utils import (
     parse_text_to_rrule_string,
 )
 from dateutil import rrule as dr
-from datetime import datetime, timezone
+from datetime import datetime
 
 
 def test_every_2nd_month_phrase():
