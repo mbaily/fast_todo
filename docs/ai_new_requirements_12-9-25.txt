@@ -18,3 +18,4 @@ username mbaily
 password mypass
 
 6. in priorities page, completed list's names and todo's text appear in strikethrough (but not the priority circle).
+

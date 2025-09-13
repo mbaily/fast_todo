@@ -1,0 +1,3 @@
+New requirements 
+
+1. Special case for deployment. The scripts/deploy.sh must not overwrite 'app/config.py' unless it does not exist in the deployment directory (relative path). If it does exist already, it will write to app/config.py.release, and not overwrite 'app/config.py'. 

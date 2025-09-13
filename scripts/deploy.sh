@@ -90,17 +90,54 @@ fi
 # Exclude .tls/ so TLS files on the destination are preserved and not overwritten by deploy.
 RSYNC_BASE_OPTS=(--archive --compress --human-readable --links --perms --times --delete --files-from="$TMPFILE" --exclude='.git' --exclude='.tls/' --exclude='.certs/' --exclude='debug_logs/' --exclude='*.db' --exclude='*.sqlite' --exclude='*.sqlite3' ./)
 
+# Special-case: do not overwrite app/config.py on target. If the target already
+# contains app/config.py, we'll avoid sending it and instead write the local
+# copy to app/config.py.release on the target so operators can inspect and
+# manually merge. If the target does not have app/config.py, allow rsync to
+# install it normally.
+#
+# We implement this by testing presence of $REMOTE_PATH/app/config.py on the
+# destination before rsync. If present, we add an --exclude for that path to
+# the rsync options and after the transfer copy the local file to
+# app/config.py.release on the target (or write locally when MODE=local).
+
+CONFIG_PATH_REL="app/config.py"
+
+
 # NOTE: .tls/ is intentionally NOT added to the transfer list so existing TLS
 # certificates on the target are preserved and not overwritten by deploy.
 
 if [ "$MODE" = "local" ]; then
   echo "Preparing local deploy to: $REMOTE_PATH"
+  # Check if destination already has app/config.py
+  DEST_CONFIG="$REMOTE_PATH/$CONFIG_PATH_REL"
+  if [ -f "$DEST_CONFIG" ]; then
+    echo "Target already has $CONFIG_PATH_REL — will not overwrite."
+    # Add an exclude so rsync won't overwrite target config
+    RSYNC_BASE_OPTS+=(--exclude="$CONFIG_PATH_REL")
+    COPY_CONFIG_RELEASE_LOCAL=1
+  else
+    COPY_CONFIG_RELEASE_LOCAL=0
+  fi
   if [ "$DRY_RUN" -eq 1 ]; then
     echo rsync --dry-run "${RSYNC_BASE_OPTS[@]}" "$REMOTE_PATH"
     rsync --dry-run "${RSYNC_BASE_OPTS[@]}" "$REMOTE_PATH"
+    if [ "$COPY_CONFIG_RELEASE_LOCAL" -eq 1 ]; then
+      echo "(dry-run) Would write local app/config.py to $REMOTE_PATH/$CONFIG_PATH_REL.release"
+    fi
   else
     mkdir -p "$REMOTE_PATH"
     rsync "${RSYNC_BASE_OPTS[@]}" "$REMOTE_PATH"
+    # If target had an existing config, write local copy to .release
+    if [ "$COPY_CONFIG_RELEASE_LOCAL" -eq 1 ] && [ -f "./$CONFIG_PATH_REL" ]; then
+      echo "Writing local $CONFIG_PATH_REL to $REMOTE_PATH/$CONFIG_PATH_REL.release"
+      cp "./$CONFIG_PATH_REL" "$REMOTE_PATH/$CONFIG_PATH_REL.release"
+      chown --from=$(id -u):$(id -g) "$OWNER" "$REMOTE_PATH/$CONFIG_PATH_REL.release" 2>/dev/null || true
+      # ensure owner for release file matches desired owner if possible
+      if [ -n "$OWNER" ]; then
+        chown "$OWNER" "$REMOTE_PATH/$CONFIG_PATH_REL.release" || true
+      fi
+    fi
     echo "Setting owner to $OWNER for $REMOTE_PATH"
     chown -R "$OWNER" "$REMOTE_PATH"
     # Install Python dependencies on local target if requirements.txt exists
@@ -143,9 +180,31 @@ else
     echo ssh $SSH_OPTS "$TARGET" "mkdir -p '$REMOTE_PATH' && chmod 755 '$REMOTE_PATH'"
     echo rsync --dry-run -e "ssh $SSH_OPTS" "${RSYNC_BASE_OPTS[@]}" "$TARGET:$REMOTE_PATH"
     rsync --dry-run -e "ssh $SSH_OPTS" "${RSYNC_BASE_OPTS[@]}" "$TARGET:$REMOTE_PATH"
+    # Check remote config presence for dry-run reporting
+    echo "# Checking remote for $CONFIG_PATH_REL"
+    echo ssh $SSH_OPTS "$TARGET" "test -f '$REMOTE_PATH/$CONFIG_PATH_REL' && echo exists || echo missing"
   else
     ssh $SSH_OPTS "$TARGET" "mkdir -p '$REMOTE_PATH' && chmod 755 '$REMOTE_PATH'"
+    # Test whether remote already has app/config.py
+    if ssh $SSH_OPTS "$TARGET" "test -f '$REMOTE_PATH/$CONFIG_PATH_REL'"; then
+      echo "Remote target already has $CONFIG_PATH_REL — will not overwrite."
+      RSYNC_BASE_OPTS+=(--exclude="$CONFIG_PATH_REL")
+      REMOTE_HAS_CONFIG=1
+    else
+      REMOTE_HAS_CONFIG=0
+    fi
+
     rsync -e "ssh $SSH_OPTS" "${RSYNC_BASE_OPTS[@]}" "$TARGET:$REMOTE_PATH"
+    # If remote had config, copy local file to .release on remote
+    if [ "$REMOTE_HAS_CONFIG" -eq 1 ] && [ -f "./$CONFIG_PATH_REL" ]; then
+      if [ "$DRY_RUN" -eq 1 ]; then
+        echo "(dry-run) Would copy ./$(basename "$CONFIG_PATH_REL") to $TARGET:$REMOTE_PATH/$CONFIG_PATH_REL.release"
+      else
+  echo "Copying local $CONFIG_PATH_REL to remote $REMOTE_PATH/$CONFIG_PATH_REL.release using rsync"
+  rsync -e "ssh $SSH_OPTS" --archive --compress "./$CONFIG_PATH_REL" "$TARGET:$REMOTE_PATH/$CONFIG_PATH_REL.release"
+  ssh $SSH_OPTS "$TARGET" "if [ -n '$OWNER' ]; then chown '$OWNER' '$REMOTE_PATH/$CONFIG_PATH_REL.release' || true; fi"
+      fi
+    fi
     if [ -n "$OWNER" ]; then
       echo "Setting owner to $OWNER on remote"
       ssh $SSH_OPTS "$TARGET" "chown -R '$OWNER' '$REMOTE_PATH'"
