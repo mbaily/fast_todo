@@ -1,6 +1,10 @@
 {% extends 'base.html' %}
 {% block title %}Search results — Fast Todo (no-js){% endblock %}
 {% block content %}
+  <style>
+    /* ensure completed list titles in search results show strike-through */
+      .combined-list .list-title.done { text-decoration: line-through; color: #6b7280; }
+  </style>
   <h2>Search results for "{{ q }}"</h2>
   <form method="get" action="/html_no_js/search" style="margin-bottom:0.75rem">
     <input type="text" name="q" value="{{ q }}" placeholder="Search" style="min-width:16rem">
