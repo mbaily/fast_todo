@@ -1,3 +1,12 @@
-New requirements 
+Operational requirements
+--------------------------------------------------------------------------------
+Do not use bash or curl. Don't use bash or unix utilities. Don't use bash heredocs.
+Only use python, uv, and pytest, or node, npm, and npx.
+You can create your own script files in these languages and then run them.
 
+New requirements 
+--------------------------------------------------------------------------------
 1. Special case for deployment. The scripts/deploy.sh must not overwrite 'app/config.py' unless it does not exist in the deployment directory (relative path). If it does exist already, it will write to app/config.py.release, and not overwrite 'app/config.py'. 
+
+2. In index.html and index_ios_safari the secondary priority of a list is calculated from the highest priority of uncompleted tasks in that list. Also include the priorities of sublists of that list in the calculation (highest priority) to calculate the secondary priority of the list that was in index or index_ios_safari.
+This calculation does NOT include the todos of that sublist, only the sublist's priority itself.

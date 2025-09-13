@@ -6544,10 +6544,25 @@ async def html_index(request: Request):
                 except Exception:
                     completed_ids = set()
             # compute highest uncompleted priority per list
+            # Also include immediate sublists' list-level priority (not their todos)
+            parent_to_sublists: dict[int, list[dict]] = {}
+            try:
+                if list_ids:
+                    qsubs = await sess.exec(select(ListState.id, ListState.priority, ListState.parent_list_id, ListState.completed).where(ListState.parent_list_id.in_(list_ids)))
+                    for sid, spri, parent_id, scompleted in qsubs.all():
+                        try:
+                            pid = int(parent_id)
+                        except Exception:
+                            continue
+                        parent_to_sublists.setdefault(pid, []).append({'id': sid, 'priority': spri, 'completed': bool(scompleted) if scompleted is not None else False})
+            except Exception:
+                parent_to_sublists = {}
+
             for row in list_rows:
                 lid = row.get('id')
                 candidates = todo_map.get(lid, [])
                 max_p = None
+                # consider uncompleted todos in the list
                 for tid, pri in candidates:
                     if tid in completed_ids:
                         continue
@@ -6559,6 +6574,25 @@ async def html_index(request: Request):
                         continue
                     if max_p is None or pv > max_p:
                         max_p = pv
+                # consider immediate sublists' list-level priorities (require sublist not completed)
+                try:
+                    subs = parent_to_sublists.get(lid, [])
+                    for s in subs:
+                        sp = s.get('priority')
+                        scomp = s.get('completed')
+                        if sp is None:
+                            continue
+                        # skip sublists that are marked completed
+                        if scomp:
+                            continue
+                        try:
+                            spv = int(sp)
+                        except Exception:
+                            continue
+                        if max_p is None or spv > max_p:
+                            max_p = spv
+                except Exception:
+                    pass
                 if max_p is not None:
                     row['override_priority'] = max_p
 
@@ -7718,7 +7752,26 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
 
         # (reuse existing logic: compute override_priority and uncompleted counts)
         try:
-            todo_q = await sess.exec(select(Todo.id, Todo.list_id, Todo.priority).where(Todo.list_id.in_(list_ids)).where(Todo.priority != None))
+            # Find immediate sublists whose parent_list_id is one of the lists on this page.
+            try:
+                qsubs = await sess.exec(select(ListState.id, ListState.parent_list_id).where(ListState.parent_list_id.in_(list_ids)))
+                subs_rows = qsubs.all()
+            except Exception:
+                subs_rows = []
+            parent_to_sublists: dict[int, list[int]] = {}
+            sublist_ids: list[int] = []
+            for sid, pid in subs_rows:
+                try:
+                    sid_i = int(sid); pid_i = int(pid)
+                except Exception:
+                    continue
+                parent_to_sublists.setdefault(pid_i, []).append(sid_i)
+                sublist_ids.append(sid_i)
+
+            # Include todos from the immediate sublists when searching for highest priorities.
+            combined_list_ids = list_ids + sublist_ids if sublist_ids else list_ids
+
+            todo_q = await sess.exec(select(Todo.id, Todo.list_id, Todo.priority).where(Todo.list_id.in_(combined_list_ids)).where(Todo.priority != None))
             todo_rows = todo_q.all()
             todo_map: dict[int, list[tuple[int,int]]] = {}
             todo_ids = []
@@ -7733,9 +7786,14 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
                     completed_ids = set(r[0] if isinstance(r, tuple) else r for r in cres.all())
                 except Exception:
                     completed_ids = set()
+
             for row in list_rows:
                 lid = row.get('id')
-                candidates = todo_map.get(lid, [])
+                # Start with todos directly in the list
+                candidates = list(todo_map.get(lid, []))
+                # Add todos from immediate sublists
+                for sid in parent_to_sublists.get(lid, []):
+                    candidates.extend(todo_map.get(sid, []))
                 max_p = None
                 for tid, pri in candidates:
                     if tid in completed_ids:
