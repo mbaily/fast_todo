@@ -47,7 +47,7 @@ except Exception:
     INDEX_CALENDAR_DAYS = 1
 
 
-DOKUWIKI_NOTE_LINK_PREFIX = os.getenv('DOKUWIKI_NOTE_LINK_PREFIX', 'https://myserver.hopto.org/dokuwiki/doku.php?')
+DOKUWIKI_NOTE_LINK_PREFIX = os.getenv('DOKUWIKI_NOTE_LINK_PREFIX', 'https://myserver.hopto.org/dokuwiki/doku.php?id=')
 
 # Optional local overrides: define variables in app/local_config.py to extend or
 # override the defaults above without changing versioned config.
