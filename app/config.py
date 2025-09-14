@@ -45,6 +45,7 @@ try:
     INDEX_CALENDAR_DAYS = int(os.getenv('INDEX_CALENDAR_DAYS', '1'))
 except Exception:
     INDEX_CALENDAR_DAYS = 1
+INDEX_CALENDAR_DAYS = 2
 
 
 DOKUWIKI_NOTE_LINK_PREFIX = os.getenv('DOKUWIKI_NOTE_LINK_PREFIX', 'https://myserver.hopto.org/dokuwiki/doku.php?id=')
