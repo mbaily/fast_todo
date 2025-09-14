@@ -352,6 +352,27 @@ Priorities are represented numerically in the index UI and also with colored num
 Behavior
   - Lower/higher numeric values of 1 to 10 correspond to different priority meanings (higher number is higher priority).
 
+## List categories: alphanumeric sorting with priorities
+
+The index groups lists under categories. Each category can opt into alphanumeric sorting while still respecting priorities. (Otherwise it goes by creation or modification date).
+
+Where to configure
+- Open the Categories page (Index → “→ Categories” or iOS: “Manage categories”).
+- Each category has a “Sort alphanumeric” option. When enabled, that category’s lists use name-based ordering (after priority). When disabled, the page-level date sort is used instead.
+
+How lists are ordered within a category
+1) Priority first
+  - Any list with an effective priority is shown before lists without a priority.
+  - Among prioritized lists, higher numbers sort first (10 → 1).
+  - Effective priority = max(override_priority, priority). If an override is set and higher than the base priority, it is used for ordering and display.
+2) Then either alphanumeric or date
+  - If the category has “Sort alphanumeric” enabled: lists are ordered by their visible name (locale-aware, numeric segments sort naturally: e.g. “List 9” before “List 10”).
+  - Otherwise: lists are ordered by date according to the page control “Sort lists: by creation date / by modification date” (newest first). This preference is stored in a cookie and remembered per browser.
+
+Notes
+- The “Hide completed” checkbox can hide completed lists from view; category counts update to reflect visible items.
+- The High priority and Pinned sections at the top of the index are independent of per-category ordering, but the same priority markers are used throughout for consistency.
+
 ## Hide icons option
 
 This is for using a todo list a bit more like a notes app, or you can't accidentally delete todos. Completed todos in this view: you can't complete a todo in the view but the completed todos are shown with a green checkbox. You can flip the view as you please.
