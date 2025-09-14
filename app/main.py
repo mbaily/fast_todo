@@ -19,7 +19,7 @@ from contextvars import ContextVar
 from .models import Hashtag, TodoHashtag, ListHashtag, ServerState, Tombstone, Category
 from .models import ItemLink
 from .models import UserCollation
-from .models import RecentListVisit
+from .models import RecentListVisit, RecentTodoVisit
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import text, func
 from fastapi import Request, Form
@@ -5090,6 +5090,74 @@ async def record_list_visit(list_id: int, current_user: User = Depends(require_l
                 pass
 
         return {"list_id": list_id, "visited_at": now}
+
+
+@app.post('/todos/{todo_id}/visit')
+async def record_todo_visit(todo_id: int, current_user: User = Depends(require_login)):
+    """Record that the current_user visited the given todo (mirrors list visits).
+
+    Preserves a top-N order via position field and prunes older rows per-user.
+    """
+    async with async_session() as sess:
+        # ensure todo exists and is visible to user via parent list ownership or public
+        t = await sess.get(Todo, todo_id)
+        if not t:
+            raise HTTPException(status_code=404, detail='todo not found')
+        ql = await sess.exec(select(ListState).where(ListState.id == t.list_id))
+        lst = ql.first()
+        if lst and lst.owner_id not in (None, current_user.id):
+            raise HTTPException(status_code=403, detail='forbidden')
+        now = now_utc()
+        try:
+            top_n = int(os.getenv('RECENT_TODOS_TOP_N', '10'))
+        except Exception:
+            top_n = 10
+        qv = await sess.exec(select(RecentTodoVisit).where(RecentTodoVisit.user_id == current_user.id).where(RecentTodoVisit.todo_id == todo_id))
+        rv = qv.first()
+        if rv and rv.position is not None and rv.position < top_n:
+            rv.visited_at = now
+            sess.add(rv)
+            await sess.commit()
+        else:
+            try:
+                evict_pos = max(0, top_n - 1)
+                shift_sql = text(
+                    "UPDATE recenttodovisit SET position = position + 1 "
+                    "WHERE user_id = :uid AND position IS NOT NULL AND position < :maxpos"
+                )
+                await sess.exec(shift_sql.bindparams(uid=current_user.id, maxpos=evict_pos))
+                clear_sql = text(
+                    "UPDATE recenttodovisit SET position = NULL WHERE user_id = :uid AND position >= :maxpos"
+                )
+                await sess.exec(clear_sql.bindparams(uid=current_user.id, maxpos=evict_pos))
+            except Exception:
+                logger.exception('failed to shift recenttodo positions')
+            if rv:
+                rv.position = 0
+                rv.visited_at = now
+                sess.add(rv)
+            else:
+                rv = RecentTodoVisit(user_id=current_user.id, todo_id=todo_id, visited_at=now, position=0)
+                sess.add(rv)
+            await sess.commit()
+
+        try:
+            cap = int(os.getenv('RECENT_TODOS_PER_USER', '100'))
+        except Exception:
+            cap = 100
+        if cap > 0:
+            prune_sql = text(
+                "DELETE FROM recenttodovisit WHERE (user_id, todo_id) IN ("
+                "SELECT user_id, todo_id FROM ("
+                "SELECT user_id, todo_id, ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY visited_at DESC) AS rn "
+                "FROM recenttodovisit WHERE user_id = :uid) t WHERE t.rn > :cap)"
+            )
+            try:
+                await sess.exec(prune_sql.bindparams(uid=current_user.id, cap=cap))
+                await sess.commit()
+            except Exception:
+                pass
+        return {"todo_id": todo_id, "visited_at": now}
 
 
 async def _get_recent_lists_impl(limit: int, current_user: User):
@@ -10591,7 +10659,7 @@ async def html_toggle_list_complete(request: Request, list_id: int, completed: s
 
 @app.get('/html_no_js/recent', response_class=HTMLResponse)
 async def html_recent_lists(request: Request, current_user: User = Depends(require_login)):
-    """Render a simple page listing recently visited lists for the current user."""
+    """Render recently visited lists and todos for the current user."""
     try:
         top_n = int(os.getenv('RECENT_LISTS_TOP_N', '10'))
     except Exception:
@@ -10662,8 +10730,81 @@ async def html_recent_lists(request: Request, current_user: User = Depends(requi
         # attach hashtags to results
         for item in results:
             item['hashtags'] = tags_map.get(item['id'], [])
-        recent = results
-    return TEMPLATES.TemplateResponse(request, 'recent.html', {"request": request, "recent": recent, "client_tz": await get_session_timezone(request)})
+        recent_lists = results
+
+        # Build recently visited todos, mirroring lists behavior
+        try:
+            top_n_t = int(os.getenv('RECENT_TODOS_TOP_N', str(top_n)))
+        except Exception:
+            top_n_t = top_n
+        # First: top positioned todos
+        t_top_q = select(RecentTodoVisit).where(RecentTodoVisit.user_id == current_user.id).where(RecentTodoVisit.position != None).order_by(RecentTodoVisit.position.asc()).limit(top_n_t)
+        t_top_res = await sess.exec(t_top_q)
+        t_top_rows = t_top_res.all()
+        t_top_ids = [r.todo_id for r in t_top_rows]
+        todo_results: list[dict] = []
+        todo_ids: list[int] = []
+        t_tags_map: dict[int, list[str]] = {}
+        # load Todo rows for top preserving order; ensure user can view via parent list
+        if t_top_ids:
+            qtodos = select(Todo, ListState).join(ListState, ListState.id == Todo.list_id).where(Todo.id.in_(t_top_ids)).where(or_(ListState.owner_id == current_user.id, ListState.owner_id == None))
+            t_res = await sess.exec(qtodos)
+            # map id -> (todo, list)
+            tmap = {t.id: (t, l) for t, l in t_res.all()}
+            for r in t_top_rows:
+                row = tmap.get(r.todo_id)
+                if not row:
+                    continue
+                t, l = row
+                todo_results.append({
+                    'id': t.id,
+                    'text': t.text,
+                    'list_id': t.list_id,
+                    'list_name': getattr(l, 'name', None),
+                    'visited_at': r.visited_at,
+                    'position': r.position,
+                    'hashtags': [],
+                })
+                todo_ids.append(int(t.id))
+        # Remaining by visited_at desc
+        t_remaining = max(0, 25 - len(todo_results))
+        if t_remaining > 0:
+            tq = select(Todo, RecentTodoVisit, ListState).join(RecentTodoVisit, RecentTodoVisit.todo_id == Todo.id).join(ListState, ListState.id == Todo.list_id).where(RecentTodoVisit.user_id == current_user.id).where(or_(ListState.owner_id == current_user.id, ListState.owner_id == None))
+            if t_top_ids:
+                tq = tq.where(RecentTodoVisit.todo_id.notin_(t_top_ids))
+            tq = tq.order_by(RecentTodoVisit.visited_at.desc()).limit(t_remaining)
+            tres = await sess.exec(tq)
+            for t, rvisit, l in tres.all():
+                todo_results.append({
+                    'id': t.id,
+                    'text': t.text,
+                    'list_id': t.list_id,
+                    'list_name': getattr(l, 'name', None),
+                    'visited_at': rvisit.visited_at,
+                    'position': None,
+                    'hashtags': [],
+                })
+                todo_ids.append(int(t.id))
+        # Fetch hashtags for todos
+        if todo_ids:
+            try:
+                qttags = select(TodoHashtag.todo_id, Hashtag.tag).join(Hashtag, Hashtag.id == TodoHashtag.hashtag_id).where(TodoHashtag.todo_id.in_(todo_ids))
+                ttres = await sess.exec(qttags)
+                for tid, tag in ttres.all():
+                    try:
+                        t_tags_map.setdefault(int(tid), []).append(tag)
+                    except Exception:
+                        continue
+            except Exception:
+                logger.exception('failed to fetch todo hashtags for recent todos')
+        for item in todo_results:
+            try:
+                item['hashtags'] = t_tags_map.get(int(item['id']), [])
+            except Exception:
+                pass
+        recent_todos = todo_results
+
+    return TEMPLATES.TemplateResponse(request, 'recent.html', {"request": request, "recent": recent_lists, "recent_todos": recent_todos, "client_tz": await get_session_timezone(request)})
 
 
 @app.post('/html_no_js/lists/{list_id}/completion_types')
@@ -11571,6 +11712,15 @@ async def html_view_todo(request: Request, todo_id: int, current_user: User = De
         except Exception:
             pass
         active_collations = []
+
+    # Best-effort: record this todo visit for the current user so it appears on the recent page
+    try:
+        await record_todo_visit(todo_id=todo_id, current_user=current_user)
+    except Exception:
+        try:
+            logger.exception('failed to record todo visit for todo %s', todo_id)
+        except Exception:
+            pass
 
     # pass plain dicts (with datetime objects preserved) to avoid lazy DB loads
     return TEMPLATES.TemplateResponse(request, 'todo.html', {"request": request, "todo": todo_row, "completed": completed, "list": list_row, "csrf_token": csrf_token, "client_tz": client_tz, "tags": todo_tags, "all_hashtags": all_hashtags, 'sublists': sublists, 'links': links, 'active_collations': active_collations})

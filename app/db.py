@@ -293,6 +293,29 @@ def _ensure_sqlite_minimal_migrations(url: str | None) -> None:
                     cur.execute("CREATE INDEX IF NOT EXISTS ix_usercollation_active ON usercollation(active)")
                 except Exception:
                     pass
+                # Ensure recenttodovisit table exists for per-user recent todos
+                try:
+                    cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='recenttodovisit'")
+                    exists_rtv = cur.fetchone() is not None
+                except Exception:
+                    exists_rtv = True
+                if not exists_rtv:
+                    try:
+                        cur.execute(
+                            """
+                            CREATE TABLE IF NOT EXISTS recenttodovisit (
+                              user_id INTEGER NOT NULL,
+                              todo_id INTEGER NOT NULL,
+                              visited_at DATETIME,
+                              position INTEGER,
+                              PRIMARY KEY (user_id, todo_id)
+                            )
+                            """
+                        )
+                        cur.execute("CREATE INDEX IF NOT EXISTS ix_recenttodovisit_user_pos ON recenttodovisit(user_id, position)")
+                        cur.execute("CREATE INDEX IF NOT EXISTS ix_recenttodovisit_user_visited ON recenttodovisit(user_id, visited_at DESC)")
+                    except Exception:
+                        pass
             # Ensure userlistprefs table exists for per-user list prefs
             try:
                 cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='userlistprefs'")

@@ -231,6 +231,18 @@ class RecentListVisit(SQLModel, table=True):
     position: Optional[int] = Field(default=None, index=True)
 
 
+class RecentTodoVisit(SQLModel, table=True):
+    """Per-user record of recently visited todos.
+
+    Composite primary key (user_id, todo_id) with visited_at timestamp and optional
+    position for preserving a top-N pin order (0 = top). Mirrors RecentListVisit.
+    """
+    user_id: Optional[int] = Field(default=None, foreign_key="user.id", primary_key=True)
+    todo_id: Optional[int] = Field(default=None, foreign_key="todo.id", primary_key=True)
+    visited_at: datetime | None = Field(default_factory=now_utc, index=True)
+    position: Optional[int] = Field(default=None, index=True)
+
+
 class CompletedOccurrence(SQLModel, table=True):
     """Persisted completed occurrence hashes per-user."""
     id: Optional[int] = Field(default=None, primary_key=True)

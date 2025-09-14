@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}Recently visited lists — Fast Todo (no-js){% endblock %}
+{% block title %}Recently visited — Fast Todo (no-js){% endblock %}
 {% block content %}
   <style>
     /* remove top page margin so the site title sits flush to the top like other pages */
@@ -10,6 +10,10 @@
   /* override base rules that reset margin/padding to 0; use a modest gap */
   ul.lists-list li.list-item { margin-bottom: 0.75rem !important; padding-bottom: 0.125rem !important; }
     ul.lists-list li.list-item:last-child { margin-bottom: 0; }
+    /* todo entries styling */
+    ul.todos-list { list-style: none; margin: 0; padding: 0; }
+    ul.todos-list li.todo-item { margin-bottom: 0.75rem !important; padding-bottom: 0.125rem !important; }
+    ul.todos-list li.todo-item:last-child { margin-bottom: 0; }
   </style>
   <div style="margin-bottom:0.5rem;">
     <a href="/html_no_js/hashtags" class="btn" style="font-weight:bold;">→ Hashtags</a>
@@ -37,5 +41,33 @@
     </ul>
   {% else %}
     <div class="meta">No recently visited lists yet.</div>
+  {% endif %}
+
+  <h2 style="margin-top:1.25rem">Recently visited todos</h2>
+  {% if recent_todos and recent_todos|length > 0 %}
+    <ul class="todos-list">
+      {% for td in recent_todos %}
+        <li class="todo-item">
+          <div class="todo-main">
+            <a class="todo-title" href="/html_no_js/todos/{{ td.id }}">{{ td.text }}</a>
+            {% if td.list_id %}
+              <span class="meta">in <a href="/html_no_js/lists/{{ td.list_id }}">{{ td.list_name }}</a></span>
+            {% endif %}
+            {% if td.visited_at %}
+              <span class="meta">visited {{ td.visited_at|server_local_dt }}</span>
+            {% endif %}
+            {% if td.hashtags and td.hashtags|length > 0 %}
+              <span class="tags-inline" role="list" aria-label="Todo tags">
+                {% for tag in (td.hashtags | sort) %}
+                  <a class="tag-chip" role="listitem" href="/html_no_js/search?q={{ tag|urlencode }}">{{ tag }}</a>
+                {% endfor %}
+              </span>
+            {% endif %}
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <div class="meta">No recently visited todos yet.</div>
   {% endif %}
 {% endblock %}
