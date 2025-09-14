@@ -14,7 +14,7 @@ This app is for quick notes, tasks with priorities, and task management, and als
 
 You can use it instead of other apps that work like a document, in which you are forced to pinpoint the position of the cursor on a smartphone at the end of your note text to add a new todo item to the list, which may be difficult or slow when out and about. Or it might be quicker to use for some tasks (with numeric priorities and hashtags support), even on your PC.
 
-I use it on client windows and linux PCs (with Google Chrome), and my ipad and iphone.
+I use it on windows and linux client PCs (Chrome, Firefox), and my ipad and iphone (Safari).
 
 If you need to write or store more extensive documentation, I recommend dokuwiki (open-source).
 
@@ -29,7 +29,7 @@ The name html_no_js is now a misnomer as there is some javascript used to update
 
 ## Quick server usage (Windows and Debian)
 
-This project can run either as a local app on Windows or as a server on a Linux machine (for example a mini PC running Debian).
+This project can run either as a local app on Windows or as a server on a Linux machine (for example a mini PC running Debian). The main expected use is as a server app on a Linux server machine. I use a mini PC with low power consumption, in this way it costs me less than a cloud-hosted server subscription would.
 
 - Windows
   - Use the included PowerShell helper: `scripts/run_server_dev_windows.ps1`.
@@ -56,7 +56,7 @@ python .\scripts\change_user_password.py --username mbaily
 
 
 - Debian / Linux
-  - Follow similar steps to windows just above. git clone, cd to dir, create venv in .venv, activate venv, pip install -r requirements.txt, run add_user.py, run ./scripts/run_server_dev_debian.sh
+  - git clone, cd to dir, create venv in .venv, activate venv, pip install -r requirements.txt, run add_user.py, run ./scripts/run_server_dev_debian.sh
   - Use the shell helper: `scripts/run_server_dev_debian.sh` (or `scripts/run_server_debian.sh` where present for production-style runs).
   - The script will create a `.venv` virtualenv, install packages with `pip`, generate/load `SECRET_KEY`, optionally produce a self-signed certificate, and run the server using `uvicorn` (dev reload or production mode depending on flags).
   - For a permanent public-facing server, install on a small Linux box and expose it via your router (DMZ or IP forwarding). Access the app from any browser (tested with iOS Safari and Android Chrome, plus desktop Chrome).
