@@ -143,7 +143,7 @@
                 await Promise.all(containers.map(async function(c){
                     try{
                         const lid = c.getAttribute('data-list-id');
-                        const url = '/lists/' + encodeURIComponent(lid) + '/hashtags?include_todo_tags=1&combine=1';
+                        const url = '/lists/' + encodeURIComponent(lid) + '/hashtags?include_todo_tags=1&include_sublists=1&combine=1';
                         const res = await fetch(url, { credentials: 'same-origin' });
                         if (!res.ok) { c.innerHTML = ''; return; }
                         const j = await res.json();

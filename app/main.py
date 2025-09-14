@@ -4517,14 +4517,20 @@ async def add_list_hashtag_json(list_id: int, body: dict, current_user: User = D
 async def get_list_hashtags(
     list_id: int,
     include_todo_tags: bool = False,
+    include_sublists: bool = False,
     combine: bool = False,
     current_user: User = Depends(require_login),
 ):
     """Return hashtags for a list.
 
-    Query params:
-      - include_todo_tags (bool): if true, also collect hashtags attached to todos in the list.
-      - combine (bool): if true, return a single deduplicated `hashtags` array combining list and todo tags.
+        Query params:
+            - include_todo_tags (bool): if true, also collect hashtags attached to todos in the list.
+            - include_sublists (bool): if true, also collect hashtags from immediate sublists:
+                    • sublists' list-level hashtags
+                    • hashtags on todos within those sublists
+            - combine (bool): if true, return a single deduplicated `hashtags` array combining
+                list, todo, and optional sublist tags in SSR order:
+                    list-level -> todo-level -> sublist list-level -> sublist todo-level
 
     Ownership rules: only the list owner may call this API (same as other list APIs).
     """
@@ -4546,7 +4552,7 @@ async def get_list_hashtags(
             if isinstance(val, str) and val:
                 list_tags.append(val)
 
-        # optionally include todo-level tags
+    # optionally include todo-level tags
         todo_tags: list[str] = []
         if include_todo_tags:
             # Collect todo-level tags in deterministic order (by Todo.id then TodoHashtag.id)
@@ -4573,12 +4579,53 @@ async def get_list_hashtags(
                     todo_tags.append(val)
                     seen.add(val)
 
+        # optionally include immediate sublists' tags (list-level and their todos)
+        sublist_list_tags: list[str] = []
+        sublist_todo_tags: list[str] = []
+        if include_sublists:
+            # discover immediate sublists
+            qsubs = await sess.exec(
+                select(ListState.id)
+                .where(ListState.parent_list_id == list_id)
+                .order_by(ListState.id.asc())
+            )
+            sublist_ids = [sid for (sid,) in qsubs.all()] if qsubs is not None else []
+            # list-level tags on sublists
+            if sublist_ids:
+                qsl = await sess.exec(
+                    select(Hashtag.tag)
+                    .join(ListHashtag, ListHashtag.hashtag_id == Hashtag.id)
+                    .where(ListHashtag.list_id.in_(sublist_ids))
+                    .order_by(Hashtag.tag.asc())
+                )
+                for row in qsl.all():
+                    val = row[0] if isinstance(row, (tuple, list)) else row
+                    if isinstance(val, str) and val and val not in sublist_list_tags:
+                        sublist_list_tags.append(val)
+                # todo-level tags within sublists
+                qst = await sess.exec(
+                    select(Todo.id, Hashtag.tag)
+                    .join(TodoHashtag, TodoHashtag.hashtag_id == Hashtag.id)
+                    .join(Todo, Todo.id == TodoHashtag.todo_id)
+                    .where(Todo.list_id.in_(sublist_ids))
+                    .order_by(Todo.id.asc(), Hashtag.tag.asc())
+                )
+                seen_sub_todo = set()
+                for row in qst.all():
+                    try:
+                        _tid2, val = row
+                    except Exception:
+                        val = row[1] if isinstance(row, (tuple, list)) and len(row) > 1 else row[0]
+                    if isinstance(val, str) and val and val not in seen_sub_todo:
+                        sublist_todo_tags.append(val)
+                        seen_sub_todo.add(val)
+
         # return shape: preserve backwards compatibility when include_todo_tags is false
-        if not include_todo_tags and not combine:
+        if not include_todo_tags and not include_sublists and not combine:
             return {"list_id": list_id, "hashtags": list_tags}
 
         if combine:
-            # combined deduped list: list_tags first, then todo_tags not already present
+            # combined deduped list: list-level -> todo-level -> sublist list-level -> sublist todo-level
             seen = set()
             combined: list[str] = []
             for t in list_tags:
@@ -4589,10 +4636,24 @@ async def get_list_hashtags(
                 if t not in seen:
                     seen.add(t)
                     combined.append(t)
+            for t in sublist_list_tags:
+                if t not in seen:
+                    seen.add(t)
+                    combined.append(t)
+            for t in sublist_todo_tags:
+                if t not in seen:
+                    seen.add(t)
+                    combined.append(t)
             return {"list_id": list_id, "hashtags": combined}
 
         # otherwise return separate keys
-        return {"list_id": list_id, "list_hashtags": list_tags, "todo_hashtags": todo_tags}
+        out = {"list_id": list_id, "list_hashtags": list_tags}
+        if include_todo_tags:
+            out["todo_hashtags"] = todo_tags
+        if include_sublists:
+            out["sublist_hashtags"] = sublist_list_tags
+            out["sublist_todo_hashtags"] = sublist_todo_tags
+        return out
 
 
 @app.get("/lists/{list_id}/completion_types")
@@ -6536,11 +6597,21 @@ async def html_index(request: Request):
 
         # If show_all_tags is enabled, fetch all todo ids for the lists on the
         # page and the hashtags attached to those todos so we can include them
-        # in the combined list below.
+        # in the combined list below. Also fetch immediate sublists and their
+        # hashtags (both list-level and todo-level) so parent lists can surface
+        # those tags as well.
         list_todo_map: dict[int, list[int]] = {}
         todo_tags_map: dict[int, list[str]] = {}
+        # Immediate sublists: parent_list_id -> [sublist_id, ...]
+        parent_to_sublist_ids: dict[int, list[int]] = {}
+        # Sublist list-level hashtags: sublist_id -> ["#tag", ...]
+        sublist_list_tags_map: dict[int, list[str]] = {}
+        # Todos that belong to a given sublist: sublist_id -> [todo_id, ...]
+        sublist_todo_ids_by_list: dict[int, list[int]] = {}
+        # Hashtags attached to sublist todos: todo_id -> ["#tag", ...]
+        sublist_todo_tags_map: dict[int, list[str]] = {}
         try:
-            if show_all_tags and list_ids:
+            if list_ids:
                 # Order todos deterministically by id so merged todo-tags preserve
                 # a stable order that matches the API's ordering used elsewhere.
                 qtl = await sess.exec(
@@ -6565,11 +6636,79 @@ async def html_index(request: Request):
                             continue
                         if isinstance(tag, str) and tag:
                             todo_tags_map.setdefault(tid_i, []).append(tag)
+
+                # Gather immediate sublists of the lists on this page
+                qsubs_ids = await sess.exec(
+                    select(ListState.id, ListState.parent_list_id)
+                    .where(ListState.parent_list_id.in_(list_ids))
+                    .order_by(ListState.id.asc())
+                )
+                sublist_pairs = qsubs_ids.all()
+                sublist_ids: list[int] = []
+                for sid, parent_id in sublist_pairs:
+                    try:
+                        sid_i = int(sid)
+                        pid_i = int(parent_id)
+                    except Exception:
+                        continue
+                    parent_to_sublist_ids.setdefault(pid_i, []).append(sid_i)
+                    sublist_ids.append(sid_i)
+
+                if sublist_ids:
+                    # List-level hashtags on sublists
+                    qslh = await sess.exec(
+                        select(ListHashtag.list_id, Hashtag.tag)
+                        .where(ListHashtag.list_id.in_(sublist_ids))
+                        .join(Hashtag, Hashtag.id == ListHashtag.hashtag_id)
+                    )
+                    for lid, tag in qslh.all():
+                        try:
+                            lid_i = int(lid)
+                        except Exception:
+                            continue
+                        if isinstance(tag, str) and tag:
+                            sublist_list_tags_map.setdefault(lid_i, []).append(tag)
+
+                    # Todos within sublists
+                    qstl = await sess.exec(
+                        select(Todo.id, Todo.list_id)
+                        .where(Todo.list_id.in_(sublist_ids))
+                        .order_by(Todo.id.asc())
+                    )
+                    stlrows = qstl.all()
+                    sub_todo_ids_all: list[int] = []
+                    for tid, lid in stlrows:
+                        try:
+                            tid_i = int(tid)
+                            lid_i = int(lid)
+                        except Exception:
+                            continue
+                        sublist_todo_ids_by_list.setdefault(lid_i, []).append(tid_i)
+                        sub_todo_ids_all.append(tid_i)
+                    if sub_todo_ids_all:
+                        qsth = await sess.exec(
+                            select(TodoHashtag.todo_id, Hashtag.tag)
+                            .join(Hashtag, Hashtag.id == TodoHashtag.hashtag_id)
+                            .where(TodoHashtag.todo_id.in_(sub_todo_ids_all))
+                        )
+                        for tid, tag in qsth.all():
+                            try:
+                                tid_i = int(tid)
+                            except Exception:
+                                continue
+                            if isinstance(tag, str) and tag:
+                                sublist_todo_tags_map.setdefault(tid_i, []).append(tag)
         except Exception:
             # Non-fatal; if any DB issue occurs, simply behave as if flag disabled
             list_todo_map = {}
             todo_tags_map = {}
-        # Compute a server-side "combined" hashtag list for each list_row by
+            parent_to_sublist_ids = {}
+            sublist_list_tags_map = {}
+            sublist_todo_ids_by_list = {}
+            sublist_todo_tags_map = {}
+    # Compute server-side combined lists:
+    # - combined: respects show_all_tags (list-only when false; adds todo/sublists when true)
+    # - combined_full: always includes list, todo, and immediate sublist tags (for client use)
         # merging any hashtags present on the ORM `lists` objects and the
         # `hashtags` attached to the converted `list_rows`. This ensures the
         # template can reliably render SSR anchors without depending on client
@@ -6578,37 +6717,51 @@ async def html_index(request: Request):
             # Map ORM list id -> ORM object for quick lookup
             list_obj_map = {l.id: l for l in lists} if lists else {}
             for row in list_rows:
-                combined = []
+                base = []
                 try:
                     orm = list_obj_map.get(row.get('id'))
                     # Pull any hashtags persisted directly on the ORM object first
                     if orm is not None and getattr(orm, 'hashtags', None):
                         for t in getattr(orm, 'hashtags'):
-                            if t and t not in combined:
-                                combined.append(t)
+                            if t and t not in base:
+                                base.append(t)
                 except Exception:
                     pass
                 # Merge hashtags attached to the list_row dict (from tag_map)
                 try:
                     for t in row.get('hashtags', []) or []:
+                        if t and t not in base:
+                            base.append(t)
+                except Exception:
+                    pass
+                # Build combined_full (always include todos and immediate sublists)
+                combined_full = list(base)
+                try:
+                    lid = row.get('id')
+                    todo_ids_for_list = list_todo_map.get(int(lid), []) if lid is not None else []
+                    for tid in todo_ids_for_list:
+                        for t in todo_tags_map.get(tid, []):
+                            if t and t not in combined_full:
+                                combined_full.append(t)
+                    sub_ids = parent_to_sublist_ids.get(int(lid), []) if lid is not None else []
+                    for sid in sub_ids:
+                        for t in sublist_list_tags_map.get(sid, []):
+                            if t and t not in combined_full:
+                                combined_full.append(t)
+                        for stid in sublist_todo_ids_by_list.get(sid, []):
+                            for t in sublist_todo_tags_map.get(stid, []):
+                                if t and t not in combined_full:
+                                    combined_full.append(t)
+                except Exception:
+                    pass
+                # Build SSR-visible combined respecting show_all_tags
+                combined = list(base)
+                if show_all_tags:
+                    for t in combined_full:
                         if t and t not in combined:
                             combined.append(t)
-                except Exception:
-                    pass
-                # If the client asked for all tags, also include hashtags found
-                # on todos that belong to this list (preserve order: list-level
-                # tags first, then todo-level tags not already present).
-                try:
-                    if show_all_tags:
-                        lid = row.get('id')
-                        todo_ids_for_list = list_todo_map.get(int(lid), []) if lid is not None else []
-                        for tid in todo_ids_for_list:
-                            for t in todo_tags_map.get(tid, []):
-                                if t and t not in combined:
-                                    combined.append(t)
-                except Exception:
-                    pass
                 row['combined'] = combined
+                row['combined_full'] = combined_full
         except Exception:
             pass
         # Determine highest uncompleted todo priority per list (if any)

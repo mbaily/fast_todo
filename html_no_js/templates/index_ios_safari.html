@@ -248,7 +248,8 @@
                 <span class="muted priority-inline priority-override" title="Highest uncompleted todo priority"><span class="priority-circle">{{ circ.get(lst.override_priority, lst.override_priority) }}</span></span>
               {% endif %}
               {% if lst.created_at %}<span class="muted"> cr. {{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</span>{% endif %}
-              <div class="all-tags-inline" data-list-id="{{ lst.id }}" data-list-tags='{{ lst.hashtags | tojson }}' aria-hidden="true" style="display:inline-block;margin-left:0.5rem;"></div>
+              {% set combined = lst.combined_full if lst.combined_full is defined and lst.combined_full is not none else (lst.hashtags or []) %}
+              <div class="all-tags-inline" data-list-id="{{ lst.id }}" data-list-tags='{{ combined | tojson }}' aria-hidden="{{ 'false' if combined and combined|length > 0 else 'true' }}' style="display:inline-block;margin-left:0.5rem;"></div>
             </li>
           {% endfor %}
         </ul>
@@ -285,7 +286,8 @@
                     <span class="muted priority-inline priority-override" title="Highest uncompleted todo priority"><span class="priority-circle">{{ circ.get(lst.override_priority, lst.override_priority) }}</span></span>
                   {% endif %}
                   {% if lst.created_at %}<span class="muted"> cr. {{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</span>{% endif %}
-                  <div class="all-tags-inline" data-list-id="{{ lst.id }}" data-list-tags='{{ lst.hashtags | tojson }}' aria-hidden="true" style="display:inline-block;margin-left:0.5rem;">
+                  {% set combined2 = lst.combined_full if lst.combined_full is defined and lst.combined_full is not none else (lst.hashtags or []) %}
+                  <div class="all-tags-inline" data-list-id="{{ lst.id }}" data-list-tags='{{ combined2 | tojson }}' aria-hidden="{{ 'false' if combined2 and combined2|length > 0 else 'true' }}" style="display:inline-block;margin-left:0.5rem;">
                     {# SSR combined tags for iOS standalone: include list-level hashtags and merge any available todo/list tags if present. #}
                     {% set combined = [] %}
                     {% if lst.hashtags %}
@@ -489,13 +491,45 @@
             container.setAttribute('aria-hidden','false');
           }
 
-          async function fetchAndRenderAll(listId, container){
+      async function fetchAndRenderAll(listId, container){
             try{
-              var resp = await fetch('/lists/' + encodeURIComponent(listId) + '/hashtags?include_todo_tags=1&combine=1', { credentials: 'same-origin' });
-              if (!resp.ok) return;
-              var data = await resp.json();
-              var tags = data.hashtags || [];
-              renderTagsInto(container, tags);
+              // Try multiple combinations; prefer the richest set first
+              var url1 = '/lists/' + encodeURIComponent(listId) + '/hashtags?include_todo_tags=1&include_sublists=1&combine=1';
+              var resp = await fetch(url1, { credentials: 'same-origin' });
+              var data = null; var fetched = [];
+              if (resp && resp.ok) {
+                data = await resp.json();
+                fetched = (data && Array.isArray(data.hashtags)) ? data.hashtags : [];
+              }
+              if (!fetched || fetched.length === 0){
+                var url2 = '/lists/' + encodeURIComponent(listId) + '/hashtags?include_sublists=1&combine=1';
+                resp = await fetch(url2, { credentials: 'same-origin' });
+                if (resp && resp.ok) {
+                  data = await resp.json();
+                  fetched = (data && Array.isArray(data.hashtags)) ? data.hashtags : [];
+                }
+              }
+              if (!fetched || fetched.length === 0){
+                var url3 = '/lists/' + encodeURIComponent(listId) + '/hashtags?include_todo_tags=1&combine=1';
+                resp = await fetch(url3, { credentials: 'same-origin' });
+                if (resp && resp.ok) {
+                  data = await resp.json();
+                  fetched = (data && Array.isArray(data.hashtags)) ? data.hashtags : [];
+                }
+              }
+              // Merge order: SSR anchors (if present) -> data-list-tags -> fetched
+              var raw = container.getAttribute('data-list-tags');
+              var serverTags = [];
+              try { serverTags = raw ? JSON.parse(raw) : []; } catch(e) { serverTags = []; }
+              var seen = {};
+              var merged = [];
+              try {
+                var ssr = Array.prototype.map.call(container.querySelectorAll('a'), function(a){ return (a && a.textContent) ? String(a.textContent).trim() : ''; }).filter(Boolean);
+                ssr.forEach(function(t){ if (t && !seen[t]) { seen[t] = true; merged.push(t); } });
+              } catch(e) {}
+              (serverTags || []).forEach(function(t){ if (t && !seen[t]) { seen[t] = true; merged.push(t); } });
+              (fetched || []).forEach(function(t){ if (t && !seen[t]) { seen[t] = true; merged.push(t); } });
+        renderTagsInto(container, merged);
             }catch(e){ /* ignore network errors silently for this tiny template */ }
           }
 
@@ -522,8 +556,8 @@
           }
 
           checkbox.addEventListener('change', function(){ setCookie('show_all_tags', checkbox.checked ? '1' : '0', 365); refreshAllTags(); });
-          // Do NOT auto-invoke refresh on load. Preserve server-rendered anchors by default.
-          // Client will update tags only when the user toggles the checkbox.
+          // On load: populate tags immediately to reflect current checkbox state
+          try { refreshAllTags(); } catch(e) {}
         })();
         // Hide Completed lists for iOS template (persist via cookie)
         (function(){
