@@ -398,6 +398,91 @@ Key behavior
   - The hide-icons mode is useful when you prefer a notes-like layout or want fewer interactive controls on the page.
 
 Important notes about semantics
+
+## Calculate button (CalcDict) on the todo page
+
+You can run quick calculations from a todo using the Calculate button. It evaluates the note text using a tiny RPN-style calculator with variables and shows the result below the note.
+
+Where to find it
+- On a todo page, the Calculate button appears next to the “DokuWiki page for this todo” link (or by itself if DokuWiki isn’t configured).
+- The output appears in a read-only “Calculation Output” box under the note.
+
+How it works
+- It reads the entire Note field and treats it as a set of line-based assignments.
+- Each non-empty, non-comment line has the form: name expression
+  - name is a variable identifier (letters/numbers/underscore, starting with a letter or underscore).
+  - expression is a space-separated Reverse Polish Notation (RPN) expression.
+- Variables within expressions are referenced as $name.
+- Comments start with # and run to the end of the line.
+- Blank lines are ignored.
+
+Supported tokens (selection)
+- Numbers: 1, 2.5, etc.
+- Basic ops (binary): +  -  *  /
+- N-ary ops (reduce the whole stack): n+  n-  n*  n/
+- Constants: pi  e
+- Trig: sin  cos  tan   (arguments are in radians)
+- Inverse trig: asin  acos  atan
+- Logs: log (base 10), ln (natural)
+- Powers/roots: pow (a^b), sqrt
+- Other: abs  round  swap (swap top two stack values)
+
+What the output shows
+- A header with the todo name (e.g. todo-123).
+- For each assigned variable: name: value = sum
+  - If a value is a single number, value and sum are the same.
+  - If a value is a list (rare; only if you finish with more than one stack value), sum is the numeric sum of that list.
+- A final Total that sums all variable sums.
+
+Quick examples (paste into the todo note and click Calculate)
+
+1) Budget roll-up and tax
+
+```
+# Line-based assignments: name then RPN expression
+groceries 12.50 8.20 5.30 n+
+fuel 60
+subtotal $groceries $fuel +
+tax $subtotal 0.10 *
+total $subtotal $tax +
+```
+
+2) Geometry with constants
+
+```
+r 3
+area $r $r * pi *
+circumference 2 pi * $r *
+```
+
+3) Logs, powers, roots
+
+```
+a 100 ln
+b 10 log
+pow_ex 2 8 pow
+root 81 sqrt
+```
+
+4) Stack helpers and n-ary arithmetic
+
+```
+series 1 2 3 4 5 n+
+diff 100 30 10 n-
+swap_demo 2 3 swap -   # (3 2 then 3-2 = 1)
+```
+
+Usage tips
+- Radians: trig functions use radians.
+- Variables: reference earlier results with $varname.
+- Comments: start a comment with # anywhere on the line.
+- Errors: unknown tokens, division by zero, or missing variables ($name not defined) will cause an error message instead of results.
+- Idempotent: calculations don’t modify your note; they only read it.
+
+Privacy/logging
+- The server executes the calculation and returns only the output; it does not persist calculation results.
+- For troubleshooting, the server may log calculation input and output at INFO level. If you don’t want that in production logs, reduce the log level or disable those log lines.
+
 - Completion types are reference-only metadata for each todo. They do not change how priorities, recurrence, or other server-side logic behaves.
 - Marking a completion type does not re-order or re-prioritize todos automatically. Priority numbers and the app's priority-derived behaviors are independent of completion type flags.
 - Completion types are stored per-list and ordered by creation time; when extra completion types are shown in the table they follow that creation order so their columns are stable and predictable.
