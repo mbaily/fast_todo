@@ -1,4 +1,4 @@
-// fast_todo: todo page client behaviors
+// fast_todo: todo page client behaviors (served from /static)
 'use strict';
 
 // Simple mark-storage helper used by mark icon
@@ -133,13 +133,14 @@
 			if (inFlight) return; inFlight = true; setStatus('Saving...');
 			try{
 				var url = form.action;
-				var fd = new FormData();
+				// Use URL-encoded form body for maximum proxy compatibility
+				var body = new URLSearchParams();
 				var textInput = form.querySelector('[name="text"]');
 				var textVal = textInput ? textInput.value : '';
-				fd.append('text', textVal);
-				fd.append('note', textarea.value || '');
+				body.append('text', textVal);
+				body.append('note', textarea.value || '');
 				var csrf = null; var hiddenCsrf = form.querySelector('input[name="_csrf"]');
-				if (hiddenCsrf && hiddenCsrf.value) csrf = hiddenCsrf.value; if (!csrf) csrf = getCookie('csrf_token'); if (csrf) fd.append('_csrf', csrf);
+				if (hiddenCsrf && hiddenCsrf.value) csrf = hiddenCsrf.value; if (!csrf) csrf = getCookie('csrf_token'); if (csrf) body.append('_csrf', csrf);
 				try{
 					var sortCb = form.querySelector('input[type="checkbox"][id^="note-sort-links-"]');
 					var sortHiddenField = form.querySelector('input[name="sort_links"]');
@@ -147,10 +148,10 @@
 					var valueToSend = null;
 					if (sortCb) { valueToSend = sortCb.checked ? 'true' : 'false'; if (sortHiddenField) sortHiddenField.value = valueToSend; }
 					else if (sortHiddenField) { valueToSend = sortHiddenField.value; }
-					if (valueToSend !== null) { try { console && console.log && console.log('autosave: appending sort_links=', valueToSend); } catch(e) {} fd.append('sort_links', valueToSend); }
+					if (valueToSend !== null) { try { console && console.log && console.log('autosave: appending sort_links=', valueToSend); } catch(e) {} body.append('sort_links', valueToSend); }
 				}catch(_){ }
 				try { console && console.log && console.log('autosave: about to fetch', url); } catch(e) {}
-				var res = await fetch(url, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
+				var res = await fetch(url, { method: 'POST', body: body, credentials: 'same-origin', headers: { 'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' } });
 				try { console && console.log && console.log('autosave: fetch completed, ok=', res && res.ok); } catch(e) {}
 				if (!res.ok) throw new Error('save failed');
 				setStatus('Saved');
@@ -167,7 +168,16 @@
 		textarea.addEventListener('input', scheduleSave);
 		textarea.addEventListener('blur', function(){ try{ if (timer) clearTimeout(timer); doSave(); }catch(_){ } });
 		try{ var titleInput = form.querySelector('[name="text"]'); if (titleInput){ titleInput.addEventListener('input', scheduleSave); titleInput.addEventListener('blur', function(){ try{ if (timer) clearTimeout(timer); doSave(); }catch(_){ } }); } } catch(e){}
-		try { var toolbarSaveForm = document.getElementById('todo-save-form'); if (toolbarSaveForm) { toolbarSaveForm.addEventListener('submit', function(ev){ ev.preventDefault(); try { if (window.todo_do_save) window.todo_do_save(); } catch(e) { try { toolbarSaveForm.submit(); } catch(_){} } }); } } catch(e) { }
+		try {
+			var toolbarBtn = document.getElementById('todo-save-btn');
+			if (toolbarBtn) {
+				toolbarBtn.addEventListener('click', function(ev){
+					ev.preventDefault();
+					try { if (window.todo_do_save) window.todo_do_save(); }
+					catch(e){ try{ var editForm = document.getElementById('todo-edit-form'); if (editForm) editForm.submit(); }catch(_){} }
+				});
+			}
+		} catch(e) { }
 	}catch(e){ }
 })();
 
@@ -435,3 +445,123 @@
 	}catch(e){ }
 })();
 
+// Collation dots: toggle add/remove to active collations via JSON endpoint
+(function(){
+	try{
+		function postJSON(url, data){
+			return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, credentials: 'same-origin', body: JSON.stringify(data||{}) })
+				.then(function(r){ return r.json().catch(function(){ return {}; }); });
+		}
+		var buttons = document.querySelectorAll('button.collation-dot');
+		if (!buttons || !buttons.length) return;
+		buttons.forEach(function(btn){
+			btn.addEventListener('click', function(){
+				try{
+					var lid = parseInt(btn.getAttribute('data-list-id'),10);
+					var tid = parseInt(btn.getAttribute('data-todo-id'),10);
+					var pressed = String(btn.getAttribute('aria-pressed')) === 'true';
+					var want = !pressed;
+					postJSON('/client/json/collations/'+lid+'/toggle', { todo_id: tid, link: want }).then(function(j){
+						if (!j || j.ok !== true) return;
+						var linked = !!j.linked;
+						btn.setAttribute('aria-pressed', linked ? 'true' : 'false');
+						var nm = btn.getAttribute('data-name') || '';
+						btn.title = (linked ? 'Remove from ' : 'Add to ') + nm;
+					}).catch(function(){});
+				}catch(_){ }
+			});
+		});
+	}catch(e){ }
+})();
+
+// Link picker (Add link section): populate from local marks and wire submit
+(function(){
+	try{
+		var KEY='ft_marks_v1'; var TTL=5*60*1000;
+		function load(){ try { return JSON.parse(localStorage.getItem(KEY)||'{}')||{}; } catch(_){ return {}; } }
+		function prune(o){ var t=Date.now(); var out={todos:{},lists:{}}; if(o.todos) for(var k in o.todos){ if((t-(o.todos[k]||0))<TTL) out.todos[k]=o.todos[k]; } if(o.lists) for(var k2 in o.lists){ if((t-(o.lists[k2]||0))<TTL) out.lists[k2]=o.lists[k2]; } return out; }
+		var todoIdEl = document.querySelector('[id^="add-link-form-todo-"]');
+		if (!todoIdEl) return;
+		var formId = todoIdEl.getAttribute('id') || '';
+		var todoId = (formId.split('add-link-form-todo-')[1]) || '';
+		var sel = document.getElementById('link-target-todo-' + todoId);
+		if (!sel) return;
+		var emptyMsg = document.getElementById('link-empty-todo-' + todoId);
+		var marks=prune(load()); var count=0;
+		function addOpt(v,t,parent){ var o=document.createElement('option'); o.value=v; o.textContent=t; (parent||sel).appendChild(o); count++; }
+		if (marks.todos && Object.keys(marks.todos).length){ var og=document.createElement('optgroup'); og.label='Todos'; sel.appendChild(og); Object.keys(marks.todos).sort(function(a,b){return (+a)-(+b);}).forEach(function(id){ addOpt('todo:'+id, 'Todo #'+id, og); }); }
+		if (marks.lists && Object.keys(marks.lists).length){ var og2=document.createElement('optgroup'); og2.label='Lists'; sel.appendChild(og2); Object.keys(marks.lists).sort(function(a,b){return (+a)-(+b);}).forEach(function(id){ addOpt('list:'+id, 'List #'+id, og2); }); }
+		if (!count && emptyMsg){ emptyMsg.style.display='block'; }
+		var form = document.getElementById('add-link-form-todo-' + todoId);
+		if (form){ form.addEventListener('submit', function(e){ try{ var v=sel.value||''; if(!v){ e.preventDefault(); alert('Select a marked item first.'); return; } var parts=v.split(':'); if(parts.length!==2){ e.preventDefault(); alert('Invalid selection'); return; } var t=parts[0], id=parts[1]; form.querySelector('input[name="tgt_type"]').value=t; form.querySelector('input[name="tgt_id"]').value=id; }catch(err){ e.preventDefault(); } }, false); }
+	}catch(e){ }
+})();
+
+// Client-side sort of sublists by effective priority desc, then parent_list_position asc
+(function(){
+	try{
+		var uls = document.querySelectorAll('ul.lists-list');
+		if (!uls || !uls.length) return;
+		function parseIntOrNull(v){ if (v === null || typeof v === 'undefined' || v === '') return null; var n = parseInt(v, 10); return isNaN(n) ? null : n; }
+		uls.forEach(function(ul){
+			var items = Array.from(ul.querySelectorAll('li.list-item'));
+			if (!items.length) return;
+			items.sort(function(a, b){
+				var ap = parseIntOrNull(a.getAttribute('data-priority'));
+				var bp = parseIntOrNull(b.getAttribute('data-priority'));
+				if (ap === null && bp !== null) return 1;
+				if (bp === null && ap !== null) return -1;
+				if (ap !== null && bp !== null){ if (bp !== ap) return bp - ap; }
+				var ao = parseIntOrNull(a.getAttribute('data-parent-list-position'));
+				var bo = parseIntOrNull(b.getAttribute('data-parent-list-position'));
+				if (ao === null && bo !== null) return 1;
+				if (bo === null && ao !== null) return -1;
+				if (ao !== null && bo !== null){ if (ao !== bo) return ao - bo; }
+				return 0;
+			});
+			items.forEach(function(li){ ul.appendChild(li); });
+		});
+	}catch(e){ }
+})();
+
+// CalcDict integration: Calculate button posts note to /client/json/calcdict and shows output
+(function(){
+	try{
+		var ta = document.getElementById('note-textarea');
+		if (!ta) return;
+		function postJSON(url, data){
+			return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, credentials: 'same-origin', body: JSON.stringify(data||{}) })
+				.then(function(r){ return r.json().catch(function(){ return {}; }); });
+		}
+		var buttons = document.querySelectorAll('[id^="note-calc-btn-"]');
+		if (!buttons || !buttons.length) return;
+		buttons.forEach(function(btn){
+			btn.addEventListener('click', function(){
+				try{
+					var todoId = (btn.id.split('note-calc-btn-')[1]) || '';
+					var name = 'todo-' + (todoId || 'note');
+					var input_text = ta.value || '';
+					var status = document.getElementById('autosave-status'); if (status) status.textContent = 'Calculating...';
+					postJSON('/client/json/calcdict', { name: name, input_text: input_text }).then(function(j){
+						try{
+							var wrap = document.getElementById('note-calc-output-wrap-' + todoId) || document.querySelector('[id^="note-calc-output-wrap-"]');
+							var out = document.getElementById('note-calc-output-' + todoId) || document.querySelector('[id^="note-calc-output-"]');
+							if (!wrap || !out){ if (status) status.textContent = 'Calc ready (UI missing)'; return; }
+							if (j && j.ok && typeof j.output === 'string'){
+								out.value = j.output;
+								wrap.style.display = 'block';
+								try{ wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }catch(_){ }
+								if (status) status.textContent = 'Calculated';
+								setTimeout(function(){ try{ if (status && status.textContent === 'Calculated') status.textContent = ''; }catch(_){ } }, 1500);
+							} else {
+								out.value = (j && j.error) ? ('Error: ' + j.error) : 'Calculation failed';
+								wrap.style.display = 'block';
+								if (status) status.textContent = 'Calc failed';
+							}
+						}catch(_){ }
+					}).catch(function(){ try{ var status = document.getElementById('autosave-status'); if (status) status.textContent = 'Calc failed'; }catch(_){ } });
+				}catch(_){ }
+			});
+		});
+	}catch(e){ }
+})();
