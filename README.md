@@ -12,7 +12,7 @@ Copyright (c) 2025 Mark Baily
 
 This app is for quick notes, tasks with priorities, and task management, and also small to medium size notes. You can use it like a filofax or to avoid using portable paper notepads when you own a smartphone. You can store lists of notes or todos recursively (infinite depth).
 
-You can use it instead of other apps where you have to position the cursor on a smartphone at the end of your note text to add a new todo item to the list, which may be difficult or slow when out and about. Or it might be quicker to use for some tasks (with numeric priorities and hashtags support), even on your PC.
+You can use it instead of other apps that work like a document, in which you are forced to pinpoint the position of the cursor on a smartphone at the end of your note text to add a new todo item to the list, which may be difficult or slow when out and about. Or it might be quicker to use for some tasks (with numeric priorities and hashtags support), even on your PC.
 
 I use it on client windows and linux PCs (with Google Chrome), and my ipad and iphone.
 
@@ -399,6 +399,13 @@ Key behavior
 
 Important notes about semantics
 
+
+- Completion types are reference-only metadata for each todo. They do not change how priorities, recurrence, or other server-side logic behaves.
+- Marking a completion type does not re-order or re-prioritize todos automatically. Priority numbers and the app's priority-derived behaviors are independent of completion type flags.
+- Completion types are stored per-list and ordered by creation time; when extra completion types are shown in the table they follow that creation order so their columns are stable and predictable.
+
+If you want to change how completion types behave (for example, to make them affect ordering or filter results), that would need a server-side behavior change and is not the current behavior.
+
 ## Calculate button (CalcDict) on the todo page
 
 You can run quick calculations from a todo using the Calculate button. It evaluates the note text using a tiny RPN-style calculator with variables and shows the result below the note.
@@ -483,11 +490,44 @@ Privacy/logging
 - The server executes the calculation and returns only the output; it does not persist calculation results.
 - For troubleshooting, the server may log calculation input and output at INFO level. If you don’t want that in production logs, reduce the log level or disable those log lines.
 
-- Completion types are reference-only metadata for each todo. They do not change how priorities, recurrence, or other server-side logic behaves.
-- Marking a completion type does not re-order or re-prioritize todos automatically. Priority numbers and the app's priority-derived behaviors are independent of completion type flags.
-- Completion types are stored per-list and ordered by creation time; when extra completion types are shown in the table they follow that creation order so their columns are stable and predictable.
+## DokuWiki link configuration (DOKUWIKI_NOTE_LINK_PREFIX)
 
-If you want to change how completion types behave (for example, to make them affect ordering or filter results), that would need a server-side behavior change and is not the current behavior.
+You can show a one-click link from a todo page to a corresponding DokuWiki page. This is controlled by the environment variable `DOKUWIKI_NOTE_LINK_PREFIX` (read by `app.config`).
+
+- What it does
+  - When set to a non-empty value, the todo page (`html_no_js/templates/todo.html`) renders a button labeled “DokuWiki page for this todo”.
+  - The link is constructed as:
+    - `dw_url = DOKUWIKI_NOTE_LINK_PREFIX + 'fast_todo:todo:' + <todo_id>`
+  - If the variable is missing or empty, the DokuWiki link is omitted and the Calculate button appears by itself.
+
+- Choose a prefix that matches your DokuWiki URL style
+  - Old-style (query path without explicit `id=`):
+    - Example: `https://wiki.example.com/dokuwiki/doku.php?`
+    - Resulting link: `.../doku.php?fast_todo:todo:123`
+  - Explicit `id=` parameter style (common default):
+    - Example: `https://wiki.example.com/dokuwiki/doku.php?id=`
+    - Resulting link: `.../doku.php?id=fast_todo:todo:123`
+  - If you use nice URLs or interwiki mappings, point the prefix to whatever base makes the appended page id (`fast_todo:todo:<id>`) resolve correctly in your setup.
+
+- How to set
+  - Linux (systemd EnvironmentFile):
+    - Add to `/etc/default/fast_todo` (or your chosen env file):
+      - `DOKUWIKI_NOTE_LINK_PREFIX=https://wiki.example.com/dokuwiki/doku.php?id=`
+    - Restart the service.
+  - Linux (temporary for shell):
+    - `export DOKUWIKI_NOTE_LINK_PREFIX="https://wiki.example.com/dokuwiki/doku.php?id="`
+    - Then start the server in the same shell.
+  - Windows PowerShell (dev):
+    - `$env:DOKUWIKI_NOTE_LINK_PREFIX = 'https://wiki.example.com/dokuwiki/doku.php?id='`
+    - Then run your startup script in the same session.
+
+- Hide the link
+  - Set `DOKUWIKI_NOTE_LINK_PREFIX` to an empty string or unset it; the UI will not render the DokuWiki button.
+
+Notes
+- This is a convenience link; no secrets are involved. Don’t commit your private hostname into the repo—prefer environment configuration.
+- The default in `app/config.py` may include a sample URL; override it via environment for your deployment.
+
 
 ## Final notes and references
 
