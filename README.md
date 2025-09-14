@@ -400,6 +400,13 @@ Ignore and completion controls
   - Ignore from date: set an ignore-from date so occurrences before (or after, depending on semantics) a cutoff are suppressed. This is useful when you want to stop showing older occurrences without deleting recurrence metadata.
   - Task complete: completing a recurring todo typically only affects a single occurrence instance. The recurrence metadata remains so subsequent occurrences still appear in the calendar unless the item is explicitly marked to be ignored.
 
+Ignore in calendar (per‑todo toggle)
+- On the todo page there is a checkbox labeled “Ignore in calendar”. When checked, that todo will no longer generate events/occurrences in:
+  - `/calendar/events`
+  - `/calendar/occurrences`
+- The checkbox posts in-place (no full page reload). If the network fails, the UI keeps the new visual state and the server won’t be updated until you toggle again successfully.
+- This setting is stored as a boolean `calendar_ignored` on the todo, indexed for performance. It’s respected by calendar endpoints by default.
+
 Notes and tips
   - When creating recurring todos, prefer explicit recurrence phrasing (e.g. "every Monday" or RFC-style rrules) to improve parsing accuracy.
   - If you see unexpected occurrences, check the todo's `recurrence_meta` and `recurrence_dtstart` fields (via the API or DB) to understand how the parser interpreted the text.

@@ -254,6 +254,14 @@
       <input type="hidden" name="pinned" value="{{ 'false' if todo.pinned|default(false) else 'true' }}">
       <button type="submit" class="pin-button {% if todo.pinned|default(false) %}pinned{% endif %}" aria-label="Toggle pin" title="Toggle pin">{{ '📌' if todo.pinned|default(false) else '📍' }}</button>
     </form>
+    <form method="post" action="/html_no_js/todos/{{ todo.id }}/calendar_ignored" style="display:inline-block; margin-left:0.75rem">
+      {{ csrf_field() }}
+      <input type="hidden" name="calendar_ignored" id="todo-calendar-ignored-hidden-{{ todo.id }}" value="{{ 'true' if todo.calendar_ignored|default(false) else 'false' }}">
+      <label style="display:inline-flex; align-items:center; gap:0.35rem;">
+        <input type="checkbox" id="todo-calendar-ignored-cb-{{ todo.id }}" {% if todo.calendar_ignored|default(false) %}checked{% endif %}>
+        <span>Ignore in calendar</span>
+      </label>
+    </form>
   </div>
 
   {% if sublists is defined and (todo is defined and not todo.lists_up_top) %}
@@ -368,4 +376,26 @@
 
 {% block scripts %}
   <script src="/static/no_js/todo.js"></script>
+  <script>
+    (function(){
+      try{
+        var cb = document.getElementById('todo-calendar-ignored-cb-{{ todo.id }}');
+        var hid = document.getElementById('todo-calendar-ignored-hidden-{{ todo.id }}');
+        var form = hid ? hid.closest('form') : null;
+        if (!cb || !hid || !form) return;
+  if (cb.dataset && cb.dataset.bound === '1') return;
+  cb.dataset.bound = '1';
+  cb.addEventListener('change', function(){
+          try{
+            hid.value = cb.checked ? 'true' : 'false';
+            var fd = new FormData();
+            fd.append('calendar_ignored', hid.value);
+            var csrfInput = form.querySelector('input[name="_csrf"]') || document.querySelector('input[name="_csrf"]');
+            if (csrfInput && csrfInput.value) fd.append('_csrf', csrfInput.value);
+            fetch(form.action, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'Accept': 'application/json' }}).then(function(res){ if(!res.ok){ throw new Error('toggle failed'); } return res.json().catch(function(){ return null; }); }).then(function(){ /* no-op */ }).catch(function(){ try{ console && console.error && console.error('calendar_ignored update failed'); }catch(_){ } });
+          }catch(_){ }
+        });
+      }catch(_){ }
+    })();
+  </script>
 {% endblock %}

@@ -109,6 +109,8 @@ class Todo(SQLModel, table=True):
     pinned: bool = Field(default=False)
     # When true, exclude this todo from search results
     search_ignored: bool = Field(default=False, index=True)
+    # When true, exclude this todo from calendar extraction/occurrences
+    calendar_ignored: bool = Field(default=False, index=True)
     created_at: datetime | None = Field(default_factory=now_utc)
     modified_at: datetime | None = Field(default_factory=now_utc)
     deferred_until: Optional[datetime] = None

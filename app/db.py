@@ -199,15 +199,28 @@ def _ensure_sqlite_minimal_migrations(url: str | None) -> None:
             try:
                 cur.execute("PRAGMA table_info('todo')")
                 tcols = [row[1] for row in cur.fetchall()]
-                if tcols and 'search_ignored' not in tcols:
-                    try:
-                        cur.execute("ALTER TABLE todo ADD COLUMN search_ignored INTEGER DEFAULT 0 NOT NULL")
-                        conn.commit()
+                if tcols:
+                    if 'search_ignored' not in tcols:
                         try:
-                            cur.execute("CREATE INDEX IF NOT EXISTS ix_todo_search_ignored ON todo(search_ignored)")
+                            cur.execute("ALTER TABLE todo ADD COLUMN search_ignored INTEGER DEFAULT 0 NOT NULL")
+                            conn.commit()
+                            try:
+                                cur.execute("CREATE INDEX IF NOT EXISTS ix_todo_search_ignored ON todo(search_ignored)")
+                                conn.commit()
+                            except Exception:
+                                pass
+                        except Exception:
+                            pass
+                    # New: ensure calendar_ignored column exists for calendar filtering
+                    if 'calendar_ignored' not in tcols:
+                        try:
+                            cur.execute("ALTER TABLE todo ADD COLUMN calendar_ignored INTEGER DEFAULT 0 NOT NULL")
                             conn.commit()
                         except Exception:
                             pass
+                    try:
+                        cur.execute("CREATE INDEX IF NOT EXISTS ix_todo_calendar_ignored ON todo(calendar_ignored)")
+                        conn.commit()
                     except Exception:
                         pass
             except Exception:

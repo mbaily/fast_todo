@@ -2689,14 +2689,16 @@ async def calendar_events(request: Request, start: Optional[str] = None, end: Op
 
         todos = []
         if list_ids:
-            qtodos = await sess.exec(select(Todo).where(Todo.list_id.in_(list_ids)))
+            qtodos = await sess.exec(select(Todo).where(Todo.list_id.in_(list_ids)).where(Todo.calendar_ignored == False))
             todos = qtodos.all()
         logger.info('calendar_occurrences fetched %d todos for owner_id=%s', len(todos) if todos is not None else 0, owner_id)
 
         # helper to filter by optional window
         def in_window(dt: datetime) -> bool:
-            if start_dt and dt < start_dt: return False
-            if end_dt and dt > end_dt: return False
+            if start_dt and dt < start_dt:
+                return False
+            if end_dt and dt > end_dt:
+                return False
             return True
 
         # scan lists
@@ -2878,7 +2880,7 @@ async def calendar_occurrences(request: Request,
 
         todos = []
         if list_ids:
-            qtodos = await sess.exec(select(Todo).where(Todo.list_id.in_(list_ids)))
+            qtodos = await sess.exec(select(Todo).where(Todo.list_id.in_(list_ids)).where(Todo.calendar_ignored == False))
             todos = qtodos.all()
         _sse_debug('calendar_occurrences.todos_fetched', {'count': len(todos)})
         # Build helper maps for todos and lists and compute per-list override priorities
@@ -3529,6 +3531,21 @@ async def calendar_occurrences(request: Request,
                     except Exception:
                         continue
             is_ignored = bool(ignored_scopes)
+            # Additionally, respect per-todo calendar_ignored flag by filtering out occurrences
+            # for any todo with calendar_ignored=True. We don't need a separate DB lookup here;
+            # occurrences for ignored todos are prevented earlier by not scanning such todos when possible,
+            # but guard here for any legacy entries. We mark them as ignored to reuse include_ignored logic.
+            try:
+                if not is_ignored and o.get('item_type') == 'todo':
+                    # lightweight check: fetch flag for this id if needed
+                    tid = int(o.get('id')) if o.get('id') is not None else None
+                    if tid is not None:
+                        trow = await sess.get(Todo, tid)
+                        if trow is not None and bool(getattr(trow, 'calendar_ignored', False)):
+                            ignored_scopes.append('calendar_ignored')
+                            is_ignored = True
+            except Exception:
+                pass
             # mark completed occurrences
             o['completed'] = (o.get('occ_hash') in done_set)
             if include_ignored:
@@ -7023,18 +7040,25 @@ async def html_index(request: Request):
             vis_ids = [l.id for l in vis_lists if l.id is not None]
             vis_todos = []
             if vis_ids:
-                # Prefer filtering out fully-completed todos at the DB level
-                # when the schema exposes a 'completed' column on Todo. If the
-                # attribute/column is missing (older schemas), fall back to a
-                # plain select; the per-occurrence completed exclusion will
-                # still be enforced by checking persisted CompletedOccurrence
-                # rows.
+                # Prefer filtering out fully-completed todos at the DB level when available.
+                # Also exclude todos flagged calendar_ignored so they don't appear in the index calendar.
                 try:
+                    base_q = select(models.Todo).where(models.Todo.list_id.in_(vis_ids))
                     if hasattr(models.Todo, 'completed'):
-                        qtt = await sess.exec(select(models.Todo).where(models.Todo.list_id.in_(vis_ids)).where(models.Todo.completed == False))
-                    else:
+                        base_q = base_q.where(models.Todo.completed == False)
+                    try:
+                        if hasattr(models.Todo, 'calendar_ignored'):
+                            base_q = base_q.where(models.Todo.calendar_ignored == False)
+                    except Exception:
+                        # If adding the filter fails (e.g. missing column), fall back below
+                        pass
+                    try:
+                        qtt = await sess.exec(base_q)
+                        vis_todos = qtt.all()
+                    except Exception:
+                        # Fallback if the DB doesn't have the calendar_ignored column yet
                         qtt = await sess.exec(select(models.Todo).where(models.Todo.list_id.in_(vis_ids)))
-                    vis_todos = qtt.all()
+                        vis_todos = [t for t in qtt.all() if not bool(getattr(t, 'calendar_ignored', False))]
                     try:
                         # targeted diagnostic: record whether todo 441 is present
                         from .utils import index_calendar_assert
@@ -7205,6 +7229,12 @@ async def html_index(request: Request):
 
             # expand todos: persisted rrule, inline rrule, explicit dates
             for t in vis_todos:
+                # Guard: if a todo is marked ignored for calendar, skip it entirely
+                try:
+                    if bool(getattr(t, 'calendar_ignored', False)):
+                        continue
+                except Exception:
+                    pass
                 try:
                     if getattr(t, 'id', None) == 441:
                         try:
@@ -8047,11 +8077,20 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
             vis_todos = []
             if vis_ids:
                 try:
+                    base_q = select(models.Todo).where(models.Todo.list_id.in_(vis_ids))
                     if hasattr(models.Todo, 'completed'):
-                        qtt = await sess.exec(select(models.Todo).where(models.Todo.list_id.in_(vis_ids)).where(models.Todo.completed == False))
-                    else:
+                        base_q = base_q.where(models.Todo.completed == False)
+                    try:
+                        if hasattr(models.Todo, 'calendar_ignored'):
+                            base_q = base_q.where(models.Todo.calendar_ignored == False)
+                    except Exception:
+                        pass
+                    try:
+                        qtt = await sess.exec(base_q)
+                        vis_todos = qtt.all()
+                    except Exception:
                         qtt = await sess.exec(select(models.Todo).where(models.Todo.list_id.in_(vis_ids)))
-                    vis_todos = qtt.all()
+                        vis_todos = [t for t in qtt.all() if not bool(getattr(t, 'calendar_ignored', False))]
                 except Exception:
                     vis_todos = []
 
@@ -8174,6 +8213,11 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
                     pass
 
             for t in vis_todos:
+                try:
+                    if bool(getattr(t, 'calendar_ignored', False)):
+                        continue
+                except Exception:
+                    pass
                 rec_rrule = getattr(t, 'recurrence_rrule', None)
                 rec_dtstart = getattr(t, 'recurrence_dtstart', None)
                 if rec_rrule:
@@ -10485,6 +10529,40 @@ async def html_update_todo_priority(request: Request, todo_id: int, priority: st
     return RedirectResponse(url=ref, status_code=303)
 
 
+@app.post('/html_no_js/todos/{todo_id}/calendar_ignored')
+async def html_set_todo_calendar_ignored(request: Request, todo_id: int, calendar_ignored: str = Form(None), current_user: User = Depends(require_login)):
+    """Toggle or set the per-todo calendar_ignored flag. Accepts truthy strings for enable.
+
+    Returns JSON when Accept includes application/json; otherwise redirects back to the todo page.
+    """
+    # CSRF and ownership via parent list
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    val = False
+    if calendar_ignored is not None:
+        val = str(calendar_ignored).lower() in ('1','true','yes','on')
+    async with async_session() as sess:
+        todo = await sess.get(Todo, todo_id)
+        if not todo:
+            raise HTTPException(status_code=404, detail='todo not found')
+        ql = await sess.exec(select(ListState).where(ListState.id == todo.list_id))
+        lst = ql.first()
+        if not lst or lst.owner_id not in (None, current_user.id):
+            raise HTTPException(status_code=403, detail='forbidden')
+        todo.calendar_ignored = val
+        todo.modified_at = now_utc()
+        sess.add(todo)
+        await sess.commit()
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse({'ok': True, 'id': todo_id, 'calendar_ignored': val})
+    ref = request.headers.get('Referer', f'/html_no_js/todos/{todo_id}')
+    return RedirectResponse(url=ref, status_code=303)
+
+
 @app.post('/html_no_js/lists/{list_id}/complete')
 async def html_toggle_list_complete(request: Request, list_id: int, completed: str = Form(...), current_user: User = Depends(require_login)):
     # CSRF check
@@ -11159,6 +11237,8 @@ async def html_view_todo(request: Request, todo_id: int, current_user: User = De
             "list_id": todo.list_id,
             "pinned": getattr(todo, 'pinned', False),
             "priority": getattr(todo, 'priority', None),
+            # reflect calendar ignore flag for template checkbox state
+            "calendar_ignored": getattr(todo, 'calendar_ignored', False),
             # persist UI preference so template can render checkbox state
             "lists_up_top": getattr(todo, 'lists_up_top', False),
             # persist Sort Links preference so template can render checkbox state

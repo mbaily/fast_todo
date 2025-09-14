@@ -14,6 +14,30 @@
 	}catch(e){ }
 })();
 
+// Calendar ignored toggle: POST via fetch and keep UI state in sync
+(function(){
+	try{
+		var cb = document.querySelector('[id^="todo-calendar-ignored-cb-"]');
+		var hid = document.querySelector('[id^="todo-calendar-ignored-hidden-"]');
+		if (!cb || !hid) return;
+		if (cb.dataset && cb.dataset.bound === '1') return; // already wired (inline)
+		var form = hid.closest('form'); if (!form) return;
+		cb.dataset.bound = '1';
+		cb.addEventListener('change', function(){
+			try{
+				hid.value = cb.checked ? 'true' : 'false';
+				var fd = new FormData();
+				fd.append('calendar_ignored', hid.value);
+				var csrf = document.querySelector('input[name="_csrf"]'); if (csrf && csrf.value) fd.append('_csrf', csrf.value);
+				fetch(form.action, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'Accept': 'application/json' }})
+					.then(function(res){ if(!res.ok) throw new Error('calendar_ignored failed'); return res.json().catch(function(){ return null; }); })
+					.then(function(){ /* success noop */ })
+					.catch(function(err){ try{ console && console.error && console.error('calendar_ignored update failed', err); }catch(_){ } });
+			}catch(_){ }
+		});
+	}catch(e){ }
+})();
+
 // Styles for hashtag suggestion box shared with list page
 (function(){
 	try{
