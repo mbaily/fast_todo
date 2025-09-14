@@ -354,7 +354,7 @@ Behavior
 
 ## Hide icons option
 
-This is for using a todo list a bit more like a notes app, or you can't accidentally delete todos. Completed todos in this view: you can't completed a todo in the view but the completed todos are shown with a green checkbox. You can flip the view as you please.
+This is for using a todo list a bit more like a notes app, or you can't accidentally delete todos. Completed todos in this view: you can't complete a todo in the view but the completed todos are shown with a green checkbox. You can flip the view as you please.
 
 ## Trashcan
 
