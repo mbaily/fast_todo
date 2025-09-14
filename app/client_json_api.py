@@ -1,4 +1,6 @@
 from typing import Optional
+import logging
+import sys
 from datetime import datetime
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse
@@ -12,6 +14,25 @@ from sqlalchemy import select, func, or_, and_
 # Use a client-scoped prefix to avoid colliding with other APIs. These endpoints
 # are intended for web clients (generic web frontends), not a generic public API.
 router = APIRouter(prefix='/client/json')
+logger = logging.getLogger(__name__)
+# Ensure this module emits INFO logs even if root is WARNING (common default)
+try:
+    if logger.level == logging.NOTSET:
+        logger.setLevel(logging.INFO)
+except Exception:
+    try:
+        logger.setLevel(logging.INFO)
+    except Exception:
+        pass
+
+# Attach a stdout StreamHandler like app.main so messages appear in server.log/stdout
+try:
+    if not logger.handlers:
+        _h = logging.StreamHandler(sys.stdout)
+        _h.setFormatter(logging.Formatter('%(asctime)s %(levelname)s:%(name)s: %(message)s'))
+        logger.addHandler(_h)
+except Exception:
+    pass
 
 
 @router.get('/search', response_class=JSONResponse)
@@ -105,6 +126,57 @@ async def client_search(request: Request):
                     for t in todos_acc.values() if not (exclude_completed and (int(t.id) in completed_ids))
                 ]
     return JSONResponse({'ok': True, 'q': qparam, 'results': results})
+
+
+@router.post('/calcdict', response_class=JSONResponse)
+async def client_calc_dict(request: Request):
+    """Calculate using CalcDict: Body JSON { name?: str, input_text: str } -> { ok, output: str }.
+    Follows required sequence: clear -> CalcDict(name).assn(input) -> total_up_all -> clear.
+    """
+    try:
+        # Require authentication to scope any future per-user behaviors; can be relaxed if needed
+        await _gcu(token=None, request=request)
+    except HTTPException:
+        raise HTTPException(status_code=401, detail='authentication required')
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    input_text = (body.get('input_text') or '').strip()
+    name = body.get('name') or 'note'
+    if not input_text:
+        try:
+            logger.info('calcdict: empty input (name=%s)', name)
+        except Exception:
+            pass
+        return JSONResponse({'ok': True, 'output': ''})
+    # Execute CalcDict per instructions
+    try:
+        from .CalcDict import CalcDict, clear_calcdict_instances
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'CalcDict not available: {e}')
+    try:
+        try:
+            logger.info('calcdict: input (name=%s, len=%d)\n%s', name, len(input_text), input_text)
+        except Exception:
+            pass
+        clear_calcdict_instances()
+        c = CalcDict(name)
+        c.assn(input_text)
+        output = CalcDict.total_up_all(print_total=False)
+        clear_calcdict_instances()
+        try:
+            logger.info('calcdict: output (name=%s, len=%d)\n%s', name, len(output or ''), output or '')
+        except Exception:
+            pass
+    except Exception as e:
+        # Return error string in output while still indicating ok=false
+        try:
+            logger.exception('calcdict: error (name=%s): %s', name, e)
+        except Exception:
+            pass
+        return JSONResponse({'ok': False, 'error': str(e)})
+    return JSONResponse({'ok': True, 'output': output})
 
 
 @router.post('/lists', response_class=JSONResponse)
