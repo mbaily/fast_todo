@@ -96,7 +96,7 @@
   {% endif %}
 
   {% if todo.note %}
-    <p class="note-text {% if completed %}done{% endif %}">{{ todo.note|render_fn_tags|linkify }}</p>
+    <p class="note-text">{{ todo.note|render_fn_tags|linkify }}</p>
   {% endif %}
   {% if tags and tags|length > 0 %}
     <div class="tags" role="list" aria-label="Tags">

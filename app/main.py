@@ -10660,6 +10660,7 @@ async def html_toggle_list_complete(request: Request, list_id: int, completed: s
 @app.get('/html_no_js/recent', response_class=HTMLResponse)
 async def html_recent_lists(request: Request, current_user: User = Depends(require_login)):
     """Render recently visited lists and todos for the current user."""
+    # recent page handler
     try:
         top_n = int(os.getenv('RECENT_LISTS_TOP_N', '10'))
     except Exception:
@@ -10732,7 +10733,7 @@ async def html_recent_lists(request: Request, current_user: User = Depends(requi
             item['hashtags'] = tags_map.get(item['id'], [])
         recent_lists = results
 
-        # Build recently visited todos, mirroring lists behavior
+    # Build recently visited todos, mirroring lists behavior
         try:
             top_n_t = int(os.getenv('RECENT_TODOS_TOP_N', str(top_n)))
         except Exception:
@@ -10785,7 +10786,7 @@ async def html_recent_lists(request: Request, current_user: User = Depends(requi
                     'hashtags': [],
                 })
                 todo_ids.append(int(t.id))
-        # Fetch hashtags for todos
+    # Fetch hashtags for todos
         if todo_ids:
             try:
                 qttags = select(TodoHashtag.todo_id, Hashtag.tag).join(Hashtag, Hashtag.id == TodoHashtag.hashtag_id).where(TodoHashtag.todo_id.in_(todo_ids))
@@ -10802,6 +10803,68 @@ async def html_recent_lists(request: Request, current_user: User = Depends(requi
                 item['hashtags'] = t_tags_map.get(int(item['id']), [])
             except Exception:
                 pass
+    # Compute completion status for recent todos using each list's default completion type (per-list),
+        # Compute completion status for recent todos using each list's default completion type (per-list),
+        # and fall back to any done=True when a list has no default type.
+        try:
+            completed_ids: set[int] = set()
+            if todo_ids:
+                # Map list_id -> default completion type id
+                todo_list_ids = list({int(i['list_id']) for i in todo_results if i.get('list_id') is not None})
+                default_ct_ids: dict[int, int] = {}
+                if todo_list_ids:
+                    qct = select(CompletionType).where(CompletionType.list_id.in_(todo_list_ids)).where(CompletionType.name == 'default')
+                    for ct in (await sess.exec(qct)).all():
+                        try:
+                            default_ct_ids[int(ct.list_id)] = int(ct.id)
+                        except Exception:
+                            continue
+                # Partition todos by whether their list has a default completion type
+                with_default: list[int] = []
+                without_default: list[int] = []
+                for it in todo_results:
+                    try:
+                        lid = int(it.get('list_id')) if it.get('list_id') is not None else None
+                        if lid is None:
+                            continue
+                        if lid in default_ct_ids:
+                            with_default.append(int(it['id']))
+                        else:
+                            without_default.append(int(it['id']))
+                    except Exception:
+                        continue
+                if with_default:
+                    qdone = select(TodoCompletion.todo_id).where(TodoCompletion.todo_id.in_(with_default)).where(TodoCompletion.completion_type_id.in_(list(default_ct_ids.values()))).where(TodoCompletion.done == True)
+                    for tid_done in (await sess.exec(qdone)).all():
+                        try:
+                            completed_ids.add(int(tid_done))
+                        except Exception:
+                            continue
+                if without_default:
+                    # Fallback per-todo: consider any done=True as completed when no default is defined for the list
+                    qdone_any = select(TodoCompletion.todo_id).where(TodoCompletion.todo_id.in_(without_default)).where(TodoCompletion.done == True)
+                    for tid_done in (await sess.exec(qdone_any)).all():
+                        try:
+                            completed_ids.add(int(tid_done))
+                        except Exception:
+                            continue
+                # Also include any todo that has any completion row marked done=True regardless of type
+                # (covers cases where a list has a default but a different type was used to mark completion)
+                qdone_any_all = select(TodoCompletion.todo_id).where(TodoCompletion.todo_id.in_(todo_ids)).where(TodoCompletion.done == True)
+                for tid_done in (await sess.exec(qdone_any_all)).all():
+                    try:
+                        completed_ids.add(int(tid_done))
+                    except Exception:
+                        continue
+            for item in todo_results:
+                try:
+                    item['completed'] = int(item['id']) in completed_ids
+                except Exception:
+                    item['completed'] = False
+        except Exception:
+            # If completion computation fails, default to not completed
+            for item in todo_results:
+                item['completed'] = False
         recent_todos = todo_results
 
     return TEMPLATES.TemplateResponse(request, 'recent.html', {"request": request, "recent": recent_lists, "recent_todos": recent_todos, "client_tz": await get_session_timezone(request)})

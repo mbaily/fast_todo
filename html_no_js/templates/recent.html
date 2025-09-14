@@ -14,6 +14,9 @@
     ul.todos-list { list-style: none; margin: 0; padding: 0; }
     ul.todos-list li.todo-item { margin-bottom: 0.75rem !important; padding-bottom: 0.125rem !important; }
     ul.todos-list li.todo-item:last-child { margin-bottom: 0; }
+  /* strikethrough for completed items */
+  .strike { text-decoration: line-through; } /* legacy alias */
+  .done { text-decoration: line-through; }
   </style>
   <div style="margin-bottom:0.5rem;">
     <a href="/html_no_js/hashtags" class="btn" style="font-weight:bold;">→ Hashtags</a>
@@ -24,7 +27,7 @@
       {% for lst in recent %}
         <li class="list-item">
           <div class="list-main">
-            <a class="list-title {% if lst.completed %}done{% endif %}" href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>
+            <a class="list-title {% if lst.completed %}done{% endif %}" href="/html_no_js/lists/{{ lst.id }}">{% if lst.completed %}<s>{{ lst.name }}</s>{% else %}{{ lst.name }}{% endif %}</a>
             {% if lst.created_at %}
               <div class="meta">visited {{ lst.visited_at|server_local_dt }}</div>
             {% endif %}
@@ -49,7 +52,7 @@
       {% for td in recent_todos %}
         <li class="todo-item">
           <div class="todo-main">
-            <a class="todo-title" href="/html_no_js/todos/{{ td.id }}">{{ td.text }}</a>
+              <a class="todo-title {% if td.completed %}done{% endif %}" href="/html_no_js/todos/{{ td.id }}">{% if td.completed %}<s>{{ td.text }}</s>{% else %}{{ td.text }}{% endif %}</a>
             {% if td.list_id %}
               <span class="meta">in <a href="/html_no_js/lists/{{ td.list_id }}">{{ td.list_name }}</a></span>
             {% endif %}
