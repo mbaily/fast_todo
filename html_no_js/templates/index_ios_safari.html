@@ -42,7 +42,7 @@
       <ul style="padding-left: 0; list-style: none; margin: 0 0 0.5rem 0;">
         {% for item in high_priority_items %}
           <li>
-            {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
+            {% set circ = {0:'⓪',1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
             {% if item.kind == 'todo' %}
               <a class="wrap-text{% if item.completed %} done{% endif %}" href="/html_no_js/todos/{{ item.id }}">{{ item.text }}</a>
               {% if item.effective_priority is not none %}<span class="muted priority-inline"><span class="priority-circle">{{ circ.get(item.effective_priority, item.effective_priority) }}</span></span>{% endif %}
@@ -50,7 +50,29 @@
             {% else %}
               <a href="/html_no_js/lists/{{ item.id }}">{{ item.name }}</a>
               {% if item.effective_priority is not none %}<span class="muted priority-inline priority-override"><span class="priority-circle">{{ circ.get(item.effective_priority, item.effective_priority) }}</span></span>{% endif %}
+              {% if item.uncompleted_count is not none %}<span class="count-circle colour">{{ item.uncompleted_count }}</span>{% endif %}
             {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% elif (high_priority_todos and high_priority_todos|length > 0) or (high_priority_lists and high_priority_lists|length > 0) %}
+      <h3 style="margin-top:0">High priority</h3>
+      <ul style="padding-left: 0; list-style: none; margin: 0 0 0.5rem 0;">
+        {% for t in high_priority_todos %}
+          {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
+          <li>
+            <a class="wrap-text" href="/html_no_js/todos/{{ t.id }}">{{ t.text }}</a>
+            {% if t.priority %}<span class="muted priority-inline"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>{% endif %}
+            <span> in <a href="/html_no_js/lists/{{ t.list_id }}">{{ t.list_name or t.list_id }}</a></span>
+          </li>
+        {% endfor %}
+        {% for lst in high_priority_lists %}
+          {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
+          <li>
+            <a href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>
+            {% set eff = lst.override_priority if (lst.override_priority is not none and (lst.priority is none or lst.override_priority > lst.priority)) else lst.priority %}
+            {% if eff %}<span class="muted priority-inline priority-override"><span class="priority-circle">{{ circ.get(eff, eff) }}</span></span>{% endif %}
+            {% if lst.uncompleted_count is not none %}<span class="count-circle colour">{{ lst.uncompleted_count }}</span>{% endif %}
           </li>
         {% endfor %}
       </ul>
@@ -63,6 +85,10 @@
         <li>
           {{ '📌' if t.pinned|default(false) else '📍' }}
           <a class="wrap-text{% if t.completed %} done{% endif %}" href="/html_no_js/todos/{{ t.id }}">{{ t.text }}</a>
+          {% if t.priority %}
+            {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
+            <span class="muted priority-inline"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>
+          {% endif %}
           <span> in <a href="/html_no_js/lists/{{ t.list_id }}">{{ t.list_name or t.list_id }}</a></span>
           {% if t.tags and t.tags|length > 0 %}
             {% for tag in (t.tags | sort) %}

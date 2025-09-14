@@ -7569,12 +7569,12 @@ async def html_index(request: Request):
         if force_ios:
             logger.info('html_index: rendering index_ios_safari (forced) ua=%s', ua[:200])
             circ_map = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'}
-            ctx = {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "show_all_tags": show_all_tags, "circ": circ_map}
+            ctx = {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "high_priority_items": context_high_priority_items if 'context_high_priority_items' in locals() else [], "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "show_all_tags": show_all_tags, "circ": circ_map}
             return _render_and_log("index_ios_safari.html", ctx)
         if is_ios_safari(request):
             logger.info('html_index: rendering index_ios_safari (ua-detected) ua=%s', ua[:200])
             circ_map = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'}
-            ctx = {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "show_all_tags": show_all_tags, "circ": circ_map}
+            ctx = {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "high_priority_items": context_high_priority_items if 'context_high_priority_items' in locals() else [], "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "show_all_tags": show_all_tags, "circ": circ_map}
             return _render_and_log("index_ios_safari.html", ctx)
 
         logger.info('html_index: rendering index.html (default) ua=%s', ua[:200])
