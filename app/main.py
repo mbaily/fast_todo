@@ -10804,58 +10804,25 @@ async def html_recent_lists(request: Request, current_user: User = Depends(requi
             except Exception:
                 pass
     # Compute completion status for recent todos using each list's default completion type (per-list),
-        # Compute completion status for recent todos using each list's default completion type (per-list),
-        # and fall back to any done=True when a list has no default type.
+        # Compute completion status for recent todos strictly by the list's default completion type.
+        # If a list has no default type, its todos are not considered completed in this view.
         try:
             completed_ids: set[int] = set()
             if todo_ids:
-                # Map list_id -> default completion type id
-                todo_list_ids = list({int(i['list_id']) for i in todo_results if i.get('list_id') is not None})
-                default_ct_ids: dict[int, int] = {}
-                if todo_list_ids:
-                    qct = select(CompletionType).where(CompletionType.list_id.in_(todo_list_ids)).where(CompletionType.name == 'default')
-                    for ct in (await sess.exec(qct)).all():
-                        try:
-                            default_ct_ids[int(ct.list_id)] = int(ct.id)
-                        except Exception:
-                            continue
-                # Partition todos by whether their list has a default completion type
-                with_default: list[int] = []
-                without_default: list[int] = []
-                for it in todo_results:
-                    try:
-                        lid = int(it.get('list_id')) if it.get('list_id') is not None else None
-                        if lid is None:
-                            continue
-                        if lid in default_ct_ids:
-                            with_default.append(int(it['id']))
-                        else:
-                            without_default.append(int(it['id']))
-                    except Exception:
-                        continue
-                if with_default:
-                    qdone = select(TodoCompletion.todo_id).where(TodoCompletion.todo_id.in_(with_default)).where(TodoCompletion.completion_type_id.in_(list(default_ct_ids.values()))).where(TodoCompletion.done == True)
-                    for tid_done in (await sess.exec(qdone)).all():
-                        try:
-                            completed_ids.add(int(tid_done))
-                        except Exception:
-                            continue
-                if without_default:
-                    # Fallback per-todo: consider any done=True as completed when no default is defined for the list
-                    qdone_any = select(TodoCompletion.todo_id).where(TodoCompletion.todo_id.in_(without_default)).where(TodoCompletion.done == True)
-                    for tid_done in (await sess.exec(qdone_any)).all():
-                        try:
-                            completed_ids.add(int(tid_done))
-                        except Exception:
-                            continue
-                # Also include any todo that has any completion row marked done=True regardless of type
-                # (covers cases where a list has a default but a different type was used to mark completion)
-                qdone_any_all = select(TodoCompletion.todo_id).where(TodoCompletion.todo_id.in_(todo_ids)).where(TodoCompletion.done == True)
-                for tid_done in (await sess.exec(qdone_any_all)).all():
+                qcomp = (
+                    select(TodoCompletion.todo_id)
+                    .join(CompletionType, CompletionType.id == TodoCompletion.completion_type_id)
+                    .where(TodoCompletion.todo_id.in_(todo_ids))
+                    .where(CompletionType.name == 'default')
+                    .where(TodoCompletion.done == True)
+                )
+                for tid_done in (await sess.exec(qcomp)).all():
                     try:
                         completed_ids.add(int(tid_done))
                     except Exception:
                         continue
+                # Note: Do NOT include non-default completion types for lists that have a default.
+                # For lists without a default, we already handled completion via qdone_any above.
             for item in todo_results:
                 try:
                     item['completed'] = int(item['id']) in completed_ids
