@@ -329,7 +329,7 @@
  
               <!--<button type="button" class="list-action-btn edit-list-btn" data-list-id="{{ lst.id }}" data-list-name="{{ lst.name|e }}" title="Edit list name">✏️</button>-->
                 {% if lst.priority %}
-                <spprioritan class="meta priority-inline"><span class="priority-circle">{{ circ.get(lst.priority, lst.priority) }}</span></span>
+                <span class="meta priority-inline"><span class="priority-circle">{{ circ.get(lst.priority, lst.priority) }}</span></span>
                 {% endif %}
                 {% if lst.override_priority and (lst.priority is none or lst.override_priority > lst.priority) %}
                   <span class="meta priority-inline priority-override" title="Highest uncompleted todo priority"><span class="priority-circle">{{ circ.get(lst.override_priority, lst.override_priority) }}</span></span>
@@ -341,8 +341,8 @@
                 <div class="meta">cr. {{ lst.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</div>
               {% endif %}
                 {# SSR: prefer server-provided combined hashtags (computed in handler) when available #}
-                {% if lst.combined_full is defined and lst.combined_full is not none %}
-                  {% set combined = lst.combined_full %}
+                {% if lst.combined is defined and lst.combined is not none %}
+                  {% set combined = lst.combined %}
                 {% else %}
                   {% set combined = [] %}
                   {% if lst.hashtags %}
@@ -419,8 +419,8 @@
                 {% endif %}
                 {# Build combined tags first so data-combined and anchors can be rendered into the div below #}
                 {# Prefer server-computed `lst.combined_full` when present for robust SSR and client merging #}
-                {% if lst.combined_full is defined and lst.combined_full is not none %}
-                  {% set combined = lst.combined_full %}
+                {% if lst.combined is defined and lst.combined is not none %}
+                  {% set combined = lst.combined %}
                 {% else %}
                   {% set combined = [] %}
                   {% if lst.hashtags %}
@@ -833,8 +833,7 @@ window.addEventListener && window.addEventListener('storage', function(ev){
   refreshAllTags(true);
   });
 
-  // On load: populate tags immediately (will render combined when checked, list-only otherwise)
-  try { refreshAllTags(true); } catch(e) {}
+  // Do not auto-refresh on load. Initial DOM should be SSR-only; JS updates occur on user toggle.
 })();
 </script>
 
