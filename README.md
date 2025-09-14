@@ -158,14 +158,14 @@ dates and synthesized datetimes are interpreted:
 
 - `DEFAULT_TIMEZONE` (env / `app.config.DEFAULT_TIMEZONE`): the IANA timezone
   name the server should use for formatting or synthesizing local datetimes
-  when needed. Default: `Australia/Melbourne`.
+  when needed. Default: `Australia/Sydney`.
 
 Examples (systemd / env file):
 
 ```bash
 # Australian day/month ordering and Melbourne local timezone
 DATE_ORDER=DMY
-DEFAULT_TIMEZONE=Australia/Melbourne
+DEFAULT_TIMEZONE=Australia/Sydney
 
 # US style month/day ordering
 # DATE_ORDER=MDY
