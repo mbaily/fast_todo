@@ -202,7 +202,6 @@
           <option value="">(Select a recently marked item)</option>
         </select>
         <button type="button" id="note-insert-link-{{ todo.id }}" onclick="try{if(window.__ft_insert_selected_link){window.__ft_insert_selected_link();}}catch(e){}">Insert Link</button>
-        <button type="button" class="btn" id="note-calc-btn-{{ todo.id }}" title="Calculate using CalcDict">Calculate</button>
         <form id="todo-sort-links-form-{{ todo.id }}" method="post" action="/html_no_js/todos/{{ todo.id }}/sort_links" style="display:inline; margin-left:0.5rem;">
           {{ csrf_field() }}
           <label style="display:inline-flex; align-items:center; gap:0.4rem;">
@@ -225,8 +224,13 @@
   {% set dw_prefix = config.DOKUWIKI_NOTE_LINK_PREFIX if config is defined and config.DOKUWIKI_NOTE_LINK_PREFIX is defined else None %}
   {% if dw_prefix %}
     {% set dw_url = dw_prefix ~ 'fast_todo:todo:' ~ todo.id %}
-    <p style="margin:0.25rem 0 0.75rem 0">
+    <p style="margin:0.25rem 0 0.75rem 0; display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
       <a class="btn" href="{{ dw_url }}" target="_blank" rel="noopener noreferrer" title="Open DokuWiki page for this todo">📄 DokuWiki page for this todo</a>
+      <button style="margin-left:1rem" type="button" class="btn" id="note-calc-btn-{{ todo.id }}" title="Calculate using CalcDict">Calculate</button>
+    </p>
+  {% else %}
+    <p style="margin:0.25rem 0 0.75rem 0">
+      <button type="button" class="btn" id="note-calc-btn-{{ todo.id }}" title="Calculate using CalcDict">Calculate</button>
     </p>
   {% endif %}
 
