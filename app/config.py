@@ -35,7 +35,7 @@ DEFAULT_TIMEZONE = os.getenv('DEFAULT_TIMEZONE', 'Australia/Melbourne')
 # Enable lightweight assertion logging to help debug calendar/index mismatches.
 # When True, assertion messages will be appended to `scripts/index_calendar.log`.
 # Set via environment variable ENABLE_INDEX_CALENDAR_ASSERTS=1 to enable.
-ENABLE_INDEX_CALENDAR_ASSERTS = _trueish(os.getenv('ENABLE_INDEX_CALENDAR_ASSERTS', '0'))
+#ENABLE_INDEX_CALENDAR_ASSERTS = _trueish(os.getenv('ENABLE_INDEX_CALENDAR_ASSERTS', '0'))
 
 # Number of days before/after now to include in the small index calendar
 # (default 1 keeps previous behavior). Increasing this will let near-future
