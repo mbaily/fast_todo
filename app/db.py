@@ -373,6 +373,12 @@ def _ensure_sqlite_minimal_migrations(url: str | None) -> None:
                 cur.execute("PRAGMA table_info('category')")
                 cat_cols = [row[1] for row in cur.fetchall()]
                 if cat_cols:
+                    # Ensure helpful owner+position index exists for ordering per user
+                    try:
+                        cur.execute("CREATE INDEX IF NOT EXISTS ix_category_owner_position ON category(owner_id, position)")
+                        conn.commit()
+                    except Exception:
+                        pass
                     # Add new owner_id column for user-specific categories
                     if 'owner_id' not in cat_cols:
                         try:
@@ -387,6 +393,12 @@ def _ensure_sqlite_minimal_migrations(url: str | None) -> None:
                             conn.commit()
                         except Exception:
                             pass
+                    # Best-effort: create unique index for (owner_id, name). If it fails due to duplicates, ignore here.
+                    try:
+                        cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_category_owner_name ON category(owner_id, name)")
+                        conn.commit()
+                    except Exception:
+                        pass
                     # Ensure sort_alphanumeric exists (older DBs)
                     if 'sort_alphanumeric' not in cat_cols:
                         try:
@@ -874,6 +886,31 @@ async def init_db():
             ))
         except Exception:
             logger.exception("failed to dedupe hashtag rows during init_db")
+        # categories: dedupe per (owner_id, name) before creating unique index
+        try:
+            # Remap liststate.category_id to the smallest category.id per (owner_id, name)
+            await conn.execute(text(
+                """
+                UPDATE liststate
+                SET category_id = (
+                  SELECT MIN(c2.id)
+                  FROM category c2
+                  WHERE c2.owner_id = (SELECT owner_id FROM category c WHERE c.id = liststate.category_id)
+                    AND c2.name = (SELECT name FROM category c WHERE c.id = liststate.category_id)
+                )
+                WHERE category_id IS NOT NULL
+                  AND category_id NOT IN (
+                    SELECT MIN(id) FROM category GROUP BY owner_id, name
+                  )
+                """
+            ))
+            # Delete duplicate category rows after remapping
+            await conn.execute(text(
+                "DELETE FROM category WHERE id NOT IN (SELECT MIN(id) FROM category GROUP BY owner_id, name)"
+            ))
+        except Exception:
+            # best-effort; continue even if the above fails
+            logger.exception("failed to dedupe category rows during init_db")
     # We no longer dedupe liststate rows here because the application now
     # allows multiple lists with the same name per user. Leaving the old
     # dedupe SQL would remove legitimate duplicate lists created by the
@@ -889,6 +926,15 @@ async def init_db():
             await conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_hashtag_tag ON hashtag(tag)"))
         except Exception:
             logger.exception("failed to create ix_hashtag_tag index during init_db")
+        # Category per-user uniqueness and helpful ordering index
+        try:
+            await conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_category_owner_name ON category(owner_id, name)"))
+        except Exception:
+            logger.exception("failed to create uq_category_owner_name index during init_db")
+        try:
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_category_owner_position ON category(owner_id, position)"))
+        except Exception:
+            logger.exception("failed to create ix_category_owner_position during init_db")
         try:
             # Ensure any previous owner-scoped unique index is removed so the
             # DB allows multiple lists with the same name per user.
