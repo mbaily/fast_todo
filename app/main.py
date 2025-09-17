@@ -3452,10 +3452,67 @@ async def calendar_occurrences(request: Request,
                     return True  # fail-open to avoid hiding dates on error
 
             meta = []
-            if _likely_has_date_tokens(combined):
+            # Negative cache gate: if metadata_json has a matching hash with found_any=false, skip extraction
+            _neg_cache_enabled = str(os.environ.get('CALENDAR_NEG_CACHE', '1')).lower() in ('1','true','yes')
+            _neg_cache_write = str(os.environ.get('CALENDAR_NEG_CACHE_WRITE', '0')).lower() in ('1','true','yes')
+            _neg_cache_commit = str(os.environ.get('CALENDAR_NEG_CACHE_COMMIT', '0')).lower() in ('1','true','yes')
+            _cache_hit_skip = False
+            _combined_hash = None
+            try:
+                import hashlib as _hashlib
+                _combined_hash = 'sha1:' + _hashlib.sha1((combined or '').encode('utf-8', errors='ignore')).hexdigest()
+            except Exception:
+                _combined_hash = None
+
+            _cache_dict = None
+            if _neg_cache_enabled and _combined_hash is not None:
+                try:
+                    import json as _json
+                    raw = getattr(t, 'metadata_json', None)
+                    md = _json.loads(raw) if raw else {}
+                    if isinstance(md, dict):
+                        cd = md.get('calendar_extract_cache')
+                        if isinstance(cd, dict) and cd.get('v') == 1 and cd.get('text_hash') == _combined_hash and (cd.get('found_any') is False):
+                            _cache_dict = cd
+                            _cache_hit_skip = True
+                except Exception:
+                    _cache_hit_skip = False
+
+            if _cache_hit_skip:
+                # Skip extraction entirely due to negative cache
+                try:
+                    _sse_debug('calendar_occurrences.todo.date_extract_skipped', {'todo_id': t.id, 'reason': 'neg_cache'})
+                except Exception:
+                    pass
+            elif _likely_has_date_tokens(combined):
                 _t = _pt('extract_meta_todos')
                 meta = extract_dates_meta(combined)
                 _pa('extract_meta_todos', _t)
+                # Opportunistically update cache
+                if _neg_cache_enabled and _combined_hash is not None and _neg_cache_write:
+                    try:
+                        import json as _json
+                        raw = getattr(t, 'metadata_json', None)
+                        md = _json.loads(raw) if raw else {}
+                        if not isinstance(md, dict):
+                            md = {}
+                        md['calendar_extract_cache'] = {
+                            'v': 1,
+                            'text_hash': _combined_hash,
+                            'found_any': bool(meta and len(meta) > 0),
+                            'checked_at': now_utc().isoformat(),
+                        }
+                        t.metadata_json = _json.dumps(md)
+                        try:
+                            sess.add(t)
+                            if _neg_cache_commit:
+                                await sess.commit()
+                            else:
+                                await sess.flush()
+                        except Exception:
+                            pass
+                    except Exception:
+                        pass
             else:
                 try:
                     _sse_debug('calendar_occurrences.todo.date_extract_skipped', {'todo_id': t.id, 'reason': 'regex_prefilter'})
