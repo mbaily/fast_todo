@@ -973,13 +973,54 @@ def extract_dates_meta(text: str | None) -> list[dict]:
             # triplets in MDY order by default if not overridden.
             # Detect explicit 4-digit year token in the matched substring
             year_present = bool(re.search(r"\b\d{4}\b", match_text))
+            # Detect explicit day-month-year with named month (e.g., '17 September 2025')
+            day_explicit = False
+            try:
+                if re.search(r"\b\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z\.]*\s+\d{4}\b", match_text, flags=re.IGNORECASE):
+                    day_explicit = True
+                elif re.search(r"\b\d{1,2}[\./-]\d{1,2}[\./-]\d{2,4}\b", match_text):
+                    # Numeric day-month-year or month-day-year also implies explicit day
+                    day_explicit = True
+            except Exception:
+                day_explicit = False
+            # If the match_text contains an explicit named-month day and 4-digit year,
+            # parse the components ourselves to avoid misinterpretations caused by
+            # nearby numbers (e.g., currency amounts like $1,023.30).
+            try:
+                m_named = re.search(r"\b(\d{1,2})\s+([A-Za-z]{3,9})\.?\s+(\d{4})\b", match_text)
+                if m_named:
+                    dnum = int(m_named.group(1))
+                    mname = m_named.group(2).lower()[:3]
+                    ynum = int(m_named.group(3))
+                    month_map = {m[:3].lower(): i+1 for i, m in enumerate(MONTHS_EN)}
+                    mval = month_map.get(mname)
+                    if mval and 1 <= dnum <= 31:
+                        from datetime import datetime as _dt
+                        dt = _dt(ynum, mval, dnum, tzinfo=timezone.utc)
+                else:
+                    # Numeric dd/mm(/yy) or mm/dd(/yy) inside match
+                    m_num = re.search(r"\b(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})\b", match_text)
+                    if m_num:
+                        a = int(m_num.group(1)); b = int(m_num.group(2)); ytmp = int(m_num.group(3))
+                        if len(m_num.group(3)) == 2:
+                            ytmp += 2000
+                        # disambiguate day/month by DATE_ORDER
+                        if DATE_ORDER == 'MDY':
+                            mon, day = a, b
+                        else:
+                            day, mon = a, b
+                        if 1 <= mon <= 12 and 1 <= day <= 31:
+                            from datetime import datetime as _dt
+                            dt = _dt(ytmp, mon, day, tzinfo=timezone.utc)
+            except Exception:
+                pass
             if dt.tzinfo is None:
                 dt = dt.replace(tzinfo=timezone.utc)
             dt = dt.astimezone(timezone.utc)
             # Extract month/day for yearless resolution
             month = dt.month
             day = dt.day
-            out.append({'year_explicit': year_present, 'match_text': match_text, 'dt': dt, 'month': month, 'day': day})
+            out.append({'year_explicit': year_present, 'day_explicit': day_explicit, 'match_text': match_text, 'dt': dt, 'month': month, 'day': day})
         return out
     except Exception:
         logger.exception('extract_dates_meta failed')
@@ -1356,7 +1397,12 @@ def parse_date_and_recurrence(text: str) -> tuple[datetime | None, dict | None]:
         try:
             metas = extract_dates_meta(text)
             if metas:
-                first = metas[0]
+                # Prefer entries that have both an explicit day and explicit year;
+                # then prefer explicit year; then fall back to first.
+                metas_sorted = sorted(metas, key=lambda m: (
+                    0 if (m.get('day_explicit') and m.get('year_explicit')) else (1 if m.get('year_explicit') else 2)
+                ))
+                first = metas_sorted[0]
                 dt = first.get('dt')
                 mt = first.get('match_text')
                 rec = None

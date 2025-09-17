@@ -2799,6 +2799,31 @@ async def calendar_events(request: Request, start: Optional[str] = None, end: Op
         # fetch lists for this owner
         qlists = await sess.exec(select(ListState).where(ListState.owner_id == owner_id).where(ListState.parent_todo_id == None).where(ListState.parent_list_id == None))
         lists = qlists.all()
+        # Determine the user's Trash list id and exclude it from calendar scanning
+        trash_id = None
+        try:
+            q_trash = await sess.scalars(select(ListState.id).where(ListState.owner_id == owner_id).where(ListState.name == 'Trash'))
+            trash_id = q_trash.first()
+        except Exception:
+            trash_id = None
+        if trash_id is not None and lists:
+            try:
+                lists = [l for l in lists if getattr(l, 'id', None) != trash_id]
+            except Exception:
+                pass
+        # Exclude the user's Trash list from calendar scanning so trashed items
+        # do not appear in the calendar.
+        trash_id = None
+        try:
+            q_trash = await sess.scalars(select(ListState.id).where(ListState.owner_id == owner_id).where(ListState.name == 'Trash'))
+            trash_id = q_trash.first()
+        except Exception:
+            trash_id = None
+        if trash_id is not None and lists:
+            try:
+                lists = [l for l in lists if getattr(l, 'id', None) != trash_id]
+            except Exception:
+                pass
         # fetch todos that belong to these lists
         if lists:
             list_ids = [l.id for l in lists if l.id is not None]
@@ -3035,6 +3060,24 @@ async def calendar_occurrences(request: Request,
         _pa('fetch_lists', t_fetch_lists)
         _pc('lists_count', len(lists) if lists else 0)
         _sse_debug('calendar_occurrences.lists_fetched', {'count': len(lists) if lists else 0})
+        # Determine the user's Trash list id and exclude it from calendar scanning
+        # so trashed items do not appear in the calendar. Keep trash_id available
+        # for downstream filtering when fetching todos.
+        trash_id = None
+        try:
+            q_trash = await sess.scalars(
+                select(ListState.id)
+                .where(ListState.owner_id == owner_id)
+                .where(ListState.name == 'Trash')
+            )
+            trash_id = q_trash.first()
+        except Exception:
+            trash_id = None
+        if trash_id is not None and lists:
+            try:
+                lists = [l for l in lists if getattr(l, 'id', None) != trash_id]
+            except Exception:
+                pass
         if lists:
             list_ids = [l.id for l in lists if l.id is not None]
         else:
@@ -3043,7 +3086,15 @@ async def calendar_occurrences(request: Request,
         todos = []
         if list_ids:
             t_fetch_todos = _pt('fetch_todos')
-            qtodos = await sess.exec(select(Todo).where(Todo.list_id.in_(list_ids)).where(Todo.calendar_ignored == False))
+            qt_stmt = select(Todo).where(Todo.list_id.in_(list_ids)).where(Todo.calendar_ignored == False)
+            # Defensive: also exclude todos under Trash list id in case list_ids
+            # contained it due to unforeseen conditions.
+            if trash_id is not None:
+                try:
+                    qt_stmt = qt_stmt.where(Todo.list_id != trash_id)
+                except Exception:
+                    pass
+            qtodos = await sess.exec(qt_stmt)
             todos = qtodos.all()
             _pa('fetch_todos', t_fetch_todos)
         _sse_debug('calendar_occurrences.todos_fetched', {'count': len(todos)})
@@ -3440,6 +3491,9 @@ async def calendar_occurrences(request: Request,
                 try:
                     import re as _re
                     s = _s or ''
+                    # ISO date like 2025-09-05 (year-month-day)
+                    if _re.search(r"\b\d{4}-\d{1,2}-\d{1,2}\b", s):
+                        return True
                     # numeric date shapes like 12/9 or 12-9-2025
                     if _re.search(r"\b\d{1,2}[./-]\d{1,2}(?:[./-]\d{2,4})?\b", s):
                         return True
@@ -8837,6 +8891,33 @@ async def api_create_category(request: Request, payload: CreateCategoryRequest, 
     if not name:
         raise HTTPException(status_code=400, detail='name required')
     async with async_session() as sess:
+        # Idempotency: if a category with the same name already exists for this user,
+        # return it instead of attempting to insert a duplicate (unique by (owner_id, name)).
+        try:
+            qexist = await sess.exec(
+                select(Category)
+                .where(Category.owner_id == current_user.id)
+                .where(Category.name == name)
+                .limit(1)
+            )
+            existing = qexist.first()
+            if existing:
+                # Reset default sort flag to False for create semantics and optionally update position
+                try:
+                    updates: dict = {'sort_alphanumeric': False}
+                    if payload.position is not None and isinstance(payload.position, int):
+                        updates['position'] = int(payload.position)
+                    await sess.exec(sqlalchemy_update(Category).where(Category.id == existing.id).values(**updates))
+                    await sess.commit()
+                    # refresh existing from DB
+                    existing = (await sess.exec(select(Category).where(Category.id == existing.id))).first() or existing
+                except Exception:
+                    pass
+                return {'id': existing.id, 'name': existing.name, 'position': existing.position, 'sort_alphanumeric': getattr(existing, 'sort_alphanumeric', False)}
+        except Exception:
+            # proceed to create if existence check fails
+            pass
+
         # determine position within this user's categories only
         pos = payload.position
         if pos is None:
@@ -8849,7 +8930,7 @@ async def api_create_category(request: Request, payload: CreateCategoryRequest, 
             maxc = qmax.first()
             pos = (maxc.position + 1) if maxc else 0
         # Always set the owner to the current user
-        nc = Category(name=name, position=pos, owner_id=current_user.id)
+        nc = Category(name=name, position=pos, sort_alphanumeric=False, owner_id=current_user.id)
         sess.add(nc)
         await sess.commit()
         await sess.refresh(nc)
