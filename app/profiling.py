@@ -57,13 +57,26 @@ class RequestProfilerMiddleware(BaseHTTPMiddleware):
         _ensure_dir(self.out_dir)
 
     async def dispatch(self, request: Request, call_next):
-        pr = cProfile.Profile()
+        import sys
+        another_active = sys.getprofile() is not None
+        pr = None
         t0 = time.perf_counter()
-        pr.enable()
+        if not another_active:
+            pr = cProfile.Profile()
+            try:
+                pr.enable()
+            except ValueError:
+                # Another profiler got enabled between checks; treat as active
+                pr = None
+                another_active = True
         try:
             response = await call_next(request)
         finally:
-            pr.disable()
+            if pr is not None:
+                try:
+                    pr.disable()
+                except Exception:
+                    pass
         elapsed_ms = (time.perf_counter() - t0) * 1000.0
 
         # Build file paths
@@ -75,23 +88,27 @@ class RequestProfilerMiddleware(BaseHTTPMiddleware):
         prof_path = os.path.join(self.out_dir, base + ".prof")
         txt_path = os.path.join(self.out_dir, base + ".txt")
 
-        try:
-            pr.dump_stats(prof_path)
-            # Also write a short top summary for quick inspection
-            s = io.StringIO()
-            ps = pstats.Stats(pr, stream=s).strip_dirs().sort_stats('cumulative')
-            ps.print_stats(40)
-            with open(txt_path, 'w', encoding='utf-8') as fh:
-                fh.write(f"Elapsed: {elapsed_ms:.2f} ms\n\n")
-                fh.write(s.getvalue())
-        except Exception:
-            # Do not fail requests on profiling issues.
-            pass
+        if pr is not None:
+            try:
+                pr.dump_stats(prof_path)
+                # Also write a short top summary for quick inspection
+                s = io.StringIO()
+                ps = pstats.Stats(pr, stream=s).strip_dirs().sort_stats('cumulative')
+                ps.print_stats(40)
+                with open(txt_path, 'w', encoding='utf-8') as fh:
+                    fh.write(f"Elapsed: {elapsed_ms:.2f} ms\n\n")
+                    fh.write(s.getvalue())
+            except Exception:
+                # Do not fail requests on profiling issues.
+                pass
 
         try:
             # Attach headers for discovery
             response.headers['X-Profile-Time-ms'] = f"{elapsed_ms:.2f}"
-            response.headers['X-Profile-File'] = os.path.relpath(prof_path, os.getcwd())
+            if pr is not None:
+                response.headers['X-Profile-File'] = os.path.relpath(prof_path, os.getcwd())
+            else:
+                response.headers['X-Profile-Skipped'] = 'active_profiler'
         except Exception:
             pass
         return response
@@ -107,9 +124,17 @@ def _start_global_profiler(out_dir: str) -> None:
         return
     _ensure_dir(out_dir)
     _GLOBAL_OUTDIR = out_dir
-    pr = cProfile.Profile()
-    pr.enable()
-    _GLOBAL_PROFILER = pr
+    try:
+        import sys
+        if sys.getprofile() is not None:
+            # Another profiler already active; skip starting global profiler
+            return
+        pr = cProfile.Profile()
+        pr.enable()
+        _GLOBAL_PROFILER = pr
+    except ValueError:
+        # Another profiler is already active; skip
+        return
 
     def _dump_on_exit():
         try:
@@ -165,6 +190,11 @@ def install_profiler(app: FastAPI) -> None:
         base_dir = os.getenv('PROFILE_DIR', 'profiles')
         req_flag = str(os.getenv('PROFILE_REQUESTS', '0')).lower() in ('1', 'true', 'yes', 'on')
         glob_flag = str(os.getenv('PROFILE_GLOBAL', '0')).lower() in ('1', 'true', 'yes', 'on')
+
+        # If both flags are set, prefer per-request (global profiling would
+        # conflict with per-request cProfile under CPython).
+        if req_flag and glob_flag:
+            glob_flag = False
 
         if req_flag:
             out_dir = os.path.join(base_dir, 'requests')

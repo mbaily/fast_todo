@@ -38,6 +38,7 @@ import logging
 from . import config
 from .repl_api import run_code_for_user
 from .profiling import install_profiler
+from .jinja_stats import install_jinja_cache_stats
 
 import sys
 from asyncio import Queue
@@ -1352,6 +1353,15 @@ try:
 except Exception:
     # Best-effort only; template rendering will raise if critical filters missing
     logger.exception('failed to register filters on TEMPLATES_TAILWIND')
+
+# Optional Jinja cache stats headers/logging (off by default; set JINJA_CACHE_STATS=1)
+try:
+    # Install only after both environments are fully constructed
+    install_jinja_cache_stats(app, envs=[TEMPLATES.env, TEMPLATES_TAILWIND.env])
+except Exception:
+    pass
+
+# Jinja cache stats middleware will be installed after FastAPI app is created
 
 
 @app.get('/html_tailwind', response_class=HTMLResponse)
