@@ -1035,6 +1035,13 @@ async def get_session_timezone(request: Request) -> str | None:
 # COOKIE_SECURE=1 or true in the environment so cookies are marked Secure.
 COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() in ("1", "true", "yes")
 
+# Verbose calendar diagnostics (disabled by default). Set CALENDAR_VERBOSE_DEBUG=1
+# to enable chatty per-todo inspect logs during calendar extraction.
+try:
+    CALENDAR_VERBOSE_DEBUG = os.getenv('CALENDAR_VERBOSE_DEBUG', '0').lower() in ('1', 'true', 'yes')
+except Exception:
+    CALENDAR_VERBOSE_DEBUG = False
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # startup checks
@@ -3284,7 +3291,11 @@ async def calendar_occurrences(request: Request,
                     ca = ca.astimezone(timezone.utc)
             except Exception:
                 ca = None
-            logger.info('calendar_occurrences.todo.inspect id=%s title=%s created_at=%s', getattr(t, 'id', None), (getattr(t, 'text', '') or '')[:60], (ca.isoformat() if isinstance(ca, datetime) else str(ca)))
+            try:
+                if CALENDAR_VERBOSE_DEBUG and logger.isEnabledFor(logging.DEBUG):
+                    logger.debug('calendar_occurrences.todo.inspect id=%s title=%s created_at=%s', getattr(t, 'id', None), (getattr(t, 'text', '') or '')[:60], (ca.isoformat() if isinstance(ca, datetime) else str(ca)))
+            except Exception:
+                pass
             # Lightweight instrumentation: emit a clear debug marker when we
             # encounter todos with the literal text 'WindowEvent' so test runs
             # produce an easy-to-find log line. This is safe for local debug and
