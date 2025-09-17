@@ -1,5 +1,0 @@
-{
-  "returncode": 7,
-  "error": "connect_failed",
-  "exception": "[Errno 111] Connection refused"
-}
