@@ -2365,7 +2365,14 @@ async def html_tailwind_create_list(request: Request):
         except (ValueError, TypeError):
             raise HTTPException(status_code=400, detail='parent_list_id must be an integer')
     
-    # emulate form/query behavior of create_list by setting query param fallback
+    # Optional metadata
+    metadata = body.get('metadata') if isinstance(body, dict) else None
+
+    # emulate form/query behavior of create_list; pass metadata via request.state
+    try:
+        request.state._list_metadata = metadata
+    except Exception:
+        pass
     # call existing create_list helper
     new_list = await create_list(request, name=name, current_user=current_user, parent_list_id=parent_list_id)
     payload = {'ok': True}
@@ -2396,6 +2403,19 @@ async def create_list(request: Request, name: str = Form(None), current_user: Us
         # Always create a new list row for the authenticated user. We allow
         # duplicate names per user (multiple lists with the same name).
         owner_id = current_user.id
+        # Optional metadata: prefer request.state (JSON callers), else form field 'metadata' (stringified JSON), else none
+        list_metadata = None
+        try:
+            list_metadata = getattr(request.state, '_list_metadata', None)
+        except Exception:
+            list_metadata = None
+        if list_metadata is None:
+            try:
+                form2 = await request.form()
+            except Exception:
+                form2 = {}
+            if form2 and form2.get('metadata') is not None:
+                list_metadata = form2.get('metadata')
         # Accept explicit category_id from form or query params; prefer it over user's default
         try:
             form = await request.form()
@@ -2433,7 +2453,14 @@ async def create_list(request: Request, name: str = Form(None), current_user: Us
             if not parent_list or parent_list.owner_id != current_user.id:
                 raise HTTPException(status_code=404, detail='parent list not found')
         
-        lst = ListState(name=name, owner_id=owner_id, category_id=cid, parent_list_id=parent_list_id)
+        # validate/encode metadata
+        meta_col = None
+        try:
+            meta_col = validate_metadata_for_storage(list_metadata)
+        except Exception:
+            meta_col = None
+
+        lst = ListState(name=name, owner_id=owner_id, category_id=cid, parent_list_id=parent_list_id, metadata_json=meta_col)
         sess.add(lst)
         try:
             await sess.commit()
@@ -2522,7 +2549,25 @@ async def list_lists(current_user: User = Depends(require_login)):
     async with async_session() as sess:
         owner_id = current_user.id if current_user else None
         res = await sess.exec(select(ListState).where(ListState.owner_id == owner_id))
-        return res.all()
+        rows = res.all()
+        # Serialize with metadata for consistency with client JSON API
+        try:
+            return [
+                {
+                    'id': l.id,
+                    'name': l.name,
+                    'owner_id': l.owner_id,
+                    'category_id': getattr(l, 'category_id', None),
+                    'parent_list_id': getattr(l, 'parent_list_id', None),
+                    'parent_todo_id': getattr(l, 'parent_todo_id', None),
+                    'created_at': (l.created_at.isoformat() if getattr(l, 'created_at', None) else None),
+                    'modified_at': (l.modified_at.isoformat() if getattr(l, 'modified_at', None) else None),
+                    'metadata': parse_metadata_json(getattr(l, 'metadata_json', None)),
+                }
+                for l in rows
+            ]
+        except Exception:
+            return rows
 
 
 @app.get('/html_no_js/priorities')

@@ -196,14 +196,20 @@ async def client_create_list(request: Request):
     name = body.get('name') or request.query_params.get('name')
     if not name:
         raise HTTPException(status_code=400, detail='name is required')
+    metadata = body.get('metadata') if isinstance(body, dict) else None
     # Delegate to existing create_list helper which expects Request and current_user
     # Use local import to avoid circular dependency
     from .main import create_list
+    # Pass metadata via request state to avoid changing function signature for non-JSON callers
+    try:
+        request.state._list_metadata = metadata
+    except Exception:
+        pass
     new_list = await create_list(request, name=name, current_user=current_user)
     payload = {'ok': True}
     try:
         if new_list is not None:
-            payload.update({'id': getattr(new_list, 'id', None), 'name': getattr(new_list, 'name', None), 'category_id': getattr(new_list, 'category_id', None)})
+            payload.update({'id': getattr(new_list, 'id', None), 'name': getattr(new_list, 'name', None), 'category_id': getattr(new_list, 'category_id', None), 'metadata': parse_metadata_json(getattr(new_list, 'metadata_json', None))})
     except Exception:
         pass
     return JSONResponse(payload)
@@ -852,6 +858,7 @@ async def client_get_list(request: Request, list_id: int):
             'priority': getattr(lst, 'priority', None),
             'parent_todo_id': getattr(lst, 'parent_todo_id', None),
             'parent_list_id': getattr(lst, 'parent_list_id', None),
+            'metadata': parse_metadata_json(getattr(lst, 'metadata_json', None)),
         }
 
         if getattr(lst, 'parent_todo_id', None):
@@ -938,6 +945,7 @@ async def client_get_list(request: Request, list_id: int):
                     'parent_list_position': getattr(l, 'parent_list_position', None),
                     'override_priority': None,
                     'priority': getattr(l, 'priority', None),
+                    'metadata': parse_metadata_json(getattr(l, 'metadata_json', None)),
                 })
             # compute override priorities per sublist (similar to above)
             try:
@@ -1091,6 +1099,7 @@ async def create_todo(request: Request):
     note = payload.get('note')
     list_id = payload.get('list_id')
     priority = payload.get('priority')
+    metadata = payload.get('metadata') if isinstance(payload, dict) else None
 
     if not text or not isinstance(text, str):
         raise HTTPException(status_code=400, detail="text is required and must be a string")
@@ -1110,7 +1119,7 @@ async def create_todo(request: Request):
 
     # Import the internal function from main
     from .main import _create_todo_internal
-    return await _create_todo_internal(text, note, list_id, priority, current_user)
+    return await _create_todo_internal(text, note, list_id, priority, current_user, metadata=metadata)
 
 
 @router.patch('/todos/{todo_id}', response_class=JSONResponse)

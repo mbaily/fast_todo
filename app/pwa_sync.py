@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from .auth import require_login
 from .db import async_session
 from .models import ListState, Todo, Tombstone, SyncOperation, PushSubscription, User, Category
-from .utils import now_utc
+from .utils import now_utc, parse_metadata_json, validate_metadata_for_storage
 from sqlalchemy import select
 import json
 import logging
@@ -47,6 +47,7 @@ async def sync_get(since: Optional[str] = None, current_user: User = Depends(req
                 "category_id": lst.category_id,
                 "parent_todo_id": lst.parent_todo_id,
                 "parent_list_id": lst.parent_list_id,
+                "metadata": parse_metadata_json(getattr(lst, 'metadata_json', None)),
             }
             for lst in list_objs
         ]
@@ -62,6 +63,7 @@ async def sync_get(since: Optional[str] = None, current_user: User = Depends(req
                 "position": cat.position,
                 "sort_alphanumeric": cat.sort_alphanumeric,
                 "owner_id": cat.owner_id,
+                "metadata": parse_metadata_json(getattr(cat, 'metadata_json', None)),
             }
             for cat in category_objs
         ]
@@ -90,6 +92,7 @@ async def sync_get(since: Optional[str] = None, current_user: User = Depends(req
                 "created_at": (t.created_at.isoformat() if t.created_at else None),
                 "modified_at": (t.modified_at.isoformat() if t.modified_at else None),
                 "list_id": t.list_id,
+                "metadata": parse_metadata_json(getattr(t, 'metadata_json', None)),
             }
         )
 
@@ -133,7 +136,12 @@ async def sync_post(req: SyncRequest, current_user: User = Depends(require_login
                 # Minimal set of ops supported: create_list, delete_list, create_todo, update_todo, delete_todo
                 if name == 'create_list':
                     client_id = payload.get('client_id')
-                    lst = ListState(name=payload.get('name'), owner_id=current_user.id)
+                    meta_col = None
+                    try:
+                        meta_col = validate_metadata_for_storage(payload.get('metadata'))
+                    except Exception:
+                        meta_col = None
+                    lst = ListState(name=payload.get('name'), owner_id=current_user.id, metadata_json=meta_col)
                     sess.add(lst)
                     await sess.commit()
                     await sess.refresh(lst)
@@ -160,7 +168,7 @@ async def sync_post(req: SyncRequest, current_user: User = Depends(require_login
                         try:
                             from .main import _create_todo_internal
 
-                            todo_resp = await _create_todo_internal(text=text, note=note, list_id=int(list_id), priority=priority, current_user=current_user)
+                            todo_resp = await _create_todo_internal(text=text, note=note, list_id=int(list_id), priority=priority, current_user=current_user, metadata=payload.get('metadata'))
                             out = {'op': name, 'status': 'ok', 'id': todo_resp.get('id')}
                             if client_id is not None:
                                 out['client_id'] = client_id
