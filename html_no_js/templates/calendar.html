@@ -28,6 +28,9 @@
       <label style="display:inline-flex; align-items:center; gap:0.35rem; margin-bottom:0.5rem;">
         <input type="checkbox" id="show_ignored"> Show ignored
       </label>
+      <label style="display:inline-flex; align-items:center; gap:0.35rem; margin-left:0.75rem; margin-bottom:0.5rem;">
+        <input type="checkbox" id="hide_completed"> Hide completed
+      </label>
       {% if occurrences_sorted and occurrences_sorted|length > 0 %}
       <ul class="todos-list full-bleed">
       {% for ev in occurrences_sorted %}
@@ -119,7 +122,7 @@
       }
       // Ensure month view renders in chronological order regardless of server-side
       // priority sorting. Sort by occurrence_dt ascending with stable tie-breakers.
-      const occs = (data && Array.isArray(data.occurrences) ? data.occurrences.slice() : []).sort(function(a, b){
+      let occs = (data && Array.isArray(data.occurrences) ? data.occurrences.slice() : []).sort(function(a, b){
         try {
           // Prefer numeric occ_ts from server to avoid costly Date parsing
           const aTs = (a && a.occ_ts != null) ? Number(a.occ_ts) : (a && a.occurrence_dt ? Date.parse(a.occurrence_dt) : 0);
@@ -136,6 +139,14 @@
           return ah.localeCompare(bh);
         } catch(e) { return 0; }
       });
+      // Apply client-side filtering for "Hide completed" when enabled (default ON)
+      try {
+        const hideVal = (function(){ try { return localStorage.getItem('cal_hide_completed'); } catch(e){ return null; } })();
+        const hideCompleted = (hideVal === null || hideVal === '1');
+        if (hideCompleted) {
+          occs = occs.filter(function(ev){ return !(ev && ev.completed); });
+        }
+      } catch(e) { /* ignore storage/filter errors */ }
       // Ensure we always have a UL container to replace
       let container = document.querySelector('.todos-list.full-bleed');
       if (!container) {
@@ -240,6 +251,20 @@
       showIg.checked = (getCookie('show_ignored') === '1');
       showIg.addEventListener('change', function(){ setCookie('show_ignored', showIg.checked ? '1' : '0', 365); fetchOccurrencesForCurrentWindow(); });
     }
+    const hideCb = document.getElementById('hide_completed');
+    if (hideCb) {
+      try {
+        const v = localStorage.getItem('cal_hide_completed');
+        // Default ON when missing
+        hideCb.checked = (v === null || v === '1');
+      } catch (e) {
+        hideCb.checked = true;
+      }
+      hideCb.addEventListener('change', function(){
+        try { localStorage.setItem('cal_hide_completed', hideCb.checked ? '1' : '0'); } catch (e) {}
+        fetchOccurrencesForCurrentWindow();
+      });
+    }
   // initial load
   fetchOccurrencesForCurrentWindow();
   // emit a Puppeteer-friendly debug event if helper is available
@@ -337,6 +362,16 @@
         console.log('DEBUG: complete_response', { status: r.status, body: j });
         if (!r.ok || (j && typeof j.ok !== 'undefined' && !j.ok)) {
           cb.checked = false;
+        } else {
+          // If "Hide completed" is enabled, hide the occurrence row immediately
+          try {
+            const v = localStorage.getItem('cal_hide_completed');
+            const hideCompleted = (v === null || v === '1');
+            if (hideCompleted) {
+              const row = cb.closest('.todo');
+              if (row) { row.style.display = 'none'; }
+            }
+          } catch (e) { /* ignore storage/DOM errors */ }
         }
       })().catch(err => { console.error('DEBUG: complete_error', err); cb.checked = false; })
       .finally(() => { cb.disabled = false; window.__occInFlight[hash] = false; window.__occLastProcessed[hash] = Date.now(); });
