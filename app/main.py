@@ -2932,6 +2932,17 @@ async def calendar_occurrences(request: Request,
 
     occurrences: list[dict] = []
     truncated = False
+    # Instrumentation: counters for how occurrences are derived before filtering.
+    # We classify sources by branch (e.g., todo-rrule, list-explicit, todo-yearless, etc.)
+    counts_by_source_pre: dict[str, int] = {}
+    agg_pre: dict[str, int] = {'rrule': 0, 'text': 0}
+
+    def _inc_counter(d: dict, k: str, n: int = 1):
+        try:
+            d[k] = int(d.get(k, 0)) + int(n)
+        except Exception:
+            # defensive fallback
+            d[k] = (d.get(k, 0) or 0) + 1
     # support disabling recurring detection via config (useful for testing clients)
     # When recurring detection is disabled we should still return explicit
     # plain-date occurrences (those extracted by extract_dates_meta). Only
@@ -3034,7 +3045,7 @@ async def calendar_occurrences(request: Request,
             pass
 
         def add_occ(item_type: str, item_id: int, list_id: int | None, title: str, occ_dt, dtstart, is_rec, rrule_str, rec_meta, source: str | None = None):
-            nonlocal occurrences, truncated
+            nonlocal occurrences, truncated, counts_by_source_pre, agg_pre
             if len(occurrences) >= max_total:
                 # global truncation reached
                 try:
@@ -3062,7 +3073,7 @@ async def calendar_occurrences(request: Request,
                 _occ_ts = int(_od.timestamp())
             except Exception:
                 _occ_ts = 0
-            occurrences.append({
+            occ_record = {
                 'occurrence_dt': occ_dt.isoformat(),
                 # date-only string for UI (YYYY-MM-DD)
                 'occurrence_date': (occ_dt.date().isoformat() if hasattr(occ_dt, 'date') else (occ_dt.isoformat().split('T')[0] if isinstance(occ_dt, str) else None)),
@@ -3076,9 +3087,21 @@ async def calendar_occurrences(request: Request,
                 'recurrence_meta': rec_meta,
                 'occ_hash': occ_hash,
                 'occ_ts': _occ_ts,
+                'source': source or None,
                 # effective priority: for todos use todo.priority, for lists use max(list.priority, highest uncompleted todo priority in that list)
                 'effective_priority': None,
-            })
+            }
+            occurrences.append(occ_record)
+            # Update instrumentation counters based on source classification
+            try:
+                _src = source or 'unknown'
+                _inc_counter(counts_by_source_pre, _src, 1)
+                if _src in ('list-rrule', 'todo-rrule', 'todo-inline-rrule'):
+                    _inc_counter(agg_pre, 'rrule', 1)
+                else:
+                    _inc_counter(agg_pre, 'text', 1)
+            except Exception:
+                pass
             # Emit an SSE debug event so callers can see which occurrences were added
             try:
                 pay = {'item_type': item_type, 'item_id': item_id, 'occurrence_dt': occ_dt.isoformat(), 'title': title or '', 'rrule': rrule_str or '', 'is_recurring': bool(is_rec)}
@@ -3708,7 +3731,44 @@ async def calendar_occurrences(request: Request,
         # if any DB error, don't block returning occurrences
         logger.exception('failed to fetch completed/ignored sets for user')
 
-    return {'occurrences': occurrences, 'truncated': truncated}
+    # Post-filter metrics: recompute source counts on the filtered set to report visible ratios
+    counts_by_source_post: dict[str, int] = {}
+    agg_post: dict[str, int] = {'rrule': 0, 'text': 0}
+    try:
+        for o in occurrences:
+            _src = o.get('source') or 'unknown'
+            counts_by_source_post[_src] = int(counts_by_source_post.get(_src, 0)) + 1
+            if _src in ('list-rrule', 'todo-rrule', 'todo-inline-rrule'):
+                agg_post['rrule'] = int(agg_post.get('rrule', 0)) + 1
+            else:
+                agg_post['text'] = int(agg_post.get('text', 0)) + 1
+    except Exception:
+        pass
+    # Compute ratios defensively
+    def _ratio(n: int, d: int) -> float:
+        try:
+            return (float(n) / float(d)) if int(d) > 0 else 0.0
+        except Exception:
+            return 0.0
+
+    metrics = {
+        'pre': {
+            'counts_by_source': counts_by_source_pre,
+            'aggregate': agg_pre,
+            'fallback_text_ratio': _ratio(agg_pre.get('text', 0), (agg_pre.get('text', 0) + agg_pre.get('rrule', 0)))
+        },
+        'post': {
+            'counts_by_source': counts_by_source_post,
+            'aggregate': agg_post,
+            'fallback_text_ratio': _ratio(agg_post.get('text', 0), (agg_post.get('text', 0) + agg_post.get('rrule', 0)))
+        }
+    }
+    # Optionally emit a compact log summary for diagnostics
+    try:
+        logger.info('calendar_occurrences.metrics pre=%s post=%s total_pre=%s total_post=%s', agg_pre, agg_post, sum(agg_pre.values()), sum(agg_post.values()))
+    except Exception:
+        pass
+    return {'occurrences': occurrences, 'truncated': truncated, 'metrics': metrics}
 
 
 
