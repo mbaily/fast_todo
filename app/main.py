@@ -7682,7 +7682,10 @@ async def html_index(request: Request):
                     include_ignored=False,
                     current_user=current_user
                 )
-                calendar_occurrences = list(resp.get('occurrences', []))
+                # Exclude occurrences already marked completed to keep the
+                # index summary focused on actionable items (pre-refactor parity)
+                _occs = list(resp.get('occurrences', []))
+                calendar_occurrences = [o for o in _occs if not bool(o.get('completed'))]
             except Exception:
                 calendar_occurrences = []
         except Exception:
