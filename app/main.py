@@ -9547,41 +9547,10 @@ async def html_calendar(request: Request, year: Optional[int] = None, month: Opt
         # non-fatal: continue with original end_dt
         pass
 
-    # reuse calendar_occurrences logic by calling parse helpers directly
-    # collect occurrences between start_dt and end_dt by reusing calendar_occurrences
-    from .main import calendar_occurrences as _co  # type: ignore
-    co_res = await _co(request=None, start=start_dt.isoformat(), end=end_dt.isoformat(), current_user=current_user)
-    occurrences = co_res.get('occurrences', []) if isinstance(co_res, dict) else []
-
-    # group occurrences by day number
-    occ_by_day: dict[int, list[dict]] = {}
-    for o in occurrences:
-        try:
-            dt = datetime.fromisoformat(o['occurrence_dt'])
-            day = dt.day
-            occ_by_day.setdefault(day, []).append(o)
-        except Exception:
-            continue
-
-    # build calendar grid (weeks starting Sunday)
-    cal = Calendar(firstweekday=6)
-    weeks = []
-    for week in cal.monthdayscalendar(y, m):
-        row = []
-        for d in week:
-            row.append({'day': d})
-        weeks.append(row)
-
-    # Instead of a month grid, produce a chronological list of occurrences
-    occ_list = []
-    for o in occurrences:
-        try:
-            dt = datetime.fromisoformat(o['occurrence_dt'])
-            occ_list.append((dt, o))
-        except Exception:
-            continue
-    occ_list.sort(key=lambda x: x[0])
-    occurrences_sorted = [o for _, o in occ_list]
+    # Minimal SSR skeleton:
+    # Do not compute occurrences server-side; let the client fetch and render
+    # via /calendar/occurrences. We still compute month navigation values.
+    occurrences_sorted: list[dict] = []
 
     # provide simple prev/next month links for convenience
     prev_month = m - 1

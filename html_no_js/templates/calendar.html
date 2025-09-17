@@ -55,7 +55,16 @@
       {% endfor %}
       </ul>
       {% else %}
-      <p class="meta">Loading calendar events...</p>
+      <!-- Minimal skeleton list so JS can replace in-place -->
+      <ul class="todos-list full-bleed">
+        <li class="todo">
+          <div class="todo-content">
+            <div class="todo-main wrap-text">
+              <div class="meta">Loading calendar events...</div>
+            </div>
+          </div>
+        </li>
+      </ul>
       {% endif %}
     </div>
   </section>
