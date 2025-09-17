@@ -395,6 +395,22 @@ Recurring occurrences behavior
   - Recurring lists (a list that itself has a recurrence rule) generate occurrences representing the list instance dates and can be used to pre-populate list contents on those dates.
   - The UI and API return occurrence objects that include the `occurrence_dt`, item type (`todo` or `list`), the source item id, and any display metadata required by the client.
 
+Feature flag: disable text scanning
+
+- You can turn off on-the-fly text scanning for dates and inline recurrence in calendar endpoints (and the small index calendar) by setting an environment variable.
+- Set `DISABLE_CALENDAR_TEXT_SCAN=1` to disable scanning. When disabled:
+  - Persisted recurrence fields (`recurrence_rrule`, `recurrence_dtstart`) continue to be expanded.
+  - Explicit `deferred_until` values continue to be honored.
+  - The server does not scan titles/notes for plain dates or inline recurrence phrases.
+  - The `/calendar/occurrences` endpoint will use stored plain date snapshots (`plain_dates_meta`) if present to include non‑recurring dates without scanning.
+  
+Persisted plain date metadata
+
+- Todos have a new field `plain_dates_meta` (JSON) storing the extracted plain date matches from the todo's text/note.
+- It is populated on create/update and updated opportunistically by the calendar endpoint when scanning is enabled.
+- When text scanning is disabled, the calendar uses `plain_dates_meta` when available.
+- Default is enabled (scanning on). The flag is read at runtime via `app.config.DISABLE_CALENDAR_TEXT_SCAN`.
+
 Ignore and completion controls
   - Ignore completely: mark an item or list as ignored for calendar generation. Ignored items do not produce calendar occurrences and will be excluded from calendar queries.
   - Ignore from date: set an ignore-from date so occurrences before (or after, depending on semantics) a cutoff are suppressed. This is useful when you want to stop showing older occurrences without deleting recurrence metadata.

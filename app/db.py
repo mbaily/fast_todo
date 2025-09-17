@@ -843,6 +843,9 @@ async def init_db():
             # metadata_json column
             if 'metadata_json' not in cols:
                 add_sql.append("ALTER TABLE todo ADD COLUMN metadata_json TEXT")
+            # plain_dates_meta column for persisted non-recurring date matches
+            if 'plain_dates_meta' not in cols:
+                add_sql.append("ALTER TABLE todo ADD COLUMN plain_dates_meta TEXT")
             for s in add_sql:
                 try:
                     await conn.execute(text(s))

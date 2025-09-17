@@ -3000,7 +3000,12 @@ async def calendar_occurrences(request: Request,
         recurring_enabled = bool(config.ENABLE_RECURRING_DETECTION)
     except Exception:
         recurring_enabled = True
-    logger.info('calendar_occurrences called owner_id=%s start=%s end=%s expand=%s include_ignored=%s', owner_id, start_dt.isoformat() if start_dt else None, end_dt.isoformat() if end_dt else None, expand, include_ignored)
+    # Feature flag: when enabled, skip scanning todo/list text for dates or inline recurrences
+    try:
+        scanning_disabled = bool(getattr(config, 'DISABLE_CALENDAR_TEXT_SCAN', False))
+    except Exception:
+        scanning_disabled = False
+    logger.info('calendar_occurrences called owner_id=%s start=%s end=%s expand=%s include_ignored=%s scanning_disabled=%s', owner_id, start_dt.isoformat() if start_dt else None, end_dt.isoformat() if end_dt else None, expand, include_ignored, scanning_disabled)
     # Emit SSE debug event for handler entry
     _sse_debug('calendar_occurrences.entry', {'owner_id': owner_id, 'start': start_dt.isoformat() if start_dt else None, 'end': end_dt.isoformat() if end_dt else None, 'expand': expand, 'include_ignored': include_ignored})
     # Development-only conditional breakpoint. Set ENABLE_CALENDAR_BREAKPOINT=1
@@ -3239,10 +3244,13 @@ async def calendar_occurrences(request: Request,
                     pass
 
             # fallback: extract explicit dates from text. Use meta extractor so
-            # yearless matches can be expanded against the window.
-            _t = _pt('extract_meta_lists')
-            meta = extract_dates_meta(combined)
-            _pa('extract_meta_lists', _t)
+            # yearless matches can be expanded against the window. Honor the
+            # DISABLE_CALENDAR_TEXT_SCAN flag to skip extraction.
+            meta = []
+            if not scanning_disabled:
+                _t = _pt('extract_meta_lists')
+                meta = extract_dates_meta(combined)
+                _pa('extract_meta_lists', _t)
             # expand year-explicit matches directly
             for m in meta:
                 if m.get('year_explicit'):
@@ -3340,7 +3348,7 @@ async def calendar_occurrences(request: Request,
                     pass
             # If no persisted recurrence, attempt to parse an inline recurrence phrase
             # If recurring detection is disabled, skip inline recurrence parsing
-            if expand and not rec_rrule and recurring_enabled:
+            if expand and not rec_rrule and recurring_enabled and not scanning_disabled:
                 # Cheap keyword prefilter to avoid running the expensive inline recurrence parser
                 # on todos that clearly don't contain recurrence language.
                 def _likely_inline_rrule_text(_s: str) -> bool:
@@ -3484,7 +3492,7 @@ async def calendar_occurrences(request: Request,
                     _sse_debug('calendar_occurrences.todo.date_extract_skipped', {'todo_id': t.id, 'reason': 'neg_cache'})
                 except Exception:
                     pass
-            elif _likely_has_date_tokens(combined):
+            elif _likely_has_date_tokens(combined) and not scanning_disabled:
                 _t = _pt('extract_meta_todos')
                 meta = extract_dates_meta(combined)
                 _pa('extract_meta_todos', _t)
@@ -3513,9 +3521,58 @@ async def calendar_occurrences(request: Request,
                             pass
                     except Exception:
                         pass
+                # Persist plain date metadata snapshot for future use when scanning is disabled
+                try:
+                    import json as _json
+                    def _j(m):
+                        dd = m.get('dt')
+                        return {
+                            'year_explicit': bool(m.get('year_explicit')),
+                            'match_text': m.get('match_text'),
+                            'month': m.get('month'),
+                            'day': m.get('day'),
+                            'dt': (dd.isoformat() if hasattr(dd, 'isoformat') else dd),
+                        }
+                    t.plain_dates_meta = _json.dumps([_j(m) for m in (meta or [])])
+                    sess.add(t)
+                    await sess.flush()
+                except Exception:
+                    pass
             else:
                 try:
                     _sse_debug('calendar_occurrences.todo.date_extract_skipped', {'todo_id': t.id, 'reason': 'regex_prefilter'})
+                except Exception:
+                    pass
+            # If scanning is disabled and meta is empty, attempt to use persisted snapshot
+            if scanning_disabled and not meta:
+                try:
+                    import json as _json
+                    raw = getattr(t, 'plain_dates_meta', None)
+                    if raw:
+                        vals = _json.loads(raw)
+                        if isinstance(vals, list):
+                            meta = []
+                            from datetime import datetime as _dt
+                            for m in vals:
+                                try:
+                                    dt = m.get('dt')
+                                    if isinstance(dt, str):
+                                        from datetime import timezone as _tz
+                                        dtp = _dt.fromisoformat(dt)
+                                        if dtp.tzinfo is None:
+                                            dtp = dtp.replace(tzinfo=_tz.utc)
+                                        m2 = {
+                                            'year_explicit': bool(m.get('year_explicit')),
+                                            'match_text': m.get('match_text'),
+                                            'month': m.get('month'),
+                                            'day': m.get('day'),
+                                            'dt': dtp,
+                                        }
+                                    else:
+                                        m2 = m
+                                    meta.append(m2)
+                                except Exception:
+                                    continue
                 except Exception:
                     pass
             # collect explicit dates for this todo
@@ -5762,18 +5819,35 @@ async def _create_todo_internal(text: str, note: Optional[str], list_id: int, pr
         except Exception:
             clean_text = text
         # compute recurrence metadata for the todo text/note and persist
-        from .utils import parse_text_to_rrule_string, parse_date_and_recurrence
+        from .utils import parse_text_to_rrule_string, parse_date_and_recurrence, extract_dates_meta
         dtstart_val, rrule_str = parse_text_to_rrule_string(text or '')
         _, recdict = parse_date_and_recurrence(text or '')
         import json
         meta_json = json.dumps(recdict) if recdict else None
+        # compute plain date metadata and JSON-encode for storage
+        try:
+            pd_meta = extract_dates_meta((text or '') + '\n' + (note or ''))
+            # store compact JSON with ISO dts
+            def _j(m):
+                from datetime import datetime as _dt
+                dd = m.get('dt')
+                return {
+                    'year_explicit': bool(m.get('year_explicit')),
+                    'match_text': m.get('match_text'),
+                    'month': m.get('month'),
+                    'day': m.get('day'),
+                    'dt': (dd.isoformat() if hasattr(dd, 'isoformat') else dd),
+                }
+            plain_dates_json = json.dumps([_j(m) for m in (pd_meta or [])])
+        except Exception:
+            plain_dates_json = None
         # validate/encode metadata
         meta_col: str | None = None
         try:
             meta_col = validate_metadata_for_storage(metadata)
         except Exception:
             meta_col = None
-        todo = Todo(text=clean_text, note=note, list_id=list_id, priority=priority, recurrence_rrule=rrule_str or None, recurrence_meta=meta_json, recurrence_dtstart=dtstart_val, metadata_json=meta_col)
+        todo = Todo(text=clean_text, note=note, list_id=list_id, priority=priority, recurrence_rrule=rrule_str or None, recurrence_meta=meta_json, recurrence_dtstart=dtstart_val, metadata_json=meta_col, plain_dates_meta=plain_dates_json)
         sess.add(todo)
         await sess.commit()
         await sess.refresh(todo)
@@ -5998,16 +6072,33 @@ async def _update_todo_internal(todo_id: int, payload: dict, current_user: User)
                     raise HTTPException(status_code=403, detail="forbidden")
                 todo.list_id = list_id
 
-        # If text or note changed, recompute recurrence metadata
+        # If text or note changed, recompute recurrence metadata and plain-date metadata
         if 'text' in payload or 'note' in payload:
             try:
-                from .utils import parse_text_to_rrule_string, parse_date_and_recurrence
-                dtstart_val, rrule_str = parse_text_to_rrule_string(todo.text + '\n' + (todo.note or ''))
-                _, recdict = parse_date_and_recurrence(todo.text + '\n' + (todo.note or ''))
+                from .utils import parse_text_to_rrule_string, parse_date_and_recurrence, extract_dates_meta
+                combined_text = (todo.text or '') + '\n' + (todo.note or '')
+                dtstart_val, rrule_str = parse_text_to_rrule_string(combined_text)
+                _, recdict = parse_date_and_recurrence(combined_text)
                 import json
                 todo.recurrence_rrule = rrule_str or None
                 todo.recurrence_meta = json.dumps(recdict) if recdict else None
                 todo.recurrence_dtstart = dtstart_val
+                # update plain date metadata
+                try:
+                    pd_meta = extract_dates_meta(combined_text)
+                    def _j(m):
+                        dd = m.get('dt')
+                        return {
+                            'year_explicit': bool(m.get('year_explicit')),
+                            'match_text': m.get('match_text'),
+                            'month': m.get('month'),
+                            'day': m.get('day'),
+                            'dt': (dd.isoformat() if hasattr(dd, 'isoformat') else dd),
+                        }
+                    todo.plain_dates_meta = json.dumps([_j(m) for m in (pd_meta or [])])
+                except Exception:
+                    # do not block on plain-date json errors
+                    pass
             except Exception:
                 # Do not block updates on recurrence parsing failures; leave existing values
                 logger.exception('failed to recompute recurrence metadata during update_todo')
@@ -8205,7 +8296,7 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
         except Exception:
             pinned_todos = []
 
-        # calendar occurrences (reuse logic from html_index)
+    # calendar occurrences (reuse logic from html_index)
         calendar_occurrences = []
         try:
             from datetime import timedelta as _td
@@ -8294,6 +8385,12 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
                 except Exception:
                     return None
 
+            # When scanning is disabled, we will still honor persisted rrules
+            try:
+                _scan_disabled = bool(getattr(config, 'DISABLE_CALENDAR_TEXT_SCAN', False))
+            except Exception:
+                _scan_disabled = False
+
             for l in vis_lists:
                 rec_rrule = getattr(l, 'recurrence_rrule', None)
                 rec_dtstart = getattr(l, 'recurrence_dtstart', None)
@@ -8310,7 +8407,10 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
                     except Exception:
                         pass
                 try:
-                    meta = extract_dates_meta(l.name or '')
+                    # Honor flag: disable plain date extraction when scanning disabled.
+                    meta = []
+                    if not _scan_disabled:
+                        meta = extract_dates_meta(l.name or '')
                     for m in meta:
                         try:
                             if m.get('year_explicit'):
@@ -8400,7 +8500,10 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
                 else:
                     try:
                         from .utils import parse_text_to_rrule, parse_text_to_rrule_string
-                        r_obj, dtstart = parse_text_to_rrule(t.text + '\n' + (t.note or ''))
+                        if _scan_disabled:
+                            r_obj, dtstart = (None, None)
+                        else:
+                            r_obj, dtstart = parse_text_to_rrule(t.text + '\n' + (t.note or ''))
                         if r_obj is not None:
                             if dtstart and dtstart.tzinfo is None:
                                 dtstart = dtstart.replace(tzinfo=timezone.utc)
@@ -8413,7 +8516,10 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
                     except Exception:
                         pass
                 try:
-                    meta = extract_dates_meta(t.text + '\n' + (t.note or ''))
+                    # Honor flag: disable plain date extraction when scanning disabled.
+                    meta = []
+                    if not _scan_disabled:
+                        meta = extract_dates_meta(t.text + '\n' + (t.note or ''))
                     for m in meta:
                         try:
                             if m.get('year_explicit'):
@@ -9345,10 +9451,59 @@ async def html_calendar(request: Request, year: Optional[int] = None, month: Opt
         # non-fatal: continue with original end_dt
         pass
 
-    # Minimal SSR skeleton:
-    # Do not compute occurrences server-side; let the client fetch and render
-    # via /calendar/occurrences. We still compute month navigation values.
+    # Minimal SSR: fetch occurrences for the requested window so tests and
+    # no-JS browsers see events in the initial HTML. The client JS will still
+    # re-fetch and hydrate/replace this list after load.
     occurrences_sorted: list[dict] = []
+    try:
+        # Respect user's "show_ignored" cookie for SSR filtering
+        include_ignored = False
+        try:
+            include_ignored = (request.cookies.get('show_ignored') == '1')
+        except Exception:
+            include_ignored = False
+        # Safety cap similar to client
+        max_total = 3000
+        # Call the existing calendar_occurrences logic to compute items
+        occ_resp = await calendar_occurrences(
+            request,
+            start=start_dt.isoformat(),
+            end=end_dt.isoformat(),
+            tz=None,
+            expand=True,
+            max_per_item=100,
+            max_total=max_total,
+            include_ignored=include_ignored,
+            current_user=current_user,
+        )
+        try:
+            items = list(occ_resp.get('occurrences') or [])
+        except Exception:
+            items = []
+        # For SSR, present occurrences in chronological order to match
+        # expectations; the endpoint already sorts by priority+time, but here
+        # we sort strictly by occurrence timestamp as a stable order for HTML.
+        try:
+            items.sort(key=lambda o: int(o.get('occ_ts') or 0))
+        except Exception:
+            try:
+                from datetime import datetime as _dt
+                def _parse_ts(o):
+                    try:
+                        s = (o.get('occurrence_dt') or '').replace('Z', '+00:00')
+                        d = _dt.fromisoformat(s)
+                        if d.tzinfo is None:
+                            d = d.replace(tzinfo=timezone.utc)
+                        return int(d.timestamp())
+                    except Exception:
+                        return 0
+                items.sort(key=_parse_ts)
+            except Exception:
+                pass
+        occurrences_sorted = items
+    except Exception:
+        # Non-fatal: fall back to empty SSR list; client will hydrate
+        occurrences_sorted = []
 
     # provide simple prev/next month links for convenience
     prev_month = m - 1

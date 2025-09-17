@@ -48,6 +48,13 @@ except Exception:
 INDEX_CALENDAR_DAYS = 2
 
 
+# When true, disable text scanning for dates/recurrence in calendar computations.
+# This affects the /calendar/occurrences API and the small calendar block on index.html.
+# Persisted recurrence fields (recurrence_rrule/recurrence_dtstart) and deferred_until
+# are still honored. Set via environment variable DISABLE_CALENDAR_TEXT_SCAN=1
+DISABLE_CALENDAR_TEXT_SCAN = _trueish(os.getenv('DISABLE_CALENDAR_TEXT_SCAN', '0'))
+
+
 DOKUWIKI_NOTE_LINK_PREFIX = os.getenv('DOKUWIKI_NOTE_LINK_PREFIX', 'https://myserver.hopto.org/dokuwiki/doku.php?id=')
 
 # Optional local overrides: define variables in app/local_config.py to extend or

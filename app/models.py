@@ -132,6 +132,11 @@ class Todo(SQLModel, table=True):
     recurrence_meta: Optional[str] = None  # JSON-encoded string
     recurrence_dtstart: Optional[datetime] = None
     recurrence_parser_version: Optional[str] = None
+    # Persisted plain-date metadata extracted from text/note (JSON-encoded array
+    # of {year_explicit, match_text, dt: ISO, month, day}). Used when calendar
+    # text scanning is disabled so we can still render occurrences without
+    # reparsing on the fly.
+    plain_dates_meta: Optional[str] = None
     # Every Todo must belong to a ListState. Make list_id required (non-optional)
     # so creation will fail if no list_id is provided.
     list_id: int = Field(foreign_key="liststate.id")
