@@ -52,7 +52,8 @@ async def sync_get(since: Optional[str] = None, current_user: User = Depends(req
         ]
 
         # categories
-        qc = select(Category)
+        # Only include global categories or those owned by the current user
+        qc = select(Category).where((Category.owner_id == current_user.id) | (Category.owner_id == None))
         resc = await sess.exec(qc)
         category_objs = resc.scalars().all()
         categories = [

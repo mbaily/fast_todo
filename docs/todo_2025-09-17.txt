@@ -1,0 +1,29 @@
+mdb_dump prints a textual dump (suitable for mdb_load) to stdout by default. Dump all DBs with: mdb_dump -a /path/to/lmdb_env
+
+what is the file of the lmdb database now?
+this lmdb database will be used for fast_todo in general for extensions of the sqlite and other metadata not just categories. It should not be in /tmp. It should be in the root dir under fast_todo_lmdb/ dir
+
+does the app code or lmdb create this directory on demand?
+
+does the categories now only look for user's own categories and have a different set of categories per user now?
+
+given my existing fast_todo.db, which hasn't been touched since this category.owner_id change, when will the app first allocate categories to my logged in user?
+
+do I need a seperate script to migrate my existing fast_todo.db?
+
+please write a python script which can (using argparse)
+    a) list all categories, category ids and users and user ids
+    b) assign using json a list of category ids to a user by user id
+    c) print --help for both a) and b)
+
+write a python script to (direct with db) via sqlite or sqlmodel:
+    a) delete a test user with username 'testuser'
+    b) create a new test user with username 'testuser'
+    c) copy all the data owned by username 'mbaily' to 'testuser' as copies
+Also make it set the password for 'testuser' to 'testpass'
+
+Issues - fast_todo 2025-09-17
+last good working server commit:
+    f9a4b1944051bb08
+GPT changed the db to try to get category.owner_id working but the page loaded as blank (index). I was left without a working app but the server is still fine on that commit f9a
+

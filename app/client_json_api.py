@@ -687,7 +687,8 @@ async def client_list_index(request: Request, per_page: Optional[int] = None):
         # fetch categories
         categories = []
         try:
-            qcat = select(Category).order_by(Category.position.asc())
+            # Only show global categories (owner_id is NULL) or those owned by this user
+            qcat = select(Category).where((Category.owner_id == owner_id) | (Category.owner_id == None)).order_by(Category.position.asc())
             cres = await sess.exec(qcat)
             categories = [{'id': c.id, 'name': c.name, 'position': c.position, 'sort_alphanumeric': getattr(c, 'sort_alphanumeric', False)} for c in cres.all()]
         except Exception:
@@ -901,7 +902,8 @@ async def client_get_list(request: Request, list_id: int):
 
         # categories
         try:
-            qcat = select(Category).order_by(Category.position.asc())
+            # only expose global categories or those owned by the current user
+            qcat = select(Category).where((Category.owner_id == owner_id) | (Category.owner_id == None)).order_by(Category.position.asc())
             cres = await sess.exec(qcat)
             categories = [{'id': c.id, 'name': c.name, 'position': c.position} for c in cres.all()]
         except Exception:

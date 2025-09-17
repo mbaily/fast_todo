@@ -15,6 +15,7 @@ sqlmodel
 asyncssh
 tzdata
 uvicorn[standard]
+lmdb
 
 # Notes:
 # - fastapi: web framework
