@@ -134,6 +134,19 @@ def _ensure_sqlite_minimal_migrations(url: str | None) -> None:
         conn = sqlite3.connect(db_path)
         try:
             cur = conn.cursor()
+            # Helper to add metadata_json column to a table if missing
+            def _ensure_metadata_col(table: str):
+                try:
+                    cur.execute(f"PRAGMA table_info('{table}')")
+                    cols = [row[1] for row in cur.fetchall()]
+                    if cols and 'metadata_json' not in cols:
+                        try:
+                            cur.execute(f"ALTER TABLE {table} ADD COLUMN metadata_json TEXT")
+                            conn.commit()
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
             # If liststate exists but lacks new sublist columns, add them.
             cur.execute("PRAGMA table_info('liststate')")
             cols = [row[1] for row in cur.fetchall()]
@@ -223,6 +236,13 @@ def _ensure_sqlite_minimal_migrations(url: str | None) -> None:
                         conn.commit()
                     except Exception:
                         pass
+                # Ensure metadata_json exists on todo
+                try:
+                    if 'metadata_json' not in tcols:
+                        cur.execute("ALTER TABLE todo ADD COLUMN metadata_json TEXT")
+                        conn.commit()
+                except Exception:
+                    pass
             except Exception:
                 pass
             # Ensure new per-user collation fields exist on user table
@@ -407,6 +427,24 @@ def _ensure_sqlite_minimal_migrations(url: str | None) -> None:
                         except Exception:
                             # swallow; may fail on some drivers or when already exists
                             pass
+                    # Ensure metadata_json on category
+                    try:
+                        if 'metadata_json' not in cat_cols:
+                            cur.execute("ALTER TABLE category ADD COLUMN metadata_json TEXT")
+                            conn.commit()
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+            # Ensure metadata_json on core/user-scoped tables (best-effort)
+            try:
+                for tbl in (
+                    'serverstate','liststate','hashtag','completiontype','user','session','syncoperation',
+                    'tombstone','recentlistvisit','recenttodovisit','completedoccurrence','trashmeta','listtrashmeta',
+                    'ignoredscope','sshpublickey','pushsubscription','itemlink','usercollation','userlistprefs'
+                ):
+                    _ensure_metadata_col(tbl)
             except Exception:
                 pass
         finally:
@@ -802,6 +840,9 @@ async def init_db():
             # Add priority column to todo table if missing
             if 'priority' not in cols:
                 add_sql.append("ALTER TABLE todo ADD COLUMN priority INTEGER")
+            # metadata_json column
+            if 'metadata_json' not in cols:
+                add_sql.append("ALTER TABLE todo ADD COLUMN metadata_json TEXT")
             for s in add_sql:
                 try:
                     await conn.execute(text(s))
@@ -856,8 +897,34 @@ async def init_db():
                 await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_todo_priority ON todo(priority)"))
             except Exception:
                 logger.exception('failed to create ix_todo_priority during init_db')
+            # metadata_json column on liststate
+            try:
+                if 'metadata_json' not in cols:
+                    await conn.execute(text("ALTER TABLE liststate ADD COLUMN metadata_json TEXT"))
+            except Exception:
+                pass
         except Exception:
             logger.exception('failed to ensure parent_todo_id on liststate in init_db')
+        # Ensure metadata_json on other tables (best-effort)
+        try:
+            tables = (
+                'serverstate','hashtag','completiontype','user','session','syncoperation','tombstone',
+                'recentlistvisit','recenttodovisit','completedoccurrence','trashmeta','listtrashmeta',
+                'ignoredscope','sshpublickey','pushsubscription','itemlink','usercollation','userlistprefs','category'
+            )
+            for tbl in tables:
+                try:
+                    res = await conn.execute(text(f"PRAGMA table_info('{tbl}')"))
+                    cols = [r[1] for r in res.fetchall()]
+                    if cols and 'metadata_json' not in cols:
+                        try:
+                            await conn.execute(text(f"ALTER TABLE {tbl} ADD COLUMN metadata_json TEXT"))
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+        except Exception:
+            pass
         # Ensure ItemLink indices exist
         try:
             await conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_itemlink_edge ON itemlink(src_type, src_id, tgt_type, tgt_id)"))

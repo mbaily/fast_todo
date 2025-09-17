@@ -19,6 +19,8 @@ class ServerState(SQLModel, table=True):
     """Singleton-ish table to store server-level settings like the default list id."""
     id: Optional[int] = Field(default=None, primary_key=True)
     default_list_id: Optional[int] = Field(default=None, foreign_key="liststate.id")
+    # Arbitrary JSON metadata (JSON-encoded string)
+    metadata_json: Optional[str] = None
 
 
 class ListState(SQLModel, table=True):
@@ -55,6 +57,8 @@ class ListState(SQLModel, table=True):
     parent_list_position: Optional[int] = Field(default=None, index=True)
     # Optional per-list priority: 1 (lowest) .. 10 (highest). Null means no priority.
     priority: Optional[int] = Field(default=None, index=True)
+    # Arbitrary JSON metadata (JSON-encoded string)
+    metadata_json: Optional[str] = None
 
     todos: List["Todo"] = Relationship(
         back_populates="list",
@@ -84,6 +88,8 @@ class Category(SQLModel, table=True):
     sort_alphanumeric: bool = Field(default=False, index=True)
     # Optional owner for user-specific categories
     owner_id: Optional[int] = Field(default=None, foreign_key="user.id", index=True)
+    # Arbitrary JSON metadata (JSON-encoded string)
+    metadata_json: Optional[str] = None
     
 
 
@@ -93,6 +99,8 @@ class Hashtag(SQLModel, table=True):
     tag: str = Field(sa_column_kwargs={"unique": True, "index": True})
     todos: List["Todo"] = Relationship(back_populates="hashtags", link_model=TodoHashtag)
     lists: List[ListState] = Relationship(back_populates="hashtags", link_model=ListHashtag)
+    # Arbitrary JSON metadata (JSON-encoded string)
+    metadata_json: Optional[str] = None
 
 
 class CompletionType(SQLModel, table=True):
@@ -100,6 +108,8 @@ class CompletionType(SQLModel, table=True):
     name: str
     list_id: Optional[int] = Field(default=None, foreign_key="liststate.id")
     __table_args__ = (UniqueConstraint('list_id', 'name'),)
+    # Arbitrary JSON metadata (JSON-encoded string)
+    metadata_json: Optional[str] = None
 
     list: Optional[ListState] = Relationship(back_populates="completion_types")
     completions: List["TodoCompletion"] = Relationship(back_populates="completion_type")
@@ -131,6 +141,8 @@ class Todo(SQLModel, table=True):
     lists_up_top: bool = Field(default=False)
     # When true, sort inline fn:link occurrences by priority when rendering the note
     sort_links: bool = Field(default=False)
+    # Arbitrary JSON metadata (JSON-encoded string)
+    metadata_json: Optional[str] = None
 
     # Relationship should reflect that a todo always has a parent list.
     list: ListState = Relationship(
@@ -178,6 +190,8 @@ class User(SQLModel, table=True):
     # When true, show a linked/unlinked indicator on todo pages for this user,
     # allowing quick add/remove from their collation list.
     show_collation_indicator: bool = Field(default=False, index=True)
+    # Arbitrary JSON metadata (JSON-encoded string)
+    metadata_json: Optional[str] = None
 
 
 class Session(SQLModel, table=True):
@@ -193,6 +207,8 @@ class Session(SQLModel, table=True):
     created_at: datetime | None = Field(default_factory=now_utc)
     expires_at: Optional[datetime] = None
     timezone: Optional[str] = None
+    # Arbitrary JSON metadata (JSON-encoded string)
+    metadata_json: Optional[str] = None
 
 
 class SyncOperation(SQLModel, table=True):
@@ -205,6 +221,8 @@ class SyncOperation(SQLModel, table=True):
     server_id: Optional[int] = None
     result_json: Optional[str] = None
     created_at: datetime | None = Field(default_factory=now_utc)
+    # Arbitrary JSON metadata (JSON-encoded string)
+    metadata_json: Optional[str] = None
 
 
 class Tombstone(SQLModel, table=True):
@@ -218,6 +236,8 @@ class Tombstone(SQLModel, table=True):
     item_type: str
     item_id: int
     created_at: datetime | None = Field(default_factory=now_utc)
+    # Arbitrary JSON metadata (JSON-encoded string)
+    metadata_json: Optional[str] = None
 
 
 class RecentListVisit(SQLModel, table=True):
@@ -232,6 +252,8 @@ class RecentListVisit(SQLModel, table=True):
     visited_at: datetime | None = Field(default_factory=now_utc, index=True)
     # position: integer position for top-N ordering (0 = top). NULL/None means not in top-N.
     position: Optional[int] = Field(default=None, index=True)
+    # Arbitrary JSON metadata (JSON-encoded string)
+    metadata_json: Optional[str] = None
 
 
 class RecentTodoVisit(SQLModel, table=True):
@@ -244,6 +266,8 @@ class RecentTodoVisit(SQLModel, table=True):
     todo_id: Optional[int] = Field(default=None, foreign_key="todo.id", primary_key=True)
     visited_at: datetime | None = Field(default_factory=now_utc, index=True)
     position: Optional[int] = Field(default=None, index=True)
+    # Arbitrary JSON metadata (JSON-encoded string)
+    metadata_json: Optional[str] = None
 
 
 class CompletedOccurrence(SQLModel, table=True):
@@ -255,6 +279,8 @@ class CompletedOccurrence(SQLModel, table=True):
     item_id: Optional[int] = None
     occurrence_dt: Optional[datetime] = None
     completed_at: datetime | None = Field(default_factory=now_utc)
+    # Arbitrary JSON metadata (JSON-encoded string)
+    metadata_json: Optional[str] = None
 
 
 class TrashMeta(SQLModel, table=True):
@@ -267,6 +293,8 @@ class TrashMeta(SQLModel, table=True):
     todo_id: int = Field(foreign_key='todo.id', index=True)
     original_list_id: Optional[int] = Field(default=None, foreign_key='liststate.id', index=True)
     trashed_at: datetime | None = Field(default_factory=now_utc, index=True)
+    # Arbitrary JSON metadata (JSON-encoded string)
+    metadata_json: Optional[str] = None
 
 
 class ListTrashMeta(SQLModel, table=True):
@@ -280,6 +308,8 @@ class ListTrashMeta(SQLModel, table=True):
     original_parent_list_id: Optional[int] = Field(default=None, foreign_key='liststate.id', index=True)
     original_owner_id: Optional[int] = Field(default=None, foreign_key='user.id', index=True)
     trashed_at: datetime | None = Field(default_factory=now_utc, index=True)
+    # Arbitrary JSON metadata (JSON-encoded string)
+    metadata_json: Optional[str] = None
 
 
 class IgnoredScope(SQLModel, table=True):
@@ -299,6 +329,8 @@ class IgnoredScope(SQLModel, table=True):
     scope_hash: str = Field(index=True)
     created_at: datetime | None = Field(default_factory=now_utc)
     active: bool = Field(default=True, index=True)
+    # Arbitrary JSON metadata (JSON-encoded string)
+    metadata_json: Optional[str] = None
 
 
 class SshPublicKey(SQLModel, table=True):
@@ -310,6 +342,8 @@ class SshPublicKey(SQLModel, table=True):
     fingerprint: Optional[str] = Field(default=None, index=True)
     enabled: bool = Field(default=True, index=True)
     created_at: datetime | None = Field(default_factory=now_utc)
+    # Arbitrary JSON metadata (JSON-encoded string)
+    metadata_json: Optional[str] = None
 
 
 class PushSubscription(SQLModel, table=True):
@@ -323,6 +357,8 @@ class PushSubscription(SQLModel, table=True):
     subscription_json: str
     enabled: bool = Field(default=True, index=True)
     created_at: datetime | None = Field(default_factory=now_utc)
+    # Arbitrary JSON metadata (JSON-encoded string)
+    metadata_json: Optional[str] = None
 
 class ItemLink(SQLModel, table=True):
     """Directed links from a source item (todo or list) to a target item (todo or list).
@@ -342,6 +378,8 @@ class ItemLink(SQLModel, table=True):
     position: Optional[int] = Field(default=None, index=True)
     owner_id: int = Field(foreign_key='user.id', index=True)
     created_at: datetime | None = Field(default_factory=now_utc)
+    # Arbitrary JSON metadata (JSON-encoded string)
+    metadata_json: Optional[str] = None
 
     __table_args__ = (
         UniqueConstraint('src_type', 'src_id', 'tgt_type', 'tgt_id', name='uq_itemlink_edge'),
@@ -360,6 +398,8 @@ class UserCollation(SQLModel, table=True):
     list_id: Optional[int] = Field(default=None, foreign_key='liststate.id', primary_key=True)
     active: bool = Field(default=True, index=True)
     created_at: datetime | None = Field(default_factory=now_utc)
+    # Arbitrary JSON metadata (JSON-encoded string)
+    metadata_json: Optional[str] = None
 
 
 class UserListPrefs(SQLModel, table=True):
@@ -372,3 +412,5 @@ class UserListPrefs(SQLModel, table=True):
     list_id: Optional[int] = Field(default=None, foreign_key='liststate.id', primary_key=True)
     completed_after: bool = Field(default=False, index=True)
     created_at: datetime | None = Field(default_factory=now_utc)
+    # Arbitrary JSON metadata (JSON-encoded string)
+    metadata_json: Optional[str] = None

@@ -9,6 +9,7 @@ from .models import ListState, Todo, CompletionType, TodoCompletion, User
 from .auth import get_current_user, create_access_token, require_login, CSRF_TOKEN_EXPIRE_MINUTES, CSRF_TOKEN_EXPIRE_SECONDS
 from pydantic import BaseModel
 from .utils import now_utc, normalize_hashtag
+from .utils import validate_metadata_for_storage, parse_metadata_json
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 from contextlib import asynccontextmanager
@@ -5327,10 +5328,12 @@ async def create_todo(request: Request, current_user: User = Depends(require_log
         except Exception:
             raise HTTPException(status_code=400, detail="priority must be an integer")
 
-    return await _create_todo_internal(text, note, list_id, priority, current_user)
+    # Optional metadata
+    metadata = payload.get('metadata') if isinstance(payload, dict) else None
+    return await _create_todo_internal(text, note, list_id, priority, current_user, metadata=metadata)
 
 
-async def _create_todo_internal(text: str, note: Optional[str], list_id: int, priority: Optional[int], current_user: User):
+async def _create_todo_internal(text: str, note: Optional[str], list_id: int, priority: Optional[int], current_user: User, *, metadata: dict | str | None = None):
     """Internal function to create a todo. Used by both JSON API and form-based endpoints."""
     async with async_session() as sess:
         # ensure the list exists
@@ -5355,7 +5358,13 @@ async def _create_todo_internal(text: str, note: Optional[str], list_id: int, pr
         _, recdict = parse_date_and_recurrence(text or '')
         import json
         meta_json = json.dumps(recdict) if recdict else None
-        todo = Todo(text=clean_text, note=note, list_id=list_id, priority=priority, recurrence_rrule=rrule_str or None, recurrence_meta=meta_json, recurrence_dtstart=dtstart_val)
+        # validate/encode metadata
+        meta_col: str | None = None
+        try:
+            meta_col = validate_metadata_for_storage(metadata)
+        except Exception:
+            meta_col = None
+        todo = Todo(text=clean_text, note=note, list_id=list_id, priority=priority, recurrence_rrule=rrule_str or None, recurrence_meta=meta_json, recurrence_dtstart=dtstart_val, metadata_json=meta_col)
         sess.add(todo)
         await sess.commit()
         await sess.refresh(todo)
@@ -5550,6 +5559,14 @@ async def _update_todo_internal(todo_id: int, payload: dict, current_user: User)
             pinned = payload['pinned']
             if pinned is not None:
                 todo.pinned = bool(pinned)
+
+        # metadata update (dict or null clears). Ignore invalid types.
+        if 'metadata' in payload:
+            try:
+                todo.metadata_json = validate_metadata_for_storage(payload.get('metadata'))
+            except Exception:
+                # leave unchanged on validation error
+                pass
 
         # Allow toggling search_ignored via JSON payload (optional)
         if 'search_ignored' in payload:
@@ -6245,6 +6262,7 @@ def _serialize_todo(todo: Todo, completions: list[dict] | dict | None = None) ->
         "completions": completions or ([] if isinstance(completions, list) else {}),
         "priority": getattr(todo, 'priority', None),
         "completed": completed,  # Add the completed field for client compatibility
+        "metadata": parse_metadata_json(getattr(todo, 'metadata_json', None)),
     }
 
 
@@ -6269,6 +6287,7 @@ def _serialize_list(lst: ListState) -> dict:
     "hide_icons": getattr(lst, 'hide_icons', False),
     # number of uncompleted todos in this list (computed by caller when available)
     "uncompleted_count": getattr(lst, 'uncompleted_count', None),
+    "metadata": parse_metadata_json(getattr(lst, 'metadata_json', None)),
     }
 
 

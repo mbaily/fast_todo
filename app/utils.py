@@ -183,6 +183,58 @@ def now_utc() -> datetime:
     return datetime.now(timezone.utc)
 
 
+# ===== Metadata helpers =====
+def _json_dumps(obj) -> str:
+    try:
+        return json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
+    except Exception:
+        # Fallback to default dumps if custom separators fail for exotic types
+        return json.dumps(obj)
+
+
+def validate_metadata_for_storage(value) -> str | None:
+    """Validate an incoming metadata value for storage.
+
+    Rules:
+    - None -> return None (clears the column)
+    - dict -> JSON-encode and enforce soft size cap (~16KB)
+    - any other type -> raise ValueError
+
+    Returns JSON string or None.
+    """
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        s = _json_dumps(value)
+        # soft cap of 16KB; adjust if needed
+        if len(s.encode('utf-8')) > 16 * 1024:
+            raise ValueError("metadata too large (max ~16KB)")
+        return s
+    # allow clients to pass a JSON string representing an object; coerce if so
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+            if isinstance(parsed, dict):
+                return validate_metadata_for_storage(parsed)
+        except Exception:
+            pass
+    raise ValueError("metadata must be a JSON object")
+
+
+def parse_metadata_json(s: str | None) -> dict:
+    """Parse a JSON string column into a dict for responses.
+
+    Returns {} on None/empty/invalid or when the JSON isn't a dict.
+    """
+    if not s:
+        return {}
+    try:
+        obj = json.loads(s)
+        return obj if isinstance(obj, dict) else {}
+    except Exception:
+        return {}
+
+
 def normalize_hashtag(tag: str) -> str:
     """Normalize a hashtag: strip whitespace, ensure it starts with '#'.
 

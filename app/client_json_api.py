@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from .db import async_session
 from .models import ListState, ListHashtag, Hashtag, Todo, TodoHashtag, CompletionType, TodoCompletion, Category, UserCollation, ItemLink
 from .auth import get_current_user as _gcu
-from .utils import extract_hashtags, now_utc
+from .utils import extract_hashtags, now_utc, parse_metadata_json, validate_metadata_for_storage
 from sqlalchemy import select, func, or_, and_
 
 # Use a client-scoped prefix to avoid colliding with other APIs. These endpoints
@@ -73,7 +73,7 @@ async def client_search(request: Request):
                 for l in rlh.all():
                     lists_by_id.setdefault(l.id, l)
             results['lists'] = [
-                {'id': l.id, 'name': l.name, 'completed': getattr(l, 'completed', False)}
+                {'id': l.id, 'name': l.name, 'completed': getattr(l, 'completed', False), 'metadata': parse_metadata_json(getattr(l, 'metadata_json', None))}
                 for l in lists_by_id.values()
                 if not (exclude_completed and getattr(l, 'completed', False))
             ]
@@ -122,7 +122,7 @@ async def client_search(request: Request):
                         if done_val:
                             completed_ids.add(int(tid))
                 results['todos'] = [
-                    {'id': t.id, 'text': t.text, 'note': t.note, 'list_id': t.list_id, 'list_name': lm.get(t.list_id), 'completed': (int(t.id) in completed_ids)}
+                    {'id': t.id, 'text': t.text, 'note': t.note, 'list_id': t.list_id, 'list_name': lm.get(t.list_id), 'completed': (int(t.id) in completed_ids), 'metadata': parse_metadata_json(getattr(t, 'metadata_json', None))}
                     for t in todos_acc.values() if not (exclude_completed and (int(t.id) in completed_ids))
                 ]
     return JSONResponse({'ok': True, 'q': qparam, 'results': results})
@@ -562,6 +562,7 @@ async def client_list_index(request: Request, per_page: Optional[int] = None):
                 'hashtags': tag_map.get(l.id, []),
                 'uncompleted_count': None,
                 'hide_icons': getattr(l, 'hide_icons', False),
+                'metadata': parse_metadata_json(getattr(l, 'metadata_json', None)),
             })
 
         # Determine highest uncompleted todo priority per list
@@ -816,6 +817,7 @@ async def client_get_list(request: Request, list_id: int):
                 'pinned': getattr(t, 'pinned', False),
                 'priority': getattr(t, 'priority', None),
                 'extra_completions': extra,
+                'metadata': parse_metadata_json(getattr(t, 'metadata_json', None)),
             })
 
         # fetch todo tags
@@ -896,7 +898,7 @@ async def client_get_list(request: Request, list_id: int):
         all_hashtags = []
         for row in _all_rows:
             val = row[0] if isinstance(row, (tuple, list)) else row
-            if isinstance(val, str) and val and val not in all_hashtags:
+            if isinstance(val, str) and val not in all_hashtags:
                 all_hashtags.append(val)
 
         # categories (user-scoped)
