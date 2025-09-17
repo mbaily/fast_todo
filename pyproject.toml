@@ -1,0 +1,7 @@
+[tool.ruff]
+line-length = 100
+exclude = [".venv", "venv", "build", "dist"]
+
+[tool.ruff.lint]
+# Ignore E501 (line-too-long) inside tests/ directory by using per-file-ignores
+per-file-ignores = { "tests/**" = ["E501"] }

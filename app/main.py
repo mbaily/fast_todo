@@ -37,6 +37,7 @@ from .models import Session
 import logging
 from . import config
 from .repl_api import run_code_for_user
+from .profiling import install_profiler
 
 import sys
 from asyncio import Queue
@@ -1271,6 +1272,12 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+# Optional cProfile instrumentation (off by default; controlled via env vars)
+try:
+    install_profiler(app)
+except Exception:
+    # Never fail startup due to profiling setup
+    pass
 # Log CSRF expiry configuration at startup
 try:
     mins = CSRF_TOKEN_EXPIRE_SECONDS / 60.0
