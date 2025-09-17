@@ -372,13 +372,29 @@ def _ensure_sqlite_minimal_migrations(url: str | None) -> None:
             try:
                 cur.execute("PRAGMA table_info('category')")
                 cat_cols = [row[1] for row in cur.fetchall()]
-                if cat_cols and 'sort_alphanumeric' not in cat_cols:
-                    try:
-                        cur.execute("ALTER TABLE category ADD COLUMN sort_alphanumeric INTEGER DEFAULT 0 NOT NULL")
-                        conn.commit()
-                    except Exception:
-                        # swallow; may fail on some drivers or when already exists
-                        pass
+                if cat_cols:
+                    # Add new owner_id column for user-specific categories
+                    if 'owner_id' not in cat_cols:
+                        try:
+                            cur.execute("ALTER TABLE category ADD COLUMN owner_id INTEGER")
+                            conn.commit()
+                        except Exception:
+                            # swallow; may fail on some drivers or when already exists
+                            pass
+                        # Best-effort index on owner_id to speed per-user queries
+                        try:
+                            cur.execute("CREATE INDEX IF NOT EXISTS ix_category_owner_id ON category(owner_id)")
+                            conn.commit()
+                        except Exception:
+                            pass
+                    # Ensure sort_alphanumeric exists (older DBs)
+                    if 'sort_alphanumeric' not in cat_cols:
+                        try:
+                            cur.execute("ALTER TABLE category ADD COLUMN sort_alphanumeric INTEGER DEFAULT 0 NOT NULL")
+                            conn.commit()
+                        except Exception:
+                            # swallow; may fail on some drivers or when already exists
+                            pass
             except Exception:
                 pass
         finally:

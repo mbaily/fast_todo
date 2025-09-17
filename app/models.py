@@ -82,6 +82,9 @@ class Category(SQLModel, table=True):
     position: int = Field(default=0, index=True)
     # When true, lists under this category should be sorted alphanumerically by name
     sort_alphanumeric: bool = Field(default=False, index=True)
+    # Optional owner for user-specific categories
+    owner_id: Optional[int] = Field(default=None, foreign_key="user.id", index=True)
+    
 
 
 
