@@ -51,8 +51,8 @@ async def sync_get(since: Optional[str] = None, current_user: User = Depends(req
             for lst in list_objs
         ]
 
-        # categories
-        qc = select(Category)
+        # categories (user-scoped)
+        qc = select(Category).where(Category.owner_id == current_user.id)
         resc = await sess.exec(qc)
         category_objs = resc.scalars().all()
         categories = [
@@ -61,6 +61,7 @@ async def sync_get(since: Optional[str] = None, current_user: User = Depends(req
                 "name": cat.name,
                 "position": cat.position,
                 "sort_alphanumeric": cat.sort_alphanumeric,
+                "owner_id": cat.owner_id,
             }
             for cat in category_objs
         ]

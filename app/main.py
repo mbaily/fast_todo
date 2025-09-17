@@ -1532,9 +1532,9 @@ async def html_tailwind_view_list(request: Request):
             if isinstance(val, str) and val and val not in all_hashtags:
                 all_hashtags.append(val)
 
-        # categories
+        # categories (user-scoped)
         try:
-            qcat = select(Category).order_by(Category.position.asc())
+            qcat = select(Category).where(Category.owner_id == current_user.id).order_by(Category.position.asc())
             cres = await sess.exec(qcat)
             categories = [{'id': c.id, 'name': c.name, 'position': c.position} for c in cres.all()]
         except Exception:
@@ -2414,6 +2414,16 @@ async def create_list(request: Request, name: str = Form(None), current_user: Us
         if cid is None:
             default_cat = getattr(current_user, 'default_category_id', None)
             cid = default_cat if default_cat is not None else None
+        # Validate category ownership if a category_id is provided
+        if cid is not None:
+            try:
+                cobj = await sess.get(Category, int(cid))
+                if not cobj or getattr(cobj, 'owner_id', None) != current_user.id:
+                    raise HTTPException(status_code=403, detail='invalid category')
+            except HTTPException:
+                raise
+            except Exception:
+                raise HTTPException(status_code=400, detail='invalid category')
         
         # Handle parent_list_id validation
         if parent_list_id is not None:
@@ -3772,7 +3782,7 @@ async def mark_occurrence_completed(request: Request, hash: str = Form(...), cur
         # duplicate positions (can happen with older imports or a bug),
         # normalize positions so order becomes deterministic and contiguous.
         try:
-            cres = await sess.exec(select(Category).order_by(Category.position.asc(), Category.id.asc()))
+            cres = await sess.exec(select(Category).where(Category.owner_id == current_user.id).order_by(Category.position.asc(), Category.id.asc()))
             cats_all = cres.all()
             need_fix = False
             for idx, c in enumerate(cats_all):
@@ -8586,7 +8596,11 @@ async def api_get_categories(request: Request, current_user: User = Depends(requ
     """Return JSON list of categories ordered by position."""
     async with async_session() as sess:
         try:
-            cres = await sess.exec(select(Category).order_by(Category.position.asc(), Category.id.asc()))
+            cres = await sess.exec(
+                select(Category)
+                .where(Category.owner_id == current_user.id)
+                .order_by(Category.position.asc(), Category.id.asc())
+            )
             cats = cres.all()
             return {'categories': [{'id': c.id, 'name': c.name, 'position': c.position, 'sort_alphanumeric': getattr(c, 'sort_alphanumeric', False)} for c in cats], 'user_default_category_id': getattr(current_user, 'default_category_id', None)}
         except Exception:
@@ -8783,13 +8797,19 @@ async def api_create_category(request: Request, payload: CreateCategoryRequest, 
     if not name:
         raise HTTPException(status_code=400, detail='name required')
     async with async_session() as sess:
-        # determine position: if provided use it, else append to end
+        # determine position within this user's categories only
         pos = payload.position
         if pos is None:
-            qmax = await sess.exec(select(Category).order_by(Category.position.desc()).limit(1))
+            qmax = await sess.exec(
+                select(Category)
+                .where(Category.owner_id == current_user.id)
+                .order_by(Category.position.desc())
+                .limit(1)
+            )
             maxc = qmax.first()
             pos = (maxc.position + 1) if maxc else 0
-        nc = Category(name=name, position=pos)
+        # Always set the owner to the current user
+        nc = Category(name=name, position=pos, owner_id=current_user.id)
         sess.add(nc)
         await sess.commit()
         await sess.refresh(nc)
@@ -8840,6 +8860,8 @@ async def api_set_user_default_category(request: Request, payload: SetUserDefaul
         cat = await sess.get(Category, cid)
         if not cat:
             raise HTTPException(status_code=404, detail='category not found')
+        if getattr(cat, 'owner_id', None) != current_user.id:
+            raise HTTPException(status_code=403, detail='forbidden')
         q = await sess.scalars(select(User).where(User.id == current_user.id))
         u = q.first()
         if not u:
@@ -8926,16 +8948,24 @@ class MoveCatRequest(BaseModel):
     direction: str
 
 
-async def _normalize_category_positions(sess) -> list[Category]:
-    """Ensure Category.position values are contiguous (0..N-1) and unique.
-    Returns categories ordered by position after normalization."""
-    cres = await sess.exec(select(Category).order_by(Category.position.asc(), Category.id.asc()))
+async def _normalize_category_positions(sess, owner_id: int) -> list[Category]:
+    """Ensure Category.position values are contiguous (0..N-1) and unique for a single owner.
+    Returns categories for that owner ordered by position after normalization."""
+    cres = await sess.exec(
+        select(Category)
+        .where(Category.owner_id == owner_id)
+        .order_by(Category.position.asc(), Category.id.asc())
+    )
     cats = cres.all()
     changed = False
     for idx, c in enumerate(cats):
         try:
             if c.position != idx:
-                await sess.exec(sqlalchemy_update(Category).where(Category.id == c.id).values(position=idx))
+                await sess.exec(
+                    sqlalchemy_update(Category)
+                    .where(Category.id == c.id)
+                    .values(position=idx)
+                )
                 changed = True
         except Exception:
             # fallback: still attempt to continue normalizing others
@@ -8946,7 +8976,11 @@ async def _normalize_category_positions(sess) -> list[Category]:
         except Exception:
             logger.exception('commit failed during category position normalization')
     # re-read in normalized order
-    cres2 = await sess.exec(select(Category).order_by(Category.position.asc(), Category.id.asc()))
+    cres2 = await sess.exec(
+        select(Category)
+        .where(Category.owner_id == owner_id)
+        .order_by(Category.position.asc(), Category.id.asc())
+    )
     return cres2.all()
 
 
@@ -8971,15 +9005,27 @@ async def api_move_category(request: Request, cat_id: int, payload: MoveCatReque
         raise HTTPException(status_code=400, detail='invalid direction')
 
     async with async_session() as sess:
-        # capture order before
-        bres = await sess.exec(select(Category).order_by(Category.position.asc(), Category.id.asc()))
+        # capture order before (user-scoped)
+        bres = await sess.exec(
+            select(Category)
+            .where(Category.owner_id == current_user.id)
+            .order_by(Category.position.asc(), Category.id.asc())
+        )
         before = [{'id': c.id, 'name': c.name, 'position': c.position} for c in bres.all()]
         q = await sess.scalars(select(Category).where(Category.id == cat_id))
         cur = q.first()
         if not cur:
             raise HTTPException(status_code=404, detail='category not found')
+        if getattr(cur, 'owner_id', None) != current_user.id:
+            raise HTTPException(status_code=403, detail='forbidden')
         if direction == 'up':
-            qprev = await sess.exec(select(Category).where(Category.position < cur.position).order_by(Category.position.desc()).limit(1))
+            qprev = await sess.exec(
+                select(Category)
+                .where(Category.owner_id == current_user.id)
+                .where(Category.position < cur.position)
+                .order_by(Category.position.desc())
+                .limit(1)
+            )
             prev = qprev.first()
             if prev:
                 cur_pos = cur.position
@@ -8989,7 +9035,13 @@ async def api_move_category(request: Request, cat_id: int, payload: MoveCatReque
                 await sess.exec(sqlalchemy_update(Category).where(Category.id == cur.id).values(position=prev_pos))
                 logger.info('api_move_category: swap executed for cat_id=%s', cur.id)
         else:
-            qnext = await sess.exec(select(Category).where(Category.position > cur.position).order_by(Category.position.asc()).limit(1))
+            qnext = await sess.exec(
+                select(Category)
+                .where(Category.owner_id == current_user.id)
+                .where(Category.position > cur.position)
+                .order_by(Category.position.asc())
+                .limit(1)
+            )
             nxt = qnext.first()
             if nxt:
                 cur_pos = cur.position
@@ -9000,7 +9052,7 @@ async def api_move_category(request: Request, cat_id: int, payload: MoveCatReque
                 logger.info('api_move_category: swap executed for cat_id=%s', cur.id)
         await sess.commit()
         # Normalize positions to avoid duplicates or gaps, then return list
-        cats2 = await _normalize_category_positions(sess)
+        cats2 = await _normalize_category_positions(sess, current_user.id)
         after = [{'id': c.id, 'name': c.name, 'position': c.position} for c in cats2]
         try:
             logger.info('api_move_category: before=%s after=%s',
@@ -9019,11 +9071,16 @@ async def create_category(request: Request, name: str = Form(...)):
     except HTTPException:
         return RedirectResponse(url='/html_no_js/login', status_code=303)
     async with async_session() as sess:
-        # determine max position and append
-        qmax = await sess.exec(select(Category).order_by(Category.position.desc()).limit(1))
+        # determine max position for this user's categories and append
+        qmax = await sess.exec(
+            select(Category)
+            .where(Category.owner_id == current_user.id)
+            .order_by(Category.position.desc())
+            .limit(1)
+        )
         maxc = qmax.first()
         pos = (maxc.position + 1) if maxc else 0
-        nc = Category(name=name.strip()[:200], position=pos)
+        nc = Category(name=name.strip()[:200], position=pos, owner_id=current_user.id)
         sess.add(nc)
         await sess.commit()
     accept = (request.headers.get('Accept') or '')
@@ -9040,6 +9097,11 @@ async def rename_category(request: Request, cat_id: int, name: str = Form(...)):
     except HTTPException:
         return RedirectResponse(url='/html_no_js/login', status_code=303)
     async with async_session() as sess:
+        # ensure ownership
+        q = await sess.scalars(select(Category).where(Category.id == cat_id))
+        cur = q.first()
+        if not cur or getattr(cur, 'owner_id', None) != current_user.id:
+            return RedirectResponse(url='/html_no_js/categories', status_code=303)
         await sess.exec(sqlalchemy_update(Category).where(Category.id == cat_id).values(name=name.strip()[:200]))
         await sess.commit()
     accept = (request.headers.get('Accept') or '')
@@ -9056,8 +9118,18 @@ async def delete_category(request: Request, cat_id: int):
     except HTTPException:
         return RedirectResponse(url='/html_no_js/login', status_code=303)
     async with async_session() as sess:
-        # remove category association from lists, then delete
-        await sess.exec(sqlalchemy_update(ListState).where(ListState.category_id == cat_id).values(category_id=None))
+        # ensure ownership
+        q = await sess.scalars(select(Category).where(Category.id == cat_id))
+        cur = q.first()
+        if not cur or getattr(cur, 'owner_id', None) != current_user.id:
+            return RedirectResponse(url='/html_no_js/categories', status_code=303)
+        # remove category association from user's lists, then delete
+        await sess.exec(
+            sqlalchemy_update(ListState)
+            .where(ListState.category_id == cat_id)
+            .where(ListState.owner_id == current_user.id)
+            .values(category_id=None)
+        )
         await sess.exec(sqlalchemy_delete(Category).where(Category.id == cat_id))
         await sess.commit()
     accept = (request.headers.get('Accept') or '')
@@ -9077,11 +9149,17 @@ async def move_category(request: Request, cat_id: int, direction: str = Form(...
     async with async_session() as sess:
         q = await sess.scalars(select(Category).where(Category.id == cat_id))
         cur = q.first()
-        if not cur:
+        if not cur or getattr(cur, 'owner_id', None) != current_user.id:
             return RedirectResponse(url='/html_no_js/categories', status_code=303)
         if direction == 'up':
             # find previous (lower position) item
-            qprev = await sess.exec(select(Category).where(Category.position < cur.position).order_by(Category.position.desc()).limit(1))
+            qprev = await sess.exec(
+                select(Category)
+                .where(Category.owner_id == current_user.id)
+                .where(Category.position < cur.position)
+                .order_by(Category.position.desc())
+                .limit(1)
+            )
             prev = qprev.first()
             if prev:
                 cur_pos = cur.position
@@ -9091,7 +9169,13 @@ async def move_category(request: Request, cat_id: int, direction: str = Form(...
                 await sess.exec(sqlalchemy_update(Category).where(Category.id == cur.id).values(position=prev_pos))
                 logger.info('move_category: swap executed for cat_id=%s', cur.id)
         elif direction == 'down':
-            qnext = await sess.exec(select(Category).where(Category.position > cur.position).order_by(Category.position.asc()).limit(1))
+            qnext = await sess.exec(
+                select(Category)
+                .where(Category.owner_id == current_user.id)
+                .where(Category.position > cur.position)
+                .order_by(Category.position.asc())
+                .limit(1)
+            )
             nxt = qnext.first()
             if nxt:
                 cur_pos = cur.position
@@ -10159,7 +10243,7 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
                 all_hashtags.append(val)
         # fetch categories for assignment UI (ordered by position)
         try:
-            qcat = select(Category).order_by(Category.position.asc())
+            qcat = select(Category).where(Category.owner_id == current_user.id).order_by(Category.position.asc())
             cres = await sess.exec(qcat)
             categories = [{'id': c.id, 'name': c.name, 'position': c.position} for c in cres.all()]
         except Exception:

@@ -684,10 +684,10 @@ async def client_list_index(request: Request, per_page: Optional[int] = None):
                 return (0 if p is not None else 1, p or 0, -(datetime.fromisoformat(r.get('created_at')).timestamp() if r.get('created_at') else 0))
             rows.sort(key=_list_sort_key)
 
-        # fetch categories
+        # fetch categories (user-scoped)
         categories = []
         try:
-            qcat = select(Category).order_by(Category.position.asc())
+            qcat = select(Category).where(Category.owner_id == current_user.id).order_by(Category.position.asc())
             cres = await sess.exec(qcat)
             categories = [{'id': c.id, 'name': c.name, 'position': c.position, 'sort_alphanumeric': getattr(c, 'sort_alphanumeric', False)} for c in cres.all()]
         except Exception:
@@ -899,9 +899,9 @@ async def client_get_list(request: Request, list_id: int):
             if isinstance(val, str) and val and val not in all_hashtags:
                 all_hashtags.append(val)
 
-        # categories
+        # categories (user-scoped)
         try:
-            qcat = select(Category).order_by(Category.position.asc())
+            qcat = select(Category).where(Category.owner_id == current_user.id).order_by(Category.position.asc())
             cres = await sess.exec(qcat)
             categories = [{'id': c.id, 'name': c.name, 'position': c.position} for c in cres.all()]
         except Exception:
