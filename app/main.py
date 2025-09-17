@@ -3427,9 +3427,40 @@ async def calendar_occurrences(request: Request,
                     logger.info('DEBUG_WINDOWEVENT_MARKER todo_id=%s title=%s created_at=%s', getattr(t, 'id', None), (getattr(t, 'text', '') or '')[:120], (ca.isoformat() if isinstance(ca, datetime) else str(ca)))
             except Exception:
                 pass
-            _t = _pt('extract_meta_todos')
-            meta = extract_dates_meta(combined)
-            _pa('extract_meta_todos', _t)
+            # Cheap pre-regex gate: only run extract_dates_meta if text likely contains date tokens
+            def _likely_has_date_tokens(_s: str) -> bool:
+                try:
+                    import re as _re
+                    s = _s or ''
+                    # numeric date shapes like 12/9 or 12-9-2025
+                    if _re.search(r"\b\d{1,2}[./-]\d{1,2}(?:[./-]\d{2,4})?\b", s):
+                        return True
+                    # month names (short or long)
+                    if _re.search(r"\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\b", s, flags=_re.IGNORECASE):
+                        return True
+                    # weekday names
+                    if _re.search(r"\b(?:mon|tue|wed|thu|fri|sat|sun)(?:day|days)?\b", s, flags=_re.IGNORECASE):
+                        return True
+                    # ordinal day tokens (1st, 22nd)
+                    if _re.search(r"\b\d{1,2}(?:st|nd|rd|th)\b", s, flags=_re.IGNORECASE):
+                        return True
+                    # relative date phrases (in 2 days, next week)
+                    if _re.search(r"\b(?:in\s+\d+\s+(?:day|days|week|weeks|month|months|year|years)|next\s+(?:week|month|year|mon|tue|wed|thu|fri|sat|sun))\b", s, flags=_re.IGNORECASE):
+                        return True
+                    return False
+                except Exception:
+                    return True  # fail-open to avoid hiding dates on error
+
+            meta = []
+            if _likely_has_date_tokens(combined):
+                _t = _pt('extract_meta_todos')
+                meta = extract_dates_meta(combined)
+                _pa('extract_meta_todos', _t)
+            else:
+                try:
+                    _sse_debug('calendar_occurrences.todo.date_extract_skipped', {'todo_id': t.id, 'reason': 'regex_prefilter'})
+                except Exception:
+                    pass
             # collect explicit dates for this todo
             dates: list[datetime] = []
             try:
