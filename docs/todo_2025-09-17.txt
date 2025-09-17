@@ -33,4 +33,6 @@ Check if the server database fast_todo.db has yet got an owner_id column for cat
 No it doesn't have category.owner_id column. So we haven't yet tainted the good server deployment with the tained new code yet.
 Last untainted commit: f9a4b1944051bb08
 
+DARN IT. NOW THE CALEDNAR VIEW ISN'T ORDERED BY DATE.
 
+I'm going to reset back to f9a4b and discard the work on category.owner_id. I need to fix this calendar bug.

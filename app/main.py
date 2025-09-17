@@ -50,28 +50,6 @@ if not logger.handlers:
     logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
-# Category debug logger: writes to category_debug.log when enabled via env var CATEGORY_DEBUG
-try:
-    CATEGORY_DEBUG_ENABLED = str(os.getenv('CATEGORY_DEBUG', '0')).lower() in ('1', 'true', 'yes', 'on')
-except Exception:
-    CATEGORY_DEBUG_ENABLED = False
-category_logger = logging.getLogger('category_debug')
-if CATEGORY_DEBUG_ENABLED:
-    # attach a dedicated file handler if not already present
-    try:
-        if not any(isinstance(h, logging.FileHandler) and getattr(h, 'baseFilename', None) and h.baseFilename.endswith('category_debug.log') for h in category_logger.handlers):
-            ch = logging.FileHandler('category_debug.log')
-            ch.setFormatter(logging.Formatter('%(asctime)s %(levelname)s:%(name)s: %(message)s'))
-            category_logger.addHandler(ch)
-        category_logger.setLevel(logging.DEBUG)
-        category_logger.disabled = False
-        logger.info('category_debug: ENABLED -> writing to category_debug.log')
-    except Exception:
-        logger.exception('category_debug: failed to attach file handler')
-else:
-    # keep disabled by default to avoid noisy logs; can be enabled via env
-    category_logger.disabled = True
-
 # Dedicated CSRF logger to a separate file (toggle via env CSRF_LOG_ENABLED)
 csrf_logger = logging.getLogger('csrf')
 try:
@@ -1277,27 +1255,6 @@ except Exception:
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
-# Temporary debug endpoint: returns current_user info and raw cookies when
-# called with ?debug=1. Helps correlate what the server sees for a given
-# request during troubleshooting. Remove when no longer needed.
-@app.get('/debug/auth-dump')
-async def debug_auth_dump(request: Request, debug: Optional[int] = 0, current_user=Depends(get_current_user)):
-    if not debug:
-        return JSONResponse({'error': 'disabled'}, status_code=404)
-    # collect cookie names/values (mask long tokens)
-    try:
-        cookies = {k: (v[:8] + '...' if v and len(v) > 12 else v) for k, v in request.cookies.items()}
-    except Exception:
-        cookies = {}
-    user_info = None
-    try:
-        if current_user:
-            user_info = {'id': getattr(current_user, 'id', None), 'username': getattr(current_user, 'username', None)}
-    except Exception:
-        user_info = None
-    return JSONResponse({'cookies': cookies, 'user': user_info})
-
-
 # Startup instrumentation: write a marker to scripts/index_calendar.log when
 # assertion logging is enabled so we can detect the feature is active in logs.
 @app.on_event('startup')
@@ -1575,9 +1532,9 @@ async def html_tailwind_view_list(request: Request):
             if isinstance(val, str) and val and val not in all_hashtags:
                 all_hashtags.append(val)
 
-        # categories: only global or owned by current_user
+        # categories
         try:
-            qcat = select(Category).where((Category.owner_id == owner_id_val) | (Category.owner_id == None)).order_by(Category.position.asc())
+            qcat = select(Category).order_by(Category.position.asc())
             cres = await sess.exec(qcat)
             categories = [{'id': c.id, 'name': c.name, 'position': c.position} for c in cres.all()]
         except Exception:
@@ -6518,29 +6475,6 @@ async def html_index(request: Request):
         current_user = None
     # Redirect anonymous users to the login page for the HTML UI
     if not current_user:
-        # Diagnostic: record masked cookie and csrf state to category_debug log to help
-        # diagnose why the request wasn't authenticated. Avoid logging raw secrets;
-        # instead log hashes and lengths so we can correlate tokens without exfiltrating them.
-        try:
-            if not category_logger.disabled:
-                try:
-                    ck = {}
-                    import hashlib
-                    for k, v in request.cookies.items():
-                        try:
-                            ck[k] = {'len': len(v), 'hash': hashlib.sha256((v or '').encode('utf-8')).hexdigest()[:12]}
-                        except Exception:
-                            ck[k] = {'len': None, 'hash': None}
-                    # extract any csrf token info from raw Cookie header too
-                    cookie_header = request.headers.get('cookie')
-                    csrf_tokens = _extract_all_csrf_from_cookie_header(cookie_header)
-                    ua = request.headers.get('user-agent')
-                    category_logger.debug('INDEX_AUTH_FAIL: cookies=%s csrf_infos=%s ua=%s', repr(ck), repr(csrf_tokens), ua)
-                except Exception:
-                    category_logger.exception('INDEX_AUTH_FAIL: failed to compute cookie summary')
-        except Exception:
-            # swallow logging failures
-            pass
         return RedirectResponse(url='/html_no_js/login', status_code=303)
     # keyset pagination: 50 lists per page using (created_at DESC, id DESC)
     per_page = 50
@@ -7066,14 +7000,14 @@ async def html_index(request: Request):
                 # primary: presence of priority (priority items first), then priority value (asc), then newest created_at
                 return (0 if p is not None else 1, p or 0, -(r.get('created_at').timestamp() if r.get('created_at') else 0))
             rows.sort(key=_list_sort_key)
-    # fetch categories ordered by position (only global or owned by current user)
-    categories = []
-    try:
-        qcat = select(Category).where((Category.owner_id == owner_id) | (Category.owner_id == None)).order_by(Category.position.asc())
-        cres = await sess.exec(qcat)
-        categories = [{'id': c.id, 'name': c.name, 'position': c.position, 'sort_alphanumeric': getattr(c, 'sort_alphanumeric', False)} for c in cres.all()]
-    except Exception:
+        # fetch categories ordered by position
         categories = []
+        try:
+                qcat = select(Category).order_by(Category.position.asc())
+                cres = await sess.exec(qcat)
+                categories = [{'id': c.id, 'name': c.name, 'position': c.position, 'sort_alphanumeric': getattr(c, 'sort_alphanumeric', False)} for c in cres.all()]
+        except Exception:
+            categories = []
         # Also fetch pinned todos from lists visible to this user (owned or public)
         pinned_todos = []
         try:
@@ -7932,40 +7866,6 @@ async def html_index(request: Request):
         circ_map = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'}
         ctx = {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "high_priority_items": context_high_priority_items if 'context_high_priority_items' in locals() else [], "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "show_all_tags": show_all_tags, "circ": circ_map}
         try:
-            # Diagnostic logging: record categories and lists_by_category summary so we can
-            # debug blank-index issues without requiring a full server-side debug session.
-            try:
-                cat_count = len(categories) if isinstance(categories, (list, tuple)) else 0
-                cat_sample = categories[:5] if isinstance(categories, list) else []
-                logger.info('html_index: categories count=%d sample=%s', cat_count, repr(cat_sample))
-            except Exception:
-                logger.exception('html_index: failed to log categories')
-            try:
-                lbc_keys = list(lists_by_category.keys()) if isinstance(lists_by_category, dict) else []
-                # limit output size
-                logger.info('html_index: lists_by_category keys (sample up to 20)=%s', repr(lbc_keys[:20]))
-            except Exception:
-                logger.exception('html_index: failed to log lists_by_category keys')
-            # Additional verbose diagnostics to the dedicated category logger (toggle with env CATEGORY_DEBUG)
-            try:
-                if not category_logger.disabled:
-                    try:
-                        category_logger.debug('CATEGORIES_FULL: %s', repr(categories))
-                    except Exception:
-                        category_logger.exception('failed to dump categories')
-                    try:
-                        # Dump lists_by_category with counts and a small sample of list names to help trace mismatches
-                        lbc_summary = {k: [r.get('id') for r in v[:20]] for k, v in lists_by_category.items()} if isinstance(lists_by_category, dict) else {}
-                        category_logger.debug('LISTS_BY_CATEGORY_SUMMARY: %s', repr(lbc_summary))
-                    except Exception:
-                        category_logger.exception('failed to dump lists_by_category')
-            except Exception:
-                # guard against any logging failures
-                pass
-        except Exception:
-            # best-effort diagnostics; do not disrupt page render
-            pass
-        try:
             # non-fatal pre-render to log payload length for diagnostics
             try:
                 tpl = TEMPLATES.env.get_template("index.html")
@@ -7974,36 +7874,6 @@ async def html_index(request: Request):
                     logger.info('html_index: rendered template=%s length=%d', 'index.html', len(rendered))
                 except Exception:
                     logger.info('html_index: rendered template=%s length=?', 'index.html')
-                # Optional: dump rendered HTML to a file for external inspection when debugging
-                try:
-                    import os
-                    # 1) Env-controlled dump (existing behavior)
-                    if os.environ.get('DUMP_LAST_INDEX_RENDER'):
-                        dump_path = os.environ.get('DUMP_LAST_INDEX_RENDER_PATH') or '/tmp/fast_todo_last_index_render.html'
-                        try:
-                            with open(dump_path, 'w', encoding='utf-8') as f:
-                                f.write(rendered)
-                            logger.info('html_index: dumped rendered index to %s', dump_path)
-                        except Exception:
-                            logger.exception('html_index: failed to dump rendered index to file')
-                    # 2) Quick on-demand dump via query parameter (no restart needed):
-                    # If the incoming request includes ?dump=1, write a copy into the
-                    # repository workspace so it can be inspected by the assistant.
-                    try:
-                        if request and request.query_params.get('dump') == '1':
-                            ws_path = '/home/mbaily/other_git/fast_todo/debug_last_index_render.html'
-                            try:
-                                with open(ws_path, 'w', encoding='utf-8') as f:
-                                    f.write(rendered)
-                                logger.info('html_index: dumped rendered index to workspace %s', ws_path)
-                            except Exception:
-                                logger.exception('html_index: failed to dump rendered index to workspace file')
-                    except Exception:
-                        # don't let query-param handling break rendering
-                        pass
-                except Exception:
-                    # guard against any issues in optional dumping
-                    pass
             except Exception:
                 logger.exception('html_index: pre-render for logging failed')
         except Exception:
@@ -8028,7 +7898,6 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
             client_tz = await get_session_timezone(request)
         except Exception:
             client_tz = None
-        # When no user, return safe defaults mirroring html_index's anonymous branch
         return {
             "request": request,
             "lists": [],
@@ -8044,48 +7913,6 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
             "user_default_category_id": None,
             "current_user": None,
         }
-
-
-@app.get('/debug/dump_index_force', response_class=HTMLResponse)
-async def debug_dump_index_force(request: Request):
-    """Debug-only: force-render the index server-side and write to a file in the repo.
-
-    Optional query param `as_user=<username>` allows rendering as that user (must exist).
-    This endpoint is intended for local debugging only and should not be exposed in production.
-    """
-    from .models import User
-    # allow optional user impersonation for debugging
-    as_user = request.query_params.get('as_user')
-    user_obj = None
-    try:
-        if as_user:
-            async with async_session() as sess:
-                r = await sess.exec(select(User).where(User.username == as_user))
-                user_obj = r.first()
-    except Exception:
-        user_obj = None
-
-    # Prepare context by calling the shared context builder
-    ctx = await _prepare_index_context(request, user_obj)
-
-    # Render template to string
-    try:
-        tpl = TEMPLATES.env.get_template('index.html')
-        rendered = tpl.render(**ctx)
-    except Exception as e:
-        rendered = f'<pre>render failed: {e}</pre>'
-
-    # Write to workspace file so assistant can read it
-    try:
-        ws_path = os.path.join(os.path.dirname(__file__), '..', 'debug_last_index_render.html')
-        ws_path = os.path.abspath(ws_path)
-        with open(ws_path, 'w', encoding='utf-8') as f:
-            f.write(rendered)
-        logger.info('debug_dump_index_force: wrote debug render to %s', ws_path)
-    except Exception:
-        logger.exception('debug_dump_index_force: failed to write debug render')
-
-    return HTMLResponse(content=rendered)
 
     # Reuse the same per-page/cursor logic as html_index (simplified: one page)
     per_page = 50
@@ -8382,7 +8209,7 @@ async def debug_dump_index_force(request: Request):
 
         categories = []
         try:
-            qcat = select(Category).where((Category.owner_id == owner_id) | (Category.owner_id == None)).order_by(Category.position.asc())
+            qcat = select(Category).order_by(Category.position.asc())
             cres = await sess.exec(qcat)
             categories = [{'id': c.id, 'name': c.name, 'position': c.position, 'sort_alphanumeric': getattr(c, 'sort_alphanumeric', False)} for c in cres.all()]
         except Exception:
@@ -9086,9 +8913,6 @@ async def api_set_category_sort(request: Request, cat_id: int, payload: SetCateg
         cur = q.first()
         if not cur:
             raise HTTPException(status_code=404, detail='category not found')
-        # Only owner or admin may change category settings
-        if cur.owner_id is not None and cur.owner_id != current_user.id and not getattr(current_user, 'is_admin', False):
-            raise HTTPException(status_code=403, detail='forbidden')
         try:
             await sess.exec(sqlalchemy_update(Category).where(Category.id == cat_id).values(sort_alphanumeric=val))
             await sess.commit()
@@ -9105,8 +8929,6 @@ class MoveCatRequest(BaseModel):
 async def _normalize_category_positions(sess) -> list[Category]:
     """Ensure Category.position values are contiguous (0..N-1) and unique.
     Returns categories ordered by position after normalization."""
-    # Note: caller may already have constrained which categories to consider.
-    # Default: normalize all categories.
     cres = await sess.exec(select(Category).order_by(Category.position.asc(), Category.id.asc()))
     cats = cres.all()
     changed = False
@@ -9149,18 +8971,15 @@ async def api_move_category(request: Request, cat_id: int, payload: MoveCatReque
         raise HTTPException(status_code=400, detail='invalid direction')
 
     async with async_session() as sess:
-        # capture order before (only visible categories)
-        bres = await sess.exec(select(Category).where((Category.owner_id == current_user.id) | (Category.owner_id == None)).order_by(Category.position.asc(), Category.id.asc()))
+        # capture order before
+        bres = await sess.exec(select(Category).order_by(Category.position.asc(), Category.id.asc()))
         before = [{'id': c.id, 'name': c.name, 'position': c.position} for c in bres.all()]
         q = await sess.scalars(select(Category).where(Category.id == cat_id))
         cur = q.first()
         if not cur:
             raise HTTPException(status_code=404, detail='category not found')
-        # Only owner or admin may move category
-        if cur.owner_id is not None and cur.owner_id != current_user.id and not getattr(current_user, 'is_admin', False):
-            raise HTTPException(status_code=403, detail='forbidden')
         if direction == 'up':
-            qprev = await sess.exec(select(Category).where((Category.owner_id == current_user.id) | (Category.owner_id == None)).where(Category.position < cur.position).order_by(Category.position.desc()).limit(1))
+            qprev = await sess.exec(select(Category).where(Category.position < cur.position).order_by(Category.position.desc()).limit(1))
             prev = qprev.first()
             if prev:
                 cur_pos = cur.position
@@ -9170,7 +8989,7 @@ async def api_move_category(request: Request, cat_id: int, payload: MoveCatReque
                 await sess.exec(sqlalchemy_update(Category).where(Category.id == cur.id).values(position=prev_pos))
                 logger.info('api_move_category: swap executed for cat_id=%s', cur.id)
         else:
-            qnext = await sess.exec(select(Category).where((Category.owner_id == current_user.id) | (Category.owner_id == None)).where(Category.position > cur.position).order_by(Category.position.asc()).limit(1))
+            qnext = await sess.exec(select(Category).where(Category.position > cur.position).order_by(Category.position.asc()).limit(1))
             nxt = qnext.first()
             if nxt:
                 cur_pos = cur.position
@@ -9200,12 +9019,11 @@ async def create_category(request: Request, name: str = Form(...)):
     except HTTPException:
         return RedirectResponse(url='/html_no_js/login', status_code=303)
     async with async_session() as sess:
-        # determine max position among categories visible to this user (global + owned)
-        qmax = await sess.exec(select(Category).where((Category.owner_id == current_user.id) | (Category.owner_id == None)).order_by(Category.position.desc()).limit(1))
+        # determine max position and append
+        qmax = await sess.exec(select(Category).order_by(Category.position.desc()).limit(1))
         maxc = qmax.first()
         pos = (maxc.position + 1) if maxc else 0
-        # New categories are owned by the creating user
-        nc = Category(name=name.strip()[:200], position=pos, owner_id=current_user.id)
+        nc = Category(name=name.strip()[:200], position=pos)
         sess.add(nc)
         await sess.commit()
     accept = (request.headers.get('Accept') or '')
@@ -9222,13 +9040,6 @@ async def rename_category(request: Request, cat_id: int, name: str = Form(...)):
     except HTTPException:
         return RedirectResponse(url='/html_no_js/login', status_code=303)
     async with async_session() as sess:
-        q = await sess.scalars(select(Category).where(Category.id == cat_id))
-        cur = q.first()
-        if not cur:
-            return RedirectResponse(url='/html_no_js/categories', status_code=303)
-        # Only owner or admin may rename
-        if cur.owner_id is not None and cur.owner_id != current_user.id and not getattr(current_user, 'is_admin', False):
-            return RedirectResponse(url='/html_no_js/categories', status_code=303)
         await sess.exec(sqlalchemy_update(Category).where(Category.id == cat_id).values(name=name.strip()[:200]))
         await sess.commit()
     accept = (request.headers.get('Accept') or '')
@@ -9245,13 +9056,6 @@ async def delete_category(request: Request, cat_id: int):
     except HTTPException:
         return RedirectResponse(url='/html_no_js/login', status_code=303)
     async with async_session() as sess:
-        # ensure category exists and user allowed to delete
-        q = await sess.scalars(select(Category).where(Category.id == cat_id))
-        cur = q.first()
-        if not cur:
-            return RedirectResponse(url='/html_no_js/categories', status_code=303)
-        if cur.owner_id is not None and cur.owner_id != current_user.id and not getattr(current_user, 'is_admin', False):
-            return RedirectResponse(url='/html_no_js/categories', status_code=303)
         # remove category association from lists, then delete
         await sess.exec(sqlalchemy_update(ListState).where(ListState.category_id == cat_id).values(category_id=None))
         await sess.exec(sqlalchemy_delete(Category).where(Category.id == cat_id))
@@ -9275,12 +9079,9 @@ async def move_category(request: Request, cat_id: int, direction: str = Form(...
         cur = q.first()
         if not cur:
             return RedirectResponse(url='/html_no_js/categories', status_code=303)
-        # Only owner or admin may move category
-        if cur.owner_id is not None and cur.owner_id != current_user.id and not getattr(current_user, 'is_admin', False):
-            return RedirectResponse(url='/html_no_js/categories', status_code=303)
         if direction == 'up':
-            # find previous (lower position) item among visible categories
-            qprev = await sess.exec(select(Category).where((Category.owner_id == current_user.id) | (Category.owner_id == None)).where(Category.position < cur.position).order_by(Category.position.desc()).limit(1))
+            # find previous (lower position) item
+            qprev = await sess.exec(select(Category).where(Category.position < cur.position).order_by(Category.position.desc()).limit(1))
             prev = qprev.first()
             if prev:
                 cur_pos = cur.position
@@ -9290,7 +9091,7 @@ async def move_category(request: Request, cat_id: int, direction: str = Form(...
                 await sess.exec(sqlalchemy_update(Category).where(Category.id == cur.id).values(position=prev_pos))
                 logger.info('move_category: swap executed for cat_id=%s', cur.id)
         elif direction == 'down':
-            qnext = await sess.exec(select(Category).where((Category.owner_id == current_user.id) | (Category.owner_id == None)).where(Category.position > cur.position).order_by(Category.position.asc()).limit(1))
+            qnext = await sess.exec(select(Category).where(Category.position > cur.position).order_by(Category.position.asc()).limit(1))
             nxt = qnext.first()
             if nxt:
                 cur_pos = cur.position
@@ -10358,7 +10159,7 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
                 all_hashtags.append(val)
         # fetch categories for assignment UI (ordered by position)
         try:
-            qcat = select(Category).where((Category.owner_id == current_user.id) | (Category.owner_id == None)).order_by(Category.position.asc())
+            qcat = select(Category).order_by(Category.position.asc())
             cres = await sess.exec(qcat)
             categories = [{'id': c.id, 'name': c.name, 'position': c.position} for c in cres.all()]
         except Exception:

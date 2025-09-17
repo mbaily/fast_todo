@@ -82,10 +82,6 @@ class Category(SQLModel, table=True):
     position: int = Field(default=0, index=True)
     # When true, lists under this category should be sorted alphanumerically by name
     sort_alphanumeric: bool = Field(default=False, index=True)
-    # Optional owner: when set, this category is owned by a specific user and
-    # should only be visible to that user in user-scoped queries. NULL/None
-    # indicates a global category visible to everyone.
-    owner_id: Optional[int] = Field(default=None, foreign_key="user.id", index=True)
 
 
 
