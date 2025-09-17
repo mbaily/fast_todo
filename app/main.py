@@ -8028,7 +8028,22 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
             client_tz = await get_session_timezone(request)
         except Exception:
             client_tz = None
-    # end _prepare_index_context
+        # When no user, return safe defaults mirroring html_index's anonymous branch
+        return {
+            "request": request,
+            "lists": [],
+            "lists_by_category": {},
+            "csrf_token": None,
+            "client_tz": client_tz,
+            "pinned_todos": [],
+            "high_priority_todos": [],
+            "high_priority_lists": [],
+            "cursors": None,
+            "categories": [],
+            "calendar_occurrences": [],
+            "user_default_category_id": None,
+            "current_user": None,
+        }
 
 
 @app.get('/debug/dump_index_force', response_class=HTMLResponse)
@@ -8071,21 +8086,6 @@ async def debug_dump_index_force(request: Request):
         logger.exception('debug_dump_index_force: failed to write debug render')
 
     return HTMLResponse(content=rendered)
-        return {
-            "request": request,
-            "lists": [],
-            "lists_by_category": {},
-            "csrf_token": None,
-            "client_tz": client_tz,
-            "pinned_todos": [],
-            "high_priority_todos": [],
-            "high_priority_lists": [],
-            "cursors": None,
-            "categories": [],
-            "calendar_occurrences": [],
-            "user_default_category_id": None,
-            "current_user": None,
-        }
 
     # Reuse the same per-page/cursor logic as html_index (simplified: one page)
     per_page = 50
