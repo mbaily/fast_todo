@@ -89,17 +89,35 @@
       const showIgnored = getCookie('show_ignored') === '1';
       const res = await fetch(`/calendar/occurrences?start=${encodeURIComponent(startIso)}&end=${encodeURIComponent(end)}&include_ignored=${showIgnored ? '1' : '0'}`, { credentials: 'same-origin' });
       const data = await res.json();
+      // Ensure month view renders in chronological order regardless of server-side
+      // priority sorting. Sort by occurrence_dt ascending with stable tie-breakers.
+      const occs = (data && Array.isArray(data.occurrences) ? data.occurrences.slice() : []).sort(function(a, b){
+        try {
+          const ad = a && a.occurrence_dt ? new Date(a.occurrence_dt) : new Date(0);
+          const bd = b && b.occurrence_dt ? new Date(b.occurrence_dt) : new Date(0);
+          const dtCmp = ad - bd;
+          if (dtCmp !== 0) return dtCmp;
+          // tie-breaker: by title then by occ_hash for deterministic ordering
+          const at = (a && a.title) ? String(a.title) : '';
+          const bt = (b && b.title) ? String(b.title) : '';
+          const tCmp = at.localeCompare(bt, undefined, {sensitivity: 'base'});
+          if (tCmp !== 0) return tCmp;
+          const ah = (a && a.occ_hash) ? String(a.occ_hash) : '';
+          const bh = (b && b.occ_hash) ? String(b.occ_hash) : '';
+          return ah.localeCompare(bh);
+        } catch(e) { return 0; }
+      });
       const container = document.querySelector('.todos-list.full-bleed') || document.querySelector('p.meta');
       const parent = container && container.parentNode; if (!parent) return;
-        if (data && data.occurrences && data.occurrences.length > 0) {
+        if (occs && occs.length > 0) {
         // Build a list of occ_hashes for the fetched occurrences
-        const newHashes = data.occurrences.map(function(ev){ return ev && ev.occ_hash ? String(ev.occ_hash) : ''; });
+        const newHashes = occs.map(function(ev){ return ev && ev.occ_hash ? String(ev.occ_hash) : ''; });
         // Read current DOM occurrence order (if present) to avoid unnecessary reflows
         const existingHashes = Array.from((parent.querySelectorAll('.occ-complete')||[])).map(function(el){ return el.getAttribute('data-hash') || ''; });
         // If the order of occ_hashes is identical, avoid full replace; instead update checkbox states and ignored markers
   if (existingHashes.length === newHashes.length && existingHashes.every(function(h, i){ return h === newHashes[i]; })) {
           try {
-            data.occurrences.forEach(function(ev){
+            occs.forEach(function(ev){
               try {
                 const chk = parent.querySelector('.occ-complete[data-hash="' + ev.occ_hash + '"]');
                 if (chk) {
@@ -121,7 +139,7 @@
         const ul = document.createElement('ul'); ul.className = 'todos-list full-bleed';
         // read global in-flight map if present so we can preserve user actions
         const occInFlight = (window.__occInFlight || {});
-        for (const ev of data.occurrences) {
+        for (const ev of occs) {
           // if a change for this occ_hash is in-flight, prefer the current DOM
           // checkbox state (user action) instead of the server-provided value
           try {
