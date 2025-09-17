@@ -1308,6 +1308,50 @@ async def _index_calendar_startup_marker():
         # Be silent on failure; do not prevent startup
         logger.exception('failed to write index_calendar startup marker')
 
+# Lightweight runtime flags/status endpoint for quick production checks
+@app.get('/server/runtime_flags')
+async def runtime_flags():
+    import os as _os
+    try:
+        # Detect middleware presence by class name
+        mw_names = [getattr(m.cls, '__name__', '') for m in app.user_middleware]
+    except Exception:
+        mw_names = []
+
+    def _count_prof_files(dir_path: str) -> int:
+        try:
+            return len([f for f in _os.listdir(dir_path) if f.endswith('.prof') or f.endswith('.txt')])
+        except Exception:
+            return 0
+
+    profile_base = _os.getenv('PROFILE_DIR', 'profiles')
+    req_dir = _os.path.join(profile_base, 'requests')
+    glob_dir = _os.path.join(profile_base, 'global')
+    jinja_log = _os.path.join(_os.getcwd(), 'debug_logs', 'jinja_stats.txt')
+
+    payload = {
+        'env': {
+            'PROFILE_REQUESTS': _os.getenv('PROFILE_REQUESTS'),
+            'PROFILE_GLOBAL': _os.getenv('PROFILE_GLOBAL'),
+            'PROFILE_DIR': profile_base,
+            'JINJA_CACHE_STATS': _os.getenv('JINJA_CACHE_STATS'),
+        },
+        'profiling': {
+            'per_request_enabled': ('RequestProfilerMiddleware' in mw_names),
+            'global_dir': glob_dir,
+            'global_files': _count_prof_files(glob_dir),
+            'requests_dir': req_dir,
+            'requests_files': _count_prof_files(req_dir),
+        },
+        'jinja_stats': {
+            'enabled': ('JinjaCacheStatsMiddleware' in mw_names),
+            'log_file': jinja_log,
+            'exists': _os.path.exists(jinja_log),
+            'size': (_os.path.getsize(jinja_log) if _os.path.exists(jinja_log) else 0),
+        },
+    }
+    return JSONResponse(payload)
+
 # include JSON API router for web clients
 try:
     from .client_json_api import router as json_api_router
