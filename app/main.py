@@ -2766,6 +2766,30 @@ async def calendar_events(request: Request, start: Optional[str] = None, end: Op
     limit which dates are returned.
     """
     owner_id = current_user.id if current_user else None
+    # Optional profiling (env-gated via CALENDAR_PROFILE and CALENDAR_PROFILE_INCLUDE_RESPONSE)
+    import os as _os
+    import time as _time
+    _prof_enabled = _os.getenv('CALENDAR_PROFILE', '0').lower() in ('1', 'true', 'yes')
+    _prof_include_resp = _os.getenv('CALENDAR_PROFILE_INCLUDE_RESPONSE', '0').lower() in ('1', 'true', 'yes')
+    _prof = {'times': {}, 'counts': {}, 'notes': {}}
+    _t0_total = _time.perf_counter() if _prof_enabled else None
+    def _pt(key: str):
+        return _time.perf_counter() if _prof_enabled else None
+    def _pa(key: str, t0):
+        if not _prof_enabled or t0 is None:
+            return
+        try:
+            dt = _time.perf_counter() - t0
+            _prof['times'][key] = float(_prof['times'].get(key, 0.0)) + float(dt)
+        except Exception:
+            pass
+    def _pc(key: str, n: int = 1):
+        if not _prof_enabled:
+            return
+        try:
+            _prof['counts'][key] = int(_prof['counts'].get(key, 0)) + int(n)
+        except Exception:
+            pass
     logger.info('calendar_events called owner_id=%s start=%s end=%s', owner_id, start, end)
     start_dt = _parse_iso_to_utc(start)
     end_dt = _parse_iso_to_utc(end)
@@ -2894,6 +2918,30 @@ async def calendar_occurrences(request: Request,
     - max_total: safety cap on total occurrences returned.
     """
     owner_id = current_user.id if current_user else None
+    # Optional profiling (env-gated via CALENDAR_PROFILE and CALENDAR_PROFILE_INCLUDE_RESPONSE)
+    import os as _os
+    import time as _time
+    _prof_enabled = _os.getenv('CALENDAR_PROFILE', '0').lower() in ('1', 'true', 'yes')
+    _prof_include_resp = _os.getenv('CALENDAR_PROFILE_INCLUDE_RESPONSE', '0').lower() in ('1', 'true', 'yes')
+    _prof = {'times': {}, 'counts': {}, 'notes': {}}
+    _t0_total = _time.perf_counter() if _prof_enabled else None
+    def _pt(key: str):
+        return _time.perf_counter() if _prof_enabled else None
+    def _pa(key: str, t0):
+        if not _prof_enabled or t0 is None:
+            return
+        try:
+            dt = _time.perf_counter() - t0
+            _prof['times'][key] = float(_prof['times'].get(key, 0.0)) + float(dt)
+        except Exception:
+            pass
+    def _pc(key: str, n: int = 1):
+        if not _prof_enabled:
+            return
+        try:
+            _prof['counts'][key] = int(_prof['counts'].get(key, 0)) + int(n)
+        except Exception:
+            pass
     # parse or default window
     try:
         start_dt = _parse_iso_to_utc(start) if start else None
@@ -2974,10 +3022,13 @@ async def calendar_occurrences(request: Request,
     except Exception:
         # keep handler robust if environment inspection or imports fail
         logger.exception('error evaluating ENABLE_CALENDAR_BREAKPOINT')
+    t_fetch_lists = _pt('fetch_lists')
     async with async_session() as sess:
         # fetch lists for this owner
         qlists = await sess.exec(select(ListState).where(ListState.owner_id == owner_id).where(ListState.parent_todo_id == None).where(ListState.parent_list_id == None))
         lists = qlists.all()
+        _pa('fetch_lists', t_fetch_lists)
+        _pc('lists_count', len(lists) if lists else 0)
         _sse_debug('calendar_occurrences.lists_fetched', {'count': len(lists) if lists else 0})
         if lists:
             list_ids = [l.id for l in lists if l.id is not None]
@@ -2986,10 +3037,14 @@ async def calendar_occurrences(request: Request,
 
         todos = []
         if list_ids:
+            t_fetch_todos = _pt('fetch_todos')
             qtodos = await sess.exec(select(Todo).where(Todo.list_id.in_(list_ids)).where(Todo.calendar_ignored == False))
             todos = qtodos.all()
+            _pa('fetch_todos', t_fetch_todos)
         _sse_debug('calendar_occurrences.todos_fetched', {'count': len(todos)})
+        _pc('todos_count', len(todos))
         # Build helper maps for todos and lists and compute per-list override priorities
+        t_build_maps = _pt('build_maps')
         todo_map: dict[int, object] = {}
         try:
             for t in todos:
@@ -3043,6 +3098,7 @@ async def calendar_occurrences(request: Request,
                 logger.debug('calendar_occurrences.fetched_todos %s', _dbg_rows)
         except Exception:
             pass
+        _pa('build_maps', t_build_maps)
 
         def add_occ(item_type: str, item_id: int, list_id: int | None, title: str, occ_dt, dtstart, is_rec, rrule_str, rec_meta, source: str | None = None):
             nonlocal occurrences, truncated, counts_by_source_pre, agg_pre
@@ -3138,6 +3194,7 @@ async def calendar_occurrences(request: Request,
 
         # scan lists
         from dateutil.rrule import rrulestr
+        t_scan_lists = _pt('scan_lists')
         for l in lists:
             if truncated:
                 break
@@ -3159,7 +3216,9 @@ async def calendar_occurrences(request: Request,
                     if rec_dtstart and rec_dtstart.tzinfo is None:
                         rec_dtstart = rec_dtstart.replace(tzinfo=timezone.utc)
                     r = rrulestr(rec_rrule, dtstart=rec_dtstart)
+                    _t = _pt('list_rrule_between')
                     occs = list(r.between(start_dt, end_dt, inc=True))[:max_per_item]
+                    _pa('list_rrule_between', _t)
                     # signal when per-item limit reached
                     try:
                         if len(occs) >= max_per_item:
@@ -3181,7 +3240,9 @@ async def calendar_occurrences(request: Request,
 
             # fallback: extract explicit dates from text. Use meta extractor so
             # yearless matches can be expanded against the window.
+            _t = _pt('extract_meta_lists')
             meta = extract_dates_meta(combined)
+            _pa('extract_meta_lists', _t)
             # expand year-explicit matches directly
             for m in meta:
                 if m.get('year_explicit'):
@@ -3236,7 +3297,11 @@ async def calendar_occurrences(request: Request,
                             if truncated:
                                 break
 
+        # close profiling timer for scanning lists
+        _pa('scan_lists', t_scan_lists)
+
         # scan todos
+        t_scan_todos = _pt('scan_todos')
         for t in todos:
             if truncated:
                 break
@@ -3263,7 +3328,9 @@ async def calendar_occurrences(request: Request,
                     if rec_dtstart and rec_dtstart.tzinfo is None:
                         rec_dtstart = rec_dtstart.replace(tzinfo=timezone.utc)
                     r = rrulestr(rec_rrule, dtstart=rec_dtstart)
+                    _t = _pt('todo_rrule_between')
                     occs = list(r.between(start_dt, end_dt, inc=True))[:max_per_item]
+                    _pa('todo_rrule_between', _t)
                     for od in occs:
                         add_occ('todo', t.id, t.list_id, t.text, od, rec_dtstart, True, rec_rrule, getattr(t, 'recurrence_meta', None), source='todo-rrule')
                         if truncated:
@@ -3274,34 +3341,66 @@ async def calendar_occurrences(request: Request,
             # If no persisted recurrence, attempt to parse an inline recurrence phrase
             # If recurring detection is disabled, skip inline recurrence parsing
             if expand and not rec_rrule and recurring_enabled:
-                try:
-                    # parse_text_to_rrule returns (rrule_obj, dtstart)
-                    from .utils import parse_text_to_rrule, parse_text_to_rrule_string
-                    r_obj, dtstart = parse_text_to_rrule(combined)
-                    if r_obj is not None and dtstart is not None:
-                        try:
-                            _sse_debug('calendar_occurrences.branch_choice', {'todo_id': t.id, 'chosen_branch': 'todo-inline-rrule'})
-                        except Exception:
-                            pass
-                        if dtstart.tzinfo is None:
-                            dtstart = dtstart.replace(tzinfo=timezone.utc)
-                        # build rrule string for reporting
-                        _dt, rrule_str_local = parse_text_to_rrule_string(combined)
-                        occs = list(r_obj.between(start_dt, end_dt, inc=True))[:max_per_item]
-                        try:
-                            if len(occs) >= max_per_item:
-                                _sse_debug('calendar_occurrences.per_item_limit', {'when': 'todo-inline-rrule', 'todo_id': t.id, 'limit': max_per_item})
-                        except Exception:
-                            pass
-                        for od in occs:
-                            add_occ('todo', t.id, t.list_id, t.text, od, dtstart, True, rrule_str_local, None, source='todo-inline-rrule')
-                            if truncated:
-                                break
-                        continue
-                except Exception as e:
-                    logger.exception('inline recurrence expansion failed')
+                # Cheap keyword prefilter to avoid running the expensive inline recurrence parser
+                # on todos that clearly don't contain recurrence language.
+                def _likely_inline_rrule_text(_s: str) -> bool:
                     try:
-                        _sse_debug('calendar_occurrences.inline_rrule_parse_failed', {'todo_id': t.id, 'error': str(e)})
+                        s = (_s or '').lower()
+                        # Expanded but still conservative keyword set for recurrence phrases.
+                        keywords = [
+                            # high-signal general terms
+                            'every ', 'each ', 'daily', 'weekly', 'monthly', 'yearly', 'annually',
+                            'biweekly', 'bi-weekly', 'fortnight', 'fortnightly', 'bimonthly', 'bi-monthly',
+                            'repeat', 'repeats', 'repeating', 'rrule', 'until ', 'byweekday', 'byday',
+                            'weekdays', 'weekend', 'every other', 'every 2', 'every two', 'every second',
+                            # weekday names (with preceding space to reduce false positives inside words)
+                            ' on monday', ' on tuesday', ' on wednesday', ' on thursday', ' on friday', ' on saturday', ' on sunday',
+                            ' mondays', ' tuesdays', ' wednesdays', ' thursdays', ' fridays', ' saturdays', ' sundays',
+                            # frequency units commonly used in natural language
+                            ' per day', ' per week', ' per month', ' per year'
+                        ]
+                        return any(k in s for k in keywords)
+                    except Exception:
+                        return False
+                if _likely_inline_rrule_text(combined):
+                    try:
+                        # parse_text_to_rrule returns (rrule_obj, dtstart)
+                        from .utils import parse_text_to_rrule, parse_text_to_rrule_string
+                        _t = _pt('todo_inline_parse')
+                        r_obj, dtstart = parse_text_to_rrule(combined)
+                        _pa('todo_inline_parse', _t)
+                        if r_obj is not None and dtstart is not None:
+                            try:
+                                _sse_debug('calendar_occurrences.branch_choice', {'todo_id': t.id, 'chosen_branch': 'todo-inline-rrule'})
+                            except Exception:
+                                pass
+                            if dtstart.tzinfo is None:
+                                dtstart = dtstart.replace(tzinfo=timezone.utc)
+                            # build rrule string for reporting
+                            _dt, rrule_str_local = parse_text_to_rrule_string(combined)
+                            _t = _pt('todo_inline_between')
+                            occs = list(r_obj.between(start_dt, end_dt, inc=True))[:max_per_item]
+                            _pa('todo_inline_between', _t)
+                            try:
+                                if len(occs) >= max_per_item:
+                                    _sse_debug('calendar_occurrences.per_item_limit', {'when': 'todo-inline-rrule', 'todo_id': t.id, 'limit': max_per_item})
+                            except Exception:
+                                pass
+                            for od in occs:
+                                add_occ('todo', t.id, t.list_id, t.text, od, dtstart, True, rrule_str_local, None, source='todo-inline-rrule')
+                                if truncated:
+                                    break
+                            continue
+                    except Exception as e:
+                        logger.exception('inline recurrence expansion failed')
+                        try:
+                            _sse_debug('calendar_occurrences.inline_rrule_parse_failed', {'todo_id': t.id, 'error': str(e)})
+                        except Exception:
+                            pass
+                else:
+                    # Emit a debug signal to indicate we skipped inline parse due to prefilter
+                    try:
+                        _sse_debug('calendar_occurrences.inline_rrule_skipped', {'todo_id': t.id, 'reason': 'keyword_prefilter'})
                     except Exception:
                         pass
 
@@ -3328,7 +3427,9 @@ async def calendar_occurrences(request: Request,
                     logger.info('DEBUG_WINDOWEVENT_MARKER todo_id=%s title=%s created_at=%s', getattr(t, 'id', None), (getattr(t, 'text', '') or '')[:120], (ca.isoformat() if isinstance(ca, datetime) else str(ca)))
             except Exception:
                 pass
+            _t = _pt('extract_meta_todos')
             meta = extract_dates_meta(combined)
+            _pa('extract_meta_todos', _t)
             # collect explicit dates for this todo
             dates: list[datetime] = []
             try:
@@ -3567,10 +3668,14 @@ async def calendar_occurrences(request: Request,
                                 add_occ('todo', t.id, t.list_id, t.text, cand, None, False, '', None, source='todo-yearless-fallback')
                                 break
 
+        # close profiling timer for scanning todos
+        _pa('scan_todos', t_scan_todos)
+
     # Compute effective priority per occurrence and sort:
     # Primary = max(normal priority, override_priority) where missing is lowest.
     # Secondary = occurrence datetime (ascending).
     try:
+        t_sort = _pt('sort')
         # build maps for quick lookup
         list_map = {l.id: l for l in lists} if lists else {}
         def _parse_dt_str(s):
@@ -3634,9 +3739,11 @@ async def calendar_occurrences(request: Request,
         _sse_debug('calendar_occurrences.summary', {'count': len(occurrences), 'items': [{'id': o.get('id'), 'title': o.get('title'), 'occurrence_dt': o.get('occurrence_dt')} for o in occurrences]})
     except Exception:
         pass
+    _pa('sort', t_sort)
     logger.info('calendar_occurrences computed %d occurrences before user filters (truncated=%s)', len(occurrences), truncated)
 
     # filter out occurrences ignored by the current user and mark completed
+    t_filter = _pt('filter')
     try:
         from .models import CompletedOccurrence, IgnoredScope
         # fetch user's completed occ_hashes and active ignore scope_hashes
@@ -3730,6 +3837,22 @@ async def calendar_occurrences(request: Request,
     except Exception:
         # if any DB error, don't block returning occurrences
         logger.exception('failed to fetch completed/ignored sets for user')
+    _pa('filter', t_filter)
+    if _prof_enabled and _t0_total is not None:
+        try:
+            _prof['times']['total'] = float(_time.perf_counter() - _t0_total)
+            _prof['counts']['occurrences_pre'] = int(sum(agg_pre.values())) if 'agg_pre' in locals() else int(len(occurrences))
+            _prof['counts']['occurrences_post'] = int(len(occurrences))
+            # Compact ms summary for logs
+            def _ms(v):
+                try:
+                    return int(float(v) * 1000)
+                except Exception:
+                    return None
+            summary = {k: _ms(v) for k, v in _prof['times'].items()}
+            logger.info('calendar_profile owner=%s ms=%s counts=%s', owner_id, summary, _prof.get('counts'))
+        except Exception:
+            pass
 
     # Post-filter metrics: recompute source counts on the filtered set to report visible ratios
     counts_by_source_post: dict[str, int] = {}
@@ -3768,7 +3891,17 @@ async def calendar_occurrences(request: Request,
         logger.info('calendar_occurrences.metrics pre=%s post=%s total_pre=%s total_post=%s', agg_pre, agg_post, sum(agg_pre.values()), sum(agg_post.values()))
     except Exception:
         pass
-    return {'occurrences': occurrences, 'truncated': truncated, 'metrics': metrics}
+    resp_obj = {'occurrences': occurrences, 'truncated': truncated, 'metrics': metrics}
+    if _prof_enabled and _prof_include_resp:
+        try:
+            resp_profile = {
+                'times_ms': {k: int(v * 1000) for k, v in (_prof.get('times') or {}).items()},
+                'counts': _prof.get('counts') or {},
+            }
+            resp_obj['profile'] = resp_profile
+        except Exception:
+            pass
+    return resp_obj
 
 
 
