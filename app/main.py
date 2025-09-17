@@ -271,6 +271,9 @@ _sse_queues: list[Queue] = []
 # contextvar to annotate whether current execution is handling an HTTP request
 # value will be a short string like 'http_request:/path' or None for background tasks
 _sse_origin: ContextVar[str | None] = ContextVar('_sse_origin', default=None)
+# Whether SSE debug emissions are permitted in current context. Set per HTTP request
+# by middleware based on client origin (localhost only by default) and env overrides.
+_sse_allowed: ContextVar[bool] = ContextVar('_sse_allowed', default=False)
 # Per-request cache for fn:link label resolution to avoid DB lookups during template render
 _fn_link_label_cache: ContextVar[dict | None] = ContextVar('_fn_link_label_cache', default=None)
 
@@ -961,6 +964,22 @@ def _sse_debug(event: str, payload: dict):
             origin = _sse_origin.get()
         except Exception:
             origin = None
+        # Determine if emission is allowed for this context.
+        # - By default, only local HTTP requests are allowed (middleware sets _sse_allowed).
+        # - Background tasks (no origin) are blocked unless SSE_DEBUG_ALLOW_BACKGROUND=1.
+        # - Non-local HTTP requests can be allowed via SSE_DEBUG_ALLOW_NONLOCAL=1.
+        try:
+            allowed_ctx = _sse_allowed.get()
+        except Exception:
+            allowed_ctx = False
+        try:
+            allow_background = os.getenv('SSE_DEBUG_ALLOW_BACKGROUND', '0').lower() in ('1', 'true', 'yes')
+        except Exception:
+            allow_background = False
+        # If origin is None, treat as background context
+        is_background = origin is None
+        if (is_background and not allow_background) or (not is_background and not allowed_ctx):
+            return
         debug_payload = {'event': event, 'payload': payload}
         if origin:
             # don't mutate original payload; annotate separately
@@ -1687,9 +1706,20 @@ async def html_tailwind_login(request: Request):
 @app.middleware('http')
 async def _sse_origin_middleware(request: Request, call_next):
     token = None
+    token_allowed = None
     try:
         # set the contextvar to a concise string we can surface in SSE
         token = _sse_origin.set(f'http_request:{request.url.path}')
+        # set allow flag: permit local requests by default; allow non-local via env override
+        try:
+            allow_nonlocal = os.getenv('SSE_DEBUG_ALLOW_NONLOCAL', '0').lower() in ('1', 'true', 'yes')
+        except Exception:
+            allow_nonlocal = False
+        try:
+            is_local = _is_local_request(request)
+        except Exception:
+            is_local = False
+        token_allowed = _sse_allowed.set(bool(is_local or allow_nonlocal))
     except Exception:
         token = None
     try:
@@ -1699,6 +1729,8 @@ async def _sse_origin_middleware(request: Request, call_next):
         try:
             if token is not None:
                 _sse_origin.reset(token)
+            if token_allowed is not None:
+                _sse_allowed.reset(token_allowed)
         except Exception:
             pass
 
@@ -2983,7 +3015,14 @@ async def calendar_occurrences(request: Request,
         except Exception:
             list_override_map = {}
         try:
-            logger.info('calendar_occurrences.fetched_todos %s', [(getattr(tt,'id',None), (getattr(tt,'text',None) or '')[:40], (getattr(tt,'created_at',None).isoformat() if getattr(tt,'created_at',None) and getattr(tt,'created_at',None).tzinfo else str(getattr(tt,'created_at',None)))) for tt in todos])
+            # Avoid constructing large log payloads unless DEBUG is enabled
+            if logger.isEnabledFor(logging.DEBUG):
+                _dbg_rows = [
+                    (getattr(tt, 'id', None), (getattr(tt, 'text', None) or '')[:40],
+                     (getattr(tt, 'created_at', None).isoformat() if getattr(tt, 'created_at', None) and getattr(tt, 'created_at', None).tzinfo else str(getattr(tt, 'created_at', None))))
+                    for tt in todos
+                ]
+                logger.debug('calendar_occurrences.fetched_todos %s', _dbg_rows)
         except Exception:
             pass
 
@@ -3008,6 +3047,14 @@ async def calendar_occurrences(request: Request,
             # compute occurrence hash for client/server idempotency
             from .utils import occurrence_hash
             occ_hash = occurrence_hash(item_type, item_id, occ_dt, rrule_str or '', title)
+            # precompute a numeric timestamp to avoid repeated ISO parsing during sort
+            try:
+                _od = occ_dt
+                if hasattr(_od, 'tzinfo') and _od.tzinfo is None:
+                    _od = _od.replace(tzinfo=timezone.utc)
+                _occ_ts = int(_od.timestamp())
+            except Exception:
+                _occ_ts = 0
             occurrences.append({
                 'occurrence_dt': occ_dt.isoformat(),
                 # date-only string for UI (YYYY-MM-DD)
@@ -3021,6 +3068,7 @@ async def calendar_occurrences(request: Request,
                 'rrule': rrule_str or '',
                 'recurrence_meta': rec_meta,
                 'occ_hash': occ_hash,
+                'occ_ts': _occ_ts,
                 # effective priority: for todos use todo.priority, for lists use max(list.priority, highest uncompleted todo priority in that list)
                 'effective_priority': None,
             })
@@ -3061,13 +3109,11 @@ async def calendar_occurrences(request: Request,
         # scan lists
         from dateutil.rrule import rrulestr
         for l in lists:
+            if truncated:
+                break
             texts = [l.name or '']
-            try:
-                tags = getattr(l, 'hashtags', None)
-                if tags:
-                    texts.append(' '.join([getattr(t, 'tag', '') for t in tags]))
-            except Exception:
-                pass
+            # Low-risk perf: avoid lazy-loading hashtags per list to prevent N+1 queries.
+            # If date extraction from tags is desired in the future, prefetch them in a single query.
             combined = ' \n '.join(texts)
             # prefer persisted recurrence expansion if available
             rec_rrule = getattr(l, 'recurrence_rrule', None)
@@ -3092,6 +3138,8 @@ async def calendar_occurrences(request: Request,
                         pass
                     for od in occs:
                         add_occ('list', l.id, None, l.name, od, rec_dtstart, True, rec_rrule, getattr(l, 'recurrence_meta', None), source='list-rrule')
+                        if truncated:
+                            break
                     continue
                 except Exception as e:
                     try:
@@ -3133,6 +3181,8 @@ async def calendar_occurrences(request: Request,
                 else:
                     ys = range(allowed_start.year, allowed_end.year + 1)
                 for m in yearless:
+                    if truncated:
+                        break
                     mon = int(m.get('month'))
                     day = int(m.get('day'))
                     for y in ys:
@@ -3153,22 +3203,27 @@ async def calendar_occurrences(request: Request,
                             pass
                         if (cand >= allowed_start and cand <= allowed_end) or (same_calendar_date_as_created and cand >= start_dt and cand <= allowed_end):
                             add_occ('list', l.id, None, l.name, cand, None, False, '', None, source='list-yearless')
+                            if truncated:
+                                break
 
         # scan todos
         for t in todos:
+            if truncated:
+                break
             # Refresh the todo from the current session to pick up any recent
             # commits (tests may update created_at shortly before calling this
             # handler). This avoids using a stale object from a different session
             # snapshot.
-            try:
-                refreshed = await sess.get(Todo, getattr(t, 'id', None))
-                if refreshed:
-                    t = refreshed
-            except Exception:
-                pass
+            # Low-risk perf: skip per-todo refresh to avoid N+1 queries; rely on
+            # the initial batch load. If specific fields require freshness,
+            # consider a single batched refresh earlier.
             texts = [t.text or '']
             if getattr(t, 'note', None):
-                texts.append(t.note)
+                # Cap note length for parsing to avoid excessive CPU on large notes
+                try:
+                    texts.append((t.note or '')[:8192])
+                except Exception:
+                    texts.append(t.note)
             combined = ' \n '.join(texts)
             # prefer persisted recurrence expansion if available
             rec_rrule = getattr(t, 'recurrence_rrule', None)
@@ -3181,6 +3236,8 @@ async def calendar_occurrences(request: Request,
                     occs = list(r.between(start_dt, end_dt, inc=True))[:max_per_item]
                     for od in occs:
                         add_occ('todo', t.id, t.list_id, t.text, od, rec_dtstart, True, rec_rrule, getattr(t, 'recurrence_meta', None), source='todo-rrule')
+                        if truncated:
+                            break
                     continue
                 except Exception:
                     pass
@@ -3208,6 +3265,8 @@ async def calendar_occurrences(request: Request,
                             pass
                         for od in occs:
                             add_occ('todo', t.id, t.list_id, t.text, od, dtstart, True, rrule_str_local, None, source='todo-inline-rrule')
+                            if truncated:
+                                break
                         continue
                 except Exception as e:
                     logger.exception('inline recurrence expansion failed')
@@ -3269,6 +3328,8 @@ async def calendar_occurrences(request: Request,
             # expand year-explicit matches directly
             explicit = [m for m in meta if m.get('year_explicit')]
             for m in explicit:
+                if truncated:
+                    break
                 d = m.get('dt')
                 if d >= start_dt and d <= end_dt:
                     try:
@@ -3299,6 +3360,8 @@ async def calendar_occurrences(request: Request,
                         except Exception:
                             pass
                         add_occ('todo', t.id, t.list_id, t.text, du, None, False, '', None, source='todo-deferred')
+                        if truncated:
+                            pass
                 except Exception:
                     pass
             # handle yearless matches: prefer the todo's creation time so that a
@@ -3323,6 +3386,8 @@ async def calendar_occurrences(request: Request,
                 # full requested window and add every candidate inside the window.
                 if len(yearless) > 1:
                     for m in yearless:
+                        if truncated:
+                            break
                         mon = int(m.get('month'))
                         day = int(m.get('day'))
                         _sse_debug('calendar_occurrences.todo.yearless_match', {'todo_id': t.id, 'match_text': m.get('match_text'), 'month': mon, 'day': day, 'ref_dt': ref_dt.isoformat() if isinstance(ref_dt, datetime) else str(ref_dt)})
@@ -3359,6 +3424,8 @@ async def calendar_occurrences(request: Request,
                                 except Exception:
                                     pass
                                 add_occ('todo', t.id, t.list_id, t.text, cand, None, False, '', None, source='todo-yearless')
+                                if truncated:
+                                    break
                                 try:
                                     if getattr(t, 'text', None) and 'WindowEvent' in getattr(t, 'text'):
                                         logger.info('DEBUG_WINDOWEVENT_CANDIDATE todo_id=%s candidate=%s source=%s ref_dt=%s created_at=%s', getattr(t, 'id', None), cand.isoformat(), 'todo-yearless-multi', (ref_dt.isoformat() if isinstance(ref_dt, datetime) else str(ref_dt)), (getattr(t, 'created_at').isoformat() if getattr(t, 'created_at', None) else None))
@@ -3434,6 +3501,8 @@ async def calendar_occurrences(request: Request,
                                     except Exception:
                                         pass
                                     add_occ('todo', t.id, t.list_id, t.text, earliest_cand, None, False, '', None, source='todo-yearless-earliest')
+                                    if truncated:
+                                        pass
                                     try:
                                         _sse_debug('calendar_occurrences.todo.added', {'todo_id': t.id, 'occurrence': earliest_cand.isoformat()})
                                     except Exception:
@@ -3518,11 +3587,14 @@ async def calendar_occurrences(request: Request,
             except Exception:
                 o['effective_priority'] = None
 
-        # sort by (-priority, occurrence_dt) so higher priorities come first and earlier occurrences first on ties
-        occurrences.sort(key=lambda x: (-(int(x.get('effective_priority')) if x.get('effective_priority') is not None else -9999), _parse_dt_str(x.get('occurrence_dt'))))
+        # sort by (-priority, occurrence_ts) so higher priorities come first and earlier occurrences first on ties
+        occurrences.sort(key=lambda x: (-(int(x.get('effective_priority')) if x.get('effective_priority') is not None else -9999), int(x.get('occ_ts') or 0)))
     except Exception:
-        # fallback: sort by datetime ascending
-        occurrences.sort(key=lambda x: x.get('occurrence_dt'))
+        # fallback: sort by timestamp ascending if present, else occurrence_dt
+        try:
+            occurrences.sort(key=lambda x: int(x.get('occ_ts') or 0))
+        except Exception:
+            occurrences.sort(key=lambda x: x.get('occurrence_dt'))
     # Emit a compact SSE summary so tools can observe which occurrences were computed
     try:
         _sse_debug('calendar_occurrences.summary', {'count': len(occurrences), 'items': [{'id': o.get('id'), 'title': o.get('title'), 'occurrence_dt': o.get('occurrence_dt')} for o in occurrences]})
