@@ -7503,8 +7503,17 @@ async def html_index(request: Request):
         high_priority_lists = []
         try:
             if vis_ids:
+                # Determine the current user's Trash list id (if any) so we can exclude it from high-priority
+                trash_id = None
+                try:
+                    trq = await sess.scalars(select(ListState.id).where(ListState.owner_id == current_user.id).where(ListState.name == 'Trash'))
+                    trash_id = trq.first()
+                except Exception:
+                    trash_id = None
                 # Todos with priority >=7 in visible lists, newest modified first
                 qhp = select(Todo).where(Todo.list_id.in_(vis_ids)).where(Todo.priority >= 7).order_by(Todo.modified_at.desc())
+                if trash_id is not None:
+                    qhp = qhp.where(Todo.list_id != trash_id)
                 hpres = await sess.exec(qhp)
                 hp_rows = hpres.all()
                 lm = {l.id: l.name for l in vis_lists}
@@ -7521,8 +7530,8 @@ async def html_index(request: Request):
                     }
                     for t in hp_rows
                 ]
-                # Lists whose priority or override_priority is >=7
-                hpl = [r for r in list_rows if ((r.get('override_priority') is not None and r.get('override_priority') >= 7) or (r.get('priority') is not None and r.get('priority') >= 7))]
+                # Lists whose priority or override_priority is >=7 (exclude Trash list if present)
+                hpl = [r for r in list_rows if ((r.get('override_priority') is not None and r.get('override_priority') >= 7) or (r.get('priority') is not None and r.get('priority') >= 7)) and (trash_id is None or r.get('id') != trash_id)]
                 high_priority_lists = hpl
                 # Merge todos and lists into a single sorted list by effective priority.
                 # Effective priority is override_priority when present, otherwise priority.
