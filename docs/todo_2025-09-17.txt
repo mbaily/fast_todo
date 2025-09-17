@@ -28,8 +28,9 @@ last good working server commit:
 GPT changed the db to try to get category.owner_id working but the page loaded as blank (index). I was left without a working app but the server is still fine on that commit f9a
 
 
+2025-19-17 1:30PM
 Check if the server database fast_todo.db has yet got an owner_id column for category table. It shouldn't have yet.
-2025-19-17 1:40PM - No it doesn't have category.owner_id column. So we haven't yet tainted the good server deployment with the tained new code yet.
+No it doesn't have category.owner_id column. So we haven't yet tainted the good server deployment with the tained new code yet.
 Last untainted commit: f9a4b1944051bb08
 
 
