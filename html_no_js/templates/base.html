@@ -31,6 +31,9 @@
   header { margin-bottom: var(--page-top-gap); }
   a { color: var(--accent); }
   a.button { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  /* Do not underline small action icon anchors (e.g., target icons) */
+  a.list-action-btn, a.btn { text-decoration: none; }
+  a.list-action-btn:hover, a.list-action-btn:focus, a.btn:hover, a.btn:focus { text-decoration: none; }
   /* form controls */
   input, textarea, select, button { background: transparent; color: var(--text); border: 1px solid var(--border); }
   input::placeholder { color: rgba(230,238,243,0.5); }
