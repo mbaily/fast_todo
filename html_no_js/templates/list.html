@@ -653,11 +653,55 @@
           // pin cell (first column)
           var tdPin = document.createElement('td'); tdPin.className = 'action';
           try {
-            tdPin.innerHTML = '<form method="post" action="/html_no_js/todos/' + todo.id + '/pin">' +
-                              (csrfToken ? '<input type="hidden" name="_csrf" value="' + escapeHtml(csrfToken) + '">' : '') +
-                              '<input type="hidden" name="pinned" value="' + (todo.pinned ? 'false' : 'true') + '">' +
-                              '<button type="submit" aria-label="Pin" title="Pin" class="pin-button ' + (todo.pinned ? 'pinned' : '') + '">' + (todo.pinned ? '📌' : '📍') + '</button>' +
-                              '</form>';
+            var pinBtn = document.createElement('button');
+            pinBtn.type = 'button';
+            pinBtn.className = 'pin-button ' + (todo.pinned ? 'pinned' : '');
+            pinBtn.setAttribute('aria-label', 'Pin');
+            pinBtn.title = 'Pin';
+            pinBtn.setAttribute('data-todo-id', todo.id);
+            pinBtn.setAttribute('data-current-pinned', todo.pinned ? 'true' : 'false');
+            pinBtn.textContent = todo.pinned ? '📌' : '📍';
+            pinBtn.addEventListener('click', function() {
+              var btn = this;
+              var todoId = btn.getAttribute('data-todo-id');
+              var currentlyPinned = btn.getAttribute('data-current-pinned') === 'true';
+              var newPinned = !currentlyPinned;
+              
+              // Update UI immediately for responsiveness
+              btn.classList.toggle('pinned', newPinned);
+              btn.textContent = newPinned ? '📌' : '📍';
+              btn.setAttribute('data-current-pinned', newPinned ? 'true' : 'false');
+              
+              // Send request to server
+              var fd = new FormData();
+              fd.append('pinned', newPinned ? 'true' : 'false');
+              var csrfInput = document.querySelector('input[name="_csrf"]');
+              if (csrfInput && csrfInput.value) fd.append('_csrf', csrfInput.value);
+              
+              fetch('/html_no_js/todos/' + encodeURIComponent(todoId) + '/pin', {
+                method: 'POST',
+                body: fd,
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json' }
+              })
+              .then(function(res) {
+                if (!res.ok) {
+                  // Revert UI on error
+                  btn.classList.toggle('pinned', currentlyPinned);
+                  btn.textContent = currentlyPinned ? '📌' : '📍';
+                  btn.setAttribute('data-current-pinned', currentlyPinned ? 'true' : 'false');
+                  console.error('Pin update failed');
+                }
+              })
+              .catch(function(err) {
+                // Revert UI on error
+                btn.classList.toggle('pinned', currentlyPinned);
+                btn.textContent = currentlyPinned ? '📌' : '📍';
+                btn.setAttribute('data-current-pinned', currentlyPinned ? 'true' : 'false');
+                console.error('Pin update failed:', err);
+              });
+            });
+            tdPin.appendChild(pinBtn);
           } catch(e) { /* ignored (tdPin build failed) */ }
           tr.appendChild(tdPin);
           
@@ -758,11 +802,7 @@
                            '<input type="hidden" name="anchor" value="todo-' + escapeHtml(todo.id) + '">' +
                            '<button type="submit" aria-label="Delete" title="Delete">🗑</button>' +
                            '</form>' +
-                           '<form method="post" action="/html_no_js/todos/' + escapeHtml(todo.id) + '/pin">' +
-                           (csrfToken ? '<input type="hidden" name="_csrf" value="' + escapeHtml(csrfToken) + '">' : '') +
-                           '<input type="hidden" name="pinned" value="' + pinVal + '">' +
-                           '<button type="submit" aria-label="Pin" title="Pin" class="pin-button ' + (todo.pinned ? 'pinned' : '') + '">' + (todo.pinned ? '📌' : '📍') + '</button>' +
-                           '</form>' +
+                           '<button type="button" class="pin-button ' + (todo.pinned ? 'pinned' : '') + '" data-todo-id="' + escapeHtml(todo.id) + '" data-current-pinned="' + (todo.pinned ? 'true' : 'false') + '" aria-label="Pin" title="Pin">' + (todo.pinned ? '📌' : '📍') + '</button>' +
                            '</div>';
           }
           try { li.innerHTML = controlsHtml + '<div class="todo-content"><div class="todo-main"><div class="todo-title-inline">' + titleHtml + '</div>' + noteHtml + priHtml + '</div></div>'; }
@@ -813,11 +853,7 @@
                          '<input type="hidden" name="anchor" value="todo-' + escapeHtml(todo.id) + '">' +
                          '<button type="submit" aria-label="Delete" title="Delete">🗑</button>' +
                          '</form>' +
-                         '<form method="post" action="/html_no_js/todos/' + escapeHtml(todo.id) + '/pin">' +
-                         (csrfToken ? '<input type="hidden" name="_csrf" value="' + escapeHtml(csrfToken) + '">' : '') +
-                         '<input type="hidden" name="pinned" value="' + pinVal + '">' +
-                         '<button type="submit" aria-label="Pin" title="Pin" class="pin-button ' + (todo.pinned ? 'pinned' : '') + '">' + (todo.pinned ? '📌' : '📍') + '</button>' +
-                         '</form>' +
+                         '<button type="button" class="pin-button ' + (todo.pinned ? 'pinned' : '') + '" data-todo-id="' + escapeHtml(todo.id) + '" data-current-pinned="' + (todo.pinned ? 'true' : 'false') + '" aria-label="Pin" title="Pin">' + (todo.pinned ? '📌' : '📍') + '</button>' +
                          '</div>';
         }
   try {
@@ -845,6 +881,64 @@
       }
   };
   try { form.addEventListener('submit', window.createTodoClick); } catch(e){}
+  })();
+  </script>
+  <script>
+  // Handle pin button clicks with JSON endpoint
+  (function(){
+    try{
+      document.body.addEventListener('click', function(ev){
+        var btn = ev.target;
+        // Walk up DOM to find button with pin-button class
+        while (btn && btn.tagName !== 'BUTTON') {
+          btn = btn.parentElement;
+        }
+        if (!btn || !btn.classList.contains('pin-button')) return;
+        
+        ev.preventDefault();
+        ev.stopPropagation();
+        
+        var todoId = btn.getAttribute('data-todo-id');
+        var currentlyPinned = btn.getAttribute('data-current-pinned') === 'true';
+        var newPinned = !currentlyPinned;
+        
+        if (!todoId) return;
+        
+        // Update UI immediately for responsiveness
+        btn.classList.toggle('pinned', newPinned);
+        btn.textContent = newPinned ? '📌' : '📍';
+        btn.setAttribute('data-current-pinned', newPinned ? 'true' : 'false');
+        
+        // Send request to server
+        var fd = new FormData();
+        fd.append('pinned', newPinned ? 'true' : 'false');
+        var csrfInput = document.querySelector('input[name="_csrf"]');
+        if (csrfInput && csrfInput.value) fd.append('_csrf', csrfInput.value);
+        
+        fetch('/html_no_js/todos/' + encodeURIComponent(todoId) + '/pin', {
+          method: 'POST',
+          body: fd,
+          credentials: 'same-origin',
+          headers: { 'Accept': 'application/json' }
+        })
+        .then(function(res) {
+          if (!res.ok) {
+            // Revert UI on error
+            btn.classList.toggle('pinned', currentlyPinned);
+            btn.textContent = currentlyPinned ? '📌' : '📍';
+            btn.setAttribute('data-current-pinned', currentlyPinned ? 'true' : 'false');
+            console.error('Pin update failed');
+          }
+        })
+        .catch(function(err) {
+          // Revert UI on error
+          btn.classList.toggle('pinned', currentlyPinned);
+          btn.textContent = currentlyPinned ? '📌' : '📍';
+          btn.setAttribute('data-current-pinned', currentlyPinned ? 'true' : 'false');
+          console.error('Pin update failed:', err);
+        });
+      }, false);
+    }catch(e){ console.error('Error setting up pin handler:', e); }
   })();
   </script>
   <script>
@@ -1129,11 +1223,7 @@
           {% for t in todos %}
             <tr id="todo-{{ t.id }}" data-priority="{{ t.priority if t.priority is not none else '' }}">
               <td>
-                <form method="post" action="/html_no_js/todos/{{ t.id }}/pin">
-                  {{ csrf_field() }}
-                  <input type="hidden" name="pinned" value="{{ 'false' if t.pinned|default(false) else 'true' }}">
-                  <button type="submit" aria-label="Pin" title="Pin" class="pin-button {% if t.pinned|default(false) %}pinned{% endif %}">{{ '📌' if t.pinned|default(false) else '📍' }}</button>
-                </form>
+                <button type="button" class="pin-button {% if t.pinned|default(false) %}pinned{% endif %}" data-todo-id="{{ t.id }}" data-current-pinned="{{ 'true' if t.pinned|default(false) else 'false' }}" aria-label="Pin" title="Pin">{{ '📌' if t.pinned|default(false) else '📍' }}</button>
               </td>
               <td style="padding-left: 20px; padding-right: 20px;">
                 <form method="post" action="/html_no_js/todos/{{ t.id }}/delete">
@@ -1334,10 +1424,7 @@
                   var deleteForm = '<form method="post" action="/html_no_js/todos/' + esc(id) + '/delete">' +
                                       '<button type="submit" aria-label="Delete" title="Delete">🗑</button>' +
                                    '</form>';
-                  var pinForm = '<form method="post" action="/html_no_js/todos/' + esc(id) + '/pin">' +
-                                  '<input type="hidden" name="pinned" value="' + (pinned ? 'false' : 'true') + '">' +
-                                  '<button type="submit" aria-label="Pin" title="Pin" class="pin-button ' + (pinned ? 'pinned' : '') + '">' + (pinned ? '📌' : '📍') + '</button>' +
-                                '</form>';
+                  var pinForm = '<button type="button" class="pin-button ' + (pinned ? 'pinned' : '') + '" data-todo-id="' + esc(id) + '" data-current-pinned="' + (pinned ? 'true' : 'false') + '" aria-label="Pin" title="Pin">' + (pinned ? '📌' : '📍') + '</button>';
                   controls.innerHTML = completeForm + deleteForm + pinForm;
                 }
               }

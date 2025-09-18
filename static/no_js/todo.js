@@ -394,9 +394,6 @@
 							if (listId) { try { window.location.href = '/html_no_js/lists/' + encodeURIComponent(listId); return; } catch(_){ } }
 							try { window.location.href = '/html_no_js/'; return; } catch(_){ }
 						}
-						if (action.indexOf('/pin') !== -1) {
-							var btn = form.querySelector('button'); if (btn) { var pinned = btn.classList && btn.classList.contains('pinned'); if (pinned) { btn.classList.remove('pinned'); btn.textContent='📍'; } else { btn.classList.add('pinned'); btn.textContent='📌'; } } return;
-						}
 						if (action.indexOf('/hashtags/remove') !== -1) {
 							var wrapper = form.closest('[role="listitem"]') || form.parentElement; if (wrapper) wrapper.remove(); return;
 						}
