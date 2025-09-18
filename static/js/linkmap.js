@@ -15,6 +15,7 @@
     var el = $('#graph');
     if(!el){ return; }
     var graph = ForceGraph()(el)
+      .backgroundColor('#000000')
       .graphData(data)
       .nodeId('id')
       .nodeRelSize(6)
@@ -103,22 +104,34 @@
       el.addEventListener('auxclick', function(evt){
         try {
           if (evt.button !== 1) return; // only middle button
-          // Find nearest node by screen-space distance and require a small pixel threshold
           const px = evt.offsetX, py = evt.offsetY;
-          const candidates = graph && graph.graphData && graph.graphData().nodes ? graph.graphData().nodes : [];
+          const nodes = graph && graph.graphData && graph.graphData().nodes ? graph.graphData().nodes : [];
+          if (!nodes || !nodes.length) return;
+          // Estimate current zoom scale in screen px per graph unit
+          const s0 = graph.graph2ScreenCoords(0, 0);
+          const s1 = graph.graph2ScreenCoords(1, 0);
+          const scale = Math.abs((s1 && s0) ? (s1.x - s0.x) : 1) || 1;
+          const baseR = (typeof graph.nodeRelSize === 'function') ? graph.nodeRelSize() : 6;
+
           let best = null;
-          for (let i = 0; i < candidates.length; i++) {
-            const n = candidates[i];
+          for (let i = 0; i < nodes.length; i++) {
+            const n = nodes[i];
             if (typeof n.x !== 'number' || typeof n.y !== 'number') continue;
             const sc = graph && typeof graph.graph2ScreenCoords === 'function' ? graph.graph2ScreenCoords(n.x, n.y) : null;
             if (!sc) continue;
             const dx = sc.x - px, dy = sc.y - py;
             const d2 = dx*dx + dy*dy;
-            if (!best || d2 < best.d2) best = { n, d2 };
+            // Compute node circle radius on screen (match drawing roughly)
+            const val = (typeof n.degree === 'number' && n.degree > 0) ? n.degree : 1;
+            const radiusScreen = baseR * Math.sqrt(val) * scale;
+            const radius2 = (radiusScreen + 2) * (radiusScreen + 2); // small padding
+            const inside = d2 <= radius2;
+            if (inside) {
+              if (!best || d2 < best.d2) best = { n, d2 };
+            }
           }
           const target = best && best.n;
-          // Only trigger if within ~12px radius of a node center
-          if (!target || best.d2 > (12 * 12)) return;
+          if (!target) return; // only trigger when clicking inside a circle
           let url = null;
           if (target.kind === 'list') url = `/html_no_js/lists/${target.raw_id}`;
           else if (target.kind === 'todo') url = `/html_no_js/todos/${target.raw_id}`;
