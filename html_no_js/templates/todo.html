@@ -168,7 +168,7 @@
                 {% if sl.override_priority is not none and (sl.priority is none or sl.override_priority > sl.priority) %}
                   <span class="muted priority-inline priority-override" title="Secondary priority (max child todos/sublists)"><span class="priority-circle">{{ circ.get(sl.override_priority, sl.override_priority) }}</span></span>
                 {% endif %}
-                <a class="list-action-btn" href="/html_no_js/tree?root_list_id={{ sl.id }}" title="Open tree centered on this sublist" aria-label="Open tree centered on this sublist">🎯</a>
+                <a class="list-action-btn" href="/html_no_js/tree?root_list_id={{ sl.id }}" title="Open tree centered on this sublist" aria-label="Open tree centered on this sublist">👁️</a>
                 <button type="button" class="list-action-btn edit-list-btn" data-list-id="{{ sl.id }}" data-list-name="{{ sl.name|e }}" title="Edit list name">✏️</button>
                 {% if sl.created_at %}
                   <div class="meta">cr. {{ sl.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</div>
@@ -313,7 +313,7 @@
                 {% if sl.override_priority is not none and (sl.priority is none or sl.override_priority > sl.priority) %}
                   <span class="muted priority-inline priority-override" title="Highest uncompleted todo priority"><span class="priority-circle">{{ circ.get(sl.override_priority, sl.override_priority) }}</span></span>
                 {% endif %}
-                <a class="list-action-btn" href="/html_no_js/tree?root_list_id={{ sl.id }}" title="Open tree centered on this sublist" aria-label="Open tree centered on this sublist">🎯</a>
+                <a class="list-action-btn" href="/html_no_js/tree?root_list_id={{ sl.id }}" title="Open tree centered on this sublist" aria-label="Open tree centered on this sublist">👁️</a>
                 <button type="button" class="list-action-btn edit-list-btn" data-list-id="{{ sl.id }}" data-list-name="{{ sl.name|e }}" title="Edit list name">✏️</button>
                 {% if sl.created_at %}
                   <div class="meta">cr. {{ sl.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</div>
