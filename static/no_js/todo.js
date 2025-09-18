@@ -450,6 +450,11 @@
 								+ '<div class="list-main"><a class="list-title" href="/html_no_js/lists/' + sub.id + '">' + escapeHtml(sub.name) + '</a>'
 								+ ' <button type="button" class="list-action-btn edit-list-btn" data-list-id="' + sub.id + '" data-list-name="' + escapeHtml(sub.name) + '" title="Edit list name">✏️</button></div>';
 							ul.insertBefore(li, ul.firstChild);
+							// Clear and refocus the sublist name input for faster consecutive entries
+							try {
+								var nameInput = form.querySelector('input[name="name"]');
+								if (nameInput) { nameInput.value = ''; nameInput.focus(); }
+							} catch(_) {}
 						}catch(_){ }
 					})
 					.catch(function(){ try{ alert('Create sublist failed'); }catch(_){ } });
@@ -527,12 +532,24 @@
 		var uls = document.querySelectorAll('ul.lists-list');
 		if (!uls || !uls.length) return;
 		function parseIntOrNull(v){ if (v === null || typeof v === 'undefined' || v === '') return null; var n = parseInt(v, 10); return isNaN(n) ? null : n; }
+		function effPriority(el){
+			var comp = (el.getAttribute('data-completed') || '').toLowerCase() === 'true';
+			if (comp) return null;
+			var p = parseIntOrNull(el.getAttribute('data-priority'));
+			if (p !== null) return p;
+			var lp = parseIntOrNull(el.getAttribute('data-list-priority'));
+			var op = parseIntOrNull(el.getAttribute('data-override-priority'));
+			if (op === null && lp === null) return null;
+			if (op === null) return lp;
+			if (lp === null) return op;
+			return op > lp ? op : lp;
+		}
 		uls.forEach(function(ul){
 			var items = Array.from(ul.querySelectorAll('li.list-item'));
 			if (!items.length) return;
 			items.sort(function(a, b){
-				var ap = parseIntOrNull(a.getAttribute('data-priority'));
-				var bp = parseIntOrNull(b.getAttribute('data-priority'));
+				var ap = effPriority(a);
+				var bp = effPriority(b);
 				if (ap === null && bp !== null) return 1;
 				if (bp === null && ap !== null) return -1;
 				if (ap !== null && bp !== null){ if (bp !== ap) return bp - ap; }

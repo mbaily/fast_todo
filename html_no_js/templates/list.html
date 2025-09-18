@@ -411,7 +411,7 @@
           {# Render sublist priority data attributes and glyphs similar to index.html. Use parent_list_position as persistent manual-order. #}
           {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
           {% set eff = sl.override_priority if (sl.override_priority is not none and (sl.priority is none or sl.override_priority > sl.priority)) else sl.priority %}
-          <li class="list-item"{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %}{% if eff is not none %} data-priority="{{ eff }}"{% endif %}{% if sl.priority is not none %} data-list-priority="{{ sl.priority }}"{% endif %}{% if sl.override_priority is not none %} data-override-priority="{{ sl.override_priority }}"{% endif %}{% if sl.parent_list_position is not none %} data-parent-list-position="{{ sl.parent_list_position }}"{% endif %}>
+          <li class="list-item"{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %}{% if eff is not none %} data-priority="{{ eff }}"{% endif %}{% if sl.priority is not none %} data-list-priority="{{ sl.priority }}"{% endif %}{% if sl.override_priority is not none %} data-override-priority="{{ sl.override_priority }}"{% endif %}{% if sl.parent_list_position is not none %} data-parent-list-position="{{ sl.parent_list_position }}"{% endif %} data-completed="{{ 'true' if sl.completed else 'false' }}">
             <div class="list-action-left" style="display:flex;gap:0.25rem;align-items:center;">
               <form method="post" action="/html_no_js/lists/{{ list.id }}/sublists/{{ sl.id }}/move" style="display:inline">
                 {{ csrf_field() }}
@@ -458,16 +458,30 @@
   // Sort Sublists by effective priority (desc), using parent_list_position as persistent tie-breaker (asc).
   (function(){
     try {
-      var ul = document.querySelector('.lists-list');
+      // Scope to the current section this script is in (avoids grabbing other ULs on the page)
+      var here = document.currentScript && document.currentScript.closest('section');
+      var ul = (here && here.querySelector('ul.lists-list')) || document.querySelector('ul.lists-list');
       if (!ul) return;
       var items = Array.from(ul.querySelectorAll('li.list-item'));
       if (!items.length) return;
-      // Parse attributes into sort keys
       function parseIntOrNull(v){ if (v === null || typeof v === 'undefined' || v === '') return null; var n = parseInt(v, 10); return isNaN(n) ? null : n; }
+      function effPriority(el){
+        // If the sublist is completed, ignore any priority for ordering precedence
+        var comp = (el.getAttribute('data-completed') || '').toLowerCase() === 'true';
+        if (comp) return null;
+        var p = parseIntOrNull(el.getAttribute('data-priority'));
+        if (p !== null) return p;
+        // derive from override vs list priority if data-priority is missing
+        var lp = parseIntOrNull(el.getAttribute('data-list-priority'));
+        var op = parseIntOrNull(el.getAttribute('data-override-priority'));
+        if (op === null && lp === null) return null;
+        if (op === null) return lp;
+        if (lp === null) return op;
+        return op > lp ? op : lp;
+      }
       items.sort(function(a, b){
-        // effective priority (higher first)
-        var ap = parseIntOrNull(a.getAttribute('data-priority'));
-        var bp = parseIntOrNull(b.getAttribute('data-priority'));
+        var ap = effPriority(a);
+        var bp = effPriority(b);
         if (ap === null && bp !== null) return 1;
         if (bp === null && ap !== null) return -1;
         if (ap !== null && bp !== null){ if (bp !== ap) return bp - ap; }
@@ -477,10 +491,8 @@
         if (ao === null && bo !== null) return 1;
         if (bo === null && ao !== null) return -1;
         if (ao !== null && bo !== null){ if (ao !== bo) return ao - bo; }
-        // final fallback: keep DOM order stable
         return 0;
       });
-      // Reinsert items in sorted order
       items.forEach(function(li){ ul.appendChild(li); });
     } catch(e) { console && console.error && console.error('sublists sort failed', e); }
   })();
@@ -1528,7 +1540,7 @@
           {% set modified_iso = sl.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') if sl.modified_at else None %}
           {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
           {% set eff = sl.override_priority if (sl.override_priority is not none and (sl.priority is none or sl.override_priority > sl.priority)) else sl.priority %}
-          <li class="list-item"{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %}{% if eff is not none %} data-priority="{{ eff }}"{% endif %}{% if sl.priority is not none %} data-list-priority="{{ sl.priority }}"{% endif %}{% if sl.override_priority is not none %} data-override-priority="{{ sl.override_priority }}"{% endif %}{% if sl.parent_list_position is not none %} data-parent-list-position="{{ sl.parent_list_position }}"{% endif %}>
+          <li class="list-item"{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %}{% if eff is not none %} data-priority="{{ eff }}"{% endif %}{% if sl.priority is not none %} data-list-priority="{{ sl.priority }}"{% endif %}{% if sl.override_priority is not none %} data-override-priority="{{ sl.override_priority }}"{% endif %}{% if sl.parent_list_position is not none %} data-parent-list-position="{{ sl.parent_list_position }}"{% endif %} data-completed="{{ 'true' if sl.completed else 'false' }}">
             <div class="list-action-left" style="display:flex;gap:0.25rem;align-items:center;">
               <form method="post" action="/html_no_js/lists/{{ list.id }}/sublists/{{ sl.id }}/move" style="display:inline">
                 {{ csrf_field() }}
@@ -1571,16 +1583,27 @@
       // Sort Sublists by effective priority (desc), using parent_list_position as persistent tie-breaker (asc).
       (function(){
         try {
-          var ul = document.querySelectorAll('.lists-list');
-          if (!ul || !ul.length) return;
-          // find the last lists-list in this section (the one we just rendered)
-          var localUl = ul[ul.length-1];
-          var items = Array.from(localUl.querySelectorAll('li.list-item'));
+          var here = document.currentScript && document.currentScript.closest('section');
+          var ul = (here && here.querySelector('ul.lists-list')) || document.querySelector('ul.lists-list');
+          if (!ul) return;
+          var items = Array.from(ul.querySelectorAll('li.list-item'));
           if (!items.length) return;
           function parseIntOrNull(v){ if (v === null || typeof v === 'undefined' || v === '') return null; var n = parseInt(v, 10); return isNaN(n) ? null : n; }
+          function effPriority(el){
+            var comp = (el.getAttribute('data-completed') || '').toLowerCase() === 'true';
+            if (comp) return null;
+            var p = parseIntOrNull(el.getAttribute('data-priority'));
+            if (p !== null) return p;
+            var lp = parseIntOrNull(el.getAttribute('data-list-priority'));
+            var op = parseIntOrNull(el.getAttribute('data-override-priority'));
+            if (op === null && lp === null) return null;
+            if (op === null) return lp;
+            if (lp === null) return op;
+            return op > lp ? op : lp;
+          }
           items.sort(function(a, b){
-            var ap = parseIntOrNull(a.getAttribute('data-priority'));
-            var bp = parseIntOrNull(b.getAttribute('data-priority'));
+            var ap = effPriority(a);
+            var bp = effPriority(b);
             if (ap === null && bp !== null) return 1;
             if (bp === null && ap !== null) return -1;
             if (ap !== null && bp !== null){ if (bp !== ap) return bp - ap; }
@@ -1591,7 +1614,7 @@
             if (ao !== null && bo !== null){ if (ao !== bo) return ao - bo; }
             return 0;
           });
-          items.forEach(function(li){ localUl.appendChild(li); });
+          items.forEach(function(li){ ul.appendChild(li); });
         } catch(e) { console && console.error && console.error('sublists sort failed', e); }
       })();
       </script>
