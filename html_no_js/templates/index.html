@@ -273,6 +273,9 @@
   input.value = '';
   input.focus();
   
+  // Log quick add
+  try{ if (window.ftLog){ window.ftLog('Added quick todo', { item_type: 'todo', item_id: (todo && todo.id) ? Number(todo.id) : null, label: String(text||'') }); } }catch(_){ }
+  
   // Refresh index so the created todo appears in the Quick list without navigating away
   try { window.location.reload(); } catch(e){}
       }catch(err){ console && console.error && console.error('Quick add failed', err); try{ alert('Add failed'); }catch(_){}}
@@ -641,6 +644,29 @@ window.addEventListener && window.addEventListener('storage', function(ev){
     var h1 = document.getElementById('hashtag-suggest'); if (h1) h1.remove();
     var h2 = document.getElementById('todo-hashtag-suggest'); if (h2) h2.remove();
   } catch(e) { /* ignore */ }
+</script>
+<script>
+// Log: Creating a sublist (index page)
+(function(){
+  try{
+    document.addEventListener('submit', function(ev){
+      var form = ev && ev.target; if (!form || form.tagName !== 'FORM') return;
+      var action = form.getAttribute('action') || '';
+      if (action.indexOf('/sublists/create') === -1) return;
+      try{
+        var nameInput = form.querySelector('input[name="name"]');
+        var txt = nameInput && nameInput.value ? String(nameInput.value).trim() : '';
+        if (!txt) return;
+        var parentName = '';
+        try{
+          var li = form.closest('li.list-item');
+          if (li){ var a = li.querySelector('a.list-title'); if (a) parentName = (a.textContent||'').trim(); }
+        }catch(_){ }
+        if (window.ftLog){ window.ftLog('Added sublist', { item_type: 'list', item_id: null, label: (parentName ? (parentName + ' — ') : '') + txt }); }
+      }catch(_){ }
+    }, false);
+  }catch(e){}
+})();
 </script>
 <script>
 // Script: Hide Completed lists (persisted via cookie); hides li.list-item whose title has class 'done'

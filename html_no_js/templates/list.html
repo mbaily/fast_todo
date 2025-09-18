@@ -275,10 +275,12 @@
         if (!state.isCollation){
           postJSON('/client/json/collations', { list_id: LIST_ID, active: true }).then(function(j){
             if (j && j.ok){ state.isCollation = true; state.active = (typeof j.active !== 'undefined') ? !!j.active : true; }
+            try{ if (window.ftLog){ var nm=(document.querySelector('.list-title')||{}).textContent||''; window.ftLog('Marked collation', { item_type:'list', item_id: LIST_ID, label: nm }); } }catch(_){ }
           }).catch(function(){}).finally(function(){ state.loading = false; setUI(); });
         } else {
           delJSON('/client/json/collations/' + encodeURIComponent(LIST_ID)).then(function(j){
             if (j && j.ok){ state.isCollation = false; state.active = false; }
+            try{ if (window.ftLog){ var nm=(document.querySelector('.list-title')||{}).textContent||''; window.ftLog('Unmarked collation', { item_type:'list', item_id: LIST_ID, label: nm }); } }catch(_){ }
           }).catch(function(){}).finally(function(){ state.loading = false; setUI(); });
         }
       }, false);
@@ -288,6 +290,7 @@
         postJSON('/client/json/collations/' + encodeURIComponent(LIST_ID) + '/active', { active: want }).then(function(j){
           if (j && j.ok){ state.active = !!j.active; }
           else { cb.checked = state.active; }
+          try{ if (window.ftLog){ var nm=(document.querySelector('.list-title')||{}).textContent||''; window.ftLog(want ? 'Activated collation' : 'Deactivated collation', { item_type:'list', item_id: LIST_ID, label: nm }); } }catch(_){ }
         }).catch(function(){ cb.checked = state.active; });
       }, false);
     }catch(e){ /* ignore for no-js fallback */ }
@@ -398,6 +401,8 @@
                  chips rather than clearing them. */
               try{ if (tags) window.__ft_onListRenamed(id, newName, tags); else window.__ft_onListRenamed(id, newName); } catch(e){}
             }
+            // Log rename
+            try{ if (window.ftLog){ window.ftLog('Renamed list', { item_type:'list', item_id: Number(id), label: newName }); } }catch(_){ }
           } catch(e){}
         })
         .catch(function(){ alert('Rename failed'); });
@@ -428,7 +433,7 @@
         </label>
       </form>
     </div>
-    <form method="post" action="/html_no_js/lists/{{ list.id }}/sublists/create" style="margin:0 0 .4rem 0" autocomplete="off">
+  <form method="post" action="/html_no_js/lists/{{ list.id }}/sublists/create" style="margin:0 0 .4rem 0" autocomplete="off" onsubmit="try{ if(window.ftLog){ var nm=(document.querySelector('.list-title')||{}).textContent||''; var inp=this.querySelector('input[name=' + String.fromCharCode(34) + 'name' + String.fromCharCode(34) + ']'); var txt=inp&&inp.value?inp.value.trim():''; if (txt) window.ftLog('Added sublist', { item_type:'list', item_id:Number({{ list.id }}), label: nm + ' — ' + txt }); } }catch(_){ }">
       {{ csrf_field() }}
       <label>New sublist<br>
         <input type="text" name="name" required placeholder="Sublist name" autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false">
@@ -696,6 +701,8 @@
                   btn.textContent = currentlyPinned ? '📌' : '📍';
                   btn.setAttribute('data-current-pinned', currentlyPinned ? 'true' : 'false');
                   console.error('Pin update failed');
+                } else {
+                  try{ if (window.ftLog){ var nm=(document.querySelector('.list-title')||{}).textContent||''; window.ftLog(newPinned ? 'Pinned todo' : 'Unpinned todo', { item_type:'todo', item_id: Number(todoId), label: nm }); } }catch(_){ }
                 }
               })
               .catch(function(err) {
@@ -877,7 +884,9 @@
     if (typeof insertedElement !== 'undefined' && insertedElement && insertedElement.outerHTML) window.tooltip.debug('[tooltip-debug] inserted element outerHTML:', insertedElement.outerHTML);
     else window.tooltip.debug('[tooltip-debug] inserted element not available', { insertedElement: typeof insertedElement !== 'undefined' ? !!insertedElement : null, li: typeof li !== 'undefined' ? !!li : null, tr: typeof tr !== 'undefined' ? !!tr : null });
   } catch(e) { window.tooltip.debug('[tooltip-debug] inserted element outerHTML access failed', e); }
-        input.value = '';
+  // Log add todo
+  try{ if (window.ftLog){ var nm=(document.querySelector('.list-title')||{}).textContent||''; window.ftLog('Added todo', { item_type:'todo', item_id: Number(todo.id||0), label: nm + ' — ' + (todo.text || text) }); } }catch(_){ }
+  input.value = '';
         if (submitBtn) submitBtn.disabled = false;
         try { input.focus(); } catch(e) {}
       } catch(err) {
@@ -1625,10 +1634,7 @@
           </select>
         </form>
       {% endif %}
-    <form id="list-delete-form" method="post" action="/html_no_js/lists/{{ list.id }}/delete" class="confirm-delete" data-confirm="Delete list '{{ list.name }}' and all its todos? This cannot be undone." style="display:inline">
-      {{ csrf_field() }}
-      <button type="submit" class="tb-item" aria-label="Delete list">🗑 <span class="sr-only">Delete</span></button>
-    </form>
+    {# Delete button removed here to avoid duplication; a single Delete control remains at bottom of page #}
     <div style="flex:1 1 auto"></div>
   </nav>
   
@@ -1646,7 +1652,7 @@
         </label>
       </form>
     </div>
-    <form method="post" action="/html_no_js/lists/{{ list.id }}/sublists/create" style="margin:0 0 .4rem 0" autocomplete="off">
+  <form method="post" action="/html_no_js/lists/{{ list.id }}/sublists/create" style="margin:0 0 .4rem 0" autocomplete="off" onsubmit="try{ if(window.ftLog){ var nm=(document.querySelector('.list-title')||{}).textContent||''; var inp=this.querySelector('input[name=' + String.fromCharCode(34) + 'name' + String.fromCharCode(34) + ']'); var txt=inp&&inp.value?inp.value.trim():''; if (txt) window.ftLog('Added sublist', { item_type:'list', item_id:Number({{ list.id }}), label: nm + ' — ' + txt }); } }catch(_){ }">
       {{ csrf_field() }}
       <label>New sublist<br>
         <input type="text" name="name" required placeholder="Sublist name" autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false">
@@ -1810,10 +1816,14 @@
       <button type="submit" class="tb-item" aria-label="Delete list" title="Delete list">🗑 <span class="sr-only">Delete list</span></button>
     </form>
   </div>
+  <script>
+    (function(){ try{ var f = document.querySelector('form[action="/html_no_js/lists/{{ list.id }}/delete"]'); if (!f) return; f.addEventListener('submit', function(){ try{ var nm=(document.querySelector('.list-title')||{}).textContent||''; if (window.ftLog) window.ftLog('Deleted list', { item_type:'list', item_id:Number({{ list.id }}), label: nm }); }catch(_){ } }); }catch(e){} })();
+  </script>
     
 {% endblock %}
 
 {% block scripts %}
+  {{ super() }}
   <script src="/static/no_js/todo.js"></script>
 <script>
 // Simple mark-storage helper used by mark icon on list page
@@ -1831,12 +1841,36 @@
 <!-- Bookmark toggles (JS-only enhancement) -->
 <script src="/static/js/bookmarks.js"></script>
 <script>
+  // Log bookmark/unbookmark for list
+  (function(){
+    try{
+      window.addEventListener('bookmark-changed', function(ev){
+        try{
+          var d = ev && ev.detail || {};
+          if (d.kind === 'list' && typeof d.id !== 'undefined'){
+            if (window.ftLog){ var nm=(document.querySelector('.list-title')||{}).textContent||''; window.ftLog(d.bookmarked ? 'Bookmarked list' : 'Unbookmarked list', { item_type:'list', item_id: Number(d.id), label: nm }); }
+          }
+        }catch(_){ }
+      });
+    }catch(e){}
+  })();
+</script>
+<script>
   (function(){
     var cb = document.getElementById('lists_up_top_checkbox_{{ list.id }}');
     var hidden = document.getElementById('lists_up_top_hidden_{{ list.id }}');
     var form = hidden && hidden.closest('form');
     if (!cb || !hidden || !form) return;
     cb.addEventListener('change', function(){ hidden.value = cb.checked ? 'true' : 'false'; try{ form.submit(); } catch(e){} });
+  })();
+</script>
+<script>
+  // Log category change
+  (function(){
+    try{
+      var sel = document.getElementById('category-select-{{ list.id }}'); if (!sel) return;
+      sel.addEventListener('change', function(){ try{ if (window.ftLog){ var nm=(document.querySelector('.list-title')||{}).textContent||''; var txt = (sel.options[sel.selectedIndex]||{}).text || ''; window.ftLog('Changed list category', { item_type:'list', item_id:Number({{ list.id }}), label: nm + (txt ? (' — ' + txt) : '') }); } }catch(_){ } }, false);
+    }catch(e){}
   })();
 </script>
 <script>
@@ -1874,6 +1908,8 @@
                   }
                 }
               }
+              // Log list priority change
+              try{ if (window.ftLog){ var nm=(document.querySelector('.list-title')||{}).textContent||''; window.ftLog('Changed list priority', { item_type: 'list', item_id: Number({{ list.id }}), label: (nm? (nm + ' — ') : '') + String(v||'') }); } }catch(_){ }
             }catch(e){}
           })
           .catch(function(){ console && console.error && console.error('Priority update failed'); });
@@ -1907,6 +1943,7 @@
             var li = document.getElementById(anchorId) || document.getElementById('todo-' + todoId);
             if (actionType === 'delete') {
               if (li) li.remove();
+              try{ if (window.ftLog){ var nm=(document.querySelector('.list-title')||{}).textContent||''; window.ftLog('Deleted todo', { item_type:'todo', item_id: Number(todoId), label: nm }); } }catch(_){ }
               return;
             }
             if (actionType === 'pin') {
@@ -1916,6 +1953,7 @@
                 if (pinned) { btn.classList.remove('pinned'); btn.textContent = '📍'; }
                 else { btn.classList.add('pinned'); btn.textContent = '📌'; }
               }
+              try{ if (window.ftLog){ var nm=(document.querySelector('.list-title')||{}).textContent||''; var nowPinned = btn && btn.classList && btn.classList.contains('pinned'); window.ftLog(nowPinned ? 'Pinned todo' : 'Unpinned todo', { item_type:'todo', item_id: Number(todoId), label: nm }); } }catch(_){ }
               return;
             }
             if (actionType === 'complete' || actionType === 'complete_type') {
@@ -1932,6 +1970,7 @@
                 var titleElems = li.querySelectorAll('.todo-title-inline .wrap-text, .wrap-text a, .todo-title-inline');
                 titleElems.forEach(function(el){ try{ if (el.classList && el.classList.contains('done')) el.classList.remove('done'); else if (el.classList) el.classList.add('done'); }catch(e){} });
               }
+              try{ if (window.ftLog){ var nm=(document.querySelector('.list-title')||{}).textContent||''; var isNowDone = !!(isDefault && li && li.querySelector('.todo-title-inline.done, .wrap-text.done')); window.ftLog(isNowDone ? 'Completed todo' : 'Uncompleted todo', { item_type:'todo', item_id: Number(todoId), label: nm }); } }catch(_){ }
               return;
             }
           }catch(e){ console && console.error && console.error('todo action DOM update failed', e); }

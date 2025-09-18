@@ -319,7 +319,8 @@
       {% endmacro %}
       {% block content %}{% endblock %}
     </main>
-    {% block scripts %}
+  {% block scripts %}
+  <script src="/static/no_js/log.js"></script>
     <script>
     // Attach a native browser confirm dialog to forms with .confirm-delete
     (function(){

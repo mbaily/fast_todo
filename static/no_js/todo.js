@@ -14,6 +14,25 @@
 	}catch(e){ }
 })();
 
+// Tiny helper to get the current todo's title for logging labels
+(function(){
+	try{
+		if (typeof window.__ftGetTodoTitle !== 'function'){
+			window.__ftGetTodoTitle = function(){
+				try{
+					var input = document.getElementById('todo-text-input');
+					if (input && input.value) return String(input.value).trim();
+				}catch(_){ }
+				try{
+					var h = document.querySelector('.todo-title h2');
+					if (h) return String((h.textContent||'')).trim();
+				}catch(_){ }
+				return '';
+			};
+		}
+	}catch(e){}
+})();
+
 // Pin toggle: use JSON endpoint and update icon immediately
 (function(){
 	try{
@@ -52,7 +71,13 @@
 							btn.setAttribute('data-current-pinned', on ? 'true' : 'false');
 						}
 					}catch(_){ }
-					try{ if (window.ftLog) window.ftLog('Toggled pin', { item_type: 'todo', item_id: Number(todoId), label: on ? 'Pinned' : 'Unpinned' }); }catch(_){ }
+					try{
+						if (window.ftLog){
+							var finalOn = (data && typeof data.pinned !== 'undefined') ? !!data.pinned : nextPinned;
+							var label = (typeof window.__ftGetTodoTitle==='function') ? window.__ftGetTodoTitle() : '';
+							window.ftLog(finalOn ? 'Pinned' : 'Unpinned', { item_type: 'todo', item_id: Number(todoId), label: label });
+						}
+					}catch(_){ }
 				})
 				.catch(function(err){
 					// Revert UI on error
@@ -237,6 +262,24 @@
 					if (tbBtn) { if (!tbBtn.dataset._orig) tbBtn.dataset._orig = tbBtn.textContent || ''; tbBtn.textContent = 'Saved'; setTimeout(function(){ try{ if (tbBtn && tbBtn.textContent === 'Saved') tbBtn.textContent = tbBtn.dataset._orig || '💾'; }catch(_){} }, 1200); }
 				} catch(e) { }
 				setTimeout(function(){ try{ if (statusEl && statusEl.textContent === 'Saved') statusEl.textContent = ''; }catch(_){} }, 1200);
+				// Event log for text/note changes
+				try{
+					var todoId = (function(){ try{ var m = (url||'').match(/\/html_no_js\/todos\/(\d+)\/edit/); return m ? m[1] : null; }catch(_){ return null; } })();
+					if (window.ftLog && todoId){
+						var prevT = textarea.dataset._lastTextLog || '';
+						var prevN = textarea.dataset._lastNoteLog || '';
+						if (prevT !== textVal){ textarea.dataset._lastTextLog = textVal; window.ftLog('Changed text', { item_type: 'todo', item_id: Number(todoId), label: String(textVal||'').slice(0,80) }); }
+						var noteVal = textarea.value || '';
+						if (prevN !== noteVal){
+							textarea.dataset._lastNoteLog = noteVal;
+							try{
+								var ttl = (typeof window.__ftGetTodoTitle==='function') ? window.__ftGetTodoTitle() : '';
+								var lab = ttl ? (ttl + ' — ' + String(noteVal||'').slice(0,60)) : String(noteVal||'').slice(0,80);
+								window.ftLog('Changed note', { item_type: 'todo', item_id: Number(todoId), label: lab });
+							}catch(_){ window.ftLog('Changed note', { item_type: 'todo', item_id: Number(todoId), label: String(noteVal||'').slice(0,80) }); }
+						}
+					}
+				}catch(_){ }
 			}catch(err){ setStatus('Save failed'); try{ console.error('autosave error', err); }catch(_){} }
 			finally{ inFlight = false; }
 		}
@@ -308,6 +351,8 @@
 								var was = btn.textContent && btn.textContent.indexOf('☑') !== -1;
 								btn.textContent = was ? '☐' : '☑';
 								try { var doneInput = form.querySelector('input[name="done"]'); if (doneInput) { doneInput.value = was ? 'true' : 'false'; } } catch(_){ }
+								// Event log
+								try{ var m = (form.action||'').match(/\/html_no_js\/todos\/(\d+)\/complete/); var tid = m ? Number(m[1]) : null; if (window.ftLog && tid){ var ttl=(typeof window.__ftGetTodoTitle==='function')?window.__ftGetTodoTitle():''; window.ftLog(was ? 'Uncompleted' : 'Completed', { item_type: 'todo', item_id: tid, label: ttl }); } }catch(_){ }
 							}
 							var status = document.getElementById('autosave-status'); if (status && body && body.message) status.textContent = body.message; else if (status) status.textContent = '';
 						} catch(_){ }
@@ -373,6 +418,20 @@
 			});
 		});
 	}catch(e){ }
+})();
+
+// Log bookmark changes (todos) via global event from bookmarks.js
+(function(){
+	try{
+		window.addEventListener('bookmark-changed', function(ev){
+			try{
+				var d = ev && ev.detail || {};
+				if (d.kind === 'todo' && typeof d.id !== 'undefined'){
+					if (window.ftLog){ var ttl=(typeof window.__ftGetTodoTitle==='function')?window.__ftGetTodoTitle():''; window.ftLog(d.bookmarked ? 'Bookmarked' : 'Unbookmarked', { item_type: 'todo', item_id: Number(d.id), label: ttl }); }
+				}
+			}catch(_){ }
+		});
+	}catch(e){}
 })();
 
 // Delegate todo-level forms (delete, pin, tag remove/add) to use fetch + DOM updates
@@ -443,7 +502,7 @@
 							var anchor = form.querySelector('input[name="anchor"]');
 							var anchorId = anchor ? anchor.value : ('todo-' + todoId);
 							var li = document.getElementById(anchorId) || document.getElementById('todo-' + todoId);
-							if (li) { li.remove(); return; }
+							if (li) { li.remove(); try{ if (window.ftLog){ var ttl=(typeof window.__ftGetTodoTitle==='function')?window.__ftGetTodoTitle():''; window.ftLog('Deleted todo', { item_type: 'todo', item_id: Number(todoId), label: ttl }); } }catch(_){ } return; }
 							if (listId) { try { window.location.href = '/html_no_js/lists/' + encodeURIComponent(listId); return; } catch(_){ } }
 							try { window.location.href = '/html_no_js/'; return; } catch(_){ }
 						}
@@ -528,6 +587,17 @@
 	}catch(e){ }
 })();
 
+// Log sublist remove when deleting a list from todo sublists section
+(function(){
+	try{
+		document.body.addEventListener('submit', function(ev){
+			var form = ev.target; if (!form || form.tagName !== 'FORM') return; var action = form.getAttribute('action') || '';
+			var m = action.match(/\/html_no_js\/lists\/(\d+)\/delete/);
+			if (m){ try{ if (window.ftLog) window.ftLog('Removed sublist', { item_type: 'list', item_id: Number(m[1]) }); }catch(_){ } }
+		}, true);
+	}catch(e){}
+})();
+
 // Handle add list tag form with JSON endpoint
 (function(){
 	try{
@@ -605,7 +675,10 @@
 				var action = path ? ('/html_no_js/todos/' + path + '/priority') : ('/html_no_js/todos/priority');
 				fetch(action, { method: 'POST', body: fd, credentials: 'same-origin' })
 					.then(function(res){ if (!res.ok) throw new Error('Priority update failed'); return res.json().catch(function(){ return null; }); })
-					.then(function(){ try{ var circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'}; var el = document.querySelector('.todo-header .priority-circle'); if (el) el.textContent = v ? (circ[v] || v) : ''; }catch(_){ } })
+					.then(function(){
+						try{ var circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'}; var el = document.querySelector('.todo-header .priority-circle'); if (el) el.textContent = v ? (circ[v] || v) : ''; }catch(_){ }
+						try{ var tid = (sel.getAttribute('id')||'').split('todo-priority-')[1] || null; if (window.ftLog && tid){ var ttl=(typeof window.__ftGetTodoTitle==='function')?window.__ftGetTodoTitle():''; window.ftLog('Changed priority', { item_type: 'todo', item_id: Number(tid), label: (ttl? (ttl + ' — '):'') + String(v||'') }); } }catch(_){ }
+					})
 					.catch(function(){ try{ console && console.error && console.error('Priority update failed'); }catch(_){ } });
 			}catch(_){ }
 		});
@@ -677,6 +750,7 @@
 								+ '<div class="list-main"><a class="list-title" href="/html_no_js/lists/' + sub.id + '">' + escapeHtml(sub.name) + '</a>'
 								+ ' <button type="button" class="list-action-btn edit-list-btn" data-list-id="' + sub.id + '" data-list-name="' + escapeHtml(sub.name) + '" title="Edit list name">✏️</button></div>';
 							ul.appendChild(li);
+							try{ if (window.ftLog) window.ftLog('Added sublist', { item_type: 'list', item_id: Number(sub.id), label: String(sub.name||'') }); }catch(_){ }
 							// Clear and refocus the sublist name input for faster consecutive entries
 							try {
 								var nameInput = form.querySelector('input[name="name"]');
