@@ -197,26 +197,26 @@
                 </label>
               </span>
             {# {% endif %} #}
-            {# Show list tags directly under the title per UX request #}
-            {% if list and list.id and list.hashtags and list.hashtags|length > 0 %}
-              <div class="tags" role="list" aria-label="List tags" style="width:100%; margin-top:0.35rem">
-                {% for tag in (list.hashtags | sort) %}
-                  {% if tag and tag != '#' %}
-                    <div role="listitem" style="display:inline-block; margin-right:0.4rem">
-                      <a class="tag-chip" href="/html_no_js/search?q={{ tag|urlencode }}" role="link">{{ tag }}</a>
-                      <form method="post" action="/html_no_js/lists/{{ list.id }}/hashtags/remove" style="display:inline">
-                        {{ csrf_field() }}
-                        <input type="hidden" name="tag" value="{{ tag }}">
-                        <button type="submit" class="tag-remove" aria-label="Remove {{ tag }}"><span aria-hidden="true">✖</span><span class="sr-only">Remove {{ tag }}</span></button>
-                      </form>
-                    </div>
-                  {% endif %}
-                {% endfor %}
-              </div>
-            {% endif %}
       </div>
     </div>
   </div>
+            {# List Tags Section #}
+            {% if list.hashtags and list.hashtags|length > 0 %}
+              <div class="tags" role="list" aria-label="List tags">
+                {% for tag in (list.hashtags | sort) %}
+                  <div role="listitem" style="display:inline-block; margin-right:0.4rem">
+                    <a class="tag-chip" href="/html_no_js/search?q={{ tag|urlencode }}" role="link">{{ tag }}</a>
+                    <button type="button" class="tag-remove" data-ft-remove-list-tag="1" data-list-id="{{ list.id }}" data-tag="{{ tag }}" aria-label="Remove {{ tag }}"><span aria-hidden="true">✖</span><span class="sr-only">Remove {{ tag }}</span></button>
+                  </div>
+                {% endfor %}
+              </div>
+            {% endif %}
+
+            <form method="post" action="/lists/{{ list.id }}/hashtags/json" aria-label="Add list tag" data-ft-add-list-tag="1" data-list-id="{{ list.id }}">
+              {{ csrf_field() }}
+              <label>Add Tag <input name="tag" placeholder="#tag" aria-label="Tag name" list="list-tag-suggestions" autocomplete="off"></label>
+              <button type="submit">Add</button>
+            </form>
             {# Compact links display directly under the title (no create/delete here) #}
             {% if links is defined and links|length > 0 %}
               <div class="meta" style="width:100%; margin-top:0.25rem">
@@ -541,31 +541,6 @@
     });
   })();
   </script>
-
-  {% if list.hashtags and list.hashtags|length > 0 %}
-    <div class="tags" role="list" aria-label="List tags">
-      {% for tag in (list.hashtags | sort) %}
-        <div role="listitem" style="display:inline-block; margin-right:0.4rem">
-          <a class="tag-chip" href="/html_no_js/search?q={{ tag|urlencode }}" role="link">{{ tag }}</a>
-          <button type="button" class="tag-remove" data-ft-remove-list-tag="1" data-list-id="{{ list.id }}" data-tag="{{ tag }}" aria-label="Remove {{ tag }}"><span aria-hidden="true">✖</span><span class="sr-only">Remove {{ tag }}</span></button>
-        </div>
-      {% endfor %}
-    </div>
-  {% endif %}
-
-  <form method="post" action="/lists/{{ list.id }}/hashtags/json" aria-label="Add list tag" data-ft-add-list-tag="1" data-list-id="{{ list.id }}">
-    {{ csrf_field() }}
-    <label>Add Tag <input name="tag" placeholder="#tag" aria-label="Tag name" list="list-tag-suggestions" autocomplete="off"></label>
-    <button type="submit">Add</button>
-  </form>
-
-  <datalist id="list-tag-suggestions">
-    {% if all_hashtags %}
-      {% for tag in all_hashtags %}
-        <option value="{{ tag }}">
-      {% endfor %}
-    {% endif %}
-  </datalist>
 
   <form id="create-todo-form" method="post" action="/html_no_js/todos/create" autocomplete="off">
   {{ csrf_field() }}
@@ -1915,5 +1890,14 @@
     }, false);
   })();
 </script>
+
+<datalist id="list-tag-suggestions">
+  {% if all_hashtags %}
+    {% for tag in (all_hashtags | sort) %}
+      <option value="{{ tag }}">
+    {% endfor %}
+  {% endif %}
+</datalist>
+
 {% endblock %}
 

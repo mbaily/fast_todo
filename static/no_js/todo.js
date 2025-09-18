@@ -446,8 +446,12 @@
 (function(){
 	try{
 		document.body.addEventListener('click', function(ev){
-			var btn = ev.target; if (!btn || btn.tagName !== 'BUTTON') return;
-			if (!btn.hasAttribute('data-ft-remove-list-tag')) return;
+			// Check if the clicked element or any ancestor is a button with the data attribute
+			var btn = ev.target;
+			while (btn && btn.tagName !== 'BUTTON') {
+				btn = btn.parentElement;
+			}
+			if (!btn || !btn.hasAttribute('data-ft-remove-list-tag')) return;
 			ev.preventDefault();
 			ev.stopPropagation();
 			try{
