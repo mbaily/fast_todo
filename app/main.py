@@ -11618,7 +11618,10 @@ async def html_tree_view(request: Request, root_list_id: int | None = None, show
         # If a root_list_id was provided, we render that specific node as root
         tree: list[dict]
         root_name: str | None = None
-        root_parent_id: int | None = None
+        root_parent_id: int | None = None  # parent list id, if any
+        root_parent_todo_id: int | None = None  # parent todo id, if any
+        root_parent_is_top_level: bool = False  # whether parent list is a top-level list
+        root_parent_todo_list_id: int | None = None  # the list id that contains the parent todo
         if root_list_id:
             # validate ownership and existence
             root = await sess.get(ListState, root_list_id)
@@ -11629,6 +11632,31 @@ async def html_tree_view(request: Request, root_list_id: int | None = None, show
                 root_parent_id = int(getattr(root, 'parent_list_id', None)) if getattr(root, 'parent_list_id', None) is not None else None
             except Exception:
                 root_parent_id = None
+            # capture parent todo if present
+            try:
+                root_parent_todo_id = int(getattr(root, 'parent_todo_id', None)) if getattr(root, 'parent_todo_id', None) is not None else None
+            except Exception:
+                root_parent_todo_id = None
+            # if parent is a list, determine if it is top-level
+            if root_parent_id is not None:
+                try:
+                    parent_list = await sess.get(ListState, int(root_parent_id))
+                except Exception:
+                    parent_list = None
+                if parent_list is not None:
+                    try:
+                        parent_has_parent_list = getattr(parent_list, 'parent_list_id', None) is not None
+                        parent_has_parent_todo = getattr(parent_list, 'parent_todo_id', None) is not None
+                        root_parent_is_top_level = not parent_has_parent_list and not parent_has_parent_todo
+                    except Exception:
+                        root_parent_is_top_level = False
+            # if parent is a todo, capture the list it belongs to for fragment link
+            if root_parent_todo_id is not None:
+                try:
+                    pt = await sess.get(Todo, int(root_parent_todo_id))
+                    root_parent_todo_list_id = int(getattr(pt, 'list_id', None)) if pt and getattr(pt, 'list_id', None) is not None else None
+                except Exception:
+                    root_parent_todo_list_id = None
             # node for root + its children
             root_node = {
                 'id': int(root.id),
@@ -11727,7 +11755,21 @@ async def html_tree_view(request: Request, root_list_id: int | None = None, show
     # CSRF token for bulk actions
     from .auth import create_csrf_token
     csrf_token = create_csrf_token(current_user.username)
-    return TEMPLATES.TemplateResponse(request, 'tree.html', {"request": request, "tree": tree, "root_list_id": root_list_id, "root_name": root_name, "root_parent_id": root_parent_id, "show_todos": bool(show_todos), "client_tz": await get_session_timezone(request), "csrf_token": csrf_token, "moved": moved, "skipped": skipped})
+    return TEMPLATES.TemplateResponse(request, 'tree.html', {
+        "request": request,
+        "tree": tree,
+        "root_list_id": root_list_id,
+        "root_name": root_name,
+        "root_parent_id": root_parent_id,
+        "root_parent_todo_id": root_parent_todo_id,
+        "root_parent_is_top_level": root_parent_is_top_level,
+        "root_parent_todo_list_id": root_parent_todo_list_id,
+        "show_todos": bool(show_todos),
+        "client_tz": await get_session_timezone(request),
+        "csrf_token": csrf_token,
+        "moved": moved,
+        "skipped": skipped
+    })
 
 
 @app.post('/html_no_js/tree/bulk_move')

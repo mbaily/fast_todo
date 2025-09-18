@@ -53,10 +53,24 @@
     </form>
     <button type="submit" class="btn" form="tree-bulk-move-form" title="Move selected to destination">Move</button>
     {% if root_list_id %}
-      <a class="btn" href="/html_no_js/tree" title="Back to top">⭱ Top</a>
-      {% if root_parent_id %}
-        <a class="btn" href="/html_no_js/tree?root_list_id={{ root_parent_id }}{% if show_todos %}&show_todos=1{% endif %}" title="Up one level" aria-label="Up one level">Up one ⬆</a>
-      {% endif %}
+        <a class="btn" href="/html_no_js/tree" title="Back to top">⭱ Top</a>
+        {% if root_parent_id is not none or root_parent_todo_id is not none %}
+          {% if root_parent_id is not none %}
+            {# If parent is a list: if it is top-level, go to root view and jump to its fragment; else recenter on that parent list and jump to fragment #}
+            {% if root_parent_is_top_level %}
+              <a class="btn" href="/html_no_js/tree{% if show_todos %}?show_todos=1{% endif %}#list-{{ root_parent_id }}" title="Up one level" aria-label="Up one level">Up one ⬆</a>
+            {% else %}
+              <a class="btn" href="/html_no_js/tree?root_list_id={{ root_parent_id }}{% if show_todos %}&show_todos=1{% endif %}#list-{{ root_parent_id }}" title="Up one level" aria-label="Up one level">Up one ⬆</a>
+            {% endif %}
+          {% elif root_parent_todo_id is not none %}
+            {# Parent is a todo: navigate to the list that owns that todo and jump to the todo fragment #}
+            {% if root_parent_todo_list_id %}
+              <a class="btn" href="/html_no_js/tree?root_list_id={{ root_parent_todo_list_id }}{% if show_todos %}&show_todos=1{% endif %}#todo-{{ root_parent_todo_id }}" title="Up one level" aria-label="Up one level">Up one ⬆</a>
+            {% else %}
+              <a class="btn" href="/html_no_js/tree{% if show_todos %}?show_todos=1{% endif %}#todo-{{ root_parent_todo_id }}" title="Up one level" aria-label="Up one level">Up one ⬆</a>
+            {% endif %}
+          {% endif %}
+        {% endif %}
     {% endif %}
   </div>
 
@@ -69,7 +83,7 @@
   {% endif %}
 
   {% macro render_node(node) %}
-    <li>
+     <li id="list-{{ node.id }}">
       <input type="checkbox" class="tree-select" data-item-type="list" name="list_ids" value="{{ node.id }}" form="tree-bulk-move-form" title="Select list (double-click to set destination)">
       <span class="icon" aria-hidden="true" title="List">📂</span>
       <a href="/html_no_js/lists/{{ node.id }}">{{ node.name }}</a>
@@ -85,7 +99,7 @@
             <li>
               <input type="checkbox" class="tree-select" data-item-type="todo" name="todo_ids" value="{{ t.id }}" form="tree-bulk-move-form" title="Select todo (double-click to set destination)">
               <span class="icon" aria-hidden="true" title="Todo">📝</span>
-              <a class="{% if t.completed %}done{% endif %}" href="/html_no_js/todos/{{ t.id }}">{% if t.completed %}<s>{{ t.text }}</s>{% else %}{{ t.text }}{% endif %}</a>
+              <a id="todo-{{ t.id }}" class="{% if t.completed %}done{% endif %}" href="/html_no_js/todos/{{ t.id }}">{% if t.completed %}<s>{{ t.text }}</s>{% else %}{{ t.text }}{% endif %}</a>
               {% if t.priority %}<span class="meta priority-inline" title="Priority {{ t.priority }}" style="margin-left:0.35rem;"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>{% endif %}
               {% if t.child_lists and t.child_lists|length > 0 %}
                 <ul class="tree">
