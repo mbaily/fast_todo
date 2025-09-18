@@ -70,7 +70,7 @@
       <input type="checkbox" class="tree-select" data-item-type="list" name="list_ids" value="{{ node.id }}" form="tree-bulk-move-form" title="Select list (double-click to set destination)">
       <span class="icon" aria-hidden="true" title="List">📂</span>
       <a href="/html_no_js/lists/{{ node.id }}">{{ node.name }}</a>
-  <a class="btn" style="margin-left:0.35rem;" href="/html_no_js/tree?root_list_id={{ node.id }}{% if show_todos %}&show_todos=1{% endif %}" title="Re-center tree to this list" aria-label="Re-center tree to this list">👁️</a>
+  <a class="btn" style="margin-left:0.35rem;" href="/html_no_js/tree?root_list_id={{ node.id }}{% if show_todos %}&show_todos=1{% endif %}" title="Re-center tree to this list" aria-label="Re-center tree to this list">◎</a>
       {% if node.priority %}<span class="meta priority-inline" title="List priority"><span class="priority-circle">{{ circ.get(node.priority, node.priority) }}</span></span>{% endif %}
       {% if node.override_priority %}<span class="muted priority-inline priority-override" title="Secondary priority (max child todos/sublists)"><span class="priority-circle">{{ circ.get(node.override_priority, node.override_priority) }}</span></span>{% endif %}
       {% if node.hashtags and node.hashtags|length > 0 %}
