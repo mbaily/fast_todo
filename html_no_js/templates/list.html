@@ -418,7 +418,7 @@
     <form method="post" action="/html_no_js/lists/{{ list.id }}/sublists/create" style="margin:0 0 .4rem 0" autocomplete="off">
       {{ csrf_field() }}
       <label>New sublist<br>
-        <input type="text" name="name" required placeholder="Sublist name" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <input type="text" name="name" required placeholder="Sublist name" autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false">
       </label>
       <button type="submit">Create</button>
     </form>
@@ -536,7 +536,7 @@
 
   <form id="create-todo-form" method="post" action="/html_no_js/todos/create" autocomplete="off">
   {{ csrf_field() }}
-  <input id="new-todo-text" name="text" placeholder="Todo text" required autofocus autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+  <input id="new-todo-text" name="text" placeholder="Todo text" required autofocus autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false">
   <div id="hashtag-suggest" class="hashtag-suggest" role="listbox" aria-label="Hashtag suggestions" data-tags="{% if all_hashtags and all_hashtags|length > 0 %}{% for tag in all_hashtags %}{{ tag }}{% if not loop.last %},{% endif %}{% endfor %}{% endif %}"></div>
     <input type="hidden" name="list_id" value="{{ list.id }}">
   <button type="submit" onclick="if (window.createTodoClick){ try { window.createTodoClick(event); } catch(e){}; return false; }">Add</button>
@@ -1548,7 +1548,7 @@
     <form method="post" action="/html_no_js/lists/{{ list.id }}/sublists/create" style="margin:0 0 .4rem 0" autocomplete="off">
       {{ csrf_field() }}
       <label>New sublist<br>
-        <input type="text" name="name" required placeholder="Sublist name" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <input type="text" name="name" required placeholder="Sublist name" autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false">
       </label>
       <button type="submit">Create</button>
     </form>

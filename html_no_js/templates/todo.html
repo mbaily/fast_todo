@@ -137,7 +137,7 @@
       <form method="post" action="/html_no_js/todos/{{ todo.id }}/sublists/create" style="margin:0 0 .4rem 0" autocomplete="off">
         {{ csrf_field() }}
         <label>New sublist<br>
-          <input type="text" name="name" required placeholder="Sublist name" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+          <input type="text" name="name" required placeholder="Sublist name" autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false">
         </label>
         <button type="submit">Create</button>
       </form>
@@ -195,7 +195,7 @@
 
   <form id="todo-edit-form" method="post" action="/html_no_js/todos/{{ todo.id }}/edit" autocomplete="off">
     {{ csrf_field() }}
-    <label>Text<br><textarea id="todo-text-input" class="full-bleed" name="text" required autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" rows="{{ (todo.note or '').split('\n')|length }}">{{ todo.text }}</textarea></label><br>
+    <label>Text<br><textarea id="todo-text-input" class="full-bleed" name="text" required autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false" rows="{{ (todo.note or '').split('\n')|length }}">{{ todo.text }}</textarea></label><br>
     <div id="todo-hashtag-suggest" class="hashtag-suggest" role="listbox" aria-label="Hashtag suggestions" data-tags="{% if all_hashtags and all_hashtags|length > 0 %}{% for tag in all_hashtags %}{{ tag }}{% if not loop.last %},{% endif %}{% endfor %}{% endif %}"></div>
 
     <label for="note-textarea">Note</label>
@@ -283,7 +283,7 @@
       <form method="post" action="/html_no_js/todos/{{ todo.id }}/sublists/create" style="margin:0 0 .4rem 0" autocomplete="off">
         {{ csrf_field() }}
         <label>New sublist<br>
-          <input type="text" name="name" required placeholder="Sublist name" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+          <input type="text" name="name" required placeholder="Sublist name" autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false">
         </label>
         <button type="submit">Create</button>
       </form>
