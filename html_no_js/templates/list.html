@@ -542,6 +542,31 @@
   })();
   </script>
 
+  {% if list.hashtags and list.hashtags|length > 0 %}
+    <div class="tags" role="list" aria-label="List tags">
+      {% for tag in (list.hashtags | sort) %}
+        <div role="listitem" style="display:inline-block; margin-right:0.4rem">
+          <a class="tag-chip" href="/html_no_js/search?q={{ tag|urlencode }}" role="link">{{ tag }}</a>
+          <button type="button" class="tag-remove" data-ft-remove-list-tag="1" data-list-id="{{ list.id }}" data-tag="{{ tag }}" aria-label="Remove {{ tag }}"><span aria-hidden="true">✖</span><span class="sr-only">Remove {{ tag }}</span></button>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <form method="post" action="/lists/{{ list.id }}/hashtags/json" aria-label="Add list tag" data-ft-add-list-tag="1" data-list-id="{{ list.id }}">
+    {{ csrf_field() }}
+    <label>Add Tag <input name="tag" placeholder="#tag" aria-label="Tag name" list="list-tag-suggestions" autocomplete="off"></label>
+    <button type="submit">Add</button>
+  </form>
+
+  <datalist id="list-tag-suggestions">
+    {% if all_hashtags %}
+      {% for tag in all_hashtags %}
+        <option value="{{ tag }}">
+      {% endfor %}
+    {% endif %}
+  </datalist>
+
   <form id="create-todo-form" method="post" action="/html_no_js/todos/create" autocomplete="off">
   {{ csrf_field() }}
   <input id="new-todo-text" name="text" placeholder="Todo text" required autofocus autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false">

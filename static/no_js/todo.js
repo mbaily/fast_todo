@@ -442,6 +442,102 @@
 	}catch(e){ }
 })();
 
+// Handle remove list tag button clicks with JSON endpoint
+(function(){
+	try{
+		document.body.addEventListener('click', function(ev){
+			var btn = ev.target; if (!btn || btn.tagName !== 'BUTTON') return;
+			if (!btn.hasAttribute('data-ft-remove-list-tag')) return;
+			ev.preventDefault();
+			ev.stopPropagation();
+			try{
+				var listId = btn.getAttribute('data-list-id');
+				var tag = btn.getAttribute('data-tag');
+				if (!listId || !tag) return;
+				var url = '/lists/' + encodeURIComponent(listId) + '/hashtags/json';
+				fetch(url, { 
+					method: 'DELETE', 
+					body: JSON.stringify({ tag: tag }), 
+					credentials: 'same-origin',
+					headers: { 'Content-Type': 'application/json' }
+				})
+					.then(function(res){ if (!res.ok) throw new Error('Remove list tag failed'); return res.json().catch(function(){ return null; }); })
+					.then(function(){
+						try{
+							var wrapper = btn.closest('[role="listitem"]') || btn.parentElement;
+							if (wrapper) wrapper.remove();
+						}catch(_){ }
+					})
+					.catch(function(){ try{ alert('Action failed'); }catch(_){ } });
+			}catch(_){ }
+		}, false);
+	}catch(e){ }
+})();
+
+// Handle add list tag form with JSON endpoint
+(function(){
+	try{
+		document.body.addEventListener('submit', function(ev){
+			var form = ev.target; if (!form || form.tagName !== 'FORM') return;
+			if (!form.hasAttribute('data-ft-add-list-tag')) return;
+			ev.preventDefault();
+			try{
+				var listId = form.getAttribute('data-list-id');
+				var tagInput = form.querySelector('input[name="tag"]');
+				var tagVal = tagInput ? tagInput.value : '';
+				if (!tagVal || !tagVal.trim()) return;
+				var url = '/lists/' + encodeURIComponent(listId) + '/hashtags/json';
+				fetch(url, { 
+					method: 'POST', 
+					body: JSON.stringify({ tag: tagVal }), 
+					credentials: 'same-origin',
+					headers: { 'Content-Type': 'application/json' }
+				})
+					.then(function(res){ if (!res.ok) throw new Error('Add list tag failed'); return res.json().catch(function(){ return null; }); })
+					.then(function(){
+						try{
+							// Insert new tag chip before the form, matching existing markup
+							var div = document.createElement('div'); div.setAttribute('role','listitem'); div.style.display='inline-block'; div.style.marginRight='0.4rem';
+							var a = document.createElement('a'); a.className='tag-chip'; a.href='/html_no_js/search?q=' + encodeURIComponent(tagVal); a.textContent = tagVal; div.appendChild(a);
+							var remBtn = document.createElement('button'); remBtn.type='button'; remBtn.className='tag-remove'; remBtn.innerHTML='<span aria-hidden="true">✖</span><span class="sr-only">Remove ' + tagVal + '</span>';
+							remBtn.addEventListener('click', function(){
+								try{
+									var url = '/lists/' + encodeURIComponent(listId) + '/hashtags/json';
+									fetch(url, { 
+										method: 'DELETE', 
+										body: JSON.stringify({ tag: tagVal }), 
+										credentials: 'same-origin',
+										headers: { 'Content-Type': 'application/json' }
+									})
+										.then(function(r){ if (!r.ok) throw new Error('Remove list tag failed'); return r.json().catch(function(){ return null; }); })
+										.then(function(){ try{ div.remove(); }catch(_){ } })
+										.catch(function(){ try{ alert('Action failed'); }catch(_){ } });
+								}catch(_){ }
+							});
+							var remWrap = document.createElement('form'); remWrap.style.display='inline'; remWrap.appendChild(remBtn);
+							div.appendChild(remWrap);
+							// Find the tags container and add the new tag
+							var tagsContainer = document.querySelector('.tags[aria-label="List tags"]');
+							if (tagsContainer) {
+								tagsContainer.appendChild(div);
+							} else {
+								// Create tags container if it doesn't exist
+								var newTagsContainer = document.createElement('div'); newTagsContainer.className='tags'; newTagsContainer.setAttribute('role','list'); newTagsContainer.setAttribute('aria-label','List tags');
+								newTagsContainer.appendChild(div);
+								var addForm = document.querySelector('form[data-ft-add-list-tag]');
+								if (addForm && addForm.parentElement) {
+									addForm.parentElement.insertBefore(newTagsContainer, addForm);
+								}
+							}
+							try{ tagInput.value=''; }catch(_){ }
+						}catch(_){ }
+					})
+					.catch(function(){ try{ alert('Action failed'); }catch(_){ } });
+			}catch(_){ }
+		}, false);
+	}catch(e){ }
+})();
+
 // Priority select: POST via fetch and update header priority circle
 (function(){
 	try {
