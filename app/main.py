@@ -11615,7 +11615,190 @@ async def html_tree_view(request: Request, root_list_id: int | None = None, show
             # top-level (no parent list/todo)
             tree = await build_tree(None, 0)
 
-    return TEMPLATES.TemplateResponse(request, 'tree.html', {"request": request, "tree": tree, "root_list_id": root_list_id, "root_name": root_name, "root_parent_id": root_parent_id, "show_todos": bool(show_todos), "client_tz": await get_session_timezone(request)})
+    # CSRF token for bulk actions
+    from .auth import create_csrf_token
+    csrf_token = create_csrf_token(current_user.username)
+    return TEMPLATES.TemplateResponse(request, 'tree.html', {"request": request, "tree": tree, "root_list_id": root_list_id, "root_name": root_name, "root_parent_id": root_parent_id, "show_todos": bool(show_todos), "client_tz": await get_session_timezone(request), "csrf_token": csrf_token})
+
+
+@app.post('/html_no_js/tree/bulk_move')
+async def html_tree_bulk_move(request: Request, current_user: User = Depends(require_login)):
+    """Bulk-move selected lists/todos to a destination list or under a destination todo.
+    No-JS form posts:
+      - list_ids: repeated checkbox values of selected list IDs
+      - todo_ids: repeated checkbox values of selected todo IDs
+      - target_type: 'list' or 'todo'
+      - target_id: integer ID for the destination list/todo
+      - hidden: root_list_id (optional), show_todos (optional) for redirect preservation
+      - _csrf: required
+    """
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    # collect selections
+    try:
+        list_ids = [int(v) for v in form.getlist('list_ids') if str(v).strip()]
+    except Exception:
+        list_ids = []
+    try:
+        todo_ids = [int(v) for v in form.getlist('todo_ids') if str(v).strip()]
+    except Exception:
+        todo_ids = []
+    target_type = (form.get('target_type') or 'list').strip().lower()
+    try:
+        target_id = int(form.get('target_id'))
+    except Exception:
+        target_id = None
+    # redirect context
+    root_list_id_val = form.get('root_list_id')
+    show_todos_raw = form.get('show_todos')
+    show_todos_flag = False
+    try:
+        if isinstance(show_todos_raw, str):
+            show_todos_flag = show_todos_raw.lower() in ('1', 'true', 'yes', 'on')
+    except Exception:
+        show_todos_flag = False
+    redirect_qs = []
+    if root_list_id_val:
+        try:
+            _ = int(root_list_id_val)
+            redirect_qs.append(f"root_list_id={_}")
+        except Exception:
+            pass
+    if show_todos_flag:
+        redirect_qs.append('show_todos=1')
+
+    # basic validation
+    if target_id is None or target_type not in ('list', 'todo') or (not list_ids and not todo_ids):
+        # nothing to do; redirect back
+        path = '/html_no_js/tree'
+        if redirect_qs:
+            path += '?' + '&'.join(redirect_qs)
+        return RedirectResponse(url=path, status_code=303)
+
+    async with async_session() as sess:
+        if target_type == 'list':
+            # ensure destination list ownership
+            dst = await sess.get(ListState, target_id)
+            _ensure_owner_list(dst, current_user)
+            # move lists under list
+            for lid in list_ids:
+                try:
+                    if int(lid) == int(target_id):
+                        continue  # no-op
+                except Exception:
+                    pass
+                src = await sess.get(ListState, lid)
+                try:
+                    _ensure_owner_list(src, current_user)
+                except Exception:
+                    continue
+                # cycle guard: ensure target is not a descendant of src
+                try:
+                    cur = dst
+                    seen = 0
+                    while cur is not None and getattr(cur, 'parent_list_id', None) is not None and seen < 200:
+                        if int(cur.parent_list_id) == int(lid):
+                            # cycle would be created; skip this move
+                            cur = None
+                            break
+                        cur = await sess.get(ListState, int(cur.parent_list_id))
+                        seen += 1
+                except Exception:
+                    pass
+                # apply move
+                src.parent_todo_id = None
+                src.parent_todo_position = None
+                src.parent_list_id = target_id
+                src.parent_list_position = await _next_position_for_parent(sess, parent_list_id=target_id)
+                src.modified_at = now_utc()
+                sess.add(src)
+            # move todos into list
+            for tid in todo_ids:
+                todo = await sess.get(Todo, tid)
+                if not todo:
+                    continue
+                cur_parent = await sess.get(ListState, todo.list_id)
+                try:
+                    _ensure_owner_todo_parent_list(todo, cur_parent, current_user)
+                except Exception:
+                    continue
+                old_list_id = int(todo.list_id)
+                todo.list_id = target_id
+                todo.modified_at = now_utc()
+                sess.add(todo)
+                try:
+                    await _touch_list_modified(sess, target_id)
+                    if old_list_id != target_id:
+                        await _touch_list_modified(sess, old_list_id)
+                except Exception:
+                    pass
+            await sess.commit()
+        else:  # target_type == 'todo'
+            # ensure destination todo and ownership via its parent list
+            td = await sess.get(Todo, target_id)
+            if not td:
+                path = '/html_no_js/tree'
+                if redirect_qs:
+                    path += '?' + '&'.join(redirect_qs)
+                return RedirectResponse(url=path, status_code=303)
+            td_parent = await sess.get(ListState, td.list_id)
+            _ensure_owner_todo_parent_list(td, td_parent, current_user)
+            # move lists under todo
+            for lid in list_ids:
+                src = await sess.get(ListState, lid)
+                try:
+                    _ensure_owner_list(src, current_user)
+                except Exception:
+                    continue
+                # guard: todo currently belongs to this list (immediate self-cycle)
+                try:
+                    if td.list_id is not None and int(td.list_id) == int(lid):
+                        continue
+                except Exception:
+                    pass
+                # ascend from todo's current list; if we hit this list id, skip (cycle)
+                try:
+                    cur_list_id = int(td.list_id) if getattr(td, 'list_id', None) is not None else None
+                    seen = 0
+                    while cur_list_id is not None and seen < 200:
+                        if int(cur_list_id) == int(lid):
+                            cur_list_id = None  # mark as cycle -> skip
+                            break
+                        cur_list = await sess.get(ListState, cur_list_id)
+                        if not cur_list:
+                            break
+                        if getattr(cur_list, 'parent_list_id', None) is not None:
+                            cur_list_id = int(cur_list.parent_list_id)
+                            seen += 1
+                            continue
+                        ptid = getattr(cur_list, 'parent_todo_id', None)
+                        if ptid is not None:
+                            pt = await sess.get(Todo, int(ptid))
+                            if not pt:
+                                break
+                            cur_list_id = int(pt.list_id) if getattr(pt, 'list_id', None) is not None else None
+                            seen += 1
+                            continue
+                        break
+                except Exception:
+                    pass
+                # apply move
+                src.parent_list_id = None
+                src.parent_list_position = None
+                src.parent_todo_id = int(td.id)
+                src.parent_todo_position = await _next_position_for_parent(sess, parent_todo_id=int(td.id))
+                src.modified_at = now_utc()
+                sess.add(src)
+            await sess.commit()
+
+    # redirect back to tree preserving context
+    path = '/html_no_js/tree'
+    if redirect_qs:
+        path += '?' + '&'.join(redirect_qs)
+    return RedirectResponse(url=path, status_code=303)
 
 
 @app.post('/html_no_js/lists/{list_id}/completion_types')

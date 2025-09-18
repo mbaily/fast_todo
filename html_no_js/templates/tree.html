@@ -18,8 +18,23 @@
     .prio .secondary { opacity: 0.6; }
     .toolbar { display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.5rem; }
     .toolbar form { display:inline-flex; align-items:center; gap:0.35rem; }
+    /* destination highlight */
+    li.dest { background: #ecfdf5; /* green-50 */ }
+    li.dest > .icon, li.dest > a { color: #065f46; /* green-800 */ }
   </style>
   {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
+  {# anchor form element by id so scattered checkboxes can submit with it #}
+  <form id="tree-bulk-move-form" method="post" action="/html_no_js/tree/bulk_move" style="display:none;">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+    {% if root_list_id is not none %}
+    <input type="hidden" name="root_list_id" value="{{ root_list_id }}">
+    {% endif %}
+    {% if show_todos %}
+    <input type="hidden" name="show_todos" value="1">
+    {% endif %}
+    <input type="hidden" name="target_type" value="">
+    <input type="hidden" name="target_id" value="">
+  </form>
 
   <div class="toolbar">
     <form method="get" action="/html_no_js/tree">
@@ -33,6 +48,7 @@
       </label>
       <button type="submit">Apply</button>
     </form>
+    <button type="submit" class="btn" form="tree-bulk-move-form" title="Move selected to destination">Move</button>
     {% if root_list_id %}
       <a class="btn" href="/html_no_js/tree" title="Back to top">⭱ Top</a>
       {% if root_parent_id %}
@@ -45,6 +61,7 @@
 
   {% macro render_node(node) %}
     <li>
+      <input type="checkbox" class="tree-select" data-item-type="list" name="list_ids" value="{{ node.id }}" form="tree-bulk-move-form" title="Select list (double-click to set destination)">
       <span class="icon" aria-hidden="true" title="List">📂</span>
       <a href="/html_no_js/lists/{{ node.id }}">{{ node.name }}</a>
   <a class="btn" style="margin-left:0.35rem;" href="/html_no_js/tree?root_list_id={{ node.id }}{% if show_todos %}&show_todos=1{% endif %}" title="Re-center tree to this list" aria-label="Re-center tree to this list">🎯</a>
@@ -57,6 +74,7 @@
         <ul class="tree">
           {% for t in node.todos %}
             <li>
+              <input type="checkbox" class="tree-select" data-item-type="todo" name="todo_ids" value="{{ t.id }}" form="tree-bulk-move-form" title="Select todo (double-click to set destination)">
               <span class="icon" aria-hidden="true" title="Todo">📝</span>
               <a class="{% if t.completed %}done{% endif %}" href="/html_no_js/todos/{{ t.id }}">{% if t.completed %}<s>{{ t.text }}</s>{% else %}{{ t.text }}{% endif %}</a>
               {% if t.priority %}<span class="meta priority-inline" title="Priority {{ t.priority }}" style="margin-left:0.35rem;"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>{% endif %}
@@ -83,4 +101,5 @@
   {% else %}
     <div class="meta">No lists to display.</div>
   {% endif %}
+  <script src="/static/js/tree.js"></script>
 {% endblock %}
