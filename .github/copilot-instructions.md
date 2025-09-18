@@ -12,3 +12,5 @@ Note we are using uv or uv pip and not pip or pip3. You are not allowed to use p
 When installing python packages with uv pip or uv, do not specify older versions of packages in requirements.txt. Always install the latest version of a package.
 
 Always activate the virtual environment use `source .venv/bin/activate` before running uv, uv pip, pytest or python commands.
+
+In HTML web apps, don't write any HTML forms at all. Always write a server JSON endpoint and wire to JS in the client.
