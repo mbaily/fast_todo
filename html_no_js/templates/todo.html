@@ -145,6 +145,7 @@
           {% for sl in sublists %}
             {% set created_iso = sl.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') %}
             {% set modified_iso = sl.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') if sl.modified_at else None %}
+            {# Secondary (derived) priority: highest of immediate child todos' max (if any) and immediate child sublists' priorities. Server combines into override_priority. #}
             {% set eff = sl.override_priority if (sl.override_priority is not none and (sl.priority is none or sl.override_priority > sl.priority)) else sl.priority %}
             <li class="list-item"{% if created_iso %} data-created-at="{{ created_iso }}"{% endif %}{% if modified_iso %} data-modified-at="{{ modified_iso }}"{% endif %}{% if eff is not none %} data-priority="{{ eff }}"{% endif %}{% if sl.priority is not none %} data-list-priority="{{ sl.priority }}"{% endif %}{% if sl.override_priority is not none %} data-override-priority="{{ sl.override_priority }}"{% endif %}{% if sl.parent_list_position is not none %} data-parent-list-position="{{ sl.parent_list_position }}"{% endif %}>
               <div class="list-action-left" style="display:flex;gap:0.25rem;align-items:center;">
@@ -165,7 +166,7 @@
                   <span class="meta priority-inline" title="List priority"><span class="priority-circle">{{ circ.get(sl.priority, sl.priority) }}</span></span>
                 {% endif %}
                 {% if sl.override_priority is not none and (sl.priority is none or sl.override_priority > sl.priority) %}
-                  <span class="muted priority-inline priority-override" title="Highest uncompleted todo priority"><span class="priority-circle">{{ circ.get(sl.override_priority, sl.override_priority) }}</span></span>
+                  <span class="muted priority-inline priority-override" title="Secondary priority (max child todos/sublists)"><span class="priority-circle">{{ circ.get(sl.override_priority, sl.override_priority) }}</span></span>
                 {% endif %}
                 <button type="button" class="list-action-btn edit-list-btn" data-list-id="{{ sl.id }}" data-list-name="{{ sl.name|e }}" title="Edit list name">✏️</button>
                 {% if sl.created_at %}

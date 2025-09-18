@@ -1661,8 +1661,8 @@ async def html_tailwind_view_list(request: Request):
                 })
             try:
                 if sub_ids:
-                    todo_q = await sess.scalars(select(Todo.id, Todo.list_id, Todo.priority).where(Todo.list_id.in_(sub_ids)).where(Todo.priority != None))
-                    todo_id_rows = todo_q.all()
+                    todo_res = await sess.exec(select(Todo.id, Todo.list_id, Todo.priority).where(Todo.list_id.in_(sub_ids)).where(Todo.priority != None))
+                    todo_id_rows = todo_res.all()
                     todo_map: dict[int, list[tuple[int,int]]] = {}
                     todo_ids = []
                     for tid, lid, pri in todo_id_rows:
@@ -1693,6 +1693,28 @@ async def html_tailwind_view_list(request: Request):
                                 max_p = pv
                         if max_p is not None:
                             sub['override_priority'] = max_p
+                    # Combine with highest priority among immediate child sublists (by list-level priority only)
+                    try:
+                        q_child = await sess.exec(
+                            select(ListState.parent_list_id, func.max(ListState.priority))
+                            .where(ListState.parent_list_id.in_(sub_ids))
+                            .where(ListState.priority != None)
+                            .group_by(ListState.parent_list_id)
+                        )
+                        child_max_map: dict[int, int] = {}
+                        for pid, mx in q_child.all():
+                            try:
+                                child_max_map[int(pid)] = int(mx) if mx is not None else None
+                            except Exception:
+                                pass
+                        for sub in sublists:
+                            sid = sub.get('id')
+                            child_max = child_max_map.get(int(sid)) if sid is not None else None
+                            if child_max is not None:
+                                cur = sub.get('override_priority')
+                                sub['override_priority'] = max(cur if cur is not None else child_max, child_max)
+                    except Exception:
+                        pass
             except Exception:
                 pass
         except Exception:
@@ -10525,35 +10547,49 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
                     # include the sublist's own priority if present on the ORM object
                     'priority': getattr(l, 'priority', None),
                 })
-            # Determine highest uncompleted todo priority per sublist (if any)
+            # Determine highest secondary priority per sublist (max of uncompleted child todo priority and immediate child sublists' priority)
             try:
                 if sub_ids:
-                    todo_q = await sess.scalars(select(Todo.id, Todo.list_id, Todo.priority).where(Todo.list_id.in_(sub_ids)).where(Todo.priority != None))
-                    # use a distinct variable name so we don't clobber the main `todo_rows`
-                    todo_id_rows = todo_q.all()
-                    todo_map: dict[int, list[tuple[int,int]]] = {}
-                    todo_ids = []
+                    # Fetch (todo_id, list_id, priority) for todos under these sublists
+                    todo_rows_exec = await sess.exec(
+                        select(Todo.id, Todo.list_id, Todo.priority)
+                        .where(Todo.list_id.in_(sub_ids))
+                        .where(Todo.priority != None)
+                    )
+                    todo_id_rows = todo_rows_exec.all()
+                    todo_map: dict[int, list[tuple[int, int | None]]] = {}
+                    todo_ids: list[int] = []
                     for tid, lid, pri in todo_id_rows:
-                        todo_map.setdefault(lid, []).append((tid, pri))
-                        todo_ids.append(tid)
-                    completed_ids = set()
+                        try:
+                            tid_i = int(tid)
+                            lid_i = int(lid) if lid is not None else None
+                        except Exception:
+                            continue
+                        if lid_i is None:
+                            continue
+                        todo_map.setdefault(lid_i, []).append((tid_i, pri))
+                        todo_ids.append(tid_i)
+                    # Determine which of those todos are completed under the default completion type
+                    completed_ids: set[int] = set()
                     if todo_ids:
                         try:
-                            qcomp = select(TodoCompletion.todo_id).join(CompletionType, CompletionType.id == TodoCompletion.completion_type_id).where(TodoCompletion.todo_id.in_(todo_ids)).where(CompletionType.name == 'default').where(TodoCompletion.done == True)
+                            qcomp = (
+                                select(TodoCompletion.todo_id)
+                                .join(CompletionType, CompletionType.id == TodoCompletion.completion_type_id)
+                                .where(TodoCompletion.todo_id.in_(todo_ids))
+                                .where(CompletionType.name == 'default')
+                                .where(TodoCompletion.done == True)
+                            )
                             cres = await sess.exec(qcomp)
-                            completed_ids = set(r[0] if isinstance(r, tuple) else r for r in cres.all())
+                            completed_ids = set(int(r[0] if isinstance(r, tuple) else r) for r in cres.all())
                         except Exception:
                             completed_ids = set()
-                    # diagnostic logging to help debug missing override priorities
-                    try:
-                        logger.info('todo override diagnostic: todo_id_rows=%s', todo_id_rows)
-                        logger.info('todo override diagnostic: todo_map keys=%s', list(todo_map.keys()))
-                        logger.info('todo override diagnostic: completed_ids=%s', completed_ids)
-                    except Exception:
-                        pass
-                    # compute highest uncompleted priority per sublist
+                    # Compute highest uncompleted todo priority per sublist
                     for sub in sublists:
-                        lid = sub.get('id')
+                        try:
+                            lid = int(sub.get('id'))
+                        except Exception:
+                            continue
                         candidates = todo_map.get(lid, [])
                         max_p = None
                         for tid, pri in candidates:
@@ -10569,6 +10605,34 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
                                 max_p = pv
                         if max_p is not None:
                             sub['override_priority'] = max_p
+                    # Merge in immediate child sublists' list-level priority: max priority of grandchildren lists per child sublist
+                    try:
+                        child_sub_max_exec = await sess.exec(
+                            select(ListState.parent_list_id, func.max(ListState.priority))
+                            .where(ListState.parent_list_id.in_(sub_ids))
+                            .group_by(ListState.parent_list_id)
+                        )
+                        child_sub_max = {int(pid): (int(p) if p is not None else None) for pid, p in child_sub_max_exec.all()}
+                    except Exception:
+                        child_sub_max = {}
+                    for sub in sublists:
+                        try:
+                            lid = int(sub.get('id'))
+                        except Exception:
+                            continue
+                        p1 = sub.get('override_priority')
+                        p2 = child_sub_max.get(lid)
+                        if p2 is None:
+                            # no grandchildren with priority set
+                            continue
+                        if p1 is None:
+                            sub['override_priority'] = p2
+                        else:
+                            try:
+                                sub['override_priority'] = max(int(p1), int(p2))
+                            except Exception:
+                                # if casting fails, prefer existing p1
+                                pass
             except Exception:
                 # failure computing overrides should not break list rendering
                 pass
@@ -11944,8 +12008,8 @@ async def html_view_todo(request: Request, todo_id: int, current_user: User = De
     # Determine highest uncompleted todo priority per sublist (if any)
         try:
             if sub_ids:
-                todo_q = await sess.scalars(select(Todo.id, Todo.list_id, Todo.priority).where(Todo.list_id.in_(sub_ids)).where(Todo.priority != None))
-                todo_id_rows = todo_q.all()
+                todo_res = await sess.exec(select(Todo.id, Todo.list_id, Todo.priority).where(Todo.list_id.in_(sub_ids)).where(Todo.priority != None))
+                todo_id_rows = todo_res.all()
                 todo_map: dict[int, list[tuple[int,int]]] = {}
                 todo_ids = []
                 for tid, lid, pri in todo_id_rows:
@@ -11984,6 +12048,28 @@ async def html_view_todo(request: Request, todo_id: int, current_user: User = De
                             max_p = pv
                     if max_p is not None:
                         sub['override_priority'] = max_p
+                # Also consider immediate child sublists' own priorities (not deeper levels)
+                try:
+                    q_child = await sess.exec(
+                        select(ListState.parent_list_id, func.max(ListState.priority))
+                        .where(ListState.parent_list_id.in_(sub_ids))
+                        .where(ListState.priority != None)
+                        .group_by(ListState.parent_list_id)
+                    )
+                    child_max_map: dict[int, int] = {}
+                    for pid, mx in q_child.all():
+                        try:
+                            child_max_map[int(pid)] = int(mx) if mx is not None else None
+                        except Exception:
+                            pass
+                    for sub in sublists:
+                        sid = sub.get('id')
+                        child_max = child_max_map.get(int(sid)) if sid is not None else None
+                        if child_max is not None:
+                            cur = sub.get('override_priority')
+                            sub['override_priority'] = max(cur if cur is not None else child_max, child_max)
+                except Exception:
+                    pass
         except Exception:
             # failure computing overrides should not break todo rendering
             pass
