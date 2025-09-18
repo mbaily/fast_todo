@@ -7,6 +7,7 @@ from sqlalchemy import and_, or_
 from sqlalchemy import exists
 from .db import async_session, init_db
 from .models import ListState, Todo, CompletionType, TodoCompletion, User
+from .models import EventLog
 from .auth import get_current_user, create_access_token, require_login, CSRF_TOKEN_EXPIRE_MINUTES, CSRF_TOKEN_EXPIRE_SECONDS
 from pydantic import BaseModel
 from .utils import now_utc, normalize_hashtag
@@ -1886,6 +1887,58 @@ async def post_server_log(request: Request, payload: LogPost):
     except Exception:
         logging.getLogger().info(payload.message)
     return {'ok': True}
+
+# ---------- html_no_js: user event logs ----------
+class EventLogIn(BaseModel):
+    message: str
+    item_type: str | None = None
+    item_id: int | None = None
+    url: str | None = None
+    label: str | None = None
+
+
+@app.post('/html_no_js/logs')
+async def create_event_log(payload: EventLogIn, current_user: User = Depends(require_login)):
+    """Create a per-user event log row (html_no_js clients).
+
+    Accepts JSON with a descriptive message and optional link fields.
+    Returns a small JSON acknowledging creation.
+    """
+    async with async_session() as sess:
+        row = EventLog(user_id=current_user.id, message=payload.message[:1000] if payload.message else '',
+                        item_type=(payload.item_type or None), item_id=payload.item_id,
+                        url=(payload.url or None), label=(payload.label or None), created_at=now_utc())
+        sess.add(row)
+        await sess.commit()
+        await sess.refresh(row)
+        return { 'ok': True, 'id': row.id }
+
+
+@app.get('/html_no_js/logs', response_class=HTMLResponse)
+async def html_logs_page(request: Request, current_user: User = Depends(require_login)):
+    """Render the per-user event logs as a page with truncate control."""
+    async with async_session() as sess:
+        q = await sess.exec(select(EventLog).where(EventLog.user_id == current_user.id).order_by(EventLog.created_at.desc()).limit(500))
+        items = q.all()
+    return TEMPLATES.TemplateResponse('logs.html', {
+        'request': request,
+        'logs': items,
+        'user': current_user,
+    })
+
+
+@app.post('/html_no_js/logs/truncate')
+async def truncate_logs(current_user: User = Depends(require_login)):
+    """Keep only the most recent 50 logs for the current user."""
+    async with async_session() as sess:
+        q = await sess.exec(select(EventLog.id).where(EventLog.user_id == current_user.id).order_by(EventLog.created_at.desc()))
+        ids = [rid for (rid,) in [(i,) if not isinstance(i, tuple) else i for i in q.all()]]
+        if len(ids) > 50:
+            keep = set(ids[:50])
+            from sqlalchemy import delete as sqldelete
+            await sess.exec(sqldelete(EventLog).where(EventLog.user_id == current_user.id, EventLog.id.notin_(keep)))
+            await sess.commit()
+    return RedirectResponse(url='/html_no_js/logs', status_code=303)
 
 
 @app.delete('/server/logs')

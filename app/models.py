@@ -423,3 +423,21 @@ class UserListPrefs(SQLModel, table=True):
     created_at: datetime | None = Field(default_factory=now_utc)
     # Arbitrary JSON metadata (JSON-encoded string)
     metadata_json: Optional[str] = None
+
+
+class EventLog(SQLModel, table=True):
+    """Per-user event log for html_no_js actions.
+
+    Stores a descriptive message and optional link info to a related item
+    (todo, list, hashtag) or arbitrary URL.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key='user.id', index=True)
+    message: str
+    item_type: Optional[str] = None  # 'todo' | 'list' | 'hashtag' | other
+    item_id: Optional[int] = None
+    url: Optional[str] = None
+    label: Optional[str] = None
+    created_at: datetime | None = Field(default_factory=now_utc, index=True)
+    # Arbitrary JSON metadata (JSON-encoded string)
+    metadata_json: Optional[str] = None

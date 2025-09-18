@@ -454,11 +454,37 @@ def _ensure_sqlite_minimal_migrations(url: str | None) -> None:
                 for tbl in (
                     'serverstate','liststate','hashtag','completiontype','user','session','syncoperation',
                     'tombstone','recentlistvisit','recenttodovisit','completedoccurrence','trashmeta','listtrashmeta',
-                    'ignoredscope','sshpublickey','pushsubscription','itemlink','usercollation','userlistprefs'
+                    'ignoredscope','sshpublickey','pushsubscription','itemlink','usercollation','userlistprefs','eventlog'
                 ):
                     _ensure_metadata_col(tbl)
             except Exception:
                 pass
+            # Ensure eventlog table exists for per-user html_no_js event logs
+            try:
+                cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='eventlog'")
+                exists_el = cur.fetchone() is not None
+            except Exception:
+                exists_el = True
+            if not exists_el:
+                try:
+                    cur.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS eventlog (
+                          id INTEGER PRIMARY KEY,
+                          user_id INTEGER NOT NULL,
+                          message TEXT NOT NULL,
+                          item_type TEXT,
+                          item_id INTEGER,
+                          url TEXT,
+                          label TEXT,
+                          created_at DATETIME,
+                          metadata_json TEXT
+                        )
+                        """
+                    )
+                    cur.execute("CREATE INDEX IF NOT EXISTS ix_eventlog_user_created ON eventlog(user_id, created_at DESC)")
+                except Exception:
+                    pass
             # Ensure bookmarked flag exists on liststate and helpful index
             try:
                 cur.execute("PRAGMA table_info('liststate')")

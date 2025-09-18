@@ -104,11 +104,13 @@
         {% endfor %}
       </select>
     </form>
-    <form method="post" action="/html_no_js/todos/{{ todo.id }}/pin" style="display:inline-block; margin-left:0.5rem">
-      {{ csrf_field() }}
-      <input type="hidden" name="pinned" value="{{ 'false' if todo.pinned|default(false) else 'true' }}">
-      <button type="submit" class="pin-button {% if todo.pinned|default(false) %}pinned{% endif %}" aria-label="Toggle pin" title="Toggle pin">{{ '📌' if todo.pinned|default(false) else '📍' }}</button>
-    </form>
+    <button type="button"
+            class="pin-button {% if todo.pinned|default(false) %}pinned{% endif %}"
+            aria-label="Toggle pin"
+            title="Toggle pin"
+            data-pin-todo="{{ todo.id }}"
+            data-current-pinned="{{ 'true' if todo.pinned|default(false) else 'false' }}"
+            style="margin-left:0.5rem">{{ '📌' if todo.pinned|default(false) else '📍' }}</button>
     <button type="button"
             class="pin-button {% if todo.bookmarked|default(false) %}pinned{% endif %}"
             aria-label="Toggle bookmark"

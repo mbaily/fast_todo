@@ -14,6 +14,59 @@
 	}catch(e){ }
 })();
 
+// Pin toggle: use JSON endpoint and update icon immediately
+(function(){
+	try{
+		document.addEventListener('click', function(ev){
+			var btn = ev.target;
+			// If inner element, bubble up to the button with data-pin-todo
+			if (btn && !(btn.matches && btn.matches('button[data-pin-todo]'))){
+				try{ btn = btn.closest && btn.closest('button[data-pin-todo]'); }catch(_){}
+			}
+			if (!btn || !btn.getAttribute) return;
+			var todoId = btn.getAttribute('data-pin-todo');
+			if (!todoId) return;
+			ev.preventDefault();
+			var pinnedNow = (btn.getAttribute('data-current-pinned') === 'true');
+			var nextPinned = !pinnedNow;
+			// Optimistic UI update
+			try{
+				btn.textContent = nextPinned ? '📌' : '📍';
+				btn.classList.toggle('pinned', nextPinned);
+				btn.setAttribute('data-current-pinned', nextPinned ? 'true' : 'false');
+			}catch(_){ }
+			// POST to JSON form endpoint; we can re-use legacy html_no_js form endpoint with Accept: JSON
+			var fd = new FormData();
+			fd.append('pinned', nextPinned ? 'true' : 'false');
+			// include csrf if present
+			try{ var csrf = document.querySelector('input[name="_csrf"]'); if (csrf && csrf.value) fd.append('_csrf', csrf.value); }catch(_){ }
+			fetch('/html_no_js/todos/' + encodeURIComponent(todoId) + '/pin', { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+				.then(function(res){ if(!res.ok) throw new Error('pin failed'); return res.json().catch(function(){ return null; }); })
+				.then(function(data){
+					// If server echoes final state, ensure UI matches
+					try{
+						if (data && typeof data.pinned !== 'undefined'){
+							var on = !!data.pinned;
+							btn.textContent = on ? '📌' : '📍';
+							btn.classList.toggle('pinned', on);
+							btn.setAttribute('data-current-pinned', on ? 'true' : 'false');
+						}
+					}catch(_){ }
+					try{ if (window.ftLog) window.ftLog('Toggled pin', { item_type: 'todo', item_id: Number(todoId), label: on ? 'Pinned' : 'Unpinned' }); }catch(_){ }
+				})
+				.catch(function(err){
+					// Revert UI on error
+					try{
+						btn.textContent = pinnedNow ? '📌' : '📍';
+						btn.classList.toggle('pinned', pinnedNow);
+						btn.setAttribute('data-current-pinned', pinnedNow ? 'true' : 'false');
+					}catch(_){ }
+					try{ console && console.error && console.error('pin toggle failed', err); }catch(_){ }
+				});
+		}, false);
+	}catch(e){ }
+})();
+
 // Calendar ignored toggle: POST via fetch and keep UI state in sync
 (function(){
 	try{
