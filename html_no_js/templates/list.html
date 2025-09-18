@@ -200,23 +200,6 @@
       </div>
     </div>
   </div>
-            {# List Tags Section #}
-            {% if list.hashtags and list.hashtags|length > 0 %}
-              <div class="tags" role="list" aria-label="List tags">
-                {% for tag in (list.hashtags | sort) %}
-                  <div role="listitem" style="display:inline-block; margin-right:0.4rem">
-                    <a class="tag-chip" href="/html_no_js/search?q={{ tag|urlencode }}" role="link">{{ tag }}</a>
-                    <button type="button" class="tag-remove" data-ft-remove-list-tag="1" data-list-id="{{ list.id }}" data-tag="{{ tag }}" aria-label="Remove {{ tag }}"><span aria-hidden="true">✖</span><span class="sr-only">Remove {{ tag }}</span></button>
-                  </div>
-                {% endfor %}
-              </div>
-            {% endif %}
-
-            <form method="post" action="/lists/{{ list.id }}/hashtags/json" aria-label="Add list tag" data-ft-add-list-tag="1" data-list-id="{{ list.id }}">
-              {{ csrf_field() }}
-              <label>Add Tag <input name="tag" placeholder="#tag" aria-label="Tag name" list="list-tag-suggestions" autocomplete="off"></label>
-              <button type="submit">Add</button>
-            </form>
             {# Compact links display directly under the title (no create/delete here) #}
             {% if links is defined and links|length > 0 %}
               <div class="meta" style="width:100%; margin-top:0.25rem">
@@ -361,6 +344,24 @@
   </nav>
   {% endif %}
 
+
+  {# List Tags Section #}
+  {% if list.hashtags and list.hashtags|length > 0 %}
+    <div class="tags" role="list" aria-label="List tags">
+      {% for tag in (list.hashtags | sort) %}
+        <div role="listitem" style="display:inline-block; margin-right:0.4rem">
+          <a class="tag-chip" href="/html_no_js/search?q={{ tag|urlencode }}" role="link">{{ tag }}</a>
+          <button type="button" class="tag-remove" data-ft-remove-list-tag="1" data-list-id="{{ list.id }}" data-tag="{{ tag }}" aria-label="Remove {{ tag }}"><span aria-hidden="true">✖</span><span class="sr-only">Remove {{ tag }}</span></button>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <form method="post" action="/lists/{{ list.id }}/hashtags/json" aria-label="Add list tag" data-ft-add-list-tag="1" data-list-id="{{ list.id }}">
+    {{ csrf_field() }}
+    <label>Add Tag <input name="tag" placeholder="#tag" aria-label="Tag name" list="list-tag-suggestions" autocomplete="off"></label>
+    <button type="submit">Add</button>
+  </form>
 
   {% if completion_types is not none %}
   {% endif %}
