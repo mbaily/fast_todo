@@ -68,7 +68,9 @@
     <button type="submit" class="btn" form="tree-bulk-move-form" formaction="/html_no_js/tree/bulk_link" title="Create links using selected and destination">Link</button>
     <a class="btn" href="/html_no_js/linkmap" title="Open interactive link map">Link map</a>
     {% if root_list_id %}
-        <a class="btn" href="/html_no_js/tree" title="Back to top">⭱ Top</a>
+        <span class="meta" aria-hidden="true">|</span>
+        <a class="btn" href="/html_no_js/tree" title="Back to top">Top</a>
+        <span class="meta" aria-hidden="true">|</span>
         {% if root_parent_id is not none or root_parent_todo_id is not none %}
           {% if root_parent_id is not none %}
             {# If parent is a list: if it is top-level, go to root view and jump to its fragment; else recenter on that parent list and jump to fragment #}
