@@ -32,6 +32,7 @@
   /* override/secondary priority marker: use a distinct accent; same absolute size as primary */
     .count-circle.colour { color: #ff002b; font-size: 1.25rem; }
     </style>
+    <script src="/static/no_js/log.js"></script>
   </head>
   <body>
   
@@ -229,13 +230,41 @@
           }
           if (!listId) throw new Error('could not determine Quick list id');
           var tres = await fetch('/todos', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify({ text: text, list_id: listId, priority: 7 }) });
-          if (!tres.ok) throw new Error('create todo failed');
+          // Parse response as text, then JSON if possible, mirroring index.html
+          var todo = null;
+          try {
+            var ttxt = await tres.text();
+            try { todo = JSON.parse(ttxt); } catch(_) { todo = null; }
+            if (!tres.ok) throw new Error('create todo failed status=' + tres.status);
+          } catch(e) { throw e; }
           input.value = '';
           input.focus();
+          // Log quick add with item_id so logs page can link to the todo
+          try{ if (window.ftLog){ window.ftLog('Added quick todo', { item_type: 'todo', item_id: (todo && todo.id) ? Number(todo.id) : null, label: String(text||'') }); } }catch(_){ }
           try { window.location.reload(); } catch(e){}
         }catch(err){ console && console.error && console.error('Quick add failed', err); try{ alert('Add failed'); }catch(_){}}
         finally{ btn.disabled = false; }
       }, false);
+    })();
+    </script>
+    <script>
+    // Log list creation on iOS index
+    (function(){
+      try{
+        var form = document.querySelector('form[action="/html_no_js/lists/create"]'); if (!form) return;
+        form.addEventListener('submit', function(){
+          try{
+            var nameInput = form.querySelector('input[name="name"]');
+            var v = nameInput && nameInput.value ? String(nameInput.value) : '';
+            if (v){
+              var payload = { message: 'Added list', item_type: 'list', item_id: null, url: (window.location ? window.location.href : null), label: v.trim() };
+              try{ if (navigator && navigator.sendBeacon){ var blob = new Blob([JSON.stringify(payload)], { type: 'application/json' }); navigator.sendBeacon('/html_no_js/logs', blob); }
+                else if (window.ftLog){ window.ftLog('Added list', { item_type: 'list', item_id: null, label: v.trim() }); } }
+              catch(_){ try{ if (window.ftLog) window.ftLog('Added list', { item_type: 'list', item_id: null, label: v.trim() }); }catch(__){} }
+            }
+          }catch(_){ }
+        }, false);
+      }catch(e){}
     })();
     </script>
 

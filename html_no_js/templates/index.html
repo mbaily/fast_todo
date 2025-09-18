@@ -87,11 +87,10 @@
         <li>
           {% set circ = {0:'⓪',1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
           {% if item.kind == 'todo' %}
-            <a class="wrap-text{% if item.completed %} done{% endif %}" href="/html_no_js/todos/{{ item.id }}">{{ item.text }}
-              {% if item.effective_priority is not none %}
-                <span class="meta priority-inline"><span class="priority-circle">{{ circ.get(item.effective_priority, item.effective_priority) }}</span></span>
-              {% endif %}
-            </a>
+            <a class="wrap-text{% if item.completed %} done{% endif %}" href="/html_no_js/todos/{{ item.id }}">{{ item.text }}</a>
+            {% if item.effective_priority is not none %}
+              <span class="meta priority-inline"><span class="priority-circle">{{ circ.get(item.effective_priority, item.effective_priority) }}</span></span>
+            {% endif %}
             <span class="meta">in <a href="/html_no_js/lists/{{ item.list_id }}">{{ item.list_name or item.list_id }}</a></span>
           {% else %}
             <a class="list-title" href="/html_no_js/lists/{{ item.id }}">{{ item.name }}</a>
@@ -115,7 +114,7 @@
   {% for t in (pinned_todos | sort(attribute='modified_at') | reverse) %}
         <li>
           <span class="pin-icon {% if t.pinned|default(false) %}pinned{% endif %}">{{ '📌' if t.pinned|default(false) else '📍' }}</span>
-          <a class="wrap-text{% if t.completed %} done{% endif %}" href="/html_no_js/todos/{{ t.id }}">{{ t.text }}{% if t.priority %} {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}<span class="meta priority-inline"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>{% endif %}</a>
+          <a class="wrap-text{% if t.completed %} done{% endif %}" href="/html_no_js/todos/{{ t.id }}">{{ t.text }}</a>{% if t.priority %} {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %} <span class="meta priority-inline"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>{% endif %}
            <span class="meta">in <a href="/html_no_js/lists/{{ t.list_id }}">{{ t.list_name or t.list_id }}</a></span>
        {% if t.tags and t.tags|length > 0 %}
              <div class="tags-inline">
@@ -139,7 +138,7 @@
         {% for t in (bookmarked_todos | sort(attribute='text', case_sensitive=false)) %}
           <li>
             <span class="pin-icon">🔖</span>
-            <a class="wrap-text{% if t.completed %} done{% endif %}" href="/html_no_js/todos/{{ t.id }}">{{ t.text }}{% if t.priority %} {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}<span class="meta priority-inline"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>{% endif %}</a>
+            <a class="wrap-text{% if t.completed %} done{% endif %}" href="/html_no_js/todos/{{ t.id }}">{{ t.text }}</a>{% if t.priority %} {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %} <span class="meta priority-inline"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>{% endif %}
             <span class="meta">in <a href="/html_no_js/lists/{{ t.list_id }}">{{ t.list_name or t.list_id }}</a></span>
             {% if t.tags and t.tags|length > 0 %}
             <div class="tags-inline">
@@ -315,8 +314,20 @@
          explicit `hashtags` form value so the server can persist them. */
           try {
             var nameInput = form.querySelector('input[name="name"]');
+            var v = nameInput && nameInput.value ? nameInput.value : '';
+            // Log list creation attempt (use sendBeacon to survive navigation)
+            try {
+              if (v) {
+                var payload = { message: 'Added list', item_type: 'list', item_id: null, url: (window.location ? window.location.href : null), label: String(v).trim() };
+                if (navigator && navigator.sendBeacon) {
+                  try { var blob = new Blob([JSON.stringify(payload)], { type: 'application/json' }); navigator.sendBeacon('/html_no_js/logs', blob); }
+                  catch(e){ if (window.ftLog) window.ftLog('Added list', { item_type: 'list', item_id: null, label: String(v).trim() }); }
+                } else if (window.ftLog) {
+                  window.ftLog('Added list', { item_type: 'list', item_id: null, label: String(v).trim() });
+                }
+              }
+            } catch(_){ }
             if (!nameInput) return;
-            var v = nameInput.value || '';
             // find hashtag tokens like #tag (letter then alnum)
                 // Extract hashtags without using lookbehind to maximize browser support.
                 var re = /(^|\s)#([A-Za-z][A-Za-z0-9]*)(?=\s|$)/g;
@@ -330,14 +341,14 @@
                   if (!/^[a-z][a-z0-9]*$/.test(t)) continue;
                   if (!seen[t]) { seen[t] = true; out.push('#' + t); }
                 }
-                if (out.length === 0) return;
-            if (out.length === 0) return;
+        // if no hashtags were found, skip adding the hidden field but continue submission
             // attach hidden input named `hashtags` with comma-separated tags
             var existing = form.querySelector('input[name="hashtags"]');
             if (existing) existing.value = out.join(',');
             else {
               var hi = document.createElement('input'); hi.type = 'hidden'; hi.name = 'hashtags'; hi.value = out.join(','); form.appendChild(hi);
             }
+            // hashtag field attachment done (logging already emitted above)
           } catch(e) { console && console.debug && console.debug('create-list hashtags extract failed', e); }
         }, false);
       } catch(e){}
