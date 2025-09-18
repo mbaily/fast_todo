@@ -87,6 +87,40 @@
 
   <p class="meta" style="margin:0">List: <a href="/html_no_js/lists/{{ todo.list_id }}">{{ list.name if list else todo.list_id }}</a></p>
 
+  <div class="priority-row" style="margin:0.25rem 0">
+    <label for="todo-priority-{{ todo.id }}">Priority</label>
+    <form method="post" action="/html_no_js/todos/{{ todo.id }}/priority" style="display:inline-block; margin-left:0.5rem">
+      {{ csrf_field() }}
+      <select id="todo-priority-{{ todo.id }}" name="priority">
+        <option value="" {% if not todo.priority %}selected{% endif %}>(none)</option>
+        {% for p in range(1, 11) %}
+          <option value="{{ p }}" {% if todo.priority == p %}selected{% endif %}>{{ p }}</option>
+        {% endfor %}
+      </select>
+    </form>
+    <form method="post" action="/html_no_js/todos/{{ todo.id }}/pin" style="display:inline-block; margin-left:0.5rem">
+      {{ csrf_field() }}
+      <input type="hidden" name="pinned" value="{{ 'false' if todo.pinned|default(false) else 'true' }}">
+      <button type="submit" class="pin-button {% if todo.pinned|default(false) %}pinned{% endif %}" aria-label="Toggle pin" title="Toggle pin">{{ '📌' if todo.pinned|default(false) else '📍' }}</button>
+    </form>
+    <button type="button"
+            class="pin-button {% if todo.bookmarked|default(false) %}pinned{% endif %}"
+            aria-label="Toggle bookmark"
+            title="Toggle bookmark"
+            data-bookmark-todo="{{ todo.id }}"
+            data-state="{{ 'on' if todo.bookmarked|default(false) else 'off' }}"
+            data-csrf="{{ csrf_token }}"
+            style="margin-left:0.5rem">{{ '🔖' if todo.bookmarked|default(false) else '📑' }}</button>
+    <form method="post" action="/html_no_js/todos/{{ todo.id }}/calendar_ignored" style="display:inline-block; margin-left:0.75rem">
+      {{ csrf_field() }}
+      <input type="hidden" name="calendar_ignored" id="todo-calendar-ignored-hidden-{{ todo.id }}" value="{{ 'true' if todo.calendar_ignored|default(false) else 'false' }}">
+      <label style="display:inline-flex; align-items:center; gap:0.35rem;">
+        <input type="checkbox" id="todo-calendar-ignored-cb-{{ todo.id }}" {% if todo.calendar_ignored|default(false) %}checked{% endif %}>
+        <span>Ignore in calendar</span>
+      </label>
+    </form>
+  </div>
+
   {% if links is defined and links|length > 0 %}
     <div class="meta" style="margin:0.15rem 0 0.35rem 0">
       <strong>Links:</strong>
@@ -240,40 +274,6 @@
       <button type="button" class="btn" id="note-calc-btn-{{ todo.id }}" title="Calculate using CalcDict">Calculate</button>
     </p>
   {% endif %}
-
-  <div class="priority-row" style="margin:0.25rem 0">
-    <label for="todo-priority-{{ todo.id }}">Priority</label>
-    <form method="post" action="/html_no_js/todos/{{ todo.id }}/priority" style="display:inline-block; margin-left:0.5rem">
-      {{ csrf_field() }}
-      <select id="todo-priority-{{ todo.id }}" name="priority">
-        <option value="" {% if not todo.priority %}selected{% endif %}>(none)</option>
-        {% for p in range(1, 11) %}
-          <option value="{{ p }}" {% if todo.priority == p %}selected{% endif %}>{{ p }}</option>
-        {% endfor %}
-      </select>
-    </form>
-    <form method="post" action="/html_no_js/todos/{{ todo.id }}/pin" style="display:inline-block; margin-left:0.5rem">
-      {{ csrf_field() }}
-      <input type="hidden" name="pinned" value="{{ 'false' if todo.pinned|default(false) else 'true' }}">
-      <button type="submit" class="pin-button {% if todo.pinned|default(false) %}pinned{% endif %}" aria-label="Toggle pin" title="Toggle pin">{{ '📌' if todo.pinned|default(false) else '📍' }}</button>
-    </form>
-    <button type="button"
-            class="pin-button {% if todo.bookmarked|default(false) %}pinned{% endif %}"
-            aria-label="Toggle bookmark"
-            title="Toggle bookmark"
-            data-bookmark-todo="{{ todo.id }}"
-            data-state="{{ 'on' if todo.bookmarked|default(false) else 'off' }}"
-            data-csrf="{{ csrf_token }}"
-            style="margin-left:0.5rem">{{ '🔖' if todo.bookmarked|default(false) else '📑' }}</button>
-    <form method="post" action="/html_no_js/todos/{{ todo.id }}/calendar_ignored" style="display:inline-block; margin-left:0.75rem">
-      {{ csrf_field() }}
-      <input type="hidden" name="calendar_ignored" id="todo-calendar-ignored-hidden-{{ todo.id }}" value="{{ 'true' if todo.calendar_ignored|default(false) else 'false' }}">
-      <label style="display:inline-flex; align-items:center; gap:0.35rem;">
-        <input type="checkbox" id="todo-calendar-ignored-cb-{{ todo.id }}" {% if todo.calendar_ignored|default(false) %}checked{% endif %}>
-        <span>Ignore in calendar</span>
-      </label>
-    </form>
-  </div>
 
   {% if sublists is defined and (todo is defined and not todo.lists_up_top) %}
     <section aria-label="Sublists" style="margin-top:1rem">
