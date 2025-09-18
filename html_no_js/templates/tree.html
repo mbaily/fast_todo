@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% block title %}Tree — Fast Todo (no-js){% endblock %}
+{% block content %}
+  <style>
+    body { margin-top: 0 !important; }
+    header { margin-top: 0 !important; }
+    ul.tree { list-style: none; margin: 0; padding-left: 0.5rem; }
+    ul.tree li { margin: 0.15rem 0; }
+    .meta { color: #6b7280; font-size: 0.9em; }
+    .prio {
+      display: inline-flex; align-items: center; gap: 0.25rem; margin-left: 0.35rem;
+    }
+    .prio .primary, .prio .secondary {
+      display:inline-block; width: 1rem; height: 1rem; border-radius: 50%;
+      border: 2px solid #4b5563; text-align:center; font-size: 0.75rem; line-height: 0.9rem;
+    }
+    .prio .secondary { opacity: 0.6; }
+    .toolbar { display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.5rem; }
+    .toolbar form { display:inline-flex; align-items:center; gap:0.35rem; }
+  </style>
+
+  <div class="toolbar">
+    <form method="get" action="/html_no_js/tree">
+      <input type="hidden" name="root_list_id" value="{{ root_list_id if root_list_id else '' }}">
+      <label style="display:inline-flex; align-items:center; gap:0.25rem;">
+        <input type="checkbox" name="show_todos" value="1" {% if show_todos %}checked{% endif %}>
+        <span>Show todos</span>
+      </label>
+      <button type="submit">Apply</button>
+    </form>
+    {% if root_list_id %}
+      <a class="btn" href="/html_no_js/tree">Back to top</a>
+    {% endif %}
+  </div>
+
+  <h2>Tree{% if root_name %}: {{ root_name }}{% endif %}</h2>
+
+  {% macro render_node(node) %}
+    <li>
+      <a href="/html_no_js/lists/{{ node.id }}">{{ node.name }}</a>
+      <a class="btn" style="margin-left:0.35rem;" href="/html_no_js/tree?root_list_id={{ node.id }}{% if show_todos %}&show_todos=1{% endif %}" title="Re-center tree to this list">⤴</a>
+      <span class="prio">
+        {% if node.priority %}<span class="primary" title="Primary priority">{{ node.priority }}</span>{% endif %}
+        {% if node.override_priority %}<span class="secondary" title="Secondary priority (max child todos/sublists)">{{ node.override_priority }}</span>{% endif %}
+      </span>
+      {% if node.hashtags and node.hashtags|length > 0 %}
+        <span class="meta">{% for tag in (node.hashtags | sort) %}<a class="tag-chip" href="/html_no_js/search?q={{ tag|urlencode }}">{{ tag }}</a>{% endfor %}</span>
+      {% endif %}
+      {% if show_todos and node.todos and node.todos|length > 0 %}
+        <ul class="tree">
+          {% for t in node.todos %}
+            <li>
+              <a class="{% if t.completed %}done{% endif %}" href="/html_no_js/todos/{{ t.id }}">{% if t.completed %}<s>{{ t.text }}</s>{% else %}{{ t.text }}{% endif %}</a>
+              {% if t.priority %}<span class="meta" style="margin-left:0.35rem;">p{{ t.priority }}</span>{% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+      {% if node.children and node.children|length > 0 %}
+        <ul class="tree">
+          {% for child in node.children %}
+            {{ render_node(child) }}
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </li>
+  {% endmacro %}
+
+  {% if tree and tree|length > 0 %}
+    <ul class="tree">
+      {% for node in tree %}
+        {{ render_node(node) }}
+      {% endfor %}
+    </ul>
+  {% else %}
+    <div class="meta">No lists to display.</div>
+  {% endif %}
+{% endblock %}

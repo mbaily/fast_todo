@@ -11382,6 +11382,237 @@ async def html_recent_lists(request: Request, current_user: User = Depends(requi
     return TEMPLATES.TemplateResponse(request, 'recent.html', {"request": request, "recent": recent_lists, "recent_todos": recent_todos, "client_tz": await get_session_timezone(request)})
 
 
+@app.get('/html_no_js/tree', response_class=HTMLResponse)
+async def html_tree_view(request: Request, root_list_id: int | None = None, show_todos: bool = False, current_user: User = Depends(require_login)):
+    """Render a hierarchical tree of lists. Optional todos per list.
+    Query params:
+      - root_list_id: if provided, show the tree rooted at this list; otherwise show all top-level lists.
+      - show_todos: when truthy, include todos under each list.
+    """
+    # normalize bool from query string
+    try:
+        if isinstance(show_todos, str):
+            show_todos = str(show_todos).lower() in ('1', 'true', 'yes', 'on')
+    except Exception:
+        show_todos = False
+    async with async_session() as sess:
+        owner_id = current_user.id
+
+        # helper to compute secondary priority for a set of list ids
+        async def compute_secondary_for_lists(list_ids: list[int]) -> dict[int, int | None]:
+            if not list_ids:
+                return {}
+            override: dict[int, int | None] = {int(lid): None for lid in list_ids}
+            # child todos' max uncompleted priority per list
+            try:
+                t_exec = await sess.exec(
+                    select(Todo.id, Todo.list_id, Todo.priority)
+                    .where(Todo.list_id.in_(list_ids))
+                    .where(Todo.priority != None)
+                )
+                rows = t_exec.all()
+                per_list: dict[int, list[tuple[int, int | None]]] = {}
+                todo_ids: list[int] = []
+                for tid, lid, pri in rows:
+                    try:
+                        tid_i = int(tid); lid_i = int(lid)
+                    except Exception:
+                        continue
+                    per_list.setdefault(lid_i, []).append((tid_i, pri))
+                    todo_ids.append(tid_i)
+                completed_ids: set[int] = set()
+                if todo_ids:
+                    qcomp = (
+                        select(TodoCompletion.todo_id)
+                        .join(CompletionType, CompletionType.id == TodoCompletion.completion_type_id)
+                        .where(TodoCompletion.todo_id.in_(todo_ids))
+                        .where(CompletionType.name == 'default')
+                        .where(TodoCompletion.done == True)
+                    )
+                    cres = await sess.exec(qcomp)
+                    completed_ids = set(int(r[0] if isinstance(r, tuple) else r) for r in cres.all())
+                for lid in list_ids:
+                    max_p = None
+                    for tid, pri in per_list.get(int(lid), []):
+                        if tid in completed_ids:
+                            continue
+                        if pri is None:
+                            continue
+                        try:
+                            pv = int(pri)
+                        except Exception:
+                            continue
+                        if max_p is None or pv > max_p:
+                            max_p = pv
+                    if max_p is not None:
+                        override[int(lid)] = max_p
+            except Exception:
+                pass
+            # immediate child sublists' max priority per list
+            try:
+                c_exec = await sess.exec(
+                    select(ListState.parent_list_id, func.max(ListState.priority))
+                    .where(ListState.parent_list_id.in_(list_ids))
+                    .group_by(ListState.parent_list_id)
+                )
+                child_max = {int(pid): (int(p) if p is not None else None) for pid, p in c_exec.all()}
+                for lid in list_ids:
+                    p1 = override.get(int(lid))
+                    p2 = child_max.get(int(lid))
+                    if p2 is None:
+                        continue
+                    if p1 is None:
+                        override[int(lid)] = p2
+                    else:
+                        try:
+                            override[int(lid)] = max(int(p1), int(p2))
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+            return override
+
+        # fetch children lists for a given parent_list_id
+        async def fetch_children(parent_id: int | None) -> list[dict]:
+            q = select(ListState).where(ListState.owner_id == owner_id)
+            if parent_id is None:
+                q = q.where(ListState.parent_list_id == None).where(ListState.parent_todo_id == None)
+            else:
+                q = q.where(ListState.parent_list_id == parent_id)
+            q = q.order_by(ListState.created_at.asc())
+            r = await sess.exec(q)
+            rows = r.all()
+            ids = [int(l.id) for l in rows if l.id is not None]
+            # hashtags
+            tag_map: dict[int, list[str]] = {}
+            if ids:
+                th = await sess.exec(
+                    select(ListHashtag.list_id, Hashtag.tag)
+                    .where(ListHashtag.list_id.in_(ids))
+                    .join(Hashtag, Hashtag.id == ListHashtag.hashtag_id)
+                )
+                for lid, tag in th.all():
+                    try:
+                        tag_map.setdefault(int(lid), []).append(tag)
+                    except Exception:
+                        continue
+            # secondary priorities
+            sec = await compute_secondary_for_lists(ids)
+            nodes: list[dict] = []
+            for l in rows:
+                nodes.append({
+                    'id': int(l.id),
+                    'name': l.name,
+                    'completed': getattr(l, 'completed', False),
+                    'priority': getattr(l, 'priority', None),
+                    'override_priority': sec.get(int(l.id)),
+                    'hashtags': tag_map.get(int(l.id), []),
+                    'children': [],
+                })
+            # attach todos if requested
+            if show_todos and ids:
+                t_exec = await sess.exec(select(Todo).where(Todo.list_id.in_(ids)).order_by(Todo.created_at.asc()))
+                todos = t_exec.all()
+                # completion map by default completion type
+                t_ids = [int(t.id) for t in todos]
+                completed: set[int] = set()
+                if t_ids:
+                    qcomp2 = (
+                        select(TodoCompletion.todo_id)
+                        .join(CompletionType, CompletionType.id == TodoCompletion.completion_type_id)
+                        .where(TodoCompletion.todo_id.in_(t_ids))
+                        .where(CompletionType.name == 'default')
+                        .where(TodoCompletion.done == True)
+                    )
+                    comp_rows = await sess.exec(qcomp2)
+                    completed = set(int(v[0] if isinstance(v, tuple) else v) for v in comp_rows.all())
+                t_by_list: dict[int, list] = {}
+                for t in todos:
+                    try:
+                        lid = int(t.list_id)
+                        t_by_list.setdefault(lid, []).append({
+                            'id': int(t.id), 'text': t.text, 'priority': getattr(t, 'priority', None), 'completed': int(t.id) in completed
+                        })
+                    except Exception:
+                        continue
+                for n in nodes:
+                    n['todos'] = t_by_list.get(int(n['id']), [])
+            return nodes
+
+        # recursive build limited by reasonable depth to prevent cycles
+        sys.setrecursionlimit(max(sys.getrecursionlimit(), 2000))
+        seen: set[int] = set()
+
+        async def build_tree(parent_id: int | None, depth: int = 0, max_depth: int = 8) -> list[dict]:
+            if depth > max_depth:
+                return []
+            nodes = await fetch_children(parent_id)
+            # prevent cycles by tracking ids at this branch
+            for n in nodes:
+                nid = int(n['id'])
+                if nid in seen:
+                    continue
+                seen.add(nid)
+                n['children'] = await build_tree(nid, depth + 1, max_depth)
+            return nodes
+
+        # If a root_list_id was provided, we render that specific node as root
+        tree: list[dict]
+        root_name: str | None = None
+        if root_list_id:
+            # validate ownership and existence
+            root = await sess.get(ListState, root_list_id)
+            if not root or int(getattr(root, 'owner_id', -1)) != int(owner_id):
+                raise HTTPException(status_code=404, detail='root list not found')
+            root_name = getattr(root, 'name', None)
+            # node for root + its children
+            root_node = {
+                'id': int(root.id),
+                'name': root.name,
+                'completed': getattr(root, 'completed', False),
+                'priority': getattr(root, 'priority', None),
+                'override_priority': None,
+                'hashtags': [],
+                'children': [],
+            }
+            # enrich root node values
+            sec_map = await compute_secondary_for_lists([int(root.id)])
+            root_node['override_priority'] = sec_map.get(int(root.id))
+            # hashtags for root
+            try:
+                h = await sess.exec(
+                    select(Hashtag.tag).join(ListHashtag, ListHashtag.hashtag_id == Hashtag.id).where(ListHashtag.list_id == int(root.id))
+                )
+                root_node['hashtags'] = [r[0] if isinstance(r, tuple) else r for r in h.all()]
+            except Exception:
+                root_node['hashtags'] = []
+            if show_todos:
+                # attach root todos as per children case
+                t_exec = await sess.exec(select(Todo).where(Todo.list_id == int(root.id)).order_by(Todo.created_at.asc()))
+                todos = t_exec.all()
+                t_ids = [int(t.id) for t in todos]
+                completed: set[int] = set()
+                if t_ids:
+                    qcomp3 = (
+                        select(TodoCompletion.todo_id)
+                        .join(CompletionType, CompletionType.id == TodoCompletion.completion_type_id)
+                        .where(TodoCompletion.todo_id.in_(t_ids))
+                        .where(CompletionType.name == 'default')
+                        .where(TodoCompletion.done == True)
+                    )
+                    comp_rows = await sess.exec(qcomp3)
+                    completed = set(int(v[0] if isinstance(v, tuple) else v) for v in comp_rows.all())
+                root_node['todos'] = [{ 'id': int(t.id), 'text': t.text, 'priority': getattr(t, 'priority', None), 'completed': int(t.id) in completed } for t in todos]
+            # build children
+            root_node['children'] = await build_tree(int(root.id), 0)
+            tree = [root_node]
+        else:
+            # top-level (no parent list/todo)
+            tree = await build_tree(None, 0)
+
+    return TEMPLATES.TemplateResponse(request, 'tree.html', {"request": request, "tree": tree, "root_list_id": root_list_id, "root_name": root_name, "show_todos": bool(show_todos), "client_tz": await get_session_timezone(request)})
+
+
 @app.post('/html_no_js/lists/{list_id}/completion_types')
 async def html_add_completion_type(request: Request, list_id: int, name: str = Form(...), current_user: User = Depends(require_login)):
     # CSRF and ownership checks
