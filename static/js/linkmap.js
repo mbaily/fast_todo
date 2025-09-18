@@ -39,24 +39,42 @@
       .nodeCanvasObjectMode(() => 'after')
       .nodeCanvasObject((n, ctx, globalScale) => {
         try {
+          // Derive current canvas scale (prefer actual transform; fallback to provided globalScale)
+          const tr = (ctx && typeof ctx.getTransform === 'function') ? ctx.getTransform() : null;
+          const scale = tr ? (typeof tr.a === 'number' ? tr.a : (globalScale || 1)) : (globalScale || 1);
           // Only render text when zoomed in enough to be legible
-          if (globalScale < 1.0) return;
+          if (scale < 1.0) return;
 
-          // Choose a base font size that scales with zoom but caps for readability
-          // Use a smaller base to render ~one-third size of previous labels
-          const base = 11 / 3; // px
-          const fontSize = Math.max(4, Math.min(12, base / (globalScale * 0.9)));
-          ctx.font = `${fontSize}px sans-serif`;
+          // Choose a base font size that caps for readability
+          const MAX_SCREEN_PX = 14; // hard on-screen cap
+          const desiredScreenPx = 12; // slightly smaller baseline per feedback
+          const screenPx = Math.min(MAX_SCREEN_PX, Math.max(8, desiredScreenPx));
+          // Compute max allowed label width to fit inside the node circle (on-screen)
+          const baseR = (graph && typeof graph.nodeRelSize === 'function') ? graph.nodeRelSize() : 6;
+          const val = (typeof n.degree === 'number' && n.degree > 0) ? n.degree : 1;
+          const radiusCanvas = baseR * Math.sqrt(val); // approximate canvas-space radius used by ForceGraph 2D
+          const radiusScreen = radiusCanvas * (scale || 1); // convert to screen px via current zoom scale
+          const maxPx = Math.max(12, (radiusScreen * 2) - 6); // diameter minus a little padding
 
-          // Compute maximum text width to attempt; approximate to circle diameter
-          // We don't have exact radius here, so use a conservative width budget that scales with zoom
-          const maxPx = Math.max(24, 64 / globalScale);
+          // Convert node position to screen coordinates for constant-pixel rendering
+          const sc = (graph && typeof graph.graph2ScreenCoords === 'function') ? graph.graph2ScreenCoords(n.x, n.y) : { x: n.x, y: n.y };
+
+          // Draw in screen space: reset transform so text is not scaled; then restore
+          ctx.save();
+          if (typeof ctx.resetTransform === 'function') ctx.resetTransform(); else ctx.setTransform(1,0,0,1,0,0);
+          const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) ? window.devicePixelRatio : 1;
+          if (dpr && typeof ctx.scale === 'function') ctx.scale(dpr, dpr);
+          const fontPx = screenPx; // final on-screen font size in px (hard-capped)
+          ctx.font = `${fontPx}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
 
           // Generate a truncated label that fits within maxPx using measureText
           const full = (n.label || '').trim();
           if (!full) return;
 
           let display = full;
+          // Ensure font is set before measuring (already set above)
           let metrics = ctx.measureText(display);
           if (metrics.width > maxPx) {
             // Binary-like reduction: progressively shorten until it fits, append ellipsis
@@ -73,18 +91,10 @@
             display = best || (full.slice(0, 1) + ell);
           }
 
-          // Draw text centered on node
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-
-          // Text halo for contrast
-          ctx.lineWidth = Math.max(1, fontSize / 4);
-          ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-          ctx.strokeText(display, n.x, n.y);
-
-          // Fill text
+          // Fill text only (remove black stroke/border)
           ctx.fillStyle = '#ffffff';
-          ctx.fillText(display, n.x, n.y);
+          ctx.fillText(display, sc.x, sc.y);
+          ctx.restore();
         } catch (e) { /* ignore draw errors */ }
       });
 
@@ -100,7 +110,7 @@
           for (let i = 0; i < candidates.length; i++) {
             const n = candidates[i];
             if (typeof n.x !== 'number' || typeof n.y !== 'number') continue;
-            const sc = graph && typeof graph.graph2ScreenCoords === 'function' ? graph.graph2ScreenCoords({ x: n.x, y: n.y }) : null;
+            const sc = graph && typeof graph.graph2ScreenCoords === 'function' ? graph.graph2ScreenCoords(n.x, n.y) : null;
             if (!sc) continue;
             const dx = sc.x - px, dy = sc.y - py;
             const d2 = dx*dx + dy*dy;

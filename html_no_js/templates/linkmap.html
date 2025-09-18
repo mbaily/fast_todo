@@ -2,15 +2,12 @@
 {% block title %}Link Map — Fast Todo (no-js){% endblock %}
 {% block content %}
   <style>
-    body { margin-top: 0 !important; }
-    header { margin-top: 0 !important; }
+    /* Remove all page margins and hide toolbar so the graph can use 100% of the viewport */
+    html, body, main { height: 100%; margin: 0 !important; padding: 0 !important; }
+    body { margin: 0 !important; }
+    .top-toolbar { display: none !important; }
     /* Full-viewport graph canvas */
-    #graph {
-      position: fixed; inset: 0;
-      width: 100vw; height: 100vh;
-      background: #ffffff;
-      border: none; border-radius: 0;
-    }
+    #graph { position: fixed; top: 0; left: 0; right: 0; bottom: 0; width: 100vw; height: 100vh; background: #ffffff; border: none; border-radius: 0; z-index: 1; }
     .meta { color: #6b7280; }
   </style>
   <h2 class="sr-only">Link map</h2>
@@ -18,5 +15,5 @@
   <div id="graph" role="application" aria-label="Link graph"></div>
   <!-- force-graph 2D CDN (exposes global ForceGraph()) -->
   <script src="https://unpkg.com/force-graph"></script>
-  <script src="/static/js/linkmap.js"></script>
+  <script src="/static/js/linkmap.js?v=2025-09-18-2"></script>
 {% endblock %}
