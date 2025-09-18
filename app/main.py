@@ -4,6 +4,7 @@ from sqlmodel import select
 from sqlalchemy import update as sqlalchemy_update
 from sqlalchemy import delete as sqlalchemy_delete
 from sqlalchemy import and_, or_
+from sqlalchemy import exists
 from .db import async_session, init_db
 from .models import ListState, Todo, CompletionType, TodoCompletion, User
 from .auth import get_current_user, create_access_token, require_login, CSRF_TOKEN_EXPIRE_MINUTES, CSRF_TOKEN_EXPIRE_SECONDS
@@ -2338,6 +2339,8 @@ async def html_tailwind_search(request: Request):
         async with async_session() as sess:
             owner_id = current_user.id
             qlists = select(ListState).where(ListState.owner_id == owner_id).where(ListState.name.ilike(like))
+            if exclude_completed:
+                qlists = qlists.where(ListState.completed == False)
             rlists = await sess.exec(qlists)
             lists_by_id: dict[int, ListState] = {l.id: l for l in rlists.all()}
             if search_tags:
@@ -2348,6 +2351,8 @@ async def html_tailwind_search(request: Request):
                     .where(ListState.owner_id == owner_id)
                     .where(Hashtag.tag.in_(search_tags))
                 )
+                if exclude_completed:
+                    qlh = qlh.where(ListState.completed == False)
                 rlh = await sess.exec(qlh)
                 for l in rlh.all():
                     lists_by_id.setdefault(l.id, l)
@@ -2393,12 +2398,25 @@ async def html_tailwind_search(request: Request):
             vis_ids = [l.id for l in rvis.all()]
             todos_acc: dict[int, Todo] = {}
             if vis_ids:
+                # Build NOT EXISTS clause to exclude completed todos when requested
+                def not_completed_clause():
+                    subq = (
+                        select(TodoCompletion.todo_id)
+                        .join(CompletionType, TodoCompletion.completion_type_id == CompletionType.id)
+                        .where(TodoCompletion.todo_id == Todo.id)
+                        .where(CompletionType.list_id == Todo.list_id)
+                        .where(CompletionType.name == 'default')
+                        .where(TodoCompletion.done == True)
+                    )
+                    return ~exists(subq)
                 qtodos = (
                     select(Todo)
                     .where(Todo.list_id.in_(vis_ids))
                     .where((Todo.text.ilike(like)) | (Todo.note.ilike(like)))
                     .where(Todo.search_ignored == False)
                 )
+                if exclude_completed:
+                    qtodos = qtodos.where(not_completed_clause())
                 for t in (await sess.exec(qtodos)).all():
                     todos_acc.setdefault(t.id, t)
                 if search_tags:
@@ -2410,11 +2428,15 @@ async def html_tailwind_search(request: Request):
                         .where(Hashtag.tag.in_(search_tags))
                         .where(Todo.search_ignored == False)
                     )
+                    if exclude_completed:
+                        qth = qth.where(not_completed_clause())
                     for t in (await sess.exec(qth)).all():
                         todos_acc.setdefault(t.id, t)
                 if include_list_todos and lists_by_id:
                     list_ids_match = list(lists_by_id.keys())
                     qall = select(Todo).where(Todo.list_id.in_(list_ids_match)).where(Todo.search_ignored == False)
+                    if exclude_completed:
+                        qall = qall.where(not_completed_clause())
                     for t in (await sess.exec(qall)).all():
                         todos_acc.setdefault(t.id, t)
                 lm = {l.id: l.name for l in (await sess.scalars(select(ListState).where(ListState.id.in_(vis_ids)))).all()}
@@ -9402,6 +9424,8 @@ async def html_search(request: Request):
             owner_id = current_user.id
             # search lists visible to user by name
             qlists = select(ListState).where(ListState.owner_id == owner_id).where(ListState.name.ilike(like))
+            if exclude_completed:
+                qlists = qlists.where(ListState.completed == False)
             rlists = await sess.exec(qlists)
             lists_by_id: dict[int, ListState] = {l.id: l for l in rlists.all()}
             # add lists visible to user that match by hashtag
@@ -9413,6 +9437,8 @@ async def html_search(request: Request):
                     .where(ListState.owner_id == owner_id)
                     .where(Hashtag.tag.in_(search_tags))
                 )
+                if exclude_completed:
+                    qlh = qlh.where(ListState.completed == False)
                 rlh = await sess.exec(qlh)
                 for l in rlh.all():
                     lists_by_id.setdefault(l.id, l)
@@ -9449,7 +9475,8 @@ async def html_search(request: Request):
                     'tags': sorted(list_tags_map.get(int(l.id), [])) if list_tags_map else [],
                 }
                 for l in lists_by_id.values()
-                if not (exclude_completed and getattr(l, 'completed', False))
+                # Already filtered by SQL when exclude_completed is True
+                if True
             ]
             # search todos in visible lists
             qvis = select(ListState).where((ListState.owner_id == owner_id) | (ListState.owner_id == None))
@@ -9458,12 +9485,24 @@ async def html_search(request: Request):
             todos_acc: dict[int, Todo] = {}
             if vis_ids:
                 # text/note match
+                def not_completed_clause():
+                    subq = (
+                        select(TodoCompletion.todo_id)
+                        .join(CompletionType, TodoCompletion.completion_type_id == CompletionType.id)
+                        .where(TodoCompletion.todo_id == Todo.id)
+                        .where(CompletionType.list_id == Todo.list_id)
+                        .where(CompletionType.name == 'default')
+                        .where(TodoCompletion.done == True)
+                    )
+                    return ~exists(subq)
                 qtodos = (
                     select(Todo)
                     .where(Todo.list_id.in_(vis_ids))
                     .where((Todo.text.ilike(like)) | (Todo.note.ilike(like)))
                     .where(Todo.search_ignored == False)
                 )
+                if exclude_completed:
+                    qtodos = qtodos.where(not_completed_clause())
                 for t in (await sess.exec(qtodos)).all():
                     todos_acc.setdefault(t.id, t)
                 # hashtag match
@@ -9476,12 +9515,16 @@ async def html_search(request: Request):
                         .where(Hashtag.tag.in_(search_tags))
                         .where(Todo.search_ignored == False)
                     )
+                    if exclude_completed:
+                        qth = qth.where(not_completed_clause())
                     for t in (await sess.exec(qth)).all():
                         todos_acc.setdefault(t.id, t)
                 # optionally include all todos from lists that matched in the list search
                 if include_list_todos and lists_by_id:
                     list_ids_match = list(lists_by_id.keys())
                     qall = select(Todo).where(Todo.list_id.in_(list_ids_match)).where(Todo.search_ignored == False)
+                    if exclude_completed:
+                        qall = qall.where(not_completed_clause())
                     for t in (await sess.exec(qall)).all():
                         todos_acc.setdefault(t.id, t)
                 # include list name for display
@@ -9534,7 +9577,8 @@ async def html_search(request: Request):
                         'priority': getattr(t, 'priority', None),
                         'tags': sorted(todo_tags_map.get(int(t.id), [])) if todo_tags_map else [],
                     }
-                    for t in todos_acc.values() if not (exclude_completed and (int(t.id) in completed_ids))
+                    # Already filtered by SQL when exclude_completed is True
+                    for t in todos_acc.values()
                 ]
 
                 # Build a combined ordered list: lists first (in their current order), then todos
