@@ -449,7 +449,7 @@
 								+ '<button type="submit" class="list-action-btn" title="Move down">⬇️</button></form></div>'
 								+ '<div class="list-main"><a class="list-title" href="/html_no_js/lists/' + sub.id + '">' + escapeHtml(sub.name) + '</a>'
 								+ ' <button type="button" class="list-action-btn edit-list-btn" data-list-id="' + sub.id + '" data-list-name="' + escapeHtml(sub.name) + '" title="Edit list name">✏️</button></div>';
-							ul.insertBefore(li, ul.firstChild);
+							ul.appendChild(li);
 							// Clear and refocus the sublist name input for faster consecutive entries
 							try {
 								var nameInput = form.querySelector('input[name="name"]');
