@@ -70,6 +70,9 @@
               <a class="btn" href="/html_no_js/tree{% if show_todos %}?show_todos=1{% endif %}#todo-{{ root_parent_todo_id }}" title="Up one level" aria-label="Up one level">Up one ⬆</a>
             {% endif %}
           {% endif %}
+        {% else %}
+          {# We are on a page for a root list (no parent). Up should jump to that list's fragment on the root tree view. #}
+          <a class="btn" href="/html_no_js/tree{% if show_todos %}?show_todos=1{% endif %}#list-{{ root_list_id }}" title="Up one level" aria-label="Up one level">Up one ⬆</a>
         {% endif %}
     {% endif %}
   </div>
