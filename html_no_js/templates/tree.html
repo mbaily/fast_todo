@@ -55,6 +55,18 @@
       </label>
     </form>
     <button type="submit" class="btn" form="tree-bulk-move-form" title="Move selected to destination">Move</button>
+    <span class="meta" aria-hidden="true">|</span>
+    <label style="display:inline-flex; align-items:center; gap:0.25rem;">
+      <span class="sr-only">Link direction</span>
+      <select name="link_direction" form="tree-bulk-move-form" title="Link direction">
+        <option value="">auto</option>
+        <option value="selected_to_dest">selected → dest</option>
+        <option value="dest_to_selected">dest → selected</option>
+        <option value="both">both</option>
+      </select>
+    </label>
+    <button type="submit" class="btn" form="tree-bulk-move-form" formaction="/html_no_js/tree/bulk_link" title="Create links using selected and destination">Link</button>
+    <a class="btn" href="/html_no_js/linkmap" title="Open interactive link map">Link map</a>
     {% if root_list_id %}
         <a class="btn" href="/html_no_js/tree" title="Back to top">⭱ Top</a>
         {% if root_parent_id is not none or root_parent_todo_id is not none %}

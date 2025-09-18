@@ -2298,6 +2298,88 @@ async def html_pwa_index_file(request: Request):
     return FileResponse("html_pwa/index.html", media_type="text/html")
 
 
+# ===== Link Map (no-JS) =====
+@app.get('/html_no_js/linkmap', response_class=HTMLResponse)
+async def html_linkmap(request: Request, current_user: User = Depends(require_login)):
+    """Render the link map page. Uses a client-side JS to fetch data and render graph."""
+    client_tz = await get_session_timezone(request)
+    return TEMPLATES.TemplateResponse(request, 'linkmap.html', {"request": request, "client_tz": client_tz})
+
+
+@app.get('/html_no_js/linkmap/data', response_class=JSONResponse)
+async def html_linkmap_data(request: Request, current_user: User = Depends(require_login)):
+    """Return nodes and links for the current user's ItemLink graph.
+
+    Only includes nodes that are either the source or target of an ItemLink row owned by the user.
+    Node id is a string "list:<id>" or "todo:<id>"; label is the list name or todo text.
+    """
+    owner_id = current_user.id if current_user else None
+    nodes_map: dict[str, dict] = {}
+    links: list[dict] = []
+    list_ids: set[int] = set()
+    todo_ids: set[int] = set()
+    async with async_session() as sess:
+        # Fetch all ItemLink rows for this owner
+        q = select(ItemLink).where(ItemLink.owner_id == owner_id)
+        res = await sess.exec(q)
+        rows = res.all() or []
+        for r in rows:
+            try:
+                s_kind = (r.src_type or '').strip().lower()
+                t_kind = (r.tgt_type or '').strip().lower()
+                s_id = int(r.src_id)
+                t_id = int(r.tgt_id)
+            except Exception:
+                continue
+            sid = f"{s_kind}:{s_id}"
+            tid = f"{t_kind}:{t_id}"
+            # collect ids for batch fetch
+            if s_kind == 'list':
+                list_ids.add(s_id)
+            elif s_kind == 'todo':
+                todo_ids.add(s_id)
+            if t_kind == 'list':
+                list_ids.add(t_id)
+            elif t_kind == 'todo':
+                todo_ids.add(t_id)
+            links.append({"source": sid, "target": tid})
+
+        # Batch-load labels
+        list_labels: dict[int, str] = {}
+        todo_labels: dict[int, str] = {}
+        if list_ids:
+            ql = select(ListState.id, ListState.name).where(ListState.id.in_(list(list_ids))).where(ListState.owner_id == owner_id)
+            for lid, name in (await sess.exec(ql)).all():
+                try:
+                    list_labels[int(lid)] = name
+                except Exception:
+                    pass
+        if todo_ids:
+            qt = select(Todo.id, Todo.text, Todo.list_id).where(Todo.id.in_(list(todo_ids)))
+            for tid, text, lid in (await sess.exec(qt)).all():
+                try:
+                    # only include todo if its parent list is visible to this user
+                    lst = await sess.get(ListState, lid)
+                    if not lst or lst.owner_id not in (None, owner_id):
+                        continue
+                    todo_labels[int(tid)] = text
+                except Exception:
+                    pass
+
+        # Build nodes
+        for lid in list_ids:
+            sid = f"list:{int(lid)}"
+            if sid not in nodes_map:
+                nodes_map[sid] = {"id": sid, "raw_id": int(lid), "kind": "list", "label": list_labels.get(int(lid)) or f"List #{int(lid)}"}
+        for tid in todo_ids:
+            sid = f"todo:{int(tid)}"
+            if sid not in nodes_map:
+                nodes_map[sid] = {"id": sid, "raw_id": int(tid), "kind": "todo", "label": todo_labels.get(int(tid)) or f"Todo #{int(tid)}"}
+
+    nodes = list(nodes_map.values())
+    return JSONResponse({"nodes": nodes, "links": links})
+
+
 @app.get('/__debug_echo', response_class=JSONResponse)
 @app.post('/__debug_echo', response_class=JSONResponse)
 async def __debug_echo(request: Request):
@@ -12056,6 +12138,187 @@ async def html_tree_bulk_move(request: Request, current_user: User = Depends(req
     # append moved/skipped counts for simple UX feedback
     sep = '&' if ('?' in path) else '?'
     path = f"{path}{sep}moved={moved_count}&skipped={skipped_count}"
+    return RedirectResponse(url=path, status_code=303)
+
+
+@app.post('/html_no_js/tree/bulk_link')
+async def html_tree_bulk_link(request: Request, current_user: User = Depends(require_login)):
+    """Bulk-create ItemLink edges between selected items and a destination.
+
+    Form fields:
+      - list_ids: repeated selected list IDs
+      - todo_ids: repeated selected todo IDs
+      - target_type: 'list' or 'todo'
+      - target_id: destination id
+      - link_direction: '', 'selected_to_dest', 'dest_to_selected', or 'both'
+      - root_list_id (optional), show_todos (optional) for redirect preservation
+      - _csrf: required
+
+    When link_direction is empty (auto):
+      - If destination is a list and only todos are selected: create edges dest -> selected (list -> todo)
+      - Otherwise default to selected -> dest
+    """
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    # selections
+    try:
+        list_ids = [int(v) for v in form.getlist('list_ids') if str(v).strip()]
+    except Exception:
+        list_ids = []
+    try:
+        todo_ids = [int(v) for v in form.getlist('todo_ids') if str(v).strip()]
+    except Exception:
+        todo_ids = []
+    target_type = (form.get('target_type') or 'list').strip().lower()
+    try:
+        target_id = int(form.get('target_id'))
+    except Exception:
+        target_id = None
+    link_direction = (form.get('link_direction') or '').strip()
+
+    # redirect context
+    root_list_id_val = form.get('root_list_id')
+    show_todos_raw = form.get('show_todos')
+    show_todos_flag = False
+    try:
+        if isinstance(show_todos_raw, str):
+            show_todos_flag = show_todos_raw.lower() in ('1', 'true', 'yes', 'on')
+    except Exception:
+        show_todos_flag = False
+    redirect_qs = []
+    if root_list_id_val:
+        try:
+            _ = int(root_list_id_val)
+            redirect_qs.append(f"root_list_id={_}")
+        except Exception:
+            pass
+    if show_todos_flag:
+        redirect_qs.append('show_todos=1')
+
+    # validation
+    if target_id is None or target_type not in ('list', 'todo') or (not list_ids and not todo_ids):
+        path = '/html_no_js/tree'
+        if redirect_qs:
+            path += '?' + '&'.join(redirect_qs)
+        return RedirectResponse(url=path, status_code=303)
+
+    created = 0
+    skipped = 0
+
+    async with async_session() as sess:
+        # validate destination and ownership
+        if target_type == 'list':
+            dst_list = await sess.get(ListState, target_id)
+            _ensure_owner_list(dst_list, current_user)
+        else:
+            dst_todo = await sess.get(Todo, target_id)
+            parent = await sess.get(ListState, getattr(dst_todo, 'list_id', None) if dst_todo else None)
+            _ensure_owner_todo_parent_list(dst_todo, parent, current_user)
+
+        # Build link pairs according to direction
+        pairs: list[tuple[str, int, str, int]] = []
+
+        def add_pair(src_type: str, src_id: int, tgt_type: str, tgt_id: int):
+            # skip self-link
+            try:
+                if (src_type == tgt_type) and (int(src_id) == int(tgt_id)):
+                    return
+            except Exception:
+                pass
+            pairs.append((src_type, int(src_id), tgt_type, int(tgt_id)))
+
+        sel_has_lists = bool(list_ids)
+        sel_has_todos = bool(todo_ids)
+
+        def selected_to_dest():
+            for lid in list_ids:
+                add_pair('list', lid, target_type, int(target_id))
+            for tid in todo_ids:
+                add_pair('todo', tid, target_type, int(target_id))
+
+        def dest_to_selected():
+            for lid in list_ids:
+                add_pair(target_type, int(target_id), 'list', lid)
+            for tid in todo_ids:
+                add_pair(target_type, int(target_id), 'todo', tid)
+
+        if link_direction == 'selected_to_dest':
+            selected_to_dest()
+        elif link_direction == 'dest_to_selected':
+            dest_to_selected()
+        elif link_direction == 'both':
+            selected_to_dest(); dest_to_selected()
+        else:
+            # auto heuristic
+            if target_type == 'list' and sel_has_todos and not sel_has_lists:
+                dest_to_selected()
+            else:
+                selected_to_dest()
+
+        # persist, de-dupe, and enforce ownership per pair
+        for src_type, src_id, tgt_type, tgt_id in pairs:
+            # ownership checks for source and target
+            try:
+                if src_type == 'list':
+                    src_list = await sess.get(ListState, int(src_id))
+                    _ensure_owner_list(src_list, current_user)
+                else:
+                    src_todo = await sess.get(Todo, int(src_id))
+                    src_parent = await sess.get(ListState, getattr(src_todo, 'list_id', None) if src_todo else None)
+                    _ensure_owner_todo_parent_list(src_todo, src_parent, current_user)
+                if tgt_type == 'list':
+                    tgt_list = await sess.get(ListState, int(tgt_id))
+                    _ensure_owner_list(tgt_list, current_user)
+                else:
+                    tgt_todo = await sess.get(Todo, int(tgt_id))
+                    tgt_parent = await sess.get(ListState, getattr(tgt_todo, 'list_id', None) if tgt_todo else None)
+                    _ensure_owner_todo_parent_list(tgt_todo, tgt_parent, current_user)
+            except HTTPException:
+                skipped += 1
+                continue
+            except Exception:
+                skipped += 1
+                continue
+
+            # check if link already exists for this owner
+            try:
+                q = select(ItemLink).where(
+                    (ItemLink.src_type == src_type) &
+                    (ItemLink.src_id == int(src_id)) &
+                    (ItemLink.tgt_type == tgt_type) &
+                    (ItemLink.tgt_id == int(tgt_id)) &
+                    (ItemLink.owner_id == int(current_user.id))
+                )
+                r = await sess.exec(q)
+                if r.first():
+                    skipped += 1
+                    continue
+            except Exception:
+                # best-effort; proceed and rely on unique constraint at commit
+                pass
+            # create link row
+            try:
+                link = ItemLink(src_type=src_type, src_id=int(src_id), tgt_type=tgt_type, tgt_id=int(tgt_id), owner_id=int(current_user.id))
+                sess.add(link)
+                created += 1
+            except Exception:
+                skipped += 1
+                continue
+        try:
+            await sess.commit()
+        except Exception:
+            # Any integrity errors will effectively skip conflicting rows
+            pass
+
+    # redirect back with summary (reuse moved/skipped keys for UI)
+    path = '/html_no_js/tree'
+    if redirect_qs:
+        path += '?' + '&'.join(redirect_qs)
+    sep = '&' if ('?' in path) else '?'
+    path = f"{path}{sep}moved={created}&skipped={skipped}"
     return RedirectResponse(url=path, status_code=303)
 
 

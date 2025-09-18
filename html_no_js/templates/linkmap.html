@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %}Link Map — Fast Todo (no-js){% endblock %}
+{% block content %}
+  <style>
+    body { margin-top: 0 !important; }
+    header { margin-top: 0 !important; }
+    #graph { width: 100%; height: calc(100vh - 140px); background: #ffffff; border: 1px solid #e5e7eb; border-radius: 4px; }
+    .meta { color: #6b7280; }
+  </style>
+  <h2>Link map</h2>
+  <div class="meta" style="margin:0.25rem 0 0.75rem;">Shows lists and todos as circles; links are shown as lines. Pan and zoom with mouse or trackpad.</div>
+  <div id="graph" role="application" aria-label="Link graph"></div>
+  <!-- force-graph 2D CDN (exposes global ForceGraph()) -->
+  <script src="https://unpkg.com/force-graph"></script>
+  <script src="/static/js/linkmap.js"></script>
+{% endblock %}
