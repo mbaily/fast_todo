@@ -20,7 +20,7 @@
   </div>
   <p class="meta">Lists (highest priority first)</p>
   <ul class="lists-list">
-    {% for l in lists if l.priority is not none %}
+    {% for l in lists if l.priority is not none and ((l.name or '')|lower != 'trash') %}
   <li class="list-item"><a class="list-title{% if l.completed %} done{% endif %}" href="/html_no_js/lists/{{ l.id }}">{{ l.name }}</a>
         <span class="meta priority-inline" style="margin-left:0.5rem"><span class="priority-circle">{{ circled.get(l.priority, l.priority) }}</span></span>
       </li>
@@ -28,13 +28,13 @@
   </ul>
   <h3 style="margin-top:1rem">Todos (highest priority first)</h3>
   <ul class="todos-list">
-    {% for t, l in todos if t.priority is not none %}
+    {% for t, l in todos if t.priority is not none and ((l.name or '')|lower != 'trash') %}
   <li class="todo"><div class="todo-content"><div class="todo-main"><div class="todo-title-inline"><a class="wrap-text{% if t.completed %} done{% endif %}" href="/html_no_js/todos/{{ t.id }}">{{ t.text }}</a>
     <span class="meta priority-inline" style="margin-left:0.35rem"><span class="priority-circle">{{ circled.get(t.priority, t.priority) }}</span></span></div><div class="meta">in <a href="/html_no_js/lists/{{ l.id }}">{{ l.name }}</a></div></div></div></li>
     {% endfor %}
     {# Unprioritised uncompleted todos are included but hidden by default; client-side toggle will show and move them #}
     {% if todos_unprio is defined %}
-      {% for t, l in todos_unprio %}
+      {% for t, l in todos_unprio if ((l.name or '')|lower != 'trash') %}
         {# expose modified timestamp for client-side sorting; fallback to created if missing #}
         {% set modified_iso = t.modified_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') if t.modified_at else (t.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S')) %}
         <li class="todo no-priority-todo" data-modified-at="{{ modified_iso }}" style="display:none"><div class="todo-content"><div class="todo-main"><div class="todo-title-inline"><a class="wrap-text{% if t.completed %} done{% endif %}" href="/html_no_js/todos/{{ t.id }}">{{ t.text }}</a></div><div class="meta">in <a href="/html_no_js/lists/{{ l.id }}">{{ l.name }}</a></div></div></div></li>
