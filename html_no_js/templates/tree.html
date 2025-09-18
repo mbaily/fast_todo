@@ -58,6 +58,12 @@
   </div>
 
   <h2>Tree{% if root_name %}: {{ root_name }}{% endif %}</h2>
+  {% if moved is not none or skipped is not none %}
+    <div class="meta" style="margin-bottom:0.35rem;">
+      {% if moved is not none %}Moved: {{ moved }}{% endif %}
+      {% if skipped is not none %} &nbsp; Skipped: {{ skipped }}{% endif %}
+    </div>
+  {% endif %}
 
   {% macro render_node(node) %}
     <li>
@@ -78,6 +84,13 @@
               <span class="icon" aria-hidden="true" title="Todo">📝</span>
               <a class="{% if t.completed %}done{% endif %}" href="/html_no_js/todos/{{ t.id }}">{% if t.completed %}<s>{{ t.text }}</s>{% else %}{{ t.text }}{% endif %}</a>
               {% if t.priority %}<span class="meta priority-inline" title="Priority {{ t.priority }}" style="margin-left:0.35rem;"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>{% endif %}
+              {% if t.child_lists and t.child_lists|length > 0 %}
+                <ul class="tree">
+                  {% for sub in t.child_lists %}
+                    {{ render_node(sub) }}
+                  {% endfor %}
+                </ul>
+              {% endif %}
             </li>
           {% endfor %}
         </ul>

@@ -11383,7 +11383,7 @@ async def html_recent_lists(request: Request, current_user: User = Depends(requi
 
 
 @app.get('/html_no_js/tree', response_class=HTMLResponse)
-async def html_tree_view(request: Request, root_list_id: int | None = None, show_todos: bool = False, current_user: User = Depends(require_login)):
+async def html_tree_view(request: Request, root_list_id: int | None = None, show_todos: bool = False, moved: int | None = None, skipped: int | None = None, current_user: User = Depends(require_login)):
     """Render a hierarchical tree of lists. Optional todos per list.
     Query params:
       - root_list_id: if provided, show the tree rooted at this list; otherwise show all top-level lists.
@@ -11531,10 +11531,69 @@ async def html_tree_view(request: Request, root_list_id: int | None = None, show
                     try:
                         lid = int(t.list_id)
                         t_by_list.setdefault(lid, []).append({
-                            'id': int(t.id), 'text': t.text, 'priority': getattr(t, 'priority', None), 'completed': int(t.id) in completed
+                            'id': int(t.id),
+                            'text': t.text,
+                            'priority': getattr(t, 'priority', None),
+                            'completed': int(t.id) in completed,
+                            'child_lists': [],
                         })
                     except Exception:
                         continue
+                # Also attach sublists that are owned by these todos
+                if t_ids:
+                    q_subs = (
+                        select(ListState)
+                        .where(ListState.owner_id == owner_id)
+                        .where(ListState.parent_todo_id.in_(t_ids))
+                        .order_by(ListState.created_at.asc())
+                    )
+                    r_subs = await sess.exec(q_subs)
+                    subs = r_subs.all()
+                    sub_ids = [int(s.id) for s in subs if s.id is not None]
+                    # hashtags for sublists
+                    sub_tag_map: dict[int, list[str]] = {}
+                    if sub_ids:
+                        sth = await sess.exec(
+                            select(ListHashtag.list_id, Hashtag.tag)
+                            .where(ListHashtag.list_id.in_(sub_ids))
+                            .join(Hashtag, Hashtag.id == ListHashtag.hashtag_id)
+                        )
+                        for lid, tag in sth.all():
+                            try:
+                                sub_tag_map.setdefault(int(lid), []).append(tag)
+                            except Exception:
+                                continue
+                    sub_sec = await compute_secondary_for_lists(sub_ids) if sub_ids else {}
+                    subs_by_todo: dict[int, list[dict]] = {}
+                    for s in subs:
+                        try:
+                            parent_tid = int(getattr(s, 'parent_todo_id', None)) if getattr(s, 'parent_todo_id', None) is not None else None
+                        except Exception:
+                            parent_tid = None
+                        if parent_tid is None:
+                            continue
+                        node = {
+                            'id': int(s.id),
+                            'name': s.name,
+                            'completed': getattr(s, 'completed', False),
+                            'priority': getattr(s, 'priority', None),
+                            'override_priority': sub_sec.get(int(s.id)) if sub_sec else None,
+                            'hashtags': sub_tag_map.get(int(s.id), []),
+                            'children': [],
+                        }
+                        # Build children of this sublist via the normal list recursion
+                        try:
+                            node['children'] = await build_tree(int(s.id), 1, 8)
+                        except Exception:
+                            node['children'] = []
+                        subs_by_todo.setdefault(parent_tid, []).append(node)
+                    # Attach to each todo
+                    for n in nodes:
+                        lst_id = int(n['id'])
+                        todos_for_list = t_by_list.get(lst_id, [])
+                        for trow in todos_for_list:
+                            tid = int(trow.get('id'))
+                            trow['child_lists'] = subs_by_todo.get(tid, [])
                 for n in nodes:
                     n['todos'] = t_by_list.get(int(n['id']), [])
             return nodes
@@ -11607,7 +11666,57 @@ async def html_tree_view(request: Request, root_list_id: int | None = None, show
                     )
                     comp_rows = await sess.exec(qcomp3)
                     completed = set(int(v[0] if isinstance(v, tuple) else v) for v in comp_rows.all())
-                root_node['todos'] = [{ 'id': int(t.id), 'text': t.text, 'priority': getattr(t, 'priority', None), 'completed': int(t.id) in completed } for t in todos]
+                root_node['todos'] = [{ 'id': int(t.id), 'text': t.text, 'priority': getattr(t, 'priority', None), 'completed': int(t.id) in completed, 'child_lists': [] } for t in todos]
+                # Attach sublists under each root todo
+                if t_ids:
+                    q_subs = (
+                        select(ListState)
+                        .where(ListState.owner_id == owner_id)
+                        .where(ListState.parent_todo_id.in_(t_ids))
+                        .order_by(ListState.created_at.asc())
+                    )
+                    r_subs = await sess.exec(q_subs)
+                    subs = r_subs.all()
+                    sub_ids = [int(s.id) for s in subs if s.id is not None]
+                    # hashtags for sublists
+                    sub_tag_map: dict[int, list[str]] = {}
+                    if sub_ids:
+                        sth = await sess.exec(
+                            select(ListHashtag.list_id, Hashtag.tag)
+                            .where(ListHashtag.list_id.in_(sub_ids))
+                            .join(Hashtag, Hashtag.id == ListHashtag.hashtag_id)
+                        )
+                        for lid, tag in sth.all():
+                            try:
+                                sub_tag_map.setdefault(int(lid), []).append(tag)
+                            except Exception:
+                                continue
+                    sub_sec = await compute_secondary_for_lists(sub_ids) if sub_ids else {}
+                    subs_by_todo: dict[int, list[dict]] = {}
+                    for s in subs:
+                        try:
+                            parent_tid = int(getattr(s, 'parent_todo_id', None)) if getattr(s, 'parent_todo_id', None) is not None else None
+                        except Exception:
+                            parent_tid = None
+                        if parent_tid is None:
+                            continue
+                        node = {
+                            'id': int(s.id),
+                            'name': s.name,
+                            'completed': getattr(s, 'completed', False),
+                            'priority': getattr(s, 'priority', None),
+                            'override_priority': sub_sec.get(int(s.id)) if sub_sec else None,
+                            'hashtags': sub_tag_map.get(int(s.id), []),
+                            'children': [],
+                        }
+                        try:
+                            node['children'] = await build_tree(int(s.id), 1, 8)
+                        except Exception:
+                            node['children'] = []
+                        subs_by_todo.setdefault(parent_tid, []).append(node)
+                    for trow in root_node['todos']:
+                        tid = int(trow.get('id'))
+                        trow['child_lists'] = subs_by_todo.get(tid, [])
             # build children
             root_node['children'] = await build_tree(int(root.id), 0)
             tree = [root_node]
@@ -11618,7 +11727,7 @@ async def html_tree_view(request: Request, root_list_id: int | None = None, show
     # CSRF token for bulk actions
     from .auth import create_csrf_token
     csrf_token = create_csrf_token(current_user.username)
-    return TEMPLATES.TemplateResponse(request, 'tree.html', {"request": request, "tree": tree, "root_list_id": root_list_id, "root_name": root_name, "root_parent_id": root_parent_id, "show_todos": bool(show_todos), "client_tz": await get_session_timezone(request), "csrf_token": csrf_token})
+    return TEMPLATES.TemplateResponse(request, 'tree.html', {"request": request, "tree": tree, "root_list_id": root_list_id, "root_name": root_name, "root_parent_id": root_parent_id, "show_todos": bool(show_todos), "client_tz": await get_session_timezone(request), "csrf_token": csrf_token, "moved": moved, "skipped": skipped})
 
 
 @app.post('/html_no_js/tree/bulk_move')
@@ -11678,7 +11787,50 @@ async def html_tree_bulk_move(request: Request, current_user: User = Depends(req
             path += '?' + '&'.join(redirect_qs)
         return RedirectResponse(url=path, status_code=303)
 
+    moved_count = 0
+    skipped_count = 0
     async with async_session() as sess:
+        async def _list_ancestors_ids(start_list_id: int, max_hops: int = 300) -> set[int]:
+            """Ascend from a list through parent_list_id or parent_todo_id->todo.list_id, collecting ancestor list IDs."""
+            seen: set[int] = set()
+            hops = 0
+            cur_id: int | None = int(start_list_id)
+            while cur_id is not None and hops < max_hops:
+                lst = await sess.get(ListState, cur_id)
+                if not lst:
+                    break
+                pid = getattr(lst, 'parent_list_id', None)
+                if pid is not None:
+                    try:
+                        cur_id = int(pid)
+                    except Exception:
+                        break
+                    if cur_id in seen:  # loop guard
+                        break
+                    seen.add(cur_id)
+                    hops += 1
+                    continue
+                ptid = getattr(lst, 'parent_todo_id', None)
+                if ptid is not None:
+                    try:
+                        pt = await sess.get(Todo, int(ptid))
+                    except Exception:
+                        pt = None
+                    if not pt:
+                        break
+                    try:
+                        cur_id = int(getattr(pt, 'list_id', None)) if getattr(pt, 'list_id', None) is not None else None
+                    except Exception:
+                        cur_id = None
+                    if cur_id is None:
+                        break
+                    if cur_id in seen:
+                        break
+                    seen.add(cur_id)
+                    hops += 1
+                    continue
+                break
+            return seen
         if target_type == 'list':
             # ensure destination list ownership
             dst = await sess.get(ListState, target_id)
@@ -11687,27 +11839,28 @@ async def html_tree_bulk_move(request: Request, current_user: User = Depends(req
             for lid in list_ids:
                 try:
                     if int(lid) == int(target_id):
+                        skipped_count += 1
                         continue  # no-op
                 except Exception:
-                    pass
+                    skipped_count += 1
+                    continue
                 src = await sess.get(ListState, lid)
                 try:
                     _ensure_owner_list(src, current_user)
                 except Exception:
+                    skipped_count += 1
                     continue
-                # cycle guard: ensure target is not a descendant of src
+                # cycle guard: ensure target is not a descendant of src (i.e., src not in ancestors of dst)
+                cycle = False
                 try:
-                    cur = dst
-                    seen = 0
-                    while cur is not None and getattr(cur, 'parent_list_id', None) is not None and seen < 200:
-                        if int(cur.parent_list_id) == int(lid):
-                            # cycle would be created; skip this move
-                            cur = None
-                            break
-                        cur = await sess.get(ListState, int(cur.parent_list_id))
-                        seen += 1
+                    anc = await _list_ancestors_ids(int(target_id))
+                    if int(lid) in anc:
+                        cycle = True
                 except Exception:
-                    pass
+                    cycle = False
+                if cycle:
+                    skipped_count += 1
+                    continue
                 # apply move
                 src.parent_todo_id = None
                 src.parent_todo_position = None
@@ -11715,15 +11868,18 @@ async def html_tree_bulk_move(request: Request, current_user: User = Depends(req
                 src.parent_list_position = await _next_position_for_parent(sess, parent_list_id=target_id)
                 src.modified_at = now_utc()
                 sess.add(src)
+                moved_count += 1
             # move todos into list
             for tid in todo_ids:
                 todo = await sess.get(Todo, tid)
                 if not todo:
+                    skipped_count += 1
                     continue
                 cur_parent = await sess.get(ListState, todo.list_id)
                 try:
                     _ensure_owner_todo_parent_list(todo, cur_parent, current_user)
                 except Exception:
+                    skipped_count += 1
                     continue
                 old_list_id = int(todo.list_id)
                 todo.list_id = target_id
@@ -11735,6 +11891,7 @@ async def html_tree_bulk_move(request: Request, current_user: User = Depends(req
                         await _touch_list_modified(sess, old_list_id)
                 except Exception:
                     pass
+                moved_count += 1
             await sess.commit()
         else:  # target_type == 'todo'
             # ensure destination todo and ownership via its parent list
@@ -11752,20 +11909,24 @@ async def html_tree_bulk_move(request: Request, current_user: User = Depends(req
                 try:
                     _ensure_owner_list(src, current_user)
                 except Exception:
+                    skipped_count += 1
                     continue
                 # guard: todo currently belongs to this list (immediate self-cycle)
                 try:
                     if td.list_id is not None and int(td.list_id) == int(lid):
+                        skipped_count += 1
                         continue
                 except Exception:
-                    pass
+                    skipped_count += 1
+                    continue
                 # ascend from todo's current list; if we hit this list id, skip (cycle)
+                cycle = False
                 try:
                     cur_list_id = int(td.list_id) if getattr(td, 'list_id', None) is not None else None
                     seen = 0
                     while cur_list_id is not None and seen < 200:
                         if int(cur_list_id) == int(lid):
-                            cur_list_id = None  # mark as cycle -> skip
+                            cycle = True
                             break
                         cur_list = await sess.get(ListState, cur_list_id)
                         if not cur_list:
@@ -11784,7 +11945,10 @@ async def html_tree_bulk_move(request: Request, current_user: User = Depends(req
                             continue
                         break
                 except Exception:
-                    pass
+                    cycle = False
+                if cycle:
+                    skipped_count += 1
+                    continue
                 # apply move
                 src.parent_list_id = None
                 src.parent_list_position = None
@@ -11792,12 +11956,16 @@ async def html_tree_bulk_move(request: Request, current_user: User = Depends(req
                 src.parent_todo_position = await _next_position_for_parent(sess, parent_todo_id=int(td.id))
                 src.modified_at = now_utc()
                 sess.add(src)
+                moved_count += 1
             await sess.commit()
 
     # redirect back to tree preserving context
     path = '/html_no_js/tree'
     if redirect_qs:
         path += '?' + '&'.join(redirect_qs)
+    # append moved/skipped counts for simple UX feedback
+    sep = '&' if ('?' in path) else '?'
+    path = f"{path}{sep}moved={moved_count}&skipped={skipped_count}"
     return RedirectResponse(url=path, status_code=303)
 
 
