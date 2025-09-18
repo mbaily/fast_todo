@@ -57,11 +57,7 @@
         {% if root_parent_id is not none or root_parent_todo_id is not none %}
           {% if root_parent_id is not none %}
             {# If parent is a list: if it is top-level, go to root view and jump to its fragment; else recenter on that parent list and jump to fragment #}
-            {% if root_parent_is_top_level %}
-              <a class="btn" href="/html_no_js/tree{% if show_todos %}?show_todos=1{% endif %}#list-{{ root_parent_id }}" title="Up one level" aria-label="Up one level">Up one ⬆</a>
-            {% else %}
-              <a class="btn" href="/html_no_js/tree?root_list_id={{ root_parent_id }}{% if show_todos %}&show_todos=1{% endif %}#list-{{ root_parent_id }}" title="Up one level" aria-label="Up one level">Up one ⬆</a>
-            {% endif %}
+            <a class="btn" href="/html_no_js/tree?root_list_id={{ root_parent_id }}{% if show_todos %}&show_todos=1{% endif %}#list-{{ root_parent_id }}" title="Up one level" aria-label="Up one level">Up one ⬆</a>
           {% elif root_parent_todo_id is not none %}
             {# Parent is a todo: navigate to the list that owns that todo and jump to the todo fragment #}
             {% if root_parent_todo_list_id %}
