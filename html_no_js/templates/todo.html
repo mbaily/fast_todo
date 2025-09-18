@@ -63,6 +63,9 @@
         </h2>      
       </div>    
   </div>
+
+  <p class="meta" style="margin:0">List: <a href="/html_no_js/lists/{{ todo.list_id }}">{{ list.name if list else todo.list_id }}</a></p>
+
   {% if active_collations is defined and active_collations|length > 0 %}
     <style>
       /* Collation dots: colored circles indicating inclusion (filled) or exclusion (outline) */
@@ -84,8 +87,6 @@
       </span>
     </div>
   {% endif %}
-
-  <p class="meta" style="margin:0">List: <a href="/html_no_js/lists/{{ todo.list_id }}">{{ list.name if list else todo.list_id }}</a></p>
 
   <div class="priority-row" style="margin:0.25rem 0">
     <label for="todo-priority-{{ todo.id }}">Priority</label>
@@ -230,7 +231,6 @@
   <form id="todo-edit-form" method="post" action="/html_no_js/todos/{{ todo.id }}/edit" autocomplete="off">
     {{ csrf_field() }}
     <label>Text<br><textarea id="todo-text-input" class="full-bleed" name="text" required autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false" rows="{{ (todo.note or '').split('\n')|length }}">{{ todo.text }}</textarea></label><br>
-    <div id="todo-hashtag-suggest" class="hashtag-suggest" role="listbox" aria-label="Hashtag suggestions" data-tags="{% if all_hashtags and all_hashtags|length > 0 %}{% for tag in all_hashtags %}{{ tag }}{% if not loop.last %},{% endif %}{% endfor %}{% endif %}"></div>
 
     <label for="note-textarea">Note</label>
       <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; margin:0.25rem 0;">
