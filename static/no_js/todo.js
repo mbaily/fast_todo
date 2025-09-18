@@ -521,12 +521,12 @@
 							var remWrap = document.createElement('form'); remWrap.style.display='inline'; remWrap.appendChild(remBtn);
 							div.appendChild(remWrap);
 							// Find the tags container and add the new tag
-							var tagsContainer = document.querySelector('.tags[aria-label="List tags"]');
+							var tagsContainer = document.querySelector('.main-list-tags');
 							if (tagsContainer) {
 								tagsContainer.appendChild(div);
 							} else {
 								// Create tags container if it doesn't exist
-								var newTagsContainer = document.createElement('div'); newTagsContainer.className='tags'; newTagsContainer.setAttribute('role','list'); newTagsContainer.setAttribute('aria-label','List tags');
+								var newTagsContainer = document.createElement('div'); newTagsContainer.className='tags main-list-tags'; newTagsContainer.setAttribute('role','list'); newTagsContainer.setAttribute('aria-label','List tags');
 								newTagsContainer.appendChild(div);
 								var addForm = document.querySelector('form[data-ft-add-list-tag]');
 								if (addForm && addForm.parentElement) {
