@@ -139,21 +139,25 @@
       {% for tag in (tags | sort) %}
         <div role="listitem" style="display:inline-block; margin-right:0.4rem">
           <a class="tag-chip" href="/html_no_js/search?q={{ tag|urlencode }}" role="link">{{ tag }}</a>
-          <form method="post" action="/html_no_js/todos/{{ todo.id }}/hashtags/remove" style="display:inline">
-            {{ csrf_field() }}
-            <input type="hidden" name="tag" value="{{ tag }}">
-            <button type="submit" class="tag-remove" aria-label="Remove {{ tag }}"><span aria-hidden="true">✖</span><span class="sr-only">Remove {{ tag }}</span></button>
-          </form>
+          <button type="button" class="tag-remove" data-ft-remove-tag="1" data-todo-id="{{ todo.id }}" data-tag="{{ tag }}" aria-label="Remove {{ tag }}"><span aria-hidden="true">✖</span><span class="sr-only">Remove {{ tag }}</span></button>
         </div>
       {% endfor %}
     </div>
   {% endif %}
 
-  <form method="post" action="/html_no_js/todos/{{ todo.id }}/hashtags" aria-label="Add tag">
+  <form method="post" action="/todos/{{ todo.id }}/hashtags" aria-label="Add tag" data-ft-add-tag="1" data-todo-id="{{ todo.id }}">
     {{ csrf_field() }}
-    <label>Add Tag <input name="tag" placeholder="#tag" aria-label="Tag name"></label>
+    <label>Add Tag <input name="tag" placeholder="#tag" aria-label="Tag name" list="tag-suggestions" autocomplete="off"></label>
     <button type="submit">Add</button>
   </form>
+
+  <datalist id="tag-suggestions">
+    {% if all_hashtags %}
+      {% for tag in all_hashtags %}
+        <option value="{{ tag }}">
+      {% endfor %}
+    {% endif %}
+  </datalist>
 
   {% if sublists is defined and (todo is defined and todo.lists_up_top) %}
     <section aria-label="Sublists" style="margin-top:1rem">

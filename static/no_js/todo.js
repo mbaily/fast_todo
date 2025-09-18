@@ -326,8 +326,58 @@
 (function(){
 	try{
 		function todoFormMatch(action){ try { return action && action.match(/\/html_no_js\/todos\/(\d+)\/(delete|pin|hashtags|hashtags\/remove)/); } catch(e){ return null; } }
+		function todoJsonMatch(action){
+			try {
+				if (!action) return null;
+				var a = String(action);
+				var base = a.split('?')[0];
+				var m = base.match(/\/todos\/(\d+)\/hashtags(\/remove)?$/);
+				return m;
+			} catch(e){ return null; }
+		}
 		document.body.addEventListener('submit', function(ev){
-			var form = ev.target; if (!form || form.tagName !== 'FORM') return; var action = form.getAttribute('action') || '';
+			var form = ev.target; if (!form || form.tagName !== 'FORM') return; var action = (form.action || form.getAttribute('action') || '');
+			// JSON endpoint for add tag on todo
+			var jm = todoJsonMatch(action);
+			if (jm) {
+				ev.preventDefault();
+				try{
+					var todoId = jm[1];
+					var tagInput = form.querySelector('input[name="tag"]');
+					var tagVal = tagInput ? tagInput.value : '';
+					if (!tagVal || !tagVal.trim()) return;
+					// Endpoint expects `tag` as a query param (FastAPI query dependency)
+					var base = (action || '').split('?')[0];
+					var url = base + '?tag=' + encodeURIComponent(tagVal);
+					// credentials same-origin for cookie/session
+					fetch(url, { method: 'POST', credentials: 'same-origin' })
+						.then(function(res){ if (!res.ok) throw new Error('Add tag failed'); return res.json().catch(function(){ return null; }); })
+						.then(function(){
+							try{
+								// Insert new tag chip before the form, matching existing markup
+								var div = document.createElement('div'); div.setAttribute('role','listitem'); div.style.display='inline-block'; div.style.marginRight='0.4rem';
+								var a = document.createElement('a'); a.className='tag-chip'; a.href='/html_no_js/search?q=' + encodeURIComponent(tagVal); a.textContent = tagVal; div.appendChild(a);
+								var remBtn = document.createElement('button'); remBtn.type='button'; remBtn.className='tag-remove'; remBtn.innerHTML='<span aria-hidden="true">✖</span><span class="sr-only">Remove ' + tagVal + '</span>';
+								remBtn.addEventListener('click', function(){
+									try{
+										var url = '/todos/' + encodeURIComponent(todoId) + '/hashtags?tag=' + encodeURIComponent(tagVal);
+										fetch(url, { method: 'DELETE', credentials: 'same-origin' })
+											.then(function(r){ if (!r.ok) throw new Error('Remove tag failed'); return r.json().catch(function(){ return null; }); })
+											.then(function(){ try{ div.remove(); }catch(_){ } })
+											.catch(function(){ try{ alert('Action failed'); }catch(_){ } });
+									}catch(_){ }
+								});
+								var remWrap = document.createElement('form'); remWrap.style.display='inline'; remWrap.appendChild(remBtn);
+								div.appendChild(remWrap);
+								if (form.parentElement) form.parentElement.insertBefore(div, form);
+								try{ tagInput.value=''; }catch(_){ }
+							}catch(_){ }
+						})
+						.catch(function(){ try{ alert('Action failed'); }catch(_){ } });
+				}catch(_){ }
+				return;
+			}
+			// legacy html_no_js handlers
 			var m = todoFormMatch(action); if (!m) return; ev.preventDefault();
 			var todoId = m[1]; var fd = new FormData(form); var csrf = document.querySelector('input[name="_csrf"]'); if (csrf && csrf.value) fd.append('_csrf', csrf.value);
 			fetch(action, { method: 'POST', body: fd, credentials: 'same-origin' })
@@ -361,6 +411,33 @@
 					}catch(_){ }
 				})
 				.catch(function(){ try{ alert('Action failed'); }catch(_){ } });
+		}, false);
+	}catch(e){ }
+})();
+
+// Handle remove tag button clicks with JSON endpoint
+(function(){
+	try{
+		document.body.addEventListener('click', function(ev){
+			var btn = ev.target; if (!btn || btn.tagName !== 'BUTTON') return;
+			if (!btn.hasAttribute('data-ft-remove-tag')) return;
+			ev.preventDefault();
+			ev.stopPropagation();
+			try{
+				var todoId = btn.getAttribute('data-todo-id');
+				var tag = btn.getAttribute('data-tag');
+				if (!todoId || !tag) return;
+				var url = '/todos/' + encodeURIComponent(todoId) + '/hashtags?tag=' + encodeURIComponent(tag);
+				fetch(url, { method: 'DELETE', credentials: 'same-origin' })
+					.then(function(res){ if (!res.ok) throw new Error('Remove tag failed'); return res.json().catch(function(){ return null; }); })
+					.then(function(){
+						try{
+							var wrapper = btn.closest('[role="listitem"]') || btn.parentElement;
+							if (wrapper) wrapper.remove();
+						}catch(_){ }
+					})
+					.catch(function(){ try{ alert('Action failed'); }catch(_){ } });
+			}catch(_){ }
 		}, false);
 	}catch(e){ }
 })();
