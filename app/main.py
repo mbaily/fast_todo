@@ -11506,6 +11506,7 @@ async def html_tree_view(request: Request, root_list_id: int | None = None, show
                     'completed': getattr(l, 'completed', False),
                     'priority': getattr(l, 'priority', None),
                     'override_priority': sec.get(int(l.id)),
+                    'category_id': getattr(l, 'category_id', None),
                     'hashtags': tag_map.get(int(l.id), []),
                     'children': [],
                 })
@@ -11664,6 +11665,7 @@ async def html_tree_view(request: Request, root_list_id: int | None = None, show
                 'completed': getattr(root, 'completed', False),
                 'priority': getattr(root, 'priority', None),
                 'override_priority': None,
+                'category_id': getattr(root, 'category_id', None),
                 'hashtags': [],
                 'children': [],
             }
@@ -11749,8 +11751,52 @@ async def html_tree_view(request: Request, root_list_id: int | None = None, show
             root_node['children'] = await build_tree(int(root.id), 0)
             tree = [root_node]
         else:
-            # top-level (no parent list/todo)
+            # top-level (no parent list/todo) — order top-level lists by category order like index
+            # fetch top-level nodes
             tree = await build_tree(None, 0)
+            # fetch user's categories ordered by position
+            cat_order: dict[int, int] = {}
+            categories_ctx: list[dict] = []
+            tree_by_category: dict[int, list[dict]] = {}
+            try:
+                cres = await sess.exec(
+                    select(Category).where(Category.owner_id == owner_id).order_by(Category.position.asc(), Category.id.asc())
+                )
+                cats = cres.all()
+                for i, c in enumerate(cats):
+                    try:
+                        cat_order[int(getattr(c, 'id'))] = i + 1  # start from 1 so uncategorized (0/None) can be 0
+                        categories_ctx.append({'id': int(getattr(c, 'id')), 'name': getattr(c, 'name'), 'position': getattr(c, 'position', i + 1)})
+                    except Exception:
+                        pass
+            except Exception:
+                cat_order = {}
+                categories_ctx = []
+            def _cat_pos(n: dict) -> tuple:
+                # Uncategorized first (0), then by category order position; keep original order as tiebreaker by name
+                cid = n.get('category_id') or 0
+                pos = 0 if not cid else cat_order.get(int(cid), 9999)
+                return (0 if cid in (0, None) else 1, pos, (n.get('name') or '').lower())
+            try:
+                tree.sort(key=_cat_pos)
+            except Exception:
+                pass
+            # expose categories in outer scope
+            categories = categories_ctx
+            # build by-category mapping for top-level lists
+            try:
+                for n in tree:
+                    cid = n.get('category_id') or 0
+                    try:
+                        tree_by_category.setdefault(int(cid), []).append(n)
+                    except Exception:
+                        pass
+            except Exception:
+                tree_by_category = {}
+        # If root_list_id branch executes, ensure categories is at least defined
+        if root_list_id:
+            categories = []
+            tree_by_category = {}
 
     # CSRF token for bulk actions
     from .auth import create_csrf_token
@@ -11758,6 +11804,7 @@ async def html_tree_view(request: Request, root_list_id: int | None = None, show
     return TEMPLATES.TemplateResponse(request, 'tree.html', {
         "request": request,
         "tree": tree,
+        "tree_by_category": tree_by_category,
         "root_list_id": root_list_id,
         "root_name": root_name,
         "root_parent_id": root_parent_id,
@@ -11765,6 +11812,7 @@ async def html_tree_view(request: Request, root_list_id: int | None = None, show
         "root_parent_is_top_level": root_parent_is_top_level,
         "root_parent_todo_list_id": root_parent_todo_list_id,
         "show_todos": bool(show_todos),
+        "categories": categories,
         "client_tz": await get_session_timezone(request),
         "csrf_token": csrf_token,
         "moved": moved,

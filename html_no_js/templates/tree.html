@@ -49,7 +49,10 @@
         <input type="checkbox" name="show_todos" value="1" {% if show_todos %}checked{% endif %}>
         <span>Show todos</span>
       </label>
-      <button type="submit">Apply</button>
+      <label style="display:inline-flex; align-items:center; gap:0.25rem; margin-left:0.75rem;">
+        <input type="checkbox" id="hide-completed-tree">
+        <span>Hide completed</span>
+      </label>
     </form>
     <button type="submit" class="btn" form="tree-bulk-move-form" title="Move selected to destination">Move</button>
     {% if root_list_id %}
@@ -121,14 +124,134 @@
     </li>
   {% endmacro %}
 
-  {% if tree and tree|length > 0 %}
-    <ul class="tree">
-      {% for node in tree %}
-        {{ render_node(node) }}
-      {% endfor %}
-    </ul>
+  {% if root_list_id %}
+    {# Focused on a specific root list; render the regular tree #}
+    {% if tree and tree|length > 0 %}
+      <ul class="tree">
+        {% for node in tree %}
+          {{ render_node(node) }}
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="meta">No lists to display.</div>
+    {% endif %}
   {% else %}
-    <div class="meta">No lists to display.</div>
+    {# Top-level: render categories (collapsible) with lists inside; no checkbox or recenter on category headers #}
+    {% set uncats = (tree_by_category.get(0, []) if tree_by_category is defined else []) %}
+    {% if uncats and uncats|length > 0 %}
+      <section class="category-section" data-category-id="uncategorized" style="margin-bottom:0.5rem;">
+        <h3 class="category-header" data-target="cat-uncat" style="cursor:pointer; user-select:none;">
+          <span class="twisty" aria-hidden="true">▾</span>
+          <span class="category-name">Uncategorized</span>
+          <span class="count muted"> ({{ uncats|length }})</span>
+        </h3>
+        <ul id="cat-uncat" class="tree">
+          {% for node in uncats %}
+            {{ render_node(node) }}
+          {% endfor %}
+        </ul>
+      </section>
+    {% endif %}
+    {% if categories is defined and categories and categories|length > 0 %}
+      {% for cat in categories %}
+        {% set cat_lists = tree_by_category.get(cat.id, []) if tree_by_category is defined else [] %}
+        {% if cat_lists and cat_lists|length > 0 %}
+          <section class="category-section" data-category-id="{{ cat.id }}" style="margin-bottom:0.5rem;">
+            <h3 class="category-header" data-target="cat-{{ cat.id }}" style="cursor:pointer; user-select:none;">
+              <span class="twisty" aria-hidden="true">▾</span>
+              <span class="category-name">{{ cat.name }}</span>
+              <span class="count muted"> ({{ cat_lists|length }})</span>
+            </h3>
+            <ul id="cat-{{ cat.id }}" class="tree">
+              {% for node in cat_lists %}
+                {{ render_node(node) }}
+              {% endfor %}
+            </ul>
+          </section>
+        {% endif %}
+      {% endfor %}
+    {% else %}
+      {% if not (uncats and uncats|length > 0) %}
+        <div class="meta">No lists to display.</div>
+      {% endif %}
+    {% endif %}
+    <script>
+      (function(){
+        function toggleDetails(h){
+          try {
+            var target = h.getAttribute('data-target');
+            var ul = document.getElementById(target);
+            if (!ul) return;
+            var tw = h.querySelector('.twisty');
+            var isOpen = ul.style.display !== 'none';
+            ul.style.display = isOpen ? 'none' : '';
+            if (tw) tw.textContent = isOpen ? '▸' : '▾';
+          } catch(e) {}
+        }
+        var headers = document.querySelectorAll('.category-header');
+        headers.forEach(function(h){
+          h.addEventListener('click', function(){ toggleDetails(h); });
+        });
+      })();
+    </script>
   {% endif %}
   <script src="/static/js/tree.js"></script>
+  <script>
+    (function(){
+      // auto-submit Show todos toggle
+      try {
+        var form = document.querySelector('.toolbar form[action="/html_no_js/tree"]');
+        var toggler = form ? form.querySelector('input[name="show_todos"]') : null;
+        if (toggler && form){
+          toggler.addEventListener('change', function(){ form && form.submit(); });
+        }
+      } catch(e) { /* ignore */ }
+      var key = 'tree_hide_completed';
+      var cb = document.getElementById('hide-completed-tree');
+      if (!cb) return;
+      try {
+        var saved = (typeof localStorage !== 'undefined') ? localStorage.getItem(key) : null;
+        cb.checked = (saved === '1');
+      } catch(e) {}
+
+      function isCompletedAnchor(a){
+        try { return !!(a && a.classList && a.classList.contains('done')); } catch(e){ return false; }
+      }
+      function applyHide(){
+        var hide = !!cb.checked;
+        try { if (typeof localStorage !== 'undefined') localStorage.setItem(key, hide ? '1' : '0'); } catch(e) {}
+        // Handle list items
+        var listLis = Array.prototype.slice.call(document.querySelectorAll('ul.tree > li'));
+        listLis.forEach(function(li){
+          try {
+            // a list node li has a link to /html_no_js/lists/<id>
+            var a = li.querySelector('a[href^="/html_no_js/lists/"]');
+            var completed = isCompletedAnchor(a);
+            // hide/show the li if completed and hide flag
+            li.style.display = (hide && completed) ? 'none' : '';
+            // additionally, if parent is completed and hide is on, hide its nested children ul even if parent itself is visible
+            var childUls = Array.prototype.slice.call(li.querySelectorAll(':scope > ul.tree'));
+            childUls.forEach(function(ul){ ul.style.display = (hide && completed) ? 'none' : ''; });
+          } catch(e){}
+        });
+        // Handle todo items
+        var todoLis = Array.prototype.slice.call(document.querySelectorAll('li > a[id^="todo-"]'))
+          .map(function(a){ return a && a.closest('li'); })
+          .filter(function(li){ return !!li; });
+        todoLis.forEach(function(li){
+          try {
+            var a = li.querySelector('a[id^="todo-"]');
+            var completed = isCompletedAnchor(a);
+            li.style.display = (hide && completed) ? 'none' : '';
+            // hide child sublists under a completed todo when hide enabled
+            var childUls = Array.prototype.slice.call(li.querySelectorAll(':scope > ul.tree'));
+            childUls.forEach(function(ul){ ul.style.display = (hide && completed) ? 'none' : ''; });
+          } catch(e){}
+        });
+      }
+      cb.addEventListener('change', applyHide);
+      // initial
+      applyHide();
+    })();
+  </script>
 {% endblock %}
