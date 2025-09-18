@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Lists — Fast Todo (no-js){% endblock %}
 {% block content %}
+  <!-- Section: Page styles specific to index view (layout and mobile tweaks) -->
   <style>
     /* index-only: remove top page margin so the site title sits flush to the top */
     body { margin-top: 0 !important; }
@@ -77,6 +78,7 @@
   </style>
   
 
+  <!-- Section: High priority (todos and lists) -->
   {% if high_priority_todos and high_priority_todos|length > 0 or high_priority_lists and high_priority_lists|length > 0 %}
     <section class="high-priority">
       <h3>High priority</h3>
@@ -104,6 +106,7 @@
     </section>
   {% endif %}
 
+  <!-- Section: Pinned todos -->
   {% if pinned_todos and pinned_todos|length > 0 %}
     <section class="pinned-todos">
       <!-- <h3>Pinned</h3> -->
@@ -127,6 +130,7 @@
     </section>
   {% endif %}
 
+  <!-- Section: Bookmarks (todos and lists) -->
   {% if (bookmarked_todos and bookmarked_todos|length > 0) or (bookmarked_lists and bookmarked_lists|length > 0) %}
     <section class="pinned-todos">
       <!-- <h3>Bookmarks</h3> -->
@@ -166,6 +170,7 @@
     </section>
   {% endif %}
   {# Move calendar summary directly under pinned todos #}
+  <!-- Section: Calendar summary -->
   {% if calendar_occurrences and calendar_occurrences|length > 0 %}
     <section class="calendar-summary">
       <!--<h3>Calendar</h3>-->
@@ -184,12 +189,12 @@
       </ul>
     </section>
   {% endif %}
-  <!-- search form: search lists and todos -->
+  <!-- Section: Search form (lists and todos) -->
   <form method="get" action="/html_no_js/search" style="margin:0.5rem 0">
     <input name="q" placeholder="Search lists and todos" value="{{ request.query_params.get('q','') }}">
     <button type="submit">Search</button>
   </form>
-  <!-- Quick add todo: add a todo into a top-level list named 'Quick' (create if missing) -->
+  <!-- Section: Quick add todo (creates todo into 'Quick' list) -->
   <form id="quick-add-form" autocomplete="off" style="margin:0.4rem 0; display:flex; gap:0.5rem; align-items:center;">
     {{ csrf_field() }}
     <input id="quick-add-text" placeholder="Quick todo" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" style="flex:1 1 auto; min-width:0;">
@@ -280,7 +285,8 @@
     }, false);
   })();
   </script>
-    <form method="post" action="/html_no_js/lists/create">
+  <!-- Section: Create list form -->
+  <form method="post" action="/html_no_js/lists/create">
   {% if user_default_category_id is defined and user_default_category_id is not none %}
   <input type="hidden" name="category_id" value="{{ user_default_category_id }}">
   {% else %}
@@ -345,6 +351,7 @@
       {% endif %}
     </nav>
   {% endif %}
+  <!-- Section: Uncategorized and categorized lists -->
   <ul class="lists-list">
   {# Uncategorized (no category) - render first so it appears at the top #}
   {% set uncats = lists_by_category.get(0, []) %}
@@ -500,12 +507,12 @@
   {% endfor %}
   </ul>
 
-<!-- Quick link to categories page -->
+<!-- Section: Quick link to categories page -->
 <div style="margin-bottom:0.75rem;">
   <a href="/html_no_js/categories" class="btn" style="font-weight:bold;">→ Categories</a>
 </div>
 
-<!-- embed server-provided categories as JSON in a non-JS script tag so static JS parsers don't see Jinja tokens -->
+<!-- Section: Embed server-provided categories JSON -->
 <script type="application/json" id="server-categories">{{ categories | default([]) | tojson | safe }}</script>
 <script>
   (function(){
@@ -518,7 +525,7 @@
 </script>
 
 
-<!-- Hide Completed control (browser-cookie persisted) -->
+<!-- Section: Hide Completed control (cookie persisted) -->
 <div id="hide-completed-control" style="margin:0.5rem 0;">
   <label><input type="checkbox" id="hide-completed-checkbox"> Hide Completed</label>
   <span class="meta" style="margin-left:0.5rem; color: var(--muted, #6b7280);"></span>
@@ -526,7 +533,7 @@
   
 </div>
 
-<!-- Show all tags control (browser-cookie persisted) -->
+<!-- Section: Show all tags control (cookie persisted) -->
 <div id="sort-and-tags" style="margin-top:1rem; display:flex; gap:1rem; align-items:center; flex-wrap:wrap;">
   <label style="margin-right:0.5rem;"><input type="checkbox" id="show-all-tags-checkbox"> Show all tags</label>
   <span style="flex:1 1 auto"></span>
@@ -542,9 +549,10 @@
 
 
 {% block scripts %}
+<!-- Section: Scripts (sorting, hide completed, rename, collapsible categories, show all tags) -->
 {{ super() }}
 <script>
-// Sorting within categories by created_at or modified_at; persisted in a cookie
+// Script: Sorting within categories by created_at or modified_at; persisted in a cookie
 (function(){
   function setCookie(name, value, days){ var expires=''; if(days){ var d=new Date(); d.setTime(d.getTime() + (days*24*60*60*1000)); expires='; expires='+d.toUTCString(); } document.cookie = name + '=' + encodeURIComponent(value) + expires + '; path=/'; }
   function getCookie(name){ var m = document.cookie.match('(?:^|; )' + name + '=([^;]*)'); return m ? decodeURIComponent(m[1]) : null; }
@@ -635,7 +643,7 @@ window.addEventListener && window.addEventListener('storage', function(ev){
   } catch(e) { /* ignore */ }
 </script>
 <script>
-// Hide Completed lists (persisted via cookie); hides li.list-item whose title has class 'done'
+// Script: Hide Completed lists (persisted via cookie); hides li.list-item whose title has class 'done'
 (function(){
   function setCookie(name, value, days){ var expires=''; if(days){ var d=new Date(); d.setTime(d.getTime() + (days*24*60*60*1000)); expires='; expires='+d.toUTCString(); } document.cookie = name + '=' + encodeURIComponent(value) + expires + '; path=/'; }
   function getCookie(name){ var m = document.cookie.match('(?:^|; )' + name + '=([^;]*)'); return m ? decodeURIComponent(m[1]) : null; }
@@ -668,7 +676,7 @@ window.addEventListener && window.addEventListener('storage', function(ev){
 <!-- overflow-debug script removed -->
 
 <script>
-// Minimal rename using prompt(); posts new name to server endpoint
+// Script: Minimal rename using prompt(); posts new name to server endpoint
 (function(){
   document.querySelectorAll('.edit-list-btn').forEach(function(btn){
     btn.addEventListener('click', function(){
@@ -697,7 +705,7 @@ window.addEventListener && window.addEventListener('storage', function(ev){
 </script>
 
 <script>
-// Collapsible category sections with localStorage persistence
+// Script: Collapsible category sections with localStorage persistence
 (function(){
   function storageKey(id){ return 'cat-collapsed-' + id; }
   function isCollapsed(id){ try { return localStorage.getItem(storageKey(id)) === '1'; } catch(e){ return false; } }
@@ -725,7 +733,7 @@ window.addEventListener && window.addEventListener('storage', function(ev){
 </script>
 
 <script>
-// Show All Tags control: store state in a cookie and fetch combined tags per list
+// Script: Show All Tags control: store state in a cookie and fetch combined tags per list
 (function(){
   function setCookie(name, value, days){
     var expires = '';

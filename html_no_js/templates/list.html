@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}List: {{ list.name }} — Fast Todo (no-js){% endblock %}
 {% block content %}
+  <!-- Section: Page styles specific to list view (layout, tooltips, mobile tweaks) -->
   <style>
     /* page-specific: remove top page margin so the site title sits flush to the top */
     body { margin-top: 0 !important; }
@@ -124,6 +125,7 @@
 
   </style>
   
+  <!-- Section: List header (complete toggle, title, priority, bookmark, collation controls) -->
   <div class="list-header">
     <div class="list-action-left">
       <form method="post" action="/html_no_js/lists/{{ list.id }}/complete" style="display:inline">
@@ -201,6 +203,7 @@
     </div>
   </div>
             {# Compact links display directly under the title (no create/delete here) #}
+            <!-- Section: Links inline summary under title -->
             {% if links is defined and links|length > 0 %}
               <div class="meta" style="width:100%; margin-top:0.25rem">
                 <strong>Links:</strong>
@@ -210,6 +213,7 @@
               </div>
             {% endif %}
 
+  <!-- Section: Collation controls script (toggle collation and active state) -->
   <script>
   // Collation controls: mark/unmark this list as a collation and toggle active state.
   (function(){
@@ -543,6 +547,7 @@
   })();
   </script>
 
+  <!-- Section: Create todo form (with hashtag suggestions) -->
   <form id="create-todo-form" method="post" action="/html_no_js/todos/create" autocomplete="off">
   {{ csrf_field() }}
   <input id="new-todo-text" name="text" placeholder="Todo text" required autofocus autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false">

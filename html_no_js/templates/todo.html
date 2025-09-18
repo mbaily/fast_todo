@@ -5,6 +5,7 @@
   {% if todo and todo.list_id %}
     {% set back_to_list_url = ('/html_no_js/lists/' ~ todo.list_id ~ '#todo-' ~ todo.id) %}
   {% endif %}
+  <!-- Section: Page styles -->
   <style>
     /* page-specific: remove top page margin so the site title sits flush to the top */
     body { margin-top: 0 !important; }
@@ -28,7 +29,7 @@
   }
   </style>
   
-  {# Page toolbar (placed just below the main navigation toolbar) #}
+  <!-- Section: Page toolbar (actions: save, delete, autosave status) -->
   <nav class="page-toolbar" role="toolbar" aria-label="Todo actions" style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.6rem;">
     <form id="todo-save-form" method="post" action="/html_no_js/todos/{{ todo.id }}/edit" style="display:inline">
       {{ csrf_field() }}
@@ -44,6 +45,7 @@
     <span id="autosave-status" class="meta" aria-live="polite"></span>
   </nav>
 
+  <!-- Section: Todo header (complete toggle + title/priorities) -->
   <div class="todo-header" style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.4rem;">
     <div class="controls-left" style="flex:0 0 auto;">
       <form id="todo-complete-form" method="post" action="/html_no_js/todos/{{ todo.id }}/complete" style="display:inline">
@@ -64,8 +66,10 @@
       </div>    
   </div>
 
+  <!-- Section: Parent list backlink -->
   <p class="meta" style="margin:0">List: <a href="/html_no_js/lists/{{ todo.list_id }}">{{ list.name if list else todo.list_id }}</a></p>
 
+  <!-- Section: Collations controls (colored inclusion dots) -->
   {% if active_collations is defined and active_collations|length > 0 %}
     <style>
       /* Collation dots: colored circles indicating inclusion (filled) or exclusion (outline) */
@@ -88,6 +92,7 @@
     </div>
   {% endif %}
 
+  <!-- Section: Priority, pin, bookmark, and calendar ignore toggle -->
   <div class="priority-row" style="margin:0.25rem 0">
     <label for="todo-priority-{{ todo.id }}">Priority</label>
     <form method="post" action="/html_no_js/todos/{{ todo.id }}/priority" style="display:inline-block; margin-left:0.5rem">
@@ -122,6 +127,7 @@
     </form>
   </div>
 
+  <!-- Section: Linked items (inline summary) -->
   {% if links is defined and links|length > 0 %}
     <div class="meta" style="margin:0.15rem 0 0.35rem 0">
       <strong>Links:</strong>
@@ -131,9 +137,11 @@
     </div>
   {% endif %}
 
+  <!-- Section: Note display (rendered with links and fn tags) -->
   {% if todo.note %}
     <p class="note-text">{{ todo.note|render_fn_tags|linkify }}</p>
   {% endif %}
+  <!-- Section: Existing tags for this todo -->
   {% if tags and tags|length > 0 %}
     <div class="tags" role="list" aria-label="Tags">
       {% for tag in (tags | sort) %}
@@ -145,12 +153,14 @@
     </div>
   {% endif %}
 
+  <!-- Section: Add tag form -->
   <form method="post" action="/todos/{{ todo.id }}/hashtags" aria-label="Add tag" data-ft-add-tag="1" data-todo-id="{{ todo.id }}">
     {{ csrf_field() }}
     <label>Add Tag <input name="tag" placeholder="#tag" aria-label="Tag name" list="tag-suggestions" autocomplete="off"></label>
     <button type="submit">Add</button>
   </form>
 
+  <!-- Section: Tag suggestions datalist (all hashtags, sorted) -->
   <datalist id="tag-suggestions">
     {% if all_hashtags %}
       {% for tag in (all_hashtags | sort) %}
@@ -159,6 +169,7 @@
     {% endif %}
   </datalist>
 
+  <!-- Section: Sublists (shown above content when Up top is enabled) -->
   {% if sublists is defined and (todo is defined and todo.lists_up_top) %}
     <section aria-label="Sublists" style="margin-top:1rem">
       <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.4rem">
@@ -230,8 +241,10 @@
     </section>
   {% endif %}
 
+  <!-- Section: Creation and modification timestamps -->
   <p class="meta">Created: {{ todo.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }} &nbsp; Modified: {{ todo.modified_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</p>
 
+  <!-- Section: Edit todo (text and note editor) -->
   <form id="todo-edit-form" method="post" action="/html_no_js/todos/{{ todo.id }}/edit" autocomplete="off">
     {{ csrf_field() }}
     <label>Text<br><textarea id="todo-text-input" class="full-bleed" name="text" required autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false" rows="{{ (todo.note or '').split('\n')|length }}">{{ todo.text }}</textarea></label><br>
@@ -260,12 +273,13 @@
     <button type="submit" style="display:none">Save</button>
   </form>
 
-    {# External form for Sort Links toggle (linked via form attribute from the checkbox above) #}
+  <!-- Section: External form for Sort Links toggle (triggered by checkbox above) -->
     <form id="todo-sort-links-form-{{ todo.id }}" method="post" action="/html_no_js/todos/{{ todo.id }}/sort_links" style="display:none">
       {{ csrf_field() }}
       <input type="hidden" name="sort_links" id="note-sort-links-hidden-{{ todo.id }}" value="{{ 'true' if todo.sort_links else 'false' }}">
     </form>
 
+  <!-- Section: DokuWiki link and Note calculation (CalcDict) -->
   {% set dw_prefix = config.DOKUWIKI_NOTE_LINK_PREFIX if config is defined and config.DOKUWIKI_NOTE_LINK_PREFIX is defined else None %}
   {% if dw_prefix %}
     {% set dw_url = dw_prefix ~ 'fast_todo:todo:' ~ todo.id %}
@@ -279,6 +293,7 @@
     </p>
   {% endif %}
 
+  <!-- Section: Sublists (shown below content when Up top is disabled) -->
   {% if sublists is defined and (todo is defined and not todo.lists_up_top) %}
     <section aria-label="Sublists" style="margin-top:1rem">
       <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.4rem">
@@ -348,6 +363,7 @@
     </section>
   {% endif %}
 
+  <!-- Section: Links management (add and list links) -->
   <section aria-label="Links" style="margin-top:1.0rem">
     <h3 style="margin:0">Links</h3>
     <form id="add-link-form-todo-{{ todo.id }}" method="post" action="/html_no_js/todos/{{ todo.id }}/links" style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap">
