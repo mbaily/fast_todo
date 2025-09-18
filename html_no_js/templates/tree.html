@@ -19,10 +19,14 @@
     .toolbar { display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.5rem; }
     .toolbar form { display:inline-flex; align-items:center; gap:0.35rem; }
   </style>
+  {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
 
   <div class="toolbar">
     <form method="get" action="/html_no_js/tree">
-      <input type="hidden" name="root_list_id" value="{{ root_list_id if root_list_id else '' }}">
+      {# Only include root_list_id if it's actually set; avoids sending empty string #}
+      {% if root_list_id is not none %}
+      <input type="hidden" name="root_list_id" value="{{ root_list_id }}">
+      {% endif %}
       <label style="display:inline-flex; align-items:center; gap:0.25rem;">
         <input type="checkbox" name="show_todos" value="1" {% if show_todos %}checked{% endif %}>
         <span>Show todos</span>
@@ -44,10 +48,8 @@
       <span class="icon" aria-hidden="true" title="List">📂</span>
       <a href="/html_no_js/lists/{{ node.id }}">{{ node.name }}</a>
   <a class="btn" style="margin-left:0.35rem;" href="/html_no_js/tree?root_list_id={{ node.id }}{% if show_todos %}&show_todos=1{% endif %}" title="Re-center tree to this list" aria-label="Re-center tree to this list">🎯</a>
-      <span class="prio">
-        {% if node.priority %}<span class="primary" title="Primary priority">{{ node.priority }}</span>{% endif %}
-        {% if node.override_priority %}<span class="secondary" title="Secondary priority (max child todos/sublists)">{{ node.override_priority }}</span>{% endif %}
-      </span>
+      {% if node.priority %}<span class="meta priority-inline" title="List priority"><span class="priority-circle">{{ circ.get(node.priority, node.priority) }}</span></span>{% endif %}
+      {% if node.override_priority %}<span class="muted priority-inline priority-override" title="Secondary priority (max child todos/sublists)"><span class="priority-circle">{{ circ.get(node.override_priority, node.override_priority) }}</span></span>{% endif %}
       {% if node.hashtags and node.hashtags|length > 0 %}
         <span class="meta">{% for tag in (node.hashtags | sort) %}<a class="tag-chip" href="/html_no_js/search?q={{ tag|urlencode }}">{{ tag }}</a>{% endfor %}</span>
       {% endif %}
@@ -57,7 +59,7 @@
             <li>
               <span class="icon" aria-hidden="true" title="Todo">📝</span>
               <a class="{% if t.completed %}done{% endif %}" href="/html_no_js/todos/{{ t.id }}">{% if t.completed %}<s>{{ t.text }}</s>{% else %}{{ t.text }}{% endif %}</a>
-              {% if t.priority %}<span class="meta" style="margin-left:0.35rem;">p{{ t.priority }}</span>{% endif %}
+              {% if t.priority %}<span class="meta priority-inline" title="Priority {{ t.priority }}" style="margin-left:0.35rem;"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>{% endif %}
             </li>
           {% endfor %}
         </ul>
