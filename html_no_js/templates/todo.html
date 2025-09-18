@@ -257,6 +257,14 @@
       <input type="hidden" name="pinned" value="{{ 'false' if todo.pinned|default(false) else 'true' }}">
       <button type="submit" class="pin-button {% if todo.pinned|default(false) %}pinned{% endif %}" aria-label="Toggle pin" title="Toggle pin">{{ '📌' if todo.pinned|default(false) else '📍' }}</button>
     </form>
+    <button type="button"
+            class="pin-button {% if todo.bookmarked|default(false) %}pinned{% endif %}"
+            aria-label="Toggle bookmark"
+            title="Toggle bookmark"
+            data-bookmark-todo="{{ todo.id }}"
+            data-state="{{ 'on' if todo.bookmarked|default(false) else 'off' }}"
+            data-csrf="{{ csrf_token }}"
+            style="margin-left:0.5rem">{{ '🔖' if todo.bookmarked|default(false) else '📑' }}</button>
     <form method="post" action="/html_no_js/todos/{{ todo.id }}/calendar_ignored" style="display:inline-block; margin-left:0.75rem">
       {{ csrf_field() }}
       <input type="hidden" name="calendar_ignored" id="todo-calendar-ignored-hidden-{{ todo.id }}" value="{{ 'true' if todo.calendar_ignored|default(false) else 'false' }}">
@@ -402,4 +410,6 @@
       }catch(_){ }
     })();
   </script>
+  <!-- Bookmark toggles (JS-only enhancement) -->
+  <script src="/static/js/bookmarks.js"></script>
 {% endblock %}

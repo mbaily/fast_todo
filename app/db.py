@@ -213,6 +213,13 @@ def _ensure_sqlite_minimal_migrations(url: str | None) -> None:
                 cur.execute("PRAGMA table_info('todo')")
                 tcols = [row[1] for row in cur.fetchall()]
                 if tcols:
+                    # Ensure bookmarked flag exists on todo
+                    if 'bookmarked' not in tcols:
+                        try:
+                            cur.execute("ALTER TABLE todo ADD COLUMN bookmarked INTEGER DEFAULT 0 NOT NULL")
+                            conn.commit()
+                        except Exception:
+                            pass
                     if 'search_ignored' not in tcols:
                         try:
                             cur.execute("ALTER TABLE todo ADD COLUMN search_ignored INTEGER DEFAULT 0 NOT NULL")
@@ -233,6 +240,11 @@ def _ensure_sqlite_minimal_migrations(url: str | None) -> None:
                             pass
                     try:
                         cur.execute("CREATE INDEX IF NOT EXISTS ix_todo_calendar_ignored ON todo(calendar_ignored)")
+                        conn.commit()
+                    except Exception:
+                        pass
+                    try:
+                        cur.execute("CREATE INDEX IF NOT EXISTS ix_todo_bookmarked ON todo(bookmarked)")
                         conn.commit()
                     except Exception:
                         pass
@@ -445,6 +457,23 @@ def _ensure_sqlite_minimal_migrations(url: str | None) -> None:
                     'ignoredscope','sshpublickey','pushsubscription','itemlink','usercollation','userlistprefs'
                 ):
                     _ensure_metadata_col(tbl)
+            except Exception:
+                pass
+            # Ensure bookmarked flag exists on liststate and helpful index
+            try:
+                cur.execute("PRAGMA table_info('liststate')")
+                lcols = [row[1] for row in cur.fetchall()]
+                if lcols and 'bookmarked' not in lcols:
+                    try:
+                        cur.execute("ALTER TABLE liststate ADD COLUMN bookmarked INTEGER DEFAULT 0 NOT NULL")
+                        conn.commit()
+                    except Exception:
+                        pass
+                try:
+                    cur.execute("CREATE INDEX IF NOT EXISTS ix_liststate_bookmarked ON liststate(bookmarked)")
+                    conn.commit()
+                except Exception:
+                    pass
             except Exception:
                 pass
         finally:
@@ -829,6 +858,9 @@ async def init_db():
             res = await conn.execute(text("PRAGMA table_info('todo')"))
             cols = [r[1] for r in res.fetchall()]
             add_sql = []
+            # Add bookmarked flag to todo if missing
+            if 'bookmarked' not in cols:
+                add_sql.append("ALTER TABLE todo ADD COLUMN bookmarked INTEGER DEFAULT 0 NOT NULL")
             if 'recurrence_rrule' not in cols:
                 add_sql.append("ALTER TABLE todo ADD COLUMN recurrence_rrule TEXT")
             if 'recurrence_meta' not in cols:
@@ -859,6 +891,12 @@ async def init_db():
         try:
             res = await conn.execute(text("PRAGMA table_info('liststate')"))
             cols = [r[1] for r in res.fetchall()]
+            # Add bookmarked flag to liststate if missing
+            if 'bookmarked' not in cols:
+                try:
+                    await conn.execute(text("ALTER TABLE liststate ADD COLUMN bookmarked INTEGER DEFAULT 0 NOT NULL"))
+                except Exception:
+                    logger.exception('failed to add bookmarked to liststate during init_db')
             if 'parent_todo_id' not in cols:
                 try:
                     await conn.execute(text("ALTER TABLE liststate ADD COLUMN parent_todo_id INTEGER"))
@@ -900,6 +938,15 @@ async def init_db():
                 await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_todo_priority ON todo(priority)"))
             except Exception:
                 logger.exception('failed to create ix_todo_priority during init_db')
+            # Indices for bookmarked flags
+            try:
+                await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_todo_bookmarked ON todo(bookmarked)"))
+            except Exception:
+                logger.exception('failed to create ix_todo_bookmarked during init_db')
+            try:
+                await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_liststate_bookmarked ON liststate(bookmarked)"))
+            except Exception:
+                logger.exception('failed to create ix_liststate_bookmarked during init_db')
             # metadata_json column on liststate
             try:
                 if 'metadata_json' not in cols:

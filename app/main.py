@@ -6553,6 +6553,55 @@ async def html_pin_todo(request: Request, todo_id: int, pinned: str = Form(...),
     return RedirectResponse(url=f'/html_no_js/todos/{todo_id}', status_code=303)
 
 
+@app.post('/todos/{todo_id}/bookmark')
+async def bookmark_todo(todo_id: int, bookmarked: bool = Form(...), current_user: User = Depends(require_login)):
+    """Set or clear the bookmarked flag on a todo. Accepts form-encoded `bookmarked` (true/false)."""
+    async with async_session() as sess:
+        todo = await sess.get(Todo, todo_id)
+        if not todo:
+            raise HTTPException(status_code=404, detail='todo not found')
+        # ownership via list
+        ql = await sess.exec(select(ListState).where(ListState.id == todo.list_id))
+        lst = ql.first()
+        if lst and lst.owner_id not in (None, current_user.id):
+            raise HTTPException(status_code=403, detail='forbidden')
+        todo.bookmarked = bool(bookmarked)
+        todo.modified_at = now_utc()
+        sess.add(todo)
+        await sess.commit()
+        await sess.refresh(todo)
+        # also touch the parent list modified_at
+        try:
+            await _touch_list_modified(sess, getattr(todo, 'list_id', None))
+            await sess.commit()
+        except Exception:
+            await sess.rollback()
+    return {'id': todo.id, 'bookmarked': todo.bookmarked}
+
+
+@app.post('/html_no_js/todos/{todo_id}/bookmark')
+async def html_bookmark_todo(request: Request, todo_id: int, bookmarked: str = Form(...), current_user: User = Depends(require_login)):
+    # CSRF check
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    # normalize value
+    val = str(bookmarked).lower() in ('1','true','yes','on')
+    await bookmark_todo(todo_id=todo_id, bookmarked=val, current_user=current_user)
+    accept = (request.headers.get('Accept') or '')
+    async with async_session() as sess:
+        todo = await sess.get(Todo, todo_id)
+        if todo and getattr(todo, 'list_id', None):
+            if 'application/json' in accept.lower():
+                return JSONResponse({'ok': True, 'id': todo.id, 'bookmarked': todo.bookmarked})
+            return RedirectResponse(url=f'/html_no_js/lists/{todo.list_id}#todo-{todo_id}', status_code=303)
+    if 'application/json' in accept.lower():
+        return JSONResponse({'ok': True, 'id': todo_id, 'bookmarked': val})
+    return RedirectResponse(url=f'/html_no_js/todos/{todo_id}', status_code=303)
+
+
 # ===== Move UI (mark+move) =====
 @app.get('/html_no_js/move', response_class=HTMLResponse)
 async def html_move_ui(request: Request, current_user: User = Depends(require_login)):
@@ -7781,8 +7830,8 @@ async def html_index(request: Request):
         # Also fetch pinned todos from lists visible to this user (owned or public)
         pinned_todos = []
         try:
-            # visible lists: owned by user or public (owner_id is NULL)
-            qvis = select(ListState).where(((ListState.owner_id == owner_id) | (ListState.owner_id == None))).where(ListState.parent_todo_id == None).where(ListState.parent_list_id == None)
+            # visible lists: owned by user or public (owner_id is NULL). Include sublists as well.
+            qvis = select(ListState).where(((ListState.owner_id == owner_id) | (ListState.owner_id == None)))
             rvis = await sess.exec(qvis)
             vis_lists = rvis.all()
             vis_ids = [l.id for l in vis_lists]
@@ -7830,6 +7879,86 @@ async def html_index(request: Request):
         except Exception:
             # if DB lacks the pinned column or some error occurs, show no pinned todos
             pinned_todos = []
+
+        # Bookmarked section: gather bookmarked todos (visible lists) and bookmarked lists (owned top-level)
+        bookmarked_todos = []
+        bookmarked_lists = []
+        try:
+            # visible lists: owned by user or public (owner_id is NULL)
+            # visible lists: owned by user or public (owner_id is NULL). Include sublists as well.
+            qvis = select(ListState).where(((ListState.owner_id == owner_id) | (ListState.owner_id == None)))
+            rvis = await sess.exec(qvis)
+            vis_lists = rvis.all()
+            vis_ids = [l.id for l in vis_lists]
+            if vis_ids:
+                qt = select(Todo).where(Todo.bookmarked == True).where(Todo.list_id.in_(vis_ids)).order_by(Todo.modified_at.desc())
+                tres = await sess.exec(qt)
+                bm_rows = tres.all()
+                # map list ids to names
+                lm = {l.id: l.name for l in vis_lists}
+                bookmarked_todos = [
+                    {
+                        'id': t.id,
+                        'text': t.text,
+                        'list_id': t.list_id,
+                        'list_name': lm.get(t.list_id),
+                        'modified_at': (t.modified_at.isoformat() if getattr(t, 'modified_at', None) else None),
+                        'priority': getattr(t, 'priority', None),
+                    }
+                    for t in bm_rows
+                ]
+                # attach tags for bookmarked todos
+                bm_ids = [p['id'] for p in bookmarked_todos]
+                if bm_ids:
+                    qtp = select(TodoHashtag.todo_id, Hashtag.tag).join(Hashtag, Hashtag.id == TodoHashtag.hashtag_id).where(TodoHashtag.todo_id.in_(bm_ids))
+                    pres2 = await sess.exec(qtp)
+                    pm = {}
+                    for tid, tag in pres2.all():
+                        pm.setdefault(tid, []).append(tag)
+                    for p in bookmarked_todos:
+                        p['tags'] = pm.get(p['id'], [])
+                # determine completed state for bookmarked todos using the list's 'default' completion type
+                try:
+                    if bm_ids:
+                        qcomp = select(TodoCompletion.todo_id).join(CompletionType, CompletionType.id == TodoCompletion.completion_type_id).where(TodoCompletion.todo_id.in_(bm_ids)).where(CompletionType.name == 'default').where(TodoCompletion.done == True)
+                        cres = await sess.exec(qcomp)
+                        completed_ids = set(r[0] if isinstance(r, tuple) else r for r in cres.all())
+                    else:
+                        completed_ids = set()
+                except Exception:
+                    completed_ids = set()
+                for p in bookmarked_todos:
+                    p['completed'] = p['id'] in completed_ids
+
+            # Bookmarked lists: include all owned lists (top-level or sublists).
+            # Exclude lists that are direct children of the user's Trash list if present.
+            qbl = select(ListState).where(ListState.owner_id == owner_id).where(ListState.bookmarked == True)
+            try:
+                trash_id = None
+                trq = await sess.scalars(select(ListState.id).where(ListState.owner_id == owner_id).where(ListState.name == 'Trash'))
+                trash_id = trq.first()
+                if trash_id is not None:
+                    # Keep top-level (NULL parent) and any list whose parent is not Trash
+                    qbl = qbl.where(or_(ListState.parent_list_id == None, ListState.parent_list_id != trash_id))
+            except Exception:
+                pass
+            qbl = qbl.order_by(ListState.modified_at.desc())
+            lres = await sess.exec(qbl)
+            bl_rows = lres.all()
+            bookmarked_lists = [
+                {
+                    'id': l.id,
+                    'name': l.name,
+                    'modified_at': (l.modified_at.isoformat() if getattr(l, 'modified_at', None) else None),
+                    'priority': getattr(l, 'priority', None),
+                    'override_priority': None,
+                    'uncompleted_count': None,
+                }
+                for l in bl_rows
+            ]
+        except Exception:
+            bookmarked_todos = []
+            bookmarked_lists = []
         # Compute high-priority items (priority >= 7) from visible lists
         high_priority_todos = []
         high_priority_lists = []
@@ -8096,12 +8225,12 @@ async def html_index(request: Request):
         if force_ios:
             logger.info('html_index: rendering index_ios_safari (forced) ua=%s', ua[:200])
             circ_map = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'}
-            ctx = {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "high_priority_items": context_high_priority_items if 'context_high_priority_items' in locals() else [], "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "show_all_tags": show_all_tags, "circ": circ_map}
+            ctx = {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "bookmarked_todos": bookmarked_todos, "bookmarked_lists": bookmarked_lists, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "high_priority_items": context_high_priority_items if 'context_high_priority_items' in locals() else [], "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "show_all_tags": show_all_tags, "circ": circ_map}
             return _render_and_log("index_ios_safari.html", ctx)
         if is_ios_safari(request):
             logger.info('html_index: rendering index_ios_safari (ua-detected) ua=%s', ua[:200])
             circ_map = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'}
-            ctx = {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "high_priority_items": context_high_priority_items if 'context_high_priority_items' in locals() else [], "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "show_all_tags": show_all_tags, "circ": circ_map}
+            ctx = {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "bookmarked_todos": bookmarked_todos, "bookmarked_lists": bookmarked_lists, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "high_priority_items": context_high_priority_items if 'context_high_priority_items' in locals() else [], "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "show_all_tags": show_all_tags, "circ": circ_map}
             return _render_and_log("index_ios_safari.html", ctx)
 
         logger.info('html_index: rendering index.html (default) ua=%s', ua[:200])
@@ -8140,7 +8269,7 @@ async def html_index(request: Request):
             pass
 
         circ_map = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'}
-        ctx = {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "high_priority_items": context_high_priority_items if 'context_high_priority_items' in locals() else [], "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "show_all_tags": show_all_tags, "circ": circ_map}
+        ctx = {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "bookmarked_todos": bookmarked_todos, "bookmarked_lists": bookmarked_lists, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "high_priority_items": context_high_priority_items if 'context_high_priority_items' in locals() else [], "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "show_all_tags": show_all_tags, "circ": circ_map}
         try:
             # non-fatal pre-render to log payload length for diagnostics
             try:
@@ -8181,6 +8310,8 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
             "csrf_token": None,
             "client_tz": client_tz,
             "pinned_todos": [],
+            "bookmarked_todos": [],
+            "bookmarked_lists": [],
             "high_priority_todos": [],
             "high_priority_lists": [],
             "cursors": None,
@@ -8537,6 +8668,78 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
         except Exception:
             pinned_todos = []
 
+        # Bookmarked section: gather bookmarked todos (visible lists) and bookmarked lists (owned top-level)
+        bookmarked_todos = []
+        bookmarked_lists = []
+        try:
+            qvis = select(ListState).where(((ListState.owner_id == owner_id) | (ListState.owner_id == None))).where(ListState.parent_todo_id == None).where(ListState.parent_list_id == None)
+            rvis = await sess.exec(qvis)
+            vis_lists = rvis.all()
+            vis_ids = [l.id for l in vis_lists]
+            if vis_ids:
+                qt = select(Todo).where(Todo.bookmarked == True).where(Todo.list_id.in_(vis_ids)).order_by(Todo.modified_at.desc())
+                tres = await sess.exec(qt)
+                bm_rows = tres.all()
+                lm = {l.id: l.name for l in vis_lists}
+                bookmarked_todos = [
+                    {
+                        'id': t.id,
+                        'text': t.text,
+                        'list_id': t.list_id,
+                        'list_name': lm.get(t.list_id),
+                        'modified_at': (t.modified_at.isoformat() if getattr(t, 'modified_at', None) else None),
+                        'priority': getattr(t, 'priority', None),
+                    }
+                    for t in bm_rows
+                ]
+                bm_ids = [p['id'] for p in bookmarked_todos]
+                if bm_ids:
+                    qtp = select(TodoHashtag.todo_id, Hashtag.tag).join(Hashtag, Hashtag.id == TodoHashtag.hashtag_id).where(TodoHashtag.todo_id.in_(bm_ids))
+                    pres2 = await sess.exec(qtp)
+                    pm = {}
+                    for tid, tag in pres2.all():
+                        pm.setdefault(tid, []).append(tag)
+                    for p in bookmarked_todos:
+                        p['tags'] = pm.get(p['id'], [])
+                try:
+                    if bm_ids:
+                        qcomp = select(TodoCompletion.todo_id).join(CompletionType, CompletionType.id == TodoCompletion.completion_type_id).where(TodoCompletion.todo_id.in_(bm_ids)).where(CompletionType.name == 'default').where(TodoCompletion.done == True)
+                        cres = await sess.exec(qcomp)
+                        completed_ids = set(r[0] if isinstance(r, tuple) else r for r in cres.all())
+                    else:
+                        completed_ids = set()
+                except Exception:
+                    completed_ids = set()
+                for p in bookmarked_todos:
+                    p['completed'] = p['id'] in completed_ids
+            # Bookmarked lists: include all owned lists (top-level or sublists),
+            # but exclude lists that are direct children of user's Trash if present.
+            qbl = select(ListState).where(ListState.owner_id == owner_id).where(ListState.bookmarked == True)
+            try:
+                trq = await sess.scalars(select(ListState.id).where(ListState.owner_id == owner_id).where(ListState.name == 'Trash'))
+                trash_id = trq.first()
+                if trash_id is not None:
+                    qbl = qbl.where(or_(ListState.parent_list_id == None, ListState.parent_list_id != trash_id))
+            except Exception:
+                pass
+            qbl = qbl.order_by(ListState.modified_at.desc())
+            lres = await sess.exec(qbl)
+            bl_rows = lres.all()
+            bookmarked_lists = [
+                {
+                    'id': l.id,
+                    'name': l.name,
+                    'modified_at': (l.modified_at.isoformat() if getattr(l, 'modified_at', None) else None),
+                    'priority': getattr(l, 'priority', None),
+                    'override_priority': None,
+                    'uncompleted_count': None,
+                }
+                for l in bl_rows
+            ]
+        except Exception:
+            bookmarked_todos = []
+            bookmarked_lists = []
+
     # calendar occurrences (reuse logic from html_index)
         calendar_occurrences = []
         try:
@@ -8853,7 +9056,7 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
         csrf_token = create_csrf_token(current_user.username)
     client_tz = await get_session_timezone(request)
     user_default_cat = getattr(current_user, 'default_category_id', None)
-    return {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "current_user": current_user}
+    return {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "bookmarked_todos": bookmarked_todos, "bookmarked_lists": bookmarked_lists, "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "current_user": current_user}
 
 
 @app.get('/html_no_js/categories', response_class=HTMLResponse)
@@ -10429,6 +10632,8 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
             "list_id": lst.id,
             "lists_up_top": getattr(lst, 'lists_up_top', False),
             "priority": getattr(lst, 'priority', None),
+            # include bookmarked for initial SSR toggle state
+            "bookmarked": getattr(lst, 'bookmarked', False),
             # expose parent todo owner for sublist toolbar/navigation
             "parent_todo_id": getattr(lst, 'parent_todo_id', None),
             # expose parent list owner for nested list navigation (not yet used in UI)
@@ -11144,6 +11349,33 @@ async def html_update_list_priority(request: Request, list_id: int, priority: st
     accept = (request.headers.get('Accept') or '')
     if 'application/json' in accept.lower():
         return JSONResponse({'ok': True, 'id': list_id, 'priority': val})
+    ref = request.headers.get('Referer', f'/html_no_js/lists/{list_id}')
+    return RedirectResponse(url=ref, status_code=303)
+
+
+@app.post('/html_no_js/lists/{list_id}/bookmark')
+async def html_bookmark_list(request: Request, list_id: int, bookmarked: str = Form(...), current_user: User = Depends(require_login)):
+    """Toggle or set the bookmarked flag for a list (owned by current user)."""
+    # CSRF check
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    val = str(bookmarked).lower() in ('1','true','yes','on')
+    async with async_session() as sess:
+        lst = await sess.get(ListState, list_id)
+        if not lst:
+            raise HTTPException(status_code=404, detail='list not found')
+        if lst.owner_id not in (None, current_user.id):
+            raise HTTPException(status_code=403, detail='forbidden')
+        lst.bookmarked = val
+        lst.modified_at = now_utc()
+        sess.add(lst)
+        await sess.commit()
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse({'ok': True, 'id': list_id, 'bookmarked': val})
     ref = request.headers.get('Referer', f'/html_no_js/lists/{list_id}')
     return RedirectResponse(url=ref, status_code=303)
 
@@ -12893,6 +13125,8 @@ async def html_view_todo(request: Request, todo_id: int, current_user: User = De
             "list_id": todo.list_id,
             "pinned": getattr(todo, 'pinned', False),
             "priority": getattr(todo, 'priority', None),
+            # include bookmarked for initial SSR toggle state
+            "bookmarked": getattr(todo, 'bookmarked', False),
             # reflect calendar ignore flag for template checkbox state
             "calendar_ignored": getattr(todo, 'calendar_ignored', False),
             # persist UI preference so template can render checkbox state

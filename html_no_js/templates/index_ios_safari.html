@@ -100,6 +100,38 @@
   </ul>
     {% endif %}
 
+    {% if (bookmarked_todos and bookmarked_todos|length > 0) or (bookmarked_lists and bookmarked_lists|length > 0) %}
+    <!-- <h3 style="margin-top:0.5rem">Bookmarks</h3> -->
+    {% if bookmarked_todos and bookmarked_todos|length > 0 %}
+    <ul style="padding-left: 0; list-style: none; margin: 0;">
+      {% for t in (bookmarked_todos | sort(attribute='text', case_sensitive=false)) %}
+        <li>
+          🔖 <a class="wrap-text{% if t.completed %} done{% endif %}" href="/html_no_js/todos/{{ t.id }}">{{ t.text }}</a>
+          {% if t.priority %}
+            {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
+            <span class="muted priority-inline"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>
+          {% endif %}
+          <span> in <a href="/html_no_js/lists/{{ t.list_id }}">{{ t.list_name or t.list_id }}</a></span>
+          {% if t.tags and t.tags|length > 0 %}
+            {% for tag in (t.tags | sort) %}
+              &nbsp;<a href="/html_no_js/search?q={{ tag|urlencode }}" style="background:#012383;color:#ffffff;border-radius:999px;text-decoration:none;font-size:0.95em;">{{ tag }}</a>
+            {% endfor %}
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% if bookmarked_lists and bookmarked_lists|length > 0 %}
+    <ul style="padding-left: 0; list-style: none; margin: 0;">
+      {% for lst in (bookmarked_lists | sort(attribute='name', case_sensitive=false)) %}
+        <li>
+          🔖 <a href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>
+        </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% endif %}
+
     {# Moved Calendar summary to appear directly under pinned todos #}
     {% if calendar_occurrences and calendar_occurrences|length > 0 %}
       <!--<h3 style="margin-top:1rem">Calendar</h3>-->
