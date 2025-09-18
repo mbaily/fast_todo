@@ -11559,12 +11559,17 @@ async def html_tree_view(request: Request, root_list_id: int | None = None, show
         # If a root_list_id was provided, we render that specific node as root
         tree: list[dict]
         root_name: str | None = None
+        root_parent_id: int | None = None
         if root_list_id:
             # validate ownership and existence
             root = await sess.get(ListState, root_list_id)
             if not root or int(getattr(root, 'owner_id', -1)) != int(owner_id):
                 raise HTTPException(status_code=404, detail='root list not found')
             root_name = getattr(root, 'name', None)
+            try:
+                root_parent_id = int(getattr(root, 'parent_list_id', None)) if getattr(root, 'parent_list_id', None) is not None else None
+            except Exception:
+                root_parent_id = None
             # node for root + its children
             root_node = {
                 'id': int(root.id),
@@ -11610,7 +11615,7 @@ async def html_tree_view(request: Request, root_list_id: int | None = None, show
             # top-level (no parent list/todo)
             tree = await build_tree(None, 0)
 
-    return TEMPLATES.TemplateResponse(request, 'tree.html', {"request": request, "tree": tree, "root_list_id": root_list_id, "root_name": root_name, "show_todos": bool(show_todos), "client_tz": await get_session_timezone(request)})
+    return TEMPLATES.TemplateResponse(request, 'tree.html', {"request": request, "tree": tree, "root_list_id": root_list_id, "root_name": root_name, "root_parent_id": root_parent_id, "show_todos": bool(show_todos), "client_tz": await get_session_timezone(request)})
 
 
 @app.post('/html_no_js/lists/{list_id}/completion_types')

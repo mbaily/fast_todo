@@ -7,6 +7,7 @@
     ul.tree { list-style: none; margin: 0; padding-left: 0.5rem; }
     ul.tree li { margin: 0.15rem 0; }
     .meta { color: #6b7280; font-size: 0.9em; }
+    .icon { display:inline-block; width:1rem; }
     .prio {
       display: inline-flex; align-items: center; gap: 0.25rem; margin-left: 0.35rem;
     }
@@ -29,7 +30,10 @@
       <button type="submit">Apply</button>
     </form>
     {% if root_list_id %}
-      <a class="btn" href="/html_no_js/tree">Back to top</a>
+      <a class="btn" href="/html_no_js/tree" title="Back to top">⭱ Top</a>
+      {% if root_parent_id %}
+        <a class="btn" href="/html_no_js/tree?root_list_id={{ root_parent_id }}{% if show_todos %}&show_todos=1{% endif %}" title="Up one level" aria-label="Up one level">Up one ⬆</a>
+      {% endif %}
     {% endif %}
   </div>
 
@@ -37,8 +41,9 @@
 
   {% macro render_node(node) %}
     <li>
+      <span class="icon" aria-hidden="true" title="List">📂</span>
       <a href="/html_no_js/lists/{{ node.id }}">{{ node.name }}</a>
-      <a class="btn" style="margin-left:0.35rem;" href="/html_no_js/tree?root_list_id={{ node.id }}{% if show_todos %}&show_todos=1{% endif %}" title="Re-center tree to this list">⤴</a>
+  <a class="btn" style="margin-left:0.35rem;" href="/html_no_js/tree?root_list_id={{ node.id }}{% if show_todos %}&show_todos=1{% endif %}" title="Re-center tree to this list" aria-label="Re-center tree to this list">🎯</a>
       <span class="prio">
         {% if node.priority %}<span class="primary" title="Primary priority">{{ node.priority }}</span>{% endif %}
         {% if node.override_priority %}<span class="secondary" title="Secondary priority (max child todos/sublists)">{{ node.override_priority }}</span>{% endif %}
@@ -50,6 +55,7 @@
         <ul class="tree">
           {% for t in node.todos %}
             <li>
+              <span class="icon" aria-hidden="true" title="Todo">📝</span>
               <a class="{% if t.completed %}done{% endif %}" href="/html_no_js/todos/{{ t.id }}">{% if t.completed %}<s>{{ t.text }}</s>{% else %}{{ t.text }}{% endif %}</a>
               {% if t.priority %}<span class="meta" style="margin-left:0.35rem;">p{{ t.priority }}</span>{% endif %}
             </li>
