@@ -4,11 +4,17 @@
   <style>
     body { margin-top: 0 !important; }
     header { margin-top: 0 !important; }
-    #graph { width: 100%; height: calc(100vh - 140px); background: #ffffff; border: 1px solid #e5e7eb; border-radius: 4px; }
+    /* Full-viewport graph canvas */
+    #graph {
+      position: fixed; inset: 0;
+      width: 100vw; height: 100vh;
+      background: #ffffff;
+      border: none; border-radius: 0;
+    }
     .meta { color: #6b7280; }
   </style>
-  <h2>Link map</h2>
-  <div class="meta" style="margin:0.25rem 0 0.75rem;">Shows lists and todos as circles; links are shown as lines. Pan and zoom with mouse or trackpad.</div>
+  <h2 class="sr-only">Link map</h2>
+  <div class="meta sr-only">Shows lists and todos as circles; links are shown as lines. Pan and zoom with mouse or trackpad.</div>
   <div id="graph" role="application" aria-label="Link graph"></div>
   <!-- force-graph 2D CDN (exposes global ForceGraph()) -->
   <script src="https://unpkg.com/force-graph"></script>

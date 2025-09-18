@@ -43,8 +43,9 @@
           if (globalScale < 1.0) return;
 
           // Choose a base font size that scales with zoom but caps for readability
-          const base = 11; // px
-          const fontSize = Math.max(6, Math.min(16, base / (globalScale * 0.9)));
+          // Use a smaller base to render ~one-third size of previous labels
+          const base = 11 / 3; // px
+          const fontSize = Math.max(4, Math.min(12, base / (globalScale * 0.9)));
           ctx.font = `${fontSize}px sans-serif`;
 
           // Compute maximum text width to attempt; approximate to circle diameter
@@ -77,7 +78,7 @@
           ctx.textBaseline = 'middle';
 
           // Text halo for contrast
-          ctx.lineWidth = Math.max(2, fontSize / 4);
+          ctx.lineWidth = Math.max(1, fontSize / 4);
           ctx.strokeStyle = 'rgba(0,0,0,0.5)';
           ctx.strokeText(display, n.x, n.y);
 
@@ -86,6 +87,38 @@
           ctx.fillText(display, n.x, n.y);
         } catch (e) { /* ignore draw errors */ }
       });
+
+    // Middle-click support: open node in a new tab
+    try {
+      el.addEventListener('auxclick', function(evt){
+        try {
+          if (evt.button !== 1) return; // only middle button
+          // Find nearest node by screen-space distance and require a small pixel threshold
+          const px = evt.offsetX, py = evt.offsetY;
+          const candidates = graph && graph.graphData && graph.graphData().nodes ? graph.graphData().nodes : [];
+          let best = null;
+          for (let i = 0; i < candidates.length; i++) {
+            const n = candidates[i];
+            if (typeof n.x !== 'number' || typeof n.y !== 'number') continue;
+            const sc = graph && typeof graph.graph2ScreenCoords === 'function' ? graph.graph2ScreenCoords({ x: n.x, y: n.y }) : null;
+            if (!sc) continue;
+            const dx = sc.x - px, dy = sc.y - py;
+            const d2 = dx*dx + dy*dy;
+            if (!best || d2 < best.d2) best = { n, d2 };
+          }
+          const target = best && best.n;
+          // Only trigger if within ~12px radius of a node center
+          if (!target || best.d2 > (12 * 12)) return;
+          let url = null;
+          if (target.kind === 'list') url = `/html_no_js/lists/${target.raw_id}`;
+          else if (target.kind === 'todo') url = `/html_no_js/todos/${target.raw_id}`;
+          if (url) {
+            window.open(url, '_blank');
+            evt.preventDefault();
+          }
+        } catch(e) {}
+      });
+    } catch(e) {}
 
     // Fit to graph after render
     setTimeout(function(){ try { graph.zoomToFit(400, 50); } catch(e){} }, 250);
