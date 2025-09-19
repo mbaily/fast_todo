@@ -428,8 +428,6 @@
 								if (window.__ft_onListRenamed) {
 									try{ if (tags) window.__ft_onListRenamed(id, newName, tags); else window.__ft_onListRenamed(id, newName); } catch(_){ }
 								}
-								// Log rename once
-								try{ if (window.ftLog){ window.ftLog('Renamed list', { item_type:'list', item_id: Number(id), label: newName }); } }catch(_){ }
 							}catch(_){ }
 						})
 						.catch(function(){ try{ alert('Rename failed'); }catch(_){ } })
