@@ -372,50 +372,7 @@
 
   {% if completion_types is not none %}
   {% endif %}
-  <script>
-  // Minimal rename for sublists: prompt and POST to list edit endpoint.
-  // Use event delegation so buttons added later (or rendered after this script)
-  // are handled correctly.
-  (function(){
-    function handleEditBtn(btn){
-      var id = btn.getAttribute('data-list-id');
-      var current = btn.getAttribute('data-list-name') || '';
-      var name = window.prompt('New list name', current);
-      if (!name || name.trim() === '') return;
-      var fd = new FormData();
-      fd.append('name', name);
-      var csrfInput = document.querySelector('input[name="_csrf"]');
-      if (csrfInput && csrfInput.value) fd.append('_csrf', csrfInput.value);
-      fetch('/html_no_js/lists/' + encodeURIComponent(id) + '/edit', { method: 'POST', body: fd, credentials: 'same-origin' })
-        .then(function(res){ if (!res.ok) throw new Error('Rename failed'); return res.json().catch(function(){ return null; }); })
-        .then(function(data){
-          try{
-            var newName = (data && data.name) ? data.name : name;
-            var tags = (data && data.hashtags) ? data.hashtags : null;
-            if (window.__ft_onListRenamed) {
-              /* NOTE: Do NOT remove existing tags from the DOM here.
-                 List rename operations must only add new tags. Removals of
-                 existing tags are handled by dedicated tag-remove endpoints
-                 elsewhere in the app. The client-side rename helper will
-                 merge server-returned tags with any existing visible tag
-                 chips rather than clearing them. */
-              try{ if (tags) window.__ft_onListRenamed(id, newName, tags); else window.__ft_onListRenamed(id, newName); } catch(e){}
-            }
-            // Log rename
-            try{ if (window.ftLog){ window.ftLog('Renamed list', { item_type:'list', item_id: Number(id), label: newName }); } }catch(_){ }
-          } catch(e){}
-        })
-        .catch(function(){ alert('Rename failed'); });
-    }
-    try {
-      document.body.addEventListener('click', function(ev){
-        var btn = ev.target && ev.target.closest ? ev.target.closest('.edit-list-btn') : null;
-        if (!btn) return;
-        handleEditBtn(btn);
-      }, false);
-    } catch(e) {}
-  })();
-  </script>
+  
 
   {# If this list is configured to show Sublists "Up top", render the Sublists
      block here, just above the create-todo form. Otherwise the original

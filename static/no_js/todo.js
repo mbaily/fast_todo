@@ -399,13 +399,22 @@
 // Minimal rename for sublists (same behavior as index): prompt and POST
 (function(){
 	try{
+		if (typeof window !== 'undefined'){
+			if (window.__ft_edit_list_bound) return; // avoid duplicate binding if list page script already set it
+			window.__ft_edit_list_bound = true;
+		}
 		document.querySelectorAll('.edit-list-btn').forEach(function(btn){
-			btn.addEventListener('click', function(){
+			btn.addEventListener('click', function(ev){
+				try{ if (ev && typeof ev.stopPropagation === 'function') ev.stopPropagation(); }catch(_){ }
 				try{
+					if (typeof window !== 'undefined'){
+						if (window.__ft_edit_prompt_open) return; // reentrancy guard
+						window.__ft_edit_prompt_open = true;
+					}
 					var id = btn.getAttribute('data-list-id');
 					var current = btn.getAttribute('data-list-name') || '';
 					var name = window.prompt('New list name', current);
-					if (!name || name.trim() === '') return;
+					if (!name || name.trim() === '') { try{ window.__ft_edit_prompt_open = false; }catch(_){ } return; }
 					var fd = new FormData();
 					fd.append('name', name);
 					var csrfInput = document.querySelector('input[name="_csrf"]');
@@ -413,7 +422,8 @@
 					fetch('/html_no_js/lists/' + encodeURIComponent(id) + '/edit', { method: 'POST', body: fd, credentials: 'same-origin' })
 						.then(function(res){ if (!res.ok) throw new Error('Rename failed'); return res.json().catch(function(){ return null; }); })
 						.then(function(){ try{ if (window.__ft_onListRenamed) window.__ft_onListRenamed(id, name); } catch(_){ } })
-						.catch(function(){ try{ alert('Rename failed'); }catch(_){ } });
+						.catch(function(){ try{ alert('Rename failed'); }catch(_){ } })
+						.finally(function(){ try{ window.__ft_edit_prompt_open = false; }catch(_){ } });
 				}catch(_){ }
 			});
 		});
