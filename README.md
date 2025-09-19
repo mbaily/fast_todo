@@ -26,6 +26,18 @@ The server is Python + FastAPI.
 The main web client as of 2025-09-12 is called html_no_js. The other clients are prototypes or skeletons.
 The name html_no_js is now a misnomer as there is some javascript used to update the DOM, and other things.
 
+### Tree view (no-js)
+
+The hierarchical tree view is available at `/html_no_js/tree`.
+
+- `?root_list_id=<id>` focuses the tree on a specific list.
+- `?show_todos=1` includes todos under each list where applicable.
+- New: `?roots=1` renders only root nodes.
+  - On the top-level tree, this shows only top-level lists (no nested children). The “Show todos” toggle has no effect in this mode at the top level.
+  - When focused on a particular node via `?root_list_id=...`, `roots=1` shows only that node and its immediate children. If `show_todos=1` is set, the node’s immediate todos are included, but grandchildren (such as sublists under those todos or deeper list nesting) are hidden.
+
+The tree page includes a “Roots only” / “Show all” toggle to switch views while preserving your other options (focus and show_todos).
+
 
 ## Quick server usage (Windows and Debian)
 

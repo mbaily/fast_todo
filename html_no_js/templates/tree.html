@@ -35,6 +35,9 @@
     {% if show_todos %}
     <input type="hidden" name="show_todos" value="1">
     {% endif %}
+    {% if roots %}
+    <input type="hidden" name="roots" value="1">
+    {% endif %}
     <input type="hidden" name="target_type" value="">
     <input type="hidden" name="target_id" value="">
   </form>
@@ -45,6 +48,9 @@
       {% if root_list_id is not none %}
       <input type="hidden" name="root_list_id" value="{{ root_list_id }}">
       {% endif %}
+      {% if roots %}
+      <input type="hidden" name="roots" value="1">
+      {% endif %}
       <label style="display:inline-flex; align-items:center; gap:0.25rem;">
         <input type="checkbox" name="show_todos" value="1" {% if show_todos %}checked{% endif %}>
         <span>Show todos</span>
@@ -54,6 +60,11 @@
         <span>Hide completed</span>
       </label>
     </form>
+    {% if roots %}
+      <a class="btn" href="/html_no_js/tree{% if root_list_id is not none %}?root_list_id={{ root_list_id }}{% if show_todos %}&show_todos=1{% endif %}{% elif show_todos %}?show_todos=1{% endif %}" title="Show every node">Show all</a>
+    {% else %}
+      <a class="btn" href="/html_no_js/tree?roots=1{% if root_list_id is not none %}&root_list_id={{ root_list_id }}{% endif %}{% if show_todos %}&show_todos=1{% endif %}" title="Show only root nodes">Roots only</a>
+    {% endif %}
     <button type="submit" class="btn" form="tree-bulk-move-form" title="Move selected to destination">Move</button>
     <span class="meta" aria-hidden="true">|</span>
     <label style="display:inline-flex; align-items:center; gap:0.25rem;">
@@ -69,23 +80,23 @@
     <a class="btn" href="/html_no_js/linkmap" title="Open interactive link map">Link map</a>
     {% if root_list_id %}
         <span class="meta" aria-hidden="true">|</span>
-        <a class="btn" href="/html_no_js/tree" title="Back to top">Top</a>
+        <a class="btn" href="/html_no_js/tree{% if roots %}?roots=1{% endif %}" title="Back to top">Top</a>
         <span class="meta" aria-hidden="true">|</span>
         {% if root_parent_id is not none or root_parent_todo_id is not none %}
           {% if root_parent_id is not none %}
             {# If parent is a list: if it is top-level, go to root view and jump to its fragment; else recenter on that parent list and jump to fragment #}
-            <a class="btn" href="/html_no_js/tree?root_list_id={{ root_parent_id }}{% if show_todos %}&show_todos=1{% endif %}#list-{{ root_parent_id }}" title="Up one level" aria-label="Up one level">Up one ⬆</a>
+            <a class="btn" href="/html_no_js/tree?root_list_id={{ root_parent_id }}{% if roots %}&roots=1{% endif %}{% if show_todos %}&show_todos=1{% endif %}#list-{{ root_parent_id }}" title="Up one level" aria-label="Up one level">Up one ⬆</a>
           {% elif root_parent_todo_id is not none %}
             {# Parent is a todo: navigate to the list that owns that todo and jump to the todo fragment #}
             {% if root_parent_todo_list_id %}
-              <a class="btn" href="/html_no_js/tree?root_list_id={{ root_parent_todo_list_id }}{% if show_todos %}&show_todos=1{% endif %}#todo-{{ root_parent_todo_id }}" title="Up one level" aria-label="Up one level">Up one ⬆</a>
+              <a class="btn" href="/html_no_js/tree?root_list_id={{ root_parent_todo_list_id }}{% if roots %}&roots=1{% endif %}{% if show_todos %}&show_todos=1{% endif %}#todo-{{ root_parent_todo_id }}" title="Up one level" aria-label="Up one level">Up one ⬆</a>
             {% else %}
-              <a class="btn" href="/html_no_js/tree{% if show_todos %}?show_todos=1{% endif %}#todo-{{ root_parent_todo_id }}" title="Up one level" aria-label="Up one level">Up one ⬆</a>
+              <a class="btn" href="/html_no_js/tree{% if roots or show_todos %}?{% endif %}{% if roots %}roots=1{% endif %}{% if roots and show_todos %}&{% endif %}{% if show_todos %}show_todos=1{% endif %}#todo-{{ root_parent_todo_id }}" title="Up one level" aria-label="Up one level">Up one ⬆</a>
             {% endif %}
           {% endif %}
         {% else %}
           {# We are on a page for a root list (no parent). Up should jump to that list's fragment on the root tree view. #}
-          <a class="btn" href="/html_no_js/tree{% if show_todos %}?show_todos=1{% endif %}#list-{{ root_list_id }}" title="Up one level" aria-label="Up one level">Up one ⬆</a>
+          <a class="btn" href="/html_no_js/tree{% if roots or show_todos %}?{% endif %}{% if roots %}roots=1{% endif %}{% if roots and show_todos %}&{% endif %}{% if show_todos %}show_todos=1{% endif %}#list-{{ root_list_id }}" title="Up one level" aria-label="Up one level">Up one ⬆</a>
         {% endif %}
     {% endif %}
   </div>
@@ -103,7 +114,7 @@
       <input type="checkbox" class="tree-select" data-item-type="list" name="list_ids" value="{{ node.id }}" form="tree-bulk-move-form" title="Select list (double-click to set destination)">
       <span class="icon" aria-hidden="true" title="List">📂</span>
     <a class="{% if node.completed %}done{% endif %}" href="/html_no_js/lists/{{ node.id }}">{% if node.completed %}<s>{{ node.name }}</s>{% else %}{{ node.name }}{% endif %}</a>
-  <a class="btn recenter" style="margin-left:0.35rem;" href="/html_no_js/tree?root_list_id={{ node.id }}{% if show_todos %}&show_todos=1{% endif %}" title="Re-center tree to this list" aria-label="Re-center tree to this list">◎</a>
+  <a class="btn recenter" style="margin-left:0.35rem;" href="/html_no_js/tree?root_list_id={{ node.id }}{% if roots %}&roots=1{% endif %}{% if show_todos %}&show_todos=1{% endif %}" title="Re-center tree to this list" aria-label="Re-center tree to this list">◎</a>
       {% if node.priority %}<span class="meta priority-inline" title="List priority"><span class="priority-circle">{{ circ.get(node.priority, node.priority) }}</span></span>{% endif %}
       {% if node.override_priority %}<span class="muted priority-inline priority-override" title="Secondary priority (max child todos/sublists)"><span class="priority-circle">{{ circ.get(node.override_priority, node.override_priority) }}</span></span>{% endif %}
       {% if node.hashtags and node.hashtags|length > 0 %}

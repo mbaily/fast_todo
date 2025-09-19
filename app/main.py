@@ -11978,11 +11978,12 @@ async def html_recent_lists(request: Request, current_user: User = Depends(requi
 
 
 @app.get('/html_no_js/tree', response_class=HTMLResponse)
-async def html_tree_view(request: Request, root_list_id: int | None = None, show_todos: bool = False, moved: int | None = None, skipped: int | None = None, current_user: User = Depends(require_login)):
+async def html_tree_view(request: Request, root_list_id: int | None = None, show_todos: bool = False, roots: bool = False, moved: int | None = None, skipped: int | None = None, current_user: User = Depends(require_login)):
     """Render a hierarchical tree of lists. Optional todos per list.
     Query params:
       - root_list_id: if provided, show the tree rooted at this list; otherwise show all top-level lists.
       - show_todos: when truthy, include todos under each list.
+      - roots: when truthy, render only root nodes (top-level). If focused (root_list_id provided), render only the focused node and its immediate children.
     """
     # normalize bool from query string
     try:
@@ -11990,6 +11991,11 @@ async def html_tree_view(request: Request, root_list_id: int | None = None, show
             show_todos = str(show_todos).lower() in ('1', 'true', 'yes', 'on')
     except Exception:
         show_todos = False
+    try:
+        if isinstance(roots, str):
+            roots = str(roots).lower() in ('1', 'true', 'yes', 'on')
+    except Exception:
+        roots = False
     async with async_session() as sess:
         owner_id = current_user.id
 
@@ -12068,7 +12074,7 @@ async def html_tree_view(request: Request, root_list_id: int | None = None, show
             return override
 
         # fetch children lists for a given parent_list_id
-        async def fetch_children(parent_id: int | None) -> list[dict]:
+        async def fetch_children(parent_id: int | None, include_todos_override: bool | None = None) -> list[dict]:
             q = select(ListState).where(ListState.owner_id == owner_id)
             if parent_id is None:
                 q = q.where(ListState.parent_list_id == None).where(ListState.parent_todo_id == None)
@@ -12106,7 +12112,8 @@ async def html_tree_view(request: Request, root_list_id: int | None = None, show
                     'children': [],
                 })
             # attach todos if requested
-            if show_todos and ids:
+            include_todos = include_todos_override if include_todos_override is not None else show_todos
+            if include_todos and ids:
                 t_exec = await sess.exec(select(Todo).where(Todo.list_id.in_(ids)).order_by(Todo.created_at.asc()))
                 todos = t_exec.all()
                 # completion map by default completion type
@@ -12292,8 +12299,8 @@ async def html_tree_view(request: Request, root_list_id: int | None = None, show
                     comp_rows = await sess.exec(qcomp3)
                     completed = set(int(v[0] if isinstance(v, tuple) else v) for v in comp_rows.all())
                 root_node['todos'] = [{ 'id': int(t.id), 'text': t.text, 'priority': getattr(t, 'priority', None), 'completed': int(t.id) in completed, 'child_lists': [] } for t in todos]
-                # Attach sublists under each root todo
-                if t_ids:
+                # In non-roots mode, attach sublists under each root todo; in roots mode, skip to avoid showing grandchildren
+                if t_ids and not roots:
                     q_subs = (
                         select(ListState)
                         .where(ListState.owner_id == owner_id)
@@ -12343,12 +12350,20 @@ async def html_tree_view(request: Request, root_list_id: int | None = None, show
                         tid = int(trow.get('id'))
                         trow['child_lists'] = subs_by_todo.get(tid, [])
             # build children
-            root_node['children'] = await build_tree(int(root.id), 0)
+            if roots:
+                # Only immediate children lists; do not include their todos
+                root_node['children'] = await fetch_children(int(root.id), include_todos_override=False)
+            else:
+                root_node['children'] = await build_tree(int(root.id), 0)
             tree = [root_node]
         else:
             # top-level (no parent list/todo) — order top-level lists by category order like index
             # fetch top-level nodes
-            tree = await build_tree(None, 0)
+            if roots:
+                # Only immediate top-level lists; no todos
+                tree = await fetch_children(None, include_todos_override=False)
+            else:
+                tree = await build_tree(None, 0)
             # fetch user's categories ordered by position
             cat_order: dict[int, int] = {}
             categories_ctx: list[dict] = []
@@ -12407,6 +12422,7 @@ async def html_tree_view(request: Request, root_list_id: int | None = None, show
         "root_parent_is_top_level": root_parent_is_top_level,
         "root_parent_todo_list_id": root_parent_todo_list_id,
         "show_todos": bool(show_todos),
+        "roots": bool(roots),
         "categories": categories,
         "client_tz": await get_session_timezone(request),
         "csrf_token": csrf_token,
@@ -12454,6 +12470,13 @@ async def html_tree_bulk_move(request: Request, current_user: User = Depends(req
             show_todos_flag = show_todos_raw.lower() in ('1', 'true', 'yes', 'on')
     except Exception:
         show_todos_flag = False
+    roots_raw = form.get('roots')
+    roots_flag = False
+    try:
+        if isinstance(roots_raw, str):
+            roots_flag = roots_raw.lower() in ('1', 'true', 'yes', 'on')
+    except Exception:
+        roots_flag = False
     redirect_qs = []
     if root_list_id_val:
         try:
@@ -12463,6 +12486,8 @@ async def html_tree_bulk_move(request: Request, current_user: User = Depends(req
             pass
     if show_todos_flag:
         redirect_qs.append('show_todos=1')
+    if roots_flag:
+        redirect_qs.append('roots=1')
 
     # basic validation
     if target_id is None or target_type not in ('list', 'todo') or (not list_ids and not todo_ids):
@@ -12701,6 +12726,13 @@ async def html_tree_bulk_link(request: Request, current_user: User = Depends(req
             show_todos_flag = show_todos_raw.lower() in ('1', 'true', 'yes', 'on')
     except Exception:
         show_todos_flag = False
+    roots_raw = form.get('roots')
+    roots_flag = False
+    try:
+        if isinstance(roots_raw, str):
+            roots_flag = roots_raw.lower() in ('1', 'true', 'yes', 'on')
+    except Exception:
+        roots_flag = False
     redirect_qs = []
     if root_list_id_val:
         try:
@@ -12710,6 +12742,8 @@ async def html_tree_bulk_link(request: Request, current_user: User = Depends(req
             pass
     if show_todos_flag:
         redirect_qs.append('show_todos=1')
+    if roots_flag:
+        redirect_qs.append('roots=1')
 
     # validation
     if target_id is None or target_type not in ('list', 'todo') or (not list_ids and not todo_ids):
