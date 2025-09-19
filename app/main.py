@@ -4224,6 +4224,24 @@ async def calendar_occurrences(request: Request,
             occurrences.sort(key=lambda x: int(x.get('occ_ts') or 0))
         except Exception:
             occurrences.sort(key=lambda x: x.get('occurrence_dt'))
+    # Order-preserving de-duplication by (item_type, id, occurrence_dt). This handles
+    # rare cases where the same occurrence is produced by two branches (e.g., explicit
+    # vs deferred) or due to legacy data. Keep the first instance encountered.
+    try:
+        _seen_keys = set()
+        _deduped = []
+        for o in occurrences:
+            k = (o.get('item_type'), o.get('id'), o.get('occurrence_dt'))
+            if k in _seen_keys:
+                continue
+            _seen_keys.add(k)
+            _deduped.append(o)
+        if len(_deduped) != len(occurrences):
+            logger.info('calendar_occurrences.dedup removed=%s before=%s after=%s', (len(occurrences) - len(_deduped)), len(occurrences), len(_deduped))
+        occurrences = _deduped
+    except Exception:
+        pass
+
     # Emit a compact SSE summary so tools can observe which occurrences were computed
     try:
         _sse_debug('calendar_occurrences.summary', {'count': len(occurrences), 'items': [{'id': o.get('id'), 'title': o.get('title'), 'occurrence_dt': o.get('occurrence_dt')} for o in occurrences]})
