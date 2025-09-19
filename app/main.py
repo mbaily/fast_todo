@@ -2888,7 +2888,17 @@ async def html_priorities(request: Request, current_user: User = Depends(require
         if hide_completed:
             ql_stmt = ql_stmt.where(ListState.completed == False)
         ql = await sess.exec(ql_stmt)
-        lists = [l for l in ql.all() if getattr(l, 'id', None) not in trashed_list_ids]
+        # Exclude lists that were moved to Trash (either recorded in ListTrashMeta
+        # or whose parent_list_id is the user's Trash list id)
+        lists = [
+            l for l in ql.all()
+            if (
+                getattr(l, 'id', None) not in trashed_list_ids
+                and not (
+                    trash_list_id is not None and getattr(l, 'parent_list_id', None) == trash_list_id
+                )
+            )
+        ]
         # todos with priority: fetch todos that have a priority (and optionally exclude completed)
         qt2_stmt = select(Todo).where(Todo.priority != None)
         # do not attempt to filter by a non-existent Todo.completed column here;
@@ -2901,8 +2911,12 @@ async def html_priorities(request: Request, current_user: User = Depends(require
             if not lst:
                 continue
             if lst.owner_id is None or lst.owner_id == current_user.id:
-                # Skip todos in the Trash list, or belonging to lists that are themselves trashed
-                if (trash_list_id is not None and lst.id == trash_list_id) or (getattr(lst, 'id', None) in trashed_list_ids):
+                # Skip todos in the Trash list, todos under lists that were moved to Trash,
+                # or belonging to lists recorded as trashed in ListTrashMeta
+                if (
+                    (trash_list_id is not None and (lst.id == trash_list_id or getattr(lst, 'parent_list_id', None) == trash_list_id))
+                    or (getattr(lst, 'id', None) in trashed_list_ids)
+                ):
                     continue
                 # If hide_completed is requested, skip todos that have any
                 # completion rows marked done=True.
@@ -2976,8 +2990,12 @@ async def html_priorities(request: Request, current_user: User = Depends(require
             if not lst:
                 continue
             if lst.owner_id is None or lst.owner_id == current_user.id:
-                # Exclude todos in Trash and those on trashed lists
-                if (trash_list_id is not None and lst.id == trash_list_id) or (getattr(lst, 'id', None) in trashed_list_ids):
+                # Exclude todos in the Trash list, todos under lists parented to Trash,
+                # and those on lists recorded as trashed
+                if (
+                    (trash_list_id is not None and (lst.id == trash_list_id or getattr(lst, 'parent_list_id', None) == trash_list_id))
+                    or (getattr(lst, 'id', None) in trashed_list_ids)
+                ):
                     continue
                 # skip if todo is completed (check TodoCompletion rows)
                 qc = await sess.exec(select(TodoCompletion).where(TodoCompletion.todo_id == t.id).where(TodoCompletion.done == True))
