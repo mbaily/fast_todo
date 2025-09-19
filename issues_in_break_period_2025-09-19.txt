@@ -1,0 +1,3 @@
+Log for 'Completed todo' in list.html (not todo.html) doesn't have the todo text. It should. (It does have the list name).
+
+
