@@ -421,7 +421,17 @@
 					if (csrfInput && csrfInput.value) fd.append('_csrf', csrfInput.value);
 					fetch('/html_no_js/lists/' + encodeURIComponent(id) + '/edit', { method: 'POST', body: fd, credentials: 'same-origin' })
 						.then(function(res){ if (!res.ok) throw new Error('Rename failed'); return res.json().catch(function(){ return null; }); })
-						.then(function(){ try{ if (window.__ft_onListRenamed) window.__ft_onListRenamed(id, name); } catch(_){ } })
+						.then(function(data){
+							try{
+								var newName = (data && data.name) ? data.name : name;
+								var tags = (data && data.hashtags) ? data.hashtags : null;
+								if (window.__ft_onListRenamed) {
+									try{ if (tags) window.__ft_onListRenamed(id, newName, tags); else window.__ft_onListRenamed(id, newName); } catch(_){ }
+								}
+								// Log rename once
+								try{ if (window.ftLog){ window.ftLog('Renamed list', { item_type:'list', item_id: Number(id), label: newName }); } }catch(_){ }
+							}catch(_){ }
+						})
 						.catch(function(){ try{ alert('Rename failed'); }catch(_){ } })
 						.finally(function(){ try{ window.__ft_edit_prompt_open = false; }catch(_){ } });
 				}catch(_){ }

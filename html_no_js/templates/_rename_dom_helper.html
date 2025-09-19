@@ -3,6 +3,18 @@
 // Usage: window.__ft_onListRenamed(listId, newName)
 (function(){
   if (typeof window === 'undefined') return;
+  // Guarded logger to avoid duplicate rename logs from multiple sources
+  function logRenameOnce(listId, displayName){
+    try{
+      if (!window || !window.ftLog) return;
+      var now = Date.now();
+      if (!window.__ft_loggedRenames) window.__ft_loggedRenames = {};
+      var last = window.__ft_loggedRenames[String(listId)] || 0;
+      if ((now - last) < 1500) return; // debounce duplicate logs within 1.5s
+      window.__ft_loggedRenames[String(listId)] = now;
+      window.ftLog('Renamed list', { item_type: 'list', item_id: Number(listId), label: displayName });
+    }catch(_){ }
+  }
   function updateAnchors(listId, name){
     try{
       var anchors = Array.from(document.querySelectorAll('a'));
@@ -260,6 +272,8 @@
             } catch(e){}
           }
       } catch(e){}
+      // Ensure a single rename log is emitted per action (debounced)
+      try{ logRenameOnce(listId, displayName); }catch(_){ }
     }catch(e){ /* ignore */ }
   };
 })();
