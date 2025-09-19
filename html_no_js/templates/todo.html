@@ -31,10 +31,8 @@
   
   <!-- Section: Page toolbar (actions: save, delete, autosave status) -->
   <nav class="page-toolbar" role="toolbar" aria-label="Todo actions" style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.6rem;">
-    <form id="todo-save-form" method="post" action="/html_no_js/todos/{{ todo.id }}/edit" style="display:inline">
-      {{ csrf_field() }}
-      <button type="submit" class="tb-item" aria-label="Save todo">💾 <span class="sr-only">Save</span></button>
-    </form>
+    <!-- Save button submits the main edit form so required fields (text, note) are sent -->
+    <button type="submit" class="tb-item" aria-label="Save todo" form="todo-edit-form">💾 <span class="sr-only">Save</span></button>
     <form id="todo-delete-form" method="post" action="/html_no_js/todos/{{ todo.id }}/delete" class="confirm-delete" data-confirm="Delete this todo? This cannot be undone." style="display:inline">
       {{ csrf_field() }}
       <input type="hidden" name="anchor" value="todo-{{ todo.id }}">
@@ -438,6 +436,16 @@
             fetch(form.action, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'Accept': 'application/json' }}).then(function(res){ if(!res.ok){ throw new Error('toggle failed'); } return res.json().catch(function(){ return null; }); }).then(function(){ /* no-op */ }).catch(function(){ try{ console && console.error && console.error('calendar_ignored update failed'); }catch(_){ } });
           }catch(_){ }
         });
+      }catch(_){ }
+    })();
+    (function(){
+      // Sync initial state of First-date-only checkbox from server-rendered hidden value
+      try{
+        var cb = document.getElementById('todo-first-date-only-cb-{{ todo.id }}');
+        var hid = document.getElementById('todo-first-date-only-hidden-{{ todo.id }}');
+        if (cb && hid) {
+          cb.checked = String(hid.value).toLowerCase() === 'true';
+        }
       }catch(_){ }
     })();
   </script>

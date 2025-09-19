@@ -3679,11 +3679,11 @@ async def calendar_occurrences(request: Request,
                 except Exception:
                     texts.append(t.note)
             combined = ' \n '.join(texts)
-            # prefer persisted recurrence expansion if available (skip when first_date_only)
+            # prefer persisted recurrence expansion if available
             fdo = bool(getattr(t, 'first_date_only', False))
             rec_rrule = getattr(t, 'recurrence_rrule', None)
             rec_dtstart = getattr(t, 'recurrence_dtstart', None)
-            if expand and rec_rrule and recurring_enabled and not fdo:
+            if expand and rec_rrule and recurring_enabled:
                 try:
                     if rec_dtstart and rec_dtstart.tzinfo is None:
                         rec_dtstart = rec_dtstart.replace(tzinfo=timezone.utc)
@@ -3700,7 +3700,7 @@ async def calendar_occurrences(request: Request,
                     pass
             # If no persisted recurrence, attempt to parse an inline recurrence phrase
             # If recurring detection is disabled, skip inline recurrence parsing
-            if expand and not rec_rrule and recurring_enabled and not scanning_disabled and not fdo:
+            if expand and not rec_rrule and recurring_enabled and not scanning_disabled:
                 # Cheap keyword prefilter to avoid running the expensive inline recurrence parser
                 # on todos that clearly don't contain recurrence language.
                 def _likely_inline_rrule_text(_s: str) -> bool:
@@ -3963,13 +3963,8 @@ async def calendar_occurrences(request: Request,
             # If first_date_only is enabled for this todo, restrict to the first textual date
             fdo = bool(getattr(t, 'first_date_only', False))
             if fdo and meta:
-                # Pick first explicit-year match if available; else first meta entry
-                preferred = None
-                try:
-                    explicit_first = next((m for m in meta if m.get('year_explicit')), None)
-                    preferred = explicit_first or meta[0]
-                except Exception:
-                    preferred = meta[0]
+                # Pick the first match by textual order (meta preserves scan order of the combined string)
+                preferred = meta[0]
                 if preferred:
                     d = preferred.get('dt')
                     if d is not None:
@@ -6482,12 +6477,7 @@ async def _update_todo_internal(todo_id: int, payload: dict, current_user: User)
                     pd_meta = extract_dates_meta(combined_text)
                     try:
                         if bool(getattr(todo, 'first_date_only', False)) and pd_meta:
-                            pref = None
-                            try:
-                                pref = next((m for m in pd_meta if m.get('year_explicit')), None) or pd_meta[0]
-                            except Exception:
-                                pref = pd_meta[0]
-                            pd_meta = [pref]
+                            pd_meta = [pd_meta[0]]
                     except Exception:
                         pass
                     def _j(m):
@@ -13386,6 +13376,8 @@ async def html_view_todo(request: Request, todo_id: int, current_user: User = De
             "bookmarked": getattr(todo, 'bookmarked', False),
             # reflect calendar ignore flag for template checkbox state
             "calendar_ignored": getattr(todo, 'calendar_ignored', False),
+            # reflect first-date-only flag for template checkbox state
+            "first_date_only": getattr(todo, 'first_date_only', False),
             # persist UI preference so template can render checkbox state
             "lists_up_top": getattr(todo, 'lists_up_top', False),
             # persist Sort Links preference so template can render checkbox state
