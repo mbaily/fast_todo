@@ -6,6 +6,9 @@
       .combined-list .list-title.done { text-decoration: line-through; color: #6b7280; }
   </style>
   <h2>Search results for "{{ q }}"</h2>
+  {% if mode in ['lists','todos'] %}
+    <p class="muted" style="margin:0.25rem 0 0.5rem;">Mode: {% if mode=='lists' %}Lists only{% elif mode=='todos' %}Todos only{% endif %}</p>
+  {% endif %}
   <form method="get" action="/html_no_js/search" style="margin-bottom:0.75rem">
     <input type="text" name="q" value="{{ q }}" placeholder="Search" style="min-width:16rem">
     <label style="margin-left:0.5rem"><input type="checkbox" name="include_list_todos" value="1" {% if include_list_todos %}checked{% endif %}> include todos from matching lists</label>
@@ -21,15 +24,16 @@
   </form>
   {% if results.combined and results.combined|length > 0 %}
     <h3>Matching items</h3>
-    <ul class="combined-list">
+  <ul class="combined-list" style="list-style:none; padding-left:0;">
       {% for it in results.combined %}
         {% if it.type == 'list' %}
-          <li class="list-item">
+          <li class="list-item" style="margin:0.25rem 0;">
             <div class="list-main">
               <span class="list-inline">
                   <span class="match-icon">📁</span>
                   {% if it.trashed %}<span class="ml-1" title="In Trash">🗑️</span>{% endif %}
                   <a class="list-title {% if it.completed %}done{% endif %}" href="/html_no_js/lists/{{ it.id }}">{{ it.name }}</a>
+                <a class="list-action-btn recenter" href="/html_no_js/tree?root_list_id={{ it.id }}" title="Open tree centered on this list" aria-label="Open tree centered on this list" style="margin-left:0.25rem;">◎</a>
                 {% if it.priority %}
                   <span class="meta priority-inline" title="List priority {{ it.priority }}" style="margin-left:0.5rem;"><span class="priority-circle">{{ circ.get(it.priority, it.priority) }}</span></span>
                 {% endif %}
@@ -42,7 +46,7 @@
             </div>
           </li>
         {% else %}
-          <li class="todo">
+          <li class="todo" style="margin:0.25rem 0;">
             <span class="match-icon">📝</span>
             <div class="todo-content">
               <div class="todo-main">

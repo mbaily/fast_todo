@@ -151,13 +151,46 @@
       </ul>
     {% endif %}
 
-        <form method="get" action="/html_no_js/search" style="margin:0.6rem 0;">
+        <form id="index-search-form" method="get" action="/html_no_js/search" style="margin:0.6rem 0; display:flex; gap:0.5rem; align-items:center;">
       {% if csrf_token %}
         <input type="hidden" name="_csrf" value="{{ csrf_token }}">
       {% endif %}
-      <input name="q" placeholder="Search" aria-label="Search" style="width:60%;">
+      <input id="index-search-q" name="q" placeholder="Search" aria-label="Search" style="flex:1 1 auto; min-width:0;">
+      <input id="index-search-mode" type="hidden" name="mode" value="normal">
+      <button id="index-search-mode-btn" type="button" aria-label="Toggle search mode" title="Toggle search mode" style="min-width:2.5rem;">●</button>
       <button type="submit">Search</button>
     </form>
+    <script>
+    (function(){
+      var form = document.getElementById('index-search-form'); if (!form) return;
+      var btn = document.getElementById('index-search-mode-btn');
+      var hid = document.getElementById('index-search-mode');
+      var q = document.getElementById('index-search-q');
+      var MODES = [
+        { key: 'normal', label: '●', color: '#444', title: 'Normal search' },
+        { key: 'lists',  label: 'L', color: '#10b981', title: 'Lists only' },
+        { key: 'todos',  label: 'T', color: '#7c3aed', title: 'Todos only' }
+      ];
+      function setMode(idx){
+        try{
+          var m = MODES[idx];
+          hid.value = m.key;
+          btn.textContent = m.label;
+          btn.style.background = m.color;
+          btn.style.color = '#fff';
+          btn.title = m.title;
+          btn.setAttribute('aria-label', m.title);
+          localStorage.setItem('ft_search_mode', m.key);
+        }catch(e){}
+      }
+      function getIndexByKey(k){ for (var i=0;i<MODES.length;i++){ if (MODES[i].key===k) return i; } return 0; }
+      var saved = null; try{ saved = localStorage.getItem('ft_search_mode'); }catch(e){}
+      var idx = getIndexByKey(saved||'normal');
+      setMode(idx);
+      btn.addEventListener('click', function(){ idx = (idx+1) % MODES.length; setMode(idx); });
+      form.addEventListener('submit', function(){ try{ if (!q.value) q.focus(); }catch(e){} });
+    })();
+    </script>
 
         <form method="post" action="/html_no_js/lists/create">
       {% if csrf_token %}

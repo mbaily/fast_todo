@@ -9892,6 +9892,9 @@ async def html_search(request: Request):
     if not current_user:
         return RedirectResponse(url='/html_no_js/login', status_code=303)
     qparam = request.query_params.get('q', '').strip()
+    mode = (request.query_params.get('mode') or 'normal').lower()
+    if mode not in ('normal', 'lists', 'todos'):
+        mode = 'normal'
     include_list_todos = str(request.query_params.get('include_list_todos', '')).lower() in ('1','true','yes','on')
     # Priority sort toggle: default ON unless explicitly disabled
     if 'priority_sort' in request.query_params:
@@ -10147,12 +10150,17 @@ async def html_search(request: Request):
                         primary = (-int(p)) if (p is not None) else float('inf')
                         return (primary, item.get('orig_index', 0))
                     combined.sort(key=priority_sort_key)
+                # Apply mode filtering: 'normal' (both), 'lists' (only lists), 'todos' (only todos)
+                if mode == 'lists':
+                    combined = [it for it in combined if it.get('type') == 'list']
+                elif mode == 'todos':
+                    combined = [it for it in combined if it.get('type') == 'todo']
                 results['combined'] = combined
     client_tz = await get_session_timezone(request)
     csrf_token = None
     from .auth import create_csrf_token
     csrf_token = create_csrf_token(current_user.username)
-    return TEMPLATES.TemplateResponse(request, 'search.html', {'request': request, 'q': qparam, 'results': results, 'client_tz': client_tz, 'csrf_token': csrf_token, 'include_list_todos': include_list_todos, 'exclude_completed': exclude_completed, 'priority_sort': priority_sort})
+    return TEMPLATES.TemplateResponse(request, 'search.html', {'request': request, 'q': qparam, 'results': results, 'client_tz': client_tz, 'csrf_token': csrf_token, 'include_list_todos': include_list_todos, 'exclude_completed': exclude_completed, 'priority_sort': priority_sort, 'mode': mode})
 
 
 @app.get('/html_no_js/calendar', response_class=HTMLResponse)
