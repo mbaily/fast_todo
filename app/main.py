@@ -9851,12 +9851,46 @@ async def html_search(request: Request):
             search_tags = []
         async with async_session() as sess:
             owner_id = current_user.id
+            # Resolve user's Trash list id and lists moved to Trash
+            trash_list_id: int | None = None
+            try:
+                q_trash = await sess.exec(select(ListState.id).where(ListState.owner_id == owner_id).where(ListState.name == 'Trash'))
+                trash_list_id = q_trash.first()
+                if isinstance(trash_list_id, tuple):
+                    trash_list_id = trash_list_id[0]
+            except Exception:
+                trash_list_id = None
+            trashed_list_ids: set[int] = set()
+            try:
+                q_ltrash = await sess.exec(select(ListTrashMeta.list_id))
+                for row in q_ltrash.all():
+                    try:
+                        lid = int(row[0] if isinstance(row, tuple) else row)
+                    except Exception:
+                        try:
+                            lid = int(getattr(row, 'list_id'))
+                        except Exception:
+                            continue
+                    trashed_list_ids.add(lid)
+            except Exception:
+                trashed_list_ids = set()
             # search lists visible to user by name
             qlists = select(ListState).where(ListState.owner_id == owner_id).where(ListState.name.ilike(like))
             if exclude_completed:
                 qlists = qlists.where(ListState.completed == False)
             rlists = await sess.exec(qlists)
-            lists_by_id: dict[int, ListState] = {l.id: l for l in rlists.all()}
+            lists_by_id: dict[int, ListState] = {}
+            for l in rlists.all():
+                try:
+                    lid = getattr(l, 'id', None)
+                    # Exclude lists moved to Trash or nested under Trash list
+                    if lid in trashed_list_ids:
+                        continue
+                    if trash_list_id is not None and getattr(l, 'parent_list_id', None) == trash_list_id:
+                        continue
+                    lists_by_id[l.id] = l
+                except Exception:
+                    continue
             # add lists visible to user that match by hashtag
             if search_tags:
                 qlh = (
@@ -9870,7 +9904,15 @@ async def html_search(request: Request):
                     qlh = qlh.where(ListState.completed == False)
                 rlh = await sess.exec(qlh)
                 for l in rlh.all():
-                    lists_by_id.setdefault(l.id, l)
+                    try:
+                        lid = getattr(l, 'id', None)
+                        if lid in trashed_list_ids:
+                            continue
+                        if trash_list_id is not None and getattr(l, 'parent_list_id', None) == trash_list_id:
+                            continue
+                        lists_by_id.setdefault(l.id, l)
+                    except Exception:
+                        continue
             # Build list results including priority and hashtags so the
             # no-JS search template can render inline priority-circle and tag chips.
             list_ids = [l.id for l in lists_by_id.values()]
@@ -9902,6 +9944,7 @@ async def html_search(request: Request):
                     'completed': getattr(l, 'completed', False),
                     'priority': getattr(l, 'priority', None),
                     'tags': sorted(list_tags_map.get(int(l.id), [])) if list_tags_map else [],
+                    'trashed': (int(l.id) in trashed_list_ids) or (trash_list_id is not None and getattr(l, 'parent_list_id', None) == trash_list_id),
                 }
                 for l in lists_by_id.values()
                 # Already filtered by SQL when exclude_completed is True
@@ -9910,7 +9953,18 @@ async def html_search(request: Request):
             # search todos in visible lists
             qvis = select(ListState).where((ListState.owner_id == owner_id) | (ListState.owner_id == None))
             rvis = await sess.exec(qvis)
-            vis_ids = [l.id for l in rvis.all()]
+            vis_ids = []
+            for l in rvis.all():
+                try:
+                    lid = getattr(l, 'id', None)
+                    # Exclude lists moved to trash, lists nested under Trash, and the Trash list itself
+                    if lid in trashed_list_ids:
+                        continue
+                    if trash_list_id is not None and (lid == trash_list_id or getattr(l, 'parent_list_id', None) == trash_list_id):
+                        continue
+                    vis_ids.append(lid)
+                except Exception:
+                    continue
             todos_acc: dict[int, Todo] = {}
             if vis_ids:
                 # text/note match
@@ -10005,6 +10059,7 @@ async def html_search(request: Request):
                         'completed': (int(t.id) in completed_ids),
                         'priority': getattr(t, 'priority', None),
                         'tags': sorted(todo_tags_map.get(int(t.id), [])) if todo_tags_map else [],
+                        'trashed': (trash_list_id is not None and int(t.list_id) == int(trash_list_id)) or (int(t.list_id) in trashed_list_ids),
                     }
                     # Already filtered by SQL when exclude_completed is True
                     for t in todos_acc.values()
@@ -10014,11 +10069,11 @@ async def html_search(request: Request):
                 combined: list[dict] = []
                 idx = 0
                 for l in results.get('lists', []):
-                    entry = dict(type='list', id=l.get('id'), name=l.get('name'), completed=l.get('completed'), priority=l.get('priority'), tags=l.get('tags', []), orig_index=idx)
+                    entry = dict(type='list', id=l.get('id'), name=l.get('name'), completed=l.get('completed'), priority=l.get('priority'), tags=l.get('tags', []), trashed=l.get('trashed', False), orig_index=idx)
                     combined.append(entry)
                     idx += 1
                 for t in results.get('todos', []):
-                    entry = dict(type='todo', id=t.get('id'), text=t.get('text'), note=t.get('note'), list_id=t.get('list_id'), list_name=t.get('list_name'), completed=t.get('completed'), priority=t.get('priority'), tags=t.get('tags', []), orig_index=idx)
+                    entry = dict(type='todo', id=t.get('id'), text=t.get('text'), note=t.get('note'), list_id=t.get('list_id'), list_name=t.get('list_name'), completed=t.get('completed'), priority=t.get('priority'), tags=t.get('tags', []), trashed=t.get('trashed', False), orig_index=idx)
                     combined.append(entry)
                     idx += 1
 

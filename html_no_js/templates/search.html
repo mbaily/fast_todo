@@ -24,6 +24,7 @@
             <div class="list-main">
               <span class="list-inline">
                   <span class="match-icon">📁</span>
+                  {% if it.trashed %}<span class="ml-1" title="In Trash">🗑️</span>{% endif %}
                   <a class="list-title {% if it.completed %}done{% endif %}" href="/html_no_js/lists/{{ it.id }}">{{ it.name }}</a>
                 {% if it.priority %}
                   <span class="meta priority-inline" title="List priority {{ it.priority }}" style="margin-left:0.5rem;"><span class="priority-circle">{{ circ.get(it.priority, it.priority) }}</span></span>
@@ -42,6 +43,7 @@
             <div class="todo-content">
               <div class="todo-main">
                 <span class="todo-inline">
+                  {% if it.trashed %}<span class="mr-1" title="In Trash">🗑️</span>{% endif %}
                   <a href="/html_no_js/todos/{{ it.id }}" class="{% if it.completed %}done{% endif %}">{{ it.text }}</a>
                   {% if it.priority %}
                     <span class="meta priority-inline" title="Priority {{ it.priority }}" style="margin-left:0.5rem;"><span class="priority-circle">{{ circ.get(it.priority, it.priority) }}</span></span>
