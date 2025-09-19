@@ -13425,6 +13425,64 @@ async def html_view_trash(request: Request, current_user: User = Depends(require
     async with async_session() as sess:
         q = await sess.scalars(select(ListState).where(ListState.owner_id == current_user.id).where(ListState.name == 'Trash'))
         trash = q.first()
+
+        # Opportunistic cleanup: remove stale ListTrashMeta rows for this user
+        # that do not correspond to lists currently under their Trash, or
+        # whose list rows no longer exist. These stale rows can accumulate
+        # when a list is moved out of Trash via generic move operations that
+        # bypass the dedicated restore endpoint.
+        try:
+            # Determine this user's Trash list id (if any)
+            trash_id = getattr(trash, 'id', None)
+            # Fetch candidate meta rows either originally owned by the user
+            # or whose current list owner is the user. We join to ListState
+            # when present to check the current parent_list_id.
+            mq = (
+                select(ListTrashMeta.id, ListTrashMeta.list_id, ListTrashMeta.original_owner_id, ListState.parent_list_id, ListState.owner_id)
+                .select_from(ListTrashMeta)
+                .join(ListState, ListState.id == ListTrashMeta.list_id, isouter=True)
+            )
+            mres = await sess.exec(mq)
+            stale_ids: list[int] = []
+            for row in mres.all():
+                try:
+                    # Row can be tuple depending on driver
+                    if isinstance(row, (tuple, list)):
+                        meta_id, list_id, orig_owner_id, parent_list_id, cur_owner_id = (
+                            int(row[0]) if row[0] is not None else None,
+                            int(row[1]) if row[1] is not None else None,
+                            int(row[2]) if row[2] is not None else None,
+                            int(row[3]) if row[3] is not None else None,
+                            int(row[4]) if row[4] is not None else None,
+                        )
+                    else:
+                        meta_id = int(getattr(row, 'id'))
+                        list_id = int(getattr(row, 'list_id'))
+                        orig_owner_id = getattr(row, 'original_owner_id')
+                        parent_list_id = getattr(row, 'parent_list_id', None)
+                        cur_owner_id = getattr(row, 'owner_id', None)
+                except Exception:
+                    continue
+                # Only consider rows associated with this user
+                if (orig_owner_id != current_user.id) and (cur_owner_id != current_user.id):
+                    continue
+                # If list is missing (parent_list_id is None because row joined is NULL and cur_owner_id is None)
+                # or list is not under this user's Trash, mark meta as stale.
+                # Note: if trash_id is None (no Trash yet), any meta for this user's lists is stale.
+                missing_list = (cur_owner_id is None and parent_list_id is None)
+                not_under_trash = (trash_id is None) or (parent_list_id != trash_id)
+                if missing_list or not_under_trash:
+                    if meta_id is not None:
+                        stale_ids.append(meta_id)
+            if stale_ids:
+                try:
+                    await sess.exec(sqlalchemy_delete(ListTrashMeta).where(ListTrashMeta.id.in_(stale_ids)))
+                    await sess.commit()
+                except Exception:
+                    await sess.rollback()
+        except Exception:
+            # Non-fatal: if cleanup fails, continue to render the trash page.
+            pass
         todos = []
         lists = []
         if trash:
