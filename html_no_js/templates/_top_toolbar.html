@@ -45,14 +45,7 @@
     <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M8 1L2 5v8h12V5L8 1zM8 2.2l4 2.2v6.8H4V4.4l4-2.2z"/></svg>
   </a>
 
-  {# Back to lists - link to main lists index. Hide on the lists index itself (# requirement) #}
-  {% set _path = (request.path if request is defined and request.path is defined else (request.url.path if request is defined and request.url is defined else '')) %}
-  {% if not (_path == '/html_no_js/' or _path == '/html_no_js' or _path.startswith('/html_no_js/todos')) %}
-    <a class="tb-item" href="/html_no_js/">
-      <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M6.5 3.5L2 8l4.5 4.5L8 11.5 5.75 9.25H14v-2.5H5.75L8 4.5 6.5 3.5z"/></svg>
-      <span class="label">Lists</span>
-    </a>
-  {% endif %}
+  {# Removed redundant 'Lists' button: Home button provides the same navigation #}
 
   {# Optional Back to List - only render if context provides 'back_to_list_url' #}
   {% if back_to_list_url %}
@@ -80,8 +73,7 @@
 
   <div class="spacer" aria-hidden="true"></div>
 
-            <a href="/html_no_js/priorities" class="button" title="Priority summary">Priorities</a>
-        <a href="/html_no_js/" class="button">Lists</a>
+      <a href="/html_no_js/priorities" class="button" title="Priority summary">Priorities</a>
 
   {# Prefer rendering a Logout POST form so pages like the calendar show Logout instead of Login.
      If `csrf_token` is present include the hidden field; if not present still render the form as a
