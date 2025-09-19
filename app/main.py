@@ -8334,6 +8334,32 @@ async def html_index(request: Request):
         from .auth import create_csrf_token
         csrf_token = create_csrf_token(current_user.username)
     client_tz = await get_session_timezone(request)
+    # Compute lists created in the last 24 hours for convenience strip
+    # Always query DB for recent 24h lists to avoid page/cursor gaps and tz issues
+    recent_24h = []
+    try:
+        from datetime import timedelta
+        cutoff = now_utc() - timedelta(hours=24)
+        async with async_session() as sess2:
+            q = (
+                select(ListState.id, ListState.name, ListState.created_at)
+                .where(ListState.owner_id == owner_id)
+                .where(ListState.parent_todo_id == None)
+                .where(ListState.parent_list_id == None)
+                .where(ListState.created_at >= cutoff)
+                .order_by(ListState.created_at.desc(), ListState.id.desc())
+                .limit(25)
+            )
+            rows = (await sess2.exec(q)).all()
+            recent_24h = [
+                { 'id': rid, 'name': nm, 'created_at': ca }
+                for (rid, nm, ca) in rows
+            ]
+        # Sort newest first
+        recent_24h.sort(key=lambda r: (r.get('created_at') or now_utc(), r.get('id') or 0), reverse=True)
+    except Exception:
+        recent_24h = []
+
     # Allow a developer override via query param to force the iOS-only template
     # for testing (e.g., /html_no_js/?force_ios=1). Otherwise, fall back to
     # automatic UA detection.
@@ -8378,12 +8404,12 @@ async def html_index(request: Request):
         if force_ios:
             logger.info('html_index: rendering index_ios_safari (forced) ua=%s', ua[:200])
             circ_map = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'}
-            ctx = {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "bookmarked_todos": bookmarked_todos, "bookmarked_lists": bookmarked_lists, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "high_priority_items": context_high_priority_items if 'context_high_priority_items' in locals() else [], "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "show_all_tags": show_all_tags, "circ": circ_map}
+            ctx = {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "bookmarked_todos": bookmarked_todos, "bookmarked_lists": bookmarked_lists, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "high_priority_items": context_high_priority_items if 'context_high_priority_items' in locals() else [], "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "show_all_tags": show_all_tags, "circ": circ_map, "recent_lists_24h": recent_24h}
             return _render_and_log("index_ios_safari.html", ctx)
         if is_ios_safari(request):
             logger.info('html_index: rendering index_ios_safari (ua-detected) ua=%s', ua[:200])
             circ_map = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'}
-            ctx = {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "bookmarked_todos": bookmarked_todos, "bookmarked_lists": bookmarked_lists, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "high_priority_items": context_high_priority_items if 'context_high_priority_items' in locals() else [], "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "show_all_tags": show_all_tags, "circ": circ_map}
+            ctx = {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "bookmarked_todos": bookmarked_todos, "bookmarked_lists": bookmarked_lists, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "high_priority_items": context_high_priority_items if 'context_high_priority_items' in locals() else [], "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "show_all_tags": show_all_tags, "circ": circ_map, "recent_lists_24h": recent_24h}
             return _render_and_log("index_ios_safari.html", ctx)
 
         logger.info('html_index: rendering index.html (default) ua=%s', ua[:200])
@@ -8422,7 +8448,7 @@ async def html_index(request: Request):
             pass
 
         circ_map = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'}
-        ctx = {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "bookmarked_todos": bookmarked_todos, "bookmarked_lists": bookmarked_lists, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "high_priority_items": context_high_priority_items if 'context_high_priority_items' in locals() else [], "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "show_all_tags": show_all_tags, "circ": circ_map}
+        ctx = {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "bookmarked_todos": bookmarked_todos, "bookmarked_lists": bookmarked_lists, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "high_priority_items": context_high_priority_items if 'context_high_priority_items' in locals() else [], "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "show_all_tags": show_all_tags, "circ": circ_map, "recent_lists_24h": recent_24h}
         try:
             # non-fatal pre-render to log payload length for diagnostics
             try:

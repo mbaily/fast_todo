@@ -172,6 +172,20 @@
       <button type="submit">Create</button>
     </form>
 
+    {% if recent_lists_24h and recent_lists_24h|length > 0 %}
+    <div class="meta" style="margin:0.35rem 0 0.6rem;">
+      <strong>🕒 Created in last 24h:</strong>
+      <ul style="list-style:none; padding-left:0; margin:0.25rem 0 0; display:flex; gap:0.75rem; flex-wrap:wrap;">
+        {% for r in recent_lists_24h %}
+          <li style="display:inline-flex; align-items:center; gap:0.25rem;">
+            <span aria-hidden="true" title="Created in last 24h">🕒</span>
+            <a href="/html_no_js/lists/{{ r.id }}" title="Created {{ r.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}">{{ r.name }}</a>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
     <!-- Quick add todo for iOS standalone -->
     <form id="quick-add-form" autocomplete="off" style="margin:0.6rem 0; display:flex; gap:0.5rem; align-items:center;">
       {% if csrf_token %}
