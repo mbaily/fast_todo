@@ -48,6 +48,9 @@
       {% if root_list_id is not none %}
       <input type="hidden" name="root_list_id" value="{{ root_list_id }}">
       {% endif %}
+      {% if view_id is not none %}
+      <input type="hidden" name="view_id" value="{{ view_id }}">
+      {% endif %}
       {% if roots %}
       <input type="hidden" name="roots" value="1">
       {% endif %}
@@ -78,6 +81,17 @@
     </label>
     <button type="submit" class="btn" form="tree-bulk-move-form" formaction="/html_no_js/tree/bulk_link" title="Create links using selected and destination">Link</button>
     <a class="btn" href="/html_no_js/linkmap" title="Open interactive link map">Link map</a>
+    <span class="meta" aria-hidden="true">|</span>
+    <label style="display:inline-flex; align-items:center; gap:0.25rem;">
+      <input type="text" id="tree-view-name" placeholder="Save as view…" style="min-width:12rem;" />
+    </label>
+    <button type="button" class="btn" id="save-tree-view" title="Save selected checkboxes as a named view">Save view</button>
+    <div class="dropdown" style="position:relative;">
+      <button type="button" class="btn" id="manage-views-btn" aria-haspopup="true" aria-expanded="false">Views ▾</button>
+      <div id="views-menu" class="menu" style="display:none; position:absolute; z-index:30; background:#fff; border:1px solid #e5e7eb; border-radius:0.25rem; padding:0.25rem; min-width:12rem;">
+        <div class="meta" style="padding:0.25rem 0.5rem;">Loading…</div>
+      </div>
+    </div>
     {% if root_list_id %}
         <span class="meta" aria-hidden="true">|</span>
         <a class="btn" href="/html_no_js/tree{% if roots %}?roots=1{% endif %}" title="Back to top">Top</a>
@@ -102,6 +116,9 @@
   </div>
 
   <h2>Tree{% if root_name %}: {{ root_name }}{% endif %}</h2>
+  {% if view_mode %}
+    <div class="meta" style="margin-top:-0.35rem; margin-bottom:0.5rem;">Saved view: <strong>{{ view_name }}</strong> — selected nodes are roots of this view; their children are shown as usual.</div>
+  {% endif %}
   {% if moved is not none or skipped is not none %}
     <div class="meta" style="margin-bottom:0.35rem;">
       {% if moved is not none %}Moved: {{ moved }}{% endif %}
@@ -149,7 +166,40 @@
     </li>
   {% endmacro %}
 
-  {% if root_list_id %}
+  {% if view_mode %}
+    {# Render a saved view: lists as root nodes; todos are shown with their child lists #}
+    {% if (view_list_roots and view_list_roots|length > 0) or (view_todo_roots and view_todo_roots|length > 0) %}
+      {% if view_list_roots and view_list_roots|length > 0 %}
+        <ul class="tree">
+          {% for node in view_list_roots %}
+            {{ render_node(node) }}
+          {% endfor %}
+        </ul>
+      {% endif %}
+      {% if view_todo_roots and view_todo_roots|length > 0 %}
+        <h3 class="muted" style="margin-top:0.75rem;">Todos</h3>
+        <ul class="tree">
+          {% for t in view_todo_roots %}
+            <li>
+              <input type="checkbox" class="tree-select" data-item-type="todo" name="todo_ids" value="{{ t.id }}" form="tree-bulk-move-form" title="Select todo (double-click to set destination)">
+              <span class="icon" aria-hidden="true" title="Todo">📝</span>
+              <a id="todo-{{ t.id }}" class="{% if t.completed %}done{% endif %}" href="/html_no_js/todos/{{ t.id }}">{% if t.completed %}<s>{{ t.text }}</s>{% else %}{{ t.text }}{% endif %}</a>
+              {% if t.priority %}<span class="meta priority-inline" title="Priority {{ t.priority }}" style="margin-left:0.35rem;"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>{% endif %}
+              {% if t.child_lists and t.child_lists|length > 0 %}
+                <ul class="tree">
+                  {% for sub in t.child_lists %}
+                    {{ render_node(sub) }}
+                  {% endfor %}
+                </ul>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% else %}
+      <div class="meta">This view is empty.</div>
+    {% endif %}
+  {% elif root_list_id %}
     {# Focused on a specific root list; render the regular tree #}
     {% if tree and tree|length > 0 %}
       <ul class="tree">
@@ -263,6 +313,91 @@
         var todoLis = Array.prototype.slice.call(document.querySelectorAll('li > a[id^="todo-"]'))
           .map(function(a){ return a && a.closest('li'); })
           .filter(function(li){ return !!li; });
+        // Views dropdown
+        var btn = document.getElementById('manage-views-btn');
+        var menu = document.getElementById('views-menu');
+        function fetchViews(){
+          if (!menu) return;
+          fetch('/html_no_js/tree/views', { credentials:'same-origin' })
+            .then(function(r){ return r.json(); })
+            .then(function(data){
+              var html = '';
+              if (data && data.ok && data.views && data.views.length){
+                html += '<ul style="list-style:none; padding:0; margin:0;">';
+                data.views.forEach(function(v){
+                  var q = '?view_id=' + encodeURIComponent(v.id)
+                        + ({% if root_list_id is not none %}'&root_list_id={{ root_list_id }}'{% else %}''{% endif %})
+                        + ({% if show_todos %}'&show_todos=1'{% else %}''{% endif %})
+                        + ({% if roots %}'&roots=1'{% else %}''{% endif %});
+                  html += '<li style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; padding:0.25rem 0.5rem;">'
+                       +  '<a href="/html_no_js/tree' + q + '" class="btn" style="flex:1; text-align:left;">' + v.name.replace(/</g,'&lt;') + '</a>'
+                       +  '<button type="button" data-id="' + v.id + '" class="btn danger delete-view" title="Delete view">✕</button>'
+                       +  '</li>';
+                });
+                html += '</ul>';
+              } else {
+                html = '<div class="meta" style="padding:0.25rem 0.5rem;">No saved views.</div>';
+              }
+              menu.innerHTML = html;
+              Array.prototype.slice.call(menu.querySelectorAll('.delete-view')).forEach(function(b){
+                b.addEventListener('click', function(){
+                  var id = b.getAttribute('data-id');
+                  if (!id) return;
+                  fetch('/html_no_js/tree/views/' + id, { method:'DELETE', credentials:'same-origin' })
+                    .then(function(r){ return r.json(); })
+                    .then(function(){ fetchViews(); });
+                });
+              });
+            })
+            .catch(function(){ menu.innerHTML = '<div class="meta" style="padding:0.25rem 0.5rem;">Failed to load.</div>'; });
+        }
+        if (btn && menu){
+          btn.addEventListener('click', function(){
+            var isOpen = menu.style.display !== 'none';
+            menu.style.display = isOpen ? 'none' : 'block';
+            if (!isOpen) fetchViews();
+          });
+          document.addEventListener('click', function(ev){ if (!menu.contains(ev.target) && ev.target !== btn){ menu.style.display = 'none'; } });
+        }
+        // Save view action
+        var saveBtn = document.getElementById('save-tree-view');
+        var nameInput = document.getElementById('tree-view-name');
+        function collectSelected(){
+          var listIds = []; var todoIds = [];
+          Array.prototype.slice.call(document.querySelectorAll('input.tree-select:checked')).forEach(function(cb){
+            var typ = cb.getAttribute('data-item-type');
+            var val = cb.value;
+            if (!typ || !val) return;
+            if (typ === 'list') listIds.push(parseInt(val,10));
+            else if (typ === 'todo') todoIds.push(parseInt(val,10));
+          });
+          return { list_ids: listIds, todo_ids: todoIds };
+        }
+        function getCSRF(){ try { return document.querySelector('input[name="_csrf"]').value; } catch(e){ return null; } }
+        if (saveBtn){
+          saveBtn.addEventListener('click', function(){
+            var nm = nameInput ? (nameInput.value || '').trim() : '';
+            if (!nm) { alert('Enter a view name'); return; }
+            var sel = collectSelected();
+            if ((!sel.list_ids || !sel.list_ids.length) && (!sel.todo_ids || !sel.todo_ids.length)){
+              alert('Select at least one list or todo');
+              return;
+            }
+            fetch('/html_no_js/tree/save_view', {
+              method:'POST', credentials:'same-origin',
+              headers:{ 'Content-Type':'application/json' },
+              body: JSON.stringify({ name: nm, list_ids: sel.list_ids, todo_ids: sel.todo_ids })
+            }).then(function(r){ return r.json(); }).then(function(data){
+              if (data && data.ok){
+                nameInput.value = '';
+                // Refresh views menu if open
+                if (menu && menu.style.display !== 'none') fetchViews();
+              } else {
+                alert('Failed to save view' + (data && data.error ? ': ' + data.error : ''));
+              }
+            }).catch(function(){ alert('Failed to save view'); });
+          });
+        }
         todoLis.forEach(function(li){
           try {
             var a = li.querySelector('a[id^="todo-"]');

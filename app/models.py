@@ -398,6 +398,39 @@ class ItemLink(SQLModel, table=True):
     )
 
 
+class TreeView(SQLModel, table=True):
+    """A named, per-user saved view of selected tree roots.
+
+    Enforces unique name per user.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key='user.id', index=True)
+    name: str
+    created_at: datetime | None = Field(default_factory=now_utc)
+    # Arbitrary JSON metadata (JSON-encoded string)
+    metadata_json: Optional[str] = None
+
+    __table_args__ = (
+        UniqueConstraint('user_id', 'name', name='uq_treeview_user_name'),
+    )
+
+
+class TreeViewItem(SQLModel, table=True):
+    """Items that compose a TreeView: each is a root node of type 'list' or 'todo'."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    view_id: int = Field(foreign_key='treeview.id', index=True)
+    item_type: str  # 'list' or 'todo'
+    item_id: int
+    position: Optional[int] = Field(default=None, index=True)
+    created_at: datetime | None = Field(default_factory=now_utc)
+    # Arbitrary JSON metadata (JSON-encoded string)
+    metadata_json: Optional[str] = None
+
+    __table_args__ = (
+        UniqueConstraint('view_id', 'item_type', 'item_id', name='uq_treeviewitem_unique'),
+    )
+
+
 class UserCollation(SQLModel, table=True):
     """Per-user collation list memberships with an active toggle.
 

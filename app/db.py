@@ -382,6 +382,53 @@ def _ensure_sqlite_minimal_migrations(url: str | None) -> None:
                     cur.execute("CREATE INDEX IF NOT EXISTS ix_userlistprefs_completed_after ON userlistprefs(completed_after)")
                 except Exception:
                     pass
+            # Ensure treeview and treeviewitem tables exist for saved tree views
+            try:
+                cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='treeview'")
+                exists_tv = cur.fetchone() is not None
+            except Exception:
+                exists_tv = True
+            if not exists_tv:
+                try:
+                    cur.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS treeview (
+                          id INTEGER PRIMARY KEY,
+                          user_id INTEGER NOT NULL,
+                          name TEXT NOT NULL,
+                          created_at DATETIME,
+                          metadata_json TEXT
+                        )
+                        """
+                    )
+                    cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_treeview_user_name ON treeview(user_id, name)")
+                    cur.execute("CREATE INDEX IF NOT EXISTS ix_treeview_user ON treeview(user_id)")
+                except Exception:
+                    pass
+            try:
+                cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='treeviewitem'")
+                exists_tvi = cur.fetchone() is not None
+            except Exception:
+                exists_tvi = True
+            if not exists_tvi:
+                try:
+                    cur.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS treeviewitem (
+                          id INTEGER PRIMARY KEY,
+                          view_id INTEGER NOT NULL,
+                          item_type TEXT NOT NULL,
+                          item_id INTEGER NOT NULL,
+                          position INTEGER,
+                          created_at DATETIME,
+                          metadata_json TEXT
+                        )
+                        """
+                    )
+                    cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_treeviewitem_unique ON treeviewitem(view_id, item_type, item_id)")
+                    cur.execute("CREATE INDEX IF NOT EXISTS ix_treeviewitem_view_pos ON treeviewitem(view_id, position)")
+                except Exception:
+                    pass
             # Ensure itemlink.owner_id column exists for older DBs and backfill from liststate
             try:
                 cur.execute("PRAGMA table_info('itemlink')")

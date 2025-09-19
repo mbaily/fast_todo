@@ -7,6 +7,7 @@ from sqlalchemy import and_, or_
 from sqlalchemy import exists
 from .db import async_session, init_db
 from .models import ListState, Todo, CompletionType, TodoCompletion, User
+from .models import TreeView, TreeViewItem
 from .models import EventLog
 from .auth import get_current_user, create_access_token, require_login, CSRF_TOKEN_EXPIRE_MINUTES, CSRF_TOKEN_EXPIRE_SECONDS
 from pydantic import BaseModel
@@ -11978,7 +11979,7 @@ async def html_recent_lists(request: Request, current_user: User = Depends(requi
 
 
 @app.get('/html_no_js/tree', response_class=HTMLResponse)
-async def html_tree_view(request: Request, root_list_id: int | None = None, show_todos: bool = False, roots: bool = False, moved: int | None = None, skipped: int | None = None, current_user: User = Depends(require_login)):
+async def html_tree_view(request: Request, root_list_id: int | None = None, show_todos: bool = False, roots: bool = False, moved: int | None = None, skipped: int | None = None, view_id: int | None = None, view: str | None = None, current_user: User = Depends(require_login)):
     """Render a hierarchical tree of lists. Optional todos per list.
     Query params:
       - root_list_id: if provided, show the tree rooted at this list; otherwise show all top-level lists.
@@ -12225,7 +12226,218 @@ async def html_tree_view(request: Request, root_list_id: int | None = None, show
         root_parent_todo_id: int | None = None  # parent todo id, if any
         root_parent_is_top_level: bool = False  # whether parent list is a top-level list
         root_parent_todo_list_id: int | None = None  # the list id that contains the parent todo
-        if root_list_id:
+        # Saved views context
+        view_mode = False
+        view_name: str | None = None
+        view_id_val: int | None = None
+        view_list_roots: list[dict] = []
+        view_todo_roots: list[dict] = []
+        # Defaults for category-related context to avoid UnboundLocalError in view mode
+        categories: list[dict] = []
+        tree_by_category: dict[int, list[dict]] = {}
+        # Load a saved view if requested via ?view_id= or ?view=
+        if (view_id is not None) or (view is not None and str(view).strip()):
+            qv = select(TreeView).where(TreeView.user_id == owner_id)
+            if view_id is not None:
+                qv = qv.where(TreeView.id == int(view_id))
+            else:
+                qv = qv.where(TreeView.name == str(view).strip())
+            vres = await sess.exec(qv)
+            tv = vres.first()
+            if not tv:
+                raise HTTPException(status_code=404, detail='view not found')
+            view_mode = True
+            view_name = getattr(tv, 'name', None)
+            try:
+                view_id_val = int(getattr(tv, 'id'))
+            except Exception:
+                view_id_val = None
+            itres = await sess.exec(
+                select(TreeViewItem).where(TreeViewItem.view_id == int(tv.id)).order_by(TreeViewItem.position.asc().nulls_last(), TreeViewItem.id.asc())
+            )
+            items = itres.all()
+            async def _build_list_root_node(list_id: int) -> dict:
+                lst = await sess.get(ListState, int(list_id))
+                if not lst or int(getattr(lst, 'owner_id', -1)) != int(owner_id):
+                    raise HTTPException(status_code=404, detail='list not found in view')
+                node = {
+                    'id': int(lst.id),
+                    'name': lst.name,
+                    'completed': getattr(lst, 'completed', False),
+                    'priority': getattr(lst, 'priority', None),
+                    'override_priority': None,
+                    'category_id': getattr(lst, 'category_id', None),
+                    'hashtags': [],
+                    'children': [],
+                }
+                try:
+                    sec_map = await compute_secondary_for_lists([int(lst.id)])
+                    node['override_priority'] = sec_map.get(int(lst.id))
+                except Exception:
+                    node['override_priority'] = None
+                try:
+                    h = await sess.exec(
+                        select(Hashtag.tag).join(ListHashtag, ListHashtag.hashtag_id == Hashtag.id).where(ListHashtag.list_id == int(lst.id))
+                    )
+                    node['hashtags'] = [r[0] if isinstance(r, tuple) else r for r in h.all()]
+                except Exception:
+                    node['hashtags'] = []
+                if show_todos:
+                    t_exec = await sess.exec(select(Todo).where(Todo.list_id == int(lst.id)).order_by(Todo.created_at.asc()))
+                    trows = t_exec.all()
+                    t_ids = [int(t.id) for t in trows]
+                    completed: set[int] = set()
+                    if t_ids:
+                        qcomp3 = (
+                            select(TodoCompletion.todo_id)
+                            .join(CompletionType, CompletionType.id == TodoCompletion.completion_type_id)
+                            .where(TodoCompletion.todo_id.in_(t_ids))
+                            .where(CompletionType.name == 'default')
+                            .where(TodoCompletion.done == True)
+                        )
+                        comp_rows = await sess.exec(qcomp3)
+                        completed = set(int(v[0] if isinstance(v, tuple) else v) for v in comp_rows.all())
+                    node['todos'] = [{ 'id': int(t.id), 'text': t.text, 'priority': getattr(t, 'priority', None), 'completed': int(t.id) in completed, 'child_lists': [] } for t in trows]
+                    if t_ids and not roots:
+                        q_subs = (
+                            select(ListState)
+                            .where(ListState.owner_id == owner_id)
+                            .where(ListState.parent_todo_id.in_(t_ids))
+                            .order_by(ListState.created_at.asc())
+                        )
+                        r_subs = await sess.exec(q_subs)
+                        subs = r_subs.all()
+                        sub_ids = [int(s.id) for s in subs if s.id is not None]
+                        sub_tag_map: dict[int, list[str]] = {}
+                        if sub_ids:
+                            sth = await sess.exec(
+                                select(ListHashtag.list_id, Hashtag.tag)
+                                .where(ListHashtag.list_id.in_(sub_ids))
+                                .join(Hashtag, Hashtag.id == ListHashtag.hashtag_id)
+                            )
+                            for lid, tag in sth.all():
+                                try:
+                                    sub_tag_map.setdefault(int(lid), []).append(tag)
+                                except Exception:
+                                    continue
+                        sub_sec = await compute_secondary_for_lists(sub_ids) if sub_ids else {}
+                        subs_by_todo: dict[int, list[dict]] = {}
+                        for s in subs:
+                            try:
+                                parent_tid = int(getattr(s, 'parent_todo_id', None)) if getattr(s, 'parent_todo_id', None) is not None else None
+                            except Exception:
+                                parent_tid = None
+                            if parent_tid is None:
+                                continue
+                            n = {
+                                'id': int(s.id),
+                                'name': s.name,
+                                'completed': getattr(s, 'completed', False),
+                                'priority': getattr(s, 'priority', None),
+                                'override_priority': sub_sec.get(int(s.id)) if sub_sec else None,
+                                'hashtags': sub_tag_map.get(int(s.id), []),
+                                'children': [],
+                            }
+                            try:
+                                n['children'] = await build_tree(int(s.id), 1, 8)
+                            except Exception:
+                                n['children'] = []
+                            subs_by_todo.setdefault(parent_tid, []).append(n)
+                        for trow in node.get('todos', []):
+                            tid = int(trow.get('id'))
+                            trow['child_lists'] = subs_by_todo.get(tid, [])
+                if roots:
+                    node['children'] = await fetch_children(int(lst.id), include_todos_override=False)
+                else:
+                    node['children'] = await build_tree(int(lst.id), 0)
+                return node
+            async def _build_todo_root_node(todo_id: int) -> dict:
+                t = await sess.get(Todo, int(todo_id))
+                if not t:
+                    raise HTTPException(status_code=404, detail='todo not found in view')
+                parent_list = await sess.get(ListState, int(getattr(t, 'list_id')))
+                if not parent_list or int(getattr(parent_list, 'owner_id', -1)) != int(owner_id):
+                    raise HTTPException(status_code=404, detail='todo not accessible')
+                completed = False
+                try:
+                    qcomp = (
+                        select(TodoCompletion.todo_id)
+                        .join(CompletionType, CompletionType.id == TodoCompletion.completion_type_id)
+                        .where(TodoCompletion.todo_id == int(t.id))
+                        .where(CompletionType.name == 'default')
+                        .where(TodoCompletion.done == True)
+                    )
+                    cres = await sess.exec(qcomp)
+                    completed = (cres.first() is not None)
+                except Exception:
+                    completed = False
+                node = {
+                    'id': int(t.id),
+                    'text': t.text,
+                    'priority': getattr(t, 'priority', None),
+                    'completed': bool(completed),
+                    'child_lists': [],
+                }
+                q_subs = (
+                    select(ListState)
+                    .where(ListState.owner_id == owner_id)
+                    .where(ListState.parent_todo_id == int(t.id))
+                    .order_by(ListState.created_at.asc())
+                )
+                r_subs = await sess.exec(q_subs)
+                subs = r_subs.all()
+                sub_ids = [int(s.id) for s in subs if s.id is not None]
+                sub_tag_map: dict[int, list[str]] = {}
+                if sub_ids:
+                    sth = await sess.exec(
+                        select(ListHashtag.list_id, Hashtag.tag)
+                        .where(ListHashtag.list_id.in_(sub_ids))
+                        .join(Hashtag, Hashtag.id == ListHashtag.hashtag_id)
+                    )
+                    for lid, tag in sth.all():
+                        try:
+                            sub_tag_map.setdefault(int(lid), []).append(tag)
+                        except Exception:
+                            continue
+                sub_sec = await compute_secondary_for_lists(sub_ids) if sub_ids else {}
+                todo_child_lists: list[dict] = []
+                for s in subs:
+                    n = {
+                        'id': int(s.id),
+                        'name': s.name,
+                        'completed': getattr(s, 'completed', False),
+                        'priority': getattr(s, 'priority', None),
+                        'override_priority': sub_sec.get(int(s.id)) if sub_sec else None,
+                        'hashtags': sub_tag_map.get(int(s.id), []),
+                        'children': [],
+                    }
+                    if not roots:
+                        try:
+                            n['children'] = await build_tree(int(s.id), 1, 8)
+                        except Exception:
+                            n['children'] = []
+                    todo_child_lists.append(n)
+                node['child_lists'] = todo_child_lists
+                return node
+            for it in items:
+                typ = (getattr(it, 'item_type', None) or '').lower()
+                try:
+                    iid = int(getattr(it, 'item_id'))
+                except Exception:
+                    continue
+                if typ == 'list':
+                    try:
+                        view_list_roots.append(await _build_list_root_node(iid))
+                    except Exception:
+                        continue
+                elif typ == 'todo':
+                    try:
+                        view_todo_roots.append(await _build_todo_root_node(iid))
+                    except Exception:
+                        continue
+        if view_mode:
+            tree = []
+        elif root_list_id:
             # validate ownership and existence
             root = await sess.get(ListState, root_list_id)
             if not root or int(getattr(root, 'owner_id', -1)) != int(owner_id):
@@ -12427,8 +12639,67 @@ async def html_tree_view(request: Request, root_list_id: int | None = None, show
         "client_tz": await get_session_timezone(request),
         "csrf_token": csrf_token,
         "moved": moved,
-        "skipped": skipped
+        "skipped": skipped,
+        "view_mode": view_mode,
+        "view_name": view_name,
+        "view_list_roots": view_list_roots,
+        "view_todo_roots": view_todo_roots,
+        "view_id": view_id_val,
     })
+
+
+@app.get('/html_no_js/tree/views', response_class=JSONResponse)
+async def list_tree_views(current_user: User = Depends(require_login)):
+    async with async_session() as sess:
+        res = await sess.exec(select(TreeView).where(TreeView.user_id == current_user.id).order_by(TreeView.name.asc()))
+        rows = res.all()
+        return JSONResponse({'ok': True, 'views': [{'id': int(r.id), 'name': r.name} for r in rows]})
+
+
+class SaveViewRequest(BaseModel):
+    name: str
+    list_ids: list[int] = []
+    todo_ids: list[int] = []
+
+
+@app.post('/html_no_js/tree/save_view', response_class=JSONResponse)
+async def save_tree_view(payload: SaveViewRequest, current_user: User = Depends(require_login)):
+    name = (payload.name or '').strip()
+    if not name:
+        return JSONResponse({'ok': False, 'error': 'name_required'}, status_code=400)
+    list_ids = sorted(set(int(x) for x in (payload.list_ids or []) if isinstance(x, int)))
+    todo_ids = sorted(set(int(x) for x in (payload.todo_ids or []) if isinstance(x, int)))
+    if not list_ids and not todo_ids:
+        return JSONResponse({'ok': False, 'error': 'empty_selection'}, status_code=400)
+    async with async_session() as sess:
+        vres = await sess.exec(select(TreeView).where(TreeView.user_id == current_user.id).where(TreeView.name == name))
+        tv = vres.first()
+        if not tv:
+            tv = TreeView(user_id=current_user.id, name=name)
+            sess.add(tv)
+            await sess.commit()
+            await sess.refresh(tv)
+        # Clear existing items
+        await sess.exec(sqlalchemy_delete(TreeViewItem).where(TreeViewItem.view_id == int(tv.id)))
+        pos = 0
+        for lid in list_ids:
+            sess.add(TreeViewItem(view_id=int(tv.id), item_type='list', item_id=int(lid), position=pos)); pos += 1
+        for tid in todo_ids:
+            sess.add(TreeViewItem(view_id=int(tv.id), item_type='todo', item_id=int(tid), position=pos)); pos += 1
+        await sess.commit()
+        return JSONResponse({'ok': True, 'id': int(tv.id), 'name': tv.name, 'count': pos})
+
+
+@app.delete('/html_no_js/tree/views/{view_id}', response_class=JSONResponse)
+async def delete_tree_view(view_id: int, current_user: User = Depends(require_login)):
+    async with async_session() as sess:
+        v = await sess.get(TreeView, int(view_id))
+        if not v or int(getattr(v, 'user_id', -1)) != int(current_user.id):
+            return JSONResponse({'ok': False, 'error': 'not_found'}, status_code=404)
+        await sess.exec(sqlalchemy_delete(TreeViewItem).where(TreeViewItem.view_id == int(v.id)))
+        await sess.exec(sqlalchemy_delete(TreeView).where(TreeView.id == int(v.id)))
+        await sess.commit()
+        return JSONResponse({'ok': True, 'deleted': int(view_id)})
 
 
 @app.post('/html_no_js/tree/bulk_move')
