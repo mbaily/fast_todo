@@ -9836,6 +9836,12 @@ async def html_search(request: Request):
         return RedirectResponse(url='/html_no_js/login', status_code=303)
     qparam = request.query_params.get('q', '').strip()
     include_list_todos = str(request.query_params.get('include_list_todos', '')).lower() in ('1','true','yes','on')
+    # Priority sort toggle: default ON unless explicitly disabled
+    if 'priority_sort' in request.query_params:
+        _ps_val = str(request.query_params.get('priority_sort', '')).lower()
+        priority_sort = (_ps_val in ('1','true','yes','on'))
+    else:
+        priority_sort = True
     # Default to excluding completed when the parameter is not supplied (so UI default is respected)
     if 'exclude_completed' in request.query_params:
         exclude_completed = str(request.query_params.get('exclude_completed', '')).lower() in ('1','true','yes','on')
@@ -10077,20 +10083,19 @@ async def html_search(request: Request):
                     combined.append(entry)
                     idx += 1
 
-                # Sort by priority: highest numeric first, lower next, then None last. Preserve original order for equal priorities.
-                def priority_sort_key(item):
-                    p = item.get('priority')
-                    # highest first -> use negative; None -> place after all numbers
-                    primary = (-int(p)) if (p is not None) else float('inf')
-                    return (primary, item.get('orig_index', 0))
-
-                combined.sort(key=priority_sort_key)
+                # Sort by priority (if enabled): highest numeric first; otherwise preserve original order
+                if priority_sort:
+                    def priority_sort_key(item):
+                        p = item.get('priority')
+                        primary = (-int(p)) if (p is not None) else float('inf')
+                        return (primary, item.get('orig_index', 0))
+                    combined.sort(key=priority_sort_key)
                 results['combined'] = combined
     client_tz = await get_session_timezone(request)
     csrf_token = None
     from .auth import create_csrf_token
     csrf_token = create_csrf_token(current_user.username)
-    return TEMPLATES.TemplateResponse(request, 'search.html', {'request': request, 'q': qparam, 'results': results, 'client_tz': client_tz, 'csrf_token': csrf_token, 'include_list_todos': include_list_todos, 'exclude_completed': exclude_completed})
+    return TEMPLATES.TemplateResponse(request, 'search.html', {'request': request, 'q': qparam, 'results': results, 'client_tz': client_tz, 'csrf_token': csrf_token, 'include_list_todos': include_list_todos, 'exclude_completed': exclude_completed, 'priority_sort': priority_sort})
 
 
 @app.get('/html_no_js/calendar', response_class=HTMLResponse)

@@ -13,6 +13,10 @@
     <input type="hidden" name="exclude_completed" value="0">
     <input type="checkbox" name="exclude_completed" value="1" {% if exclude_completed is not defined %}checked{% elif exclude_completed %}checked{% endif %}> exclude completed
   </label>
+  <label style="margin-left:0.5rem">
+    <input type="hidden" name="priority_sort" value="0">
+    <input id="priority-sort-checkbox" type="checkbox" name="priority_sort" value="1" {% if priority_sort %}checked{% endif %}> sort by priority
+  </label>
     <button type="submit" style="margin-left:0.5rem">Search</button>
   </form>
   {% if results.combined and results.combined|length > 0 %}
@@ -67,4 +71,24 @@
   {% endif %}
 
   <p><a href="/html_no_js/">Back to lists</a></p>
+  <script>
+    (function(){
+      try {
+        var KEY = 'html_no_js_search_priority_sort';
+        var cb = document.getElementById('priority-sort-checkbox');
+        if (!cb) return;
+        // Initialize from localStorage if query param missing
+        var params = new URLSearchParams(window.location.search);
+        if (!params.has('priority_sort')) {
+          var saved = localStorage.getItem(KEY);
+          if (saved === '0' || saved === '1') {
+            cb.checked = (saved === '1');
+          }
+        }
+        cb.addEventListener('change', function(){
+          try { localStorage.setItem(KEY, cb.checked ? '1' : '0'); } catch(e) {}
+        });
+      } catch (e) { /* no-op */ }
+    })();
+  </script>
 {% endblock %}
