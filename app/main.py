@@ -1569,6 +1569,7 @@ async def html_tailwind_view_list(request: Request):
             "category_id": getattr(lst, 'category_id', None),
             "list_id": lst.id,
             "lists_up_top": getattr(lst, 'lists_up_top', False),
+            "first_date_only": getattr(todo, 'first_date_only', False),
             "priority": getattr(lst, 'priority', None),
             "parent_todo_id": getattr(lst, 'parent_todo_id', None),
             "parent_list_id": getattr(lst, 'parent_list_id', None),
@@ -3155,6 +3156,12 @@ async def calendar_events(request: Request, start: Optional[str] = None, end: Op
                 pass
             combined = ' \n '.join(texts)
             dates = extract_dates(combined)
+            try:
+                if bool(getattr(t, 'first_date_only', False)) and dates:
+                    # Keep only the first date from text; don't drop deferred_until here (handled below)
+                    dates = [dates[0]]
+            except Exception:
+                pass
             # keep only dates within window if provided
             dates = [d for d in dates if in_window(d)]
             if dates:
@@ -3197,7 +3204,9 @@ async def calendar_events(request: Request, start: Optional[str] = None, end: Op
                     if du.tzinfo is None:
                         du = du.replace(tzinfo=timezone.utc)
                     du = du.astimezone(timezone.utc)
-                    dates.append(du)
+                    # For first_date_only, only include deferred_until when no text date was found
+                    if not bool(getattr(t, 'first_date_only', False)) or (bool(getattr(t, 'first_date_only', False)) and not dates):
+                        dates.append(du)
                 except Exception:
                     pass
             dates = [d for d in dates if in_window(d)]
@@ -3670,10 +3679,11 @@ async def calendar_occurrences(request: Request,
                 except Exception:
                     texts.append(t.note)
             combined = ' \n '.join(texts)
-            # prefer persisted recurrence expansion if available
+            # prefer persisted recurrence expansion if available (skip when first_date_only)
+            fdo = bool(getattr(t, 'first_date_only', False))
             rec_rrule = getattr(t, 'recurrence_rrule', None)
             rec_dtstart = getattr(t, 'recurrence_dtstart', None)
-            if expand and rec_rrule and recurring_enabled:
+            if expand and rec_rrule and recurring_enabled and not fdo:
                 try:
                     if rec_dtstart and rec_dtstart.tzinfo is None:
                         rec_dtstart = rec_dtstart.replace(tzinfo=timezone.utc)
@@ -3690,7 +3700,7 @@ async def calendar_occurrences(request: Request,
                     pass
             # If no persisted recurrence, attempt to parse an inline recurrence phrase
             # If recurring detection is disabled, skip inline recurrence parsing
-            if expand and not rec_rrule and recurring_enabled and not scanning_disabled:
+            if expand and not rec_rrule and recurring_enabled and not scanning_disabled and not fdo:
                 # Cheap keyword prefilter to avoid running the expensive inline recurrence parser
                 # on todos that clearly don't contain recurrence language.
                 def _likely_inline_rrule_text(_s: str) -> bool:
@@ -3940,8 +3950,8 @@ async def calendar_occurrences(request: Request,
                     pass
             except Exception:
                 pass
-            # include explicit deferred_until if present
-            if getattr(t, 'deferred_until', None):
+            # include explicit deferred_until if present (for first_date_only, only when no text dates found)
+            if getattr(t, 'deferred_until', None) and (not fdo or (fdo and not meta)):
                 try:
                     du = t.deferred_until
                     if du.tzinfo is None:
@@ -3950,25 +3960,46 @@ async def calendar_occurrences(request: Request,
                     dates.append(du)
                 except Exception:
                     pass
-            # expand year-explicit matches directly
-            explicit = [m for m in meta if m.get('year_explicit')]
-            for m in explicit:
-                if truncated:
-                    break
-                d = m.get('dt')
-                if d >= start_dt and d <= end_dt:
-                    try:
-                        _sse_debug('calendar_occurrences.branch_choice', {'todo_id': t.id, 'chosen_branch': 'todo-explicit'})
-                    except Exception:
-                        pass
-                    try:
-                        if getattr(t, 'id', None) == 10017:
-                            _sse_debug('calendar_occurrences.GUARDED_DEBUG', {'todo_id': t.id, 'stage': 'explicit', 'candidate': (d.isoformat() if isinstance(d, datetime) else str(d))})
-                    except Exception:
-                        pass
-                    add_occ('todo', t.id, t.list_id, t.text, d, None, False, '', None, source='todo-explicit')
-            # include deferred_until as explicit
-            if getattr(t, 'deferred_until', None):
+            # If first_date_only is enabled for this todo, restrict to the first textual date
+            fdo = bool(getattr(t, 'first_date_only', False))
+            if fdo and meta:
+                # Pick first explicit-year match if available; else first meta entry
+                preferred = None
+                try:
+                    explicit_first = next((m for m in meta if m.get('year_explicit')), None)
+                    preferred = explicit_first or meta[0]
+                except Exception:
+                    preferred = meta[0]
+                if preferred:
+                    d = preferred.get('dt')
+                    if d is not None:
+                        if d.tzinfo is None:
+                            d = d.replace(tzinfo=timezone.utc)
+                        d = d.astimezone(timezone.utc)
+                        if d >= start_dt and d <= end_dt:
+                            add_occ('todo', t.id, t.list_id, t.text, d, None, False, '', None, source=('todo-explicit' if preferred.get('year_explicit') else 'todo-yearless'))
+                # Skip adding other matches when first_date_only is on
+                explicit = []
+            else:
+                # expand year-explicit matches directly
+                explicit = [m for m in meta if m.get('year_explicit')]
+                for m in explicit:
+                    if truncated:
+                        break
+                    d = m.get('dt')
+                    if d >= start_dt and d <= end_dt:
+                        try:
+                            _sse_debug('calendar_occurrences.branch_choice', {'todo_id': t.id, 'chosen_branch': 'todo-explicit'})
+                        except Exception:
+                            pass
+                        try:
+                            if getattr(t, 'id', None) == 10017:
+                                _sse_debug('calendar_occurrences.GUARDED_DEBUG', {'todo_id': t.id, 'stage': 'explicit', 'candidate': (d.isoformat() if isinstance(d, datetime) else str(d))})
+                        except Exception:
+                            pass
+                        add_occ('todo', t.id, t.list_id, t.text, d, None, False, '', None, source='todo-explicit')
+            # include deferred_until as explicit (respect first_date_only precedence)
+            if getattr(t, 'deferred_until', None) and (not fdo or (fdo and not meta)):
                 try:
                     du = t.deferred_until
                     if du.tzinfo is None:
@@ -3994,7 +4025,7 @@ async def calendar_occurrences(request: Request,
             # the todo was created. This prevents emitting the same plain-date
             # for many years when clients query multi-year windows. If no
             # created_at is available, fall back to now.
-            yearless = [m for m in meta if not m.get('year_explicit')]
+            yearless = [] if fdo else [m for m in meta if not m.get('year_explicit')]
             if yearless:
                 # reference point for selecting the "next" occurrence
                 ref_dt = getattr(t, 'created_at', None) or now_utc()
@@ -6449,6 +6480,16 @@ async def _update_todo_internal(todo_id: int, payload: dict, current_user: User)
                 # update plain date metadata
                 try:
                     pd_meta = extract_dates_meta(combined_text)
+                    try:
+                        if bool(getattr(todo, 'first_date_only', False)) and pd_meta:
+                            pref = None
+                            try:
+                                pref = next((m for m in pd_meta if m.get('year_explicit')), None) or pd_meta[0]
+                            except Exception:
+                                pref = pd_meta[0]
+                            pd_meta = [pref]
+                    except Exception:
+                        pass
                     def _j(m):
                         dd = m.get('dt')
                         return {
@@ -11668,6 +11709,40 @@ async def html_set_todo_calendar_ignored(request: Request, todo_id: int, calenda
     accept = (request.headers.get('Accept') or '')
     if 'application/json' in accept.lower():
         return JSONResponse({'ok': True, 'id': todo_id, 'calendar_ignored': val})
+    ref = request.headers.get('Referer', f'/html_no_js/todos/{todo_id}')
+    return RedirectResponse(url=ref, status_code=303)
+
+
+@app.post('/html_no_js/todos/{todo_id}/first_date_only')
+async def html_set_todo_first_date_only(request: Request, todo_id: int, first_date_only: str = Form(None), current_user: User = Depends(require_login)):
+    """Toggle or set the per-todo first_date_only flag. Accepts truthy strings for enable.
+
+    Returns JSON when Accept includes application/json; otherwise redirects back to the todo page.
+    """
+    # CSRF and ownership via parent list
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    val = False
+    if first_date_only is not None:
+        val = str(first_date_only).lower() in ('1','true','yes','on')
+    async with async_session() as sess:
+        todo = await sess.get(Todo, todo_id)
+        if not todo:
+            raise HTTPException(status_code=404, detail='todo not found')
+        ql = await sess.exec(select(ListState).where(ListState.id == todo.list_id))
+        lst = ql.first()
+        if not lst or lst.owner_id not in (None, current_user.id):
+            raise HTTPException(status_code=403, detail='forbidden')
+        todo.first_date_only = val
+        todo.modified_at = now_utc()
+        sess.add(todo)
+        await sess.commit()
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse({'ok': True, 'id': todo_id, 'first_date_only': val})
     ref = request.headers.get('Referer', f'/html_no_js/todos/{todo_id}')
     return RedirectResponse(url=ref, status_code=303)
 

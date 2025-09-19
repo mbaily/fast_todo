@@ -238,8 +238,20 @@ def _ensure_sqlite_minimal_migrations(url: str | None) -> None:
                             conn.commit()
                         except Exception:
                             pass
+                    # New: ensure first_date_only column exists for controlling date extraction behavior
+                    if 'first_date_only' not in tcols:
+                        try:
+                            cur.execute("ALTER TABLE todo ADD COLUMN first_date_only INTEGER DEFAULT 0 NOT NULL")
+                            conn.commit()
+                        except Exception:
+                            pass
                     try:
                         cur.execute("CREATE INDEX IF NOT EXISTS ix_todo_calendar_ignored ON todo(calendar_ignored)")
+                        conn.commit()
+                    except Exception:
+                        pass
+                    try:
+                        cur.execute("CREATE INDEX IF NOT EXISTS ix_todo_first_date_only ON todo(first_date_only)")
                         conn.commit()
                     except Exception:
                         pass
@@ -904,6 +916,9 @@ async def init_db():
             # plain_dates_meta column for persisted non-recurring date matches
             if 'plain_dates_meta' not in cols:
                 add_sql.append("ALTER TABLE todo ADD COLUMN plain_dates_meta TEXT")
+            # first_date_only toggle column
+            if 'first_date_only' not in cols:
+                add_sql.append("ALTER TABLE todo ADD COLUMN first_date_only INTEGER DEFAULT 0 NOT NULL")
             for s in add_sql:
                 try:
                     await conn.execute(text(s))

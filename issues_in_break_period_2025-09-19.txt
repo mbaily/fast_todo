@@ -1,3 +1,5 @@
+2025-09-19
+
 Log for 'Completed todo' in list.html (not todo.html) doesn't have the todo text. It should. (It does have the list name).
 
-
+Need a 'First date only' for todo.html. I have sent this to GPT-5, see how it goes.

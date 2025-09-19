@@ -128,6 +128,9 @@ class Todo(SQLModel, table=True):
     search_ignored: bool = Field(default=False, index=True)
     # When true, exclude this todo from calendar extraction/occurrences
     calendar_ignored: bool = Field(default=False, index=True)
+    # When true, only the first textual date is considered for this todo when
+    # extracting calendar occurrences from text. Other dates in the text are ignored.
+    first_date_only: bool = Field(default=False, index=True)
     created_at: datetime | None = Field(default_factory=now_utc)
     modified_at: datetime | None = Field(default_factory=now_utc)
     deferred_until: Optional[datetime] = None
