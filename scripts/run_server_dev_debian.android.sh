@@ -70,6 +70,8 @@ source "$VENV_DIR/bin/activate"
 # Upgrade pip
 #python -m pip install --upgrade pip setuptools wheel >/dev/null
 
+# Skip installing dependencies on termux Android as that would be a bit more of a manually managed process
+
 # Install dependencies: prefer a real requirements file if it's valid; otherwise use known set
 #if [ -f "$REQ_FILE" ]; then
 #  echo "[run_server] Installing from $REQ_FILE"

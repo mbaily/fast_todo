@@ -55,6 +55,13 @@ INDEX_CALENDAR_DAYS = 2
 DISABLE_CALENDAR_TEXT_SCAN = _trueish(os.getenv('DISABLE_CALENDAR_TEXT_SCAN', '0'))
 
 
+# When true, completely skip fetching/building the small calendar summary on
+# the index pages (index.html and index_ios_safari.html). No calendar queries
+# or extraction code will run and templates will not render the calendar block.
+# Set via environment variable SKIP_INDEX_CALENDAR=1
+SKIP_INDEX_CALENDAR = _trueish(os.getenv('SKIP_INDEX_CALENDAR', '0'))
+
+
 DOKUWIKI_NOTE_LINK_PREFIX = os.getenv('DOKUWIKI_NOTE_LINK_PREFIX', 'https://myserver.hopto.org/dokuwiki/doku.php?id=')
 
 # Optional local overrides: define variables in app/local_config.py to extend or

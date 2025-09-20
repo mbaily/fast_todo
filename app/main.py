@@ -8278,39 +8278,44 @@ async def html_index(request: Request):
             high_priority_todos = []
             high_priority_lists = []
         # compute a small, near-term calendar summary for the index page (reuse core calendar endpoint logic)
+        # Allow skipping entirely via SKIP_INDEX_CALENDAR env flag.
         calendar_occurrences = []
         try:
-            from datetime import timedelta as _td, timezone as _tz
-            from .utils import now_utc
-            now = now_utc()
-            try:
-                days = int(getattr(config, 'INDEX_CALENDAR_DAYS', 1))
-            except Exception:
-                days = 1
-            cal_start = now - _td(days=days)
-            cal_end = now + _td(days=days)
-            # Call the calendar_occurrences endpoint function directly to share all optimizations
-            try:
-                from importlib import import_module as _imp_mod
-                _mod = _imp_mod('app.main')
-                _start_iso = cal_start.astimezone(_tz.utc).isoformat().replace('+00:00', 'Z')
-                _end_iso = cal_end.astimezone(_tz.utc).isoformat().replace('+00:00', 'Z')
-                resp = await _mod.calendar_occurrences(
-                    request,
-                    start=_start_iso,
-                    end=_end_iso,
-                    tz=None,
-                    expand=True,
-                    max_per_item=3,
-                    max_total=20,
-                    include_ignored=False,
-                    current_user=current_user
-                )
-                # Exclude occurrences already marked completed to keep the
-                # index summary focused on actionable items (pre-refactor parity)
-                _occs = list(resp.get('occurrences', []))
-                calendar_occurrences = [o for o in _occs if not bool(o.get('completed'))]
-            except Exception:
+            if not getattr(config, 'SKIP_INDEX_CALENDAR', False):
+                from datetime import timedelta as _td, timezone as _tz
+                from .utils import now_utc
+                now = now_utc()
+                try:
+                    days = int(getattr(config, 'INDEX_CALENDAR_DAYS', 1))
+                except Exception:
+                    days = 1
+                cal_start = now - _td(days=days)
+                cal_end = now + _td(days=days)
+                # Call the calendar_occurrences endpoint function directly to share all optimizations
+                try:
+                    from importlib import import_module as _imp_mod
+                    _mod = _imp_mod('app.main')
+                    _start_iso = cal_start.astimezone(_tz.utc).isoformat().replace('+00:00', 'Z')
+                    _end_iso = cal_end.astimezone(_tz.utc).isoformat().replace('+00:00', 'Z')
+                    resp = await _mod.calendar_occurrences(
+                        request,
+                        start=_start_iso,
+                        end=_end_iso,
+                        tz=None,
+                        expand=True,
+                        max_per_item=3,
+                        max_total=20,
+                        include_ignored=False,
+                        current_user=current_user
+                    )
+                    # Exclude occurrences already marked completed to keep the
+                    # index summary focused on actionable items (pre-refactor parity)
+                    _occs = list(resp.get('occurrences', []))
+                    calendar_occurrences = [o for o in _occs if not bool(o.get('completed'))]
+                except Exception:
+                    calendar_occurrences = []
+            else:
+                # Explicitly keep the list empty when skipping
                 calendar_occurrences = []
         except Exception:
             calendar_occurrences = []
