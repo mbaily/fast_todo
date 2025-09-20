@@ -93,6 +93,8 @@ source "$VENV_DIR/bin/activate"
 
 ENV_FILE_SYSTEM="/etc/default/fast_todo"
 ENV_FILE_LOCAL="fast_todo.env"
+# skip calendar on android as it is too slow 
+SKIP_INDEX_CALENDAR=1
 
 # Load SECRET_KEY (and optionally CSRF_VERIFY_KEYS) from environment files.
 # Priority: system env file (if you run as a service) -> repo-local fast_todo.env.
