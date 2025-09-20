@@ -8068,6 +8068,101 @@ async def html_index(request: Request):
                     }
                     for l in pl_rows
                 ]
+                # Compute override_priority for pinned lists similar to list_rows
+                try:
+                    pin_list_ids = [int(r['id']) for r in pinned_lists] if pinned_lists else []
+                except Exception:
+                    pin_list_ids = []
+                if pin_list_ids:
+                    try:
+                        # Gather todo priorities for these lists
+                        todo_q = await sess.exec(
+                            select(Todo.id, Todo.list_id, Todo.priority)
+                            .where(Todo.list_id.in_(pin_list_ids))
+                            .where(Todo.priority != None)
+                        )
+                        todo_rows = todo_q.all()
+                        todo_map: dict[int, list[tuple[int,int]]] = {}
+                        todo_ids: list[int] = []
+                        for tid, lid, pri in todo_rows:
+                            try:
+                                tid_i = int(tid); lid_i = int(lid)
+                            except Exception:
+                                continue
+                            if pri is None:
+                                continue
+                            todo_map.setdefault(lid_i, []).append((tid_i, int(pri)))
+                            todo_ids.append(tid_i)
+                        # Determine completed set for these todos (default completion type)
+                        completed_ids: set[int] = set()
+                        if todo_ids:
+                            try:
+                                qcomp = (
+                                    select(TodoCompletion.todo_id)
+                                    .join(CompletionType, CompletionType.id == TodoCompletion.completion_type_id)
+                                    .where(TodoCompletion.todo_id.in_(todo_ids))
+                                    .where(CompletionType.name == 'default')
+                                    .where(TodoCompletion.done == True)
+                                )
+                                cres = await sess.exec(qcomp)
+                                completed_ids = set(r[0] if isinstance(r, tuple) else r for r in cres.all())
+                            except Exception:
+                                completed_ids = set()
+                        # Immediate child sublists' list-level priority (skip completed sublists)
+                        parent_to_sublists: dict[int, list[dict]] = {}
+                        try:
+                            qsubs = await sess.exec(
+                                select(ListState.id, ListState.priority, ListState.parent_list_id, ListState.completed)
+                                .where(ListState.parent_list_id.in_(pin_list_ids))
+                            )
+                            for sid, spri, parent_id, scompleted in qsubs.all():
+                                try:
+                                    pid = int(parent_id)
+                                except Exception:
+                                    continue
+                                parent_to_sublists.setdefault(pid, []).append({
+                                    'id': sid,
+                                    'priority': spri,
+                                    'completed': bool(scompleted) if scompleted is not None else False,
+                                })
+                        except Exception:
+                            parent_to_sublists = {}
+
+                        # Compute max override per pinned list
+                        for row in pinned_lists:
+                            try:
+                                lid = int(row.get('id'))
+                            except Exception:
+                                continue
+                            max_p = None
+                            # from uncompleted todos
+                            for tid, pri in todo_map.get(lid, []) or []:
+                                if tid in completed_ids:
+                                    continue
+                                try:
+                                    pv = int(pri)
+                                except Exception:
+                                    continue
+                                if max_p is None or pv > max_p:
+                                    max_p = pv
+                            # from immediate child sublists' list-level priority
+                            for s in parent_to_sublists.get(lid, []) or []:
+                                sp = s.get('priority')
+                                if s.get('completed'):
+                                    continue
+                                if sp is None:
+                                    continue
+                                try:
+                                    spv = int(sp)
+                                except Exception:
+                                    continue
+                                if max_p is None or spv > max_p:
+                                    max_p = spv
+                            if max_p is not None:
+                                row['override_priority'] = max_p
+                    except Exception:
+                        # Non-fatal failure computing overrides for pinned lists
+                        pass
         except Exception:
             # if DB lacks the pinned column or some error occurs, show no pinned todos
             pinned_todos = []
