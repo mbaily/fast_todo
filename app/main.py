@@ -1574,6 +1574,7 @@ async def html_tailwind_view_list(request: Request):
             "priority": getattr(lst, 'priority', None),
             "parent_todo_id": getattr(lst, 'parent_todo_id', None),
             "parent_list_id": getattr(lst, 'parent_list_id', None),
+            "pinned": getattr(lst, 'pinned', False),
         }
 
         if getattr(lst, 'parent_todo_id', None):
@@ -5885,7 +5886,7 @@ async def get_list_todos(list_id: int, current_user: User = Depends(require_logi
 
 @app.patch("/lists/{list_id}")
 async def patch_list(list_id: int, payload: dict, current_user: User = Depends(require_login)):
-    """Patch list fields via JSON. Accepts optional keys: name (str), priority (int|null), completed (bool), lists_up_top (bool)."""
+    """Patch list fields via JSON. Accepts optional keys: name (str), priority (int|null), completed (bool), lists_up_top (bool), pinned (bool)."""
     async with async_session() as sess:
         q = await sess.scalars(select(ListState).where(ListState.id == list_id))
         lst = q.first()
@@ -5926,7 +5927,17 @@ async def patch_list(list_id: int, payload: dict, current_user: User = Depends(r
                 raise HTTPException(status_code=400, detail='invalid lists_up_top value')
             lst.lists_up_top = lists_up_top
             changed = True
+        if 'pinned' in payload:
+            pin = payload.get('pinned')
+            if not isinstance(pin, bool):
+                raise HTTPException(status_code=400, detail='invalid pinned value')
+            lst.pinned = pin
+            changed = True
         if changed:
+            try:
+                lst.modified_at = now_utc()
+            except Exception:
+                pass
             sess.add(lst)
             await sess.commit()
             await sess.refresh(lst)
@@ -7981,8 +7992,9 @@ async def html_index(request: Request):
                 categories = [{'id': c.id, 'name': c.name, 'position': c.position, 'sort_alphanumeric': getattr(c, 'sort_alphanumeric', False)} for c in cres.all()]
         except Exception:
             categories = []
-        # Also fetch pinned todos from lists visible to this user (owned or public)
+        # Also fetch pinned todos and pinned lists from lists visible to this user (owned or public)
         pinned_todos = []
+        pinned_lists = []
         try:
             # visible lists: owned by user or public (owner_id is NULL). Include sublists as well.
             qvis = select(ListState).where(((ListState.owner_id == owner_id) | (ListState.owner_id == None)))
@@ -8030,9 +8042,36 @@ async def html_index(request: Request):
                     completed_ids = set()
                 for p in pinned_todos:
                     p['completed'] = p['id'] in completed_ids
+
+                # Pinned lists: include only top-level lists (exclude sublists of Trash) that are marked pinned
+                # and owned by user (so another user's public list pin doesn't appear).
+                qpl = select(ListState).where(ListState.pinned == True).where(ListState.owner_id == owner_id)
+                try:
+                    trash_id = None
+                    trq = await sess.scalars(select(ListState.id).where(ListState.owner_id == owner_id).where(ListState.name == 'Trash'))
+                    trash_id = trq.first()
+                    if trash_id is not None:
+                        qpl = qpl.where(or_(ListState.parent_list_id == None, ListState.parent_list_id != trash_id))
+                except Exception:
+                    pass
+                qpl = qpl.order_by(ListState.modified_at.desc())
+                lpres = await sess.exec(qpl)
+                pl_rows = lpres.all()
+                pinned_lists = [
+                    {
+                        'id': l.id,
+                        'name': l.name,
+                        'modified_at': (l.modified_at.isoformat() if getattr(l, 'modified_at', None) else None),
+                        'priority': getattr(l, 'priority', None),
+                        'override_priority': None,
+                        'uncompleted_count': None,
+                    }
+                    for l in pl_rows
+                ]
         except Exception:
             # if DB lacks the pinned column or some error occurs, show no pinned todos
             pinned_todos = []
+            pinned_lists = []
 
         # Bookmarked section: gather bookmarked todos (visible lists) and bookmarked lists (owned top-level)
         bookmarked_todos = []
@@ -8410,12 +8449,12 @@ async def html_index(request: Request):
         if force_ios:
             logger.info('html_index: rendering index_ios_safari (forced) ua=%s', ua[:200])
             circ_map = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'}
-            ctx = {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "bookmarked_todos": bookmarked_todos, "bookmarked_lists": bookmarked_lists, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "high_priority_items": context_high_priority_items if 'context_high_priority_items' in locals() else [], "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "show_all_tags": show_all_tags, "circ": circ_map, "recent_lists_24h": recent_24h}
+            ctx = {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "pinned_lists": pinned_lists, "bookmarked_todos": bookmarked_todos, "bookmarked_lists": bookmarked_lists, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "high_priority_items": context_high_priority_items if 'context_high_priority_items' in locals() else [], "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "show_all_tags": show_all_tags, "circ": circ_map, "recent_lists_24h": recent_24h}
             return _render_and_log("index_ios_safari.html", ctx)
         if is_ios_safari(request):
             logger.info('html_index: rendering index_ios_safari (ua-detected) ua=%s', ua[:200])
             circ_map = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'}
-            ctx = {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "bookmarked_todos": bookmarked_todos, "bookmarked_lists": bookmarked_lists, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "high_priority_items": context_high_priority_items if 'context_high_priority_items' in locals() else [], "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "show_all_tags": show_all_tags, "circ": circ_map, "recent_lists_24h": recent_24h}
+            ctx = {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "pinned_lists": pinned_lists, "bookmarked_todos": bookmarked_todos, "bookmarked_lists": bookmarked_lists, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "high_priority_items": context_high_priority_items if 'context_high_priority_items' in locals() else [], "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "show_all_tags": show_all_tags, "circ": circ_map, "recent_lists_24h": recent_24h}
             return _render_and_log("index_ios_safari.html", ctx)
 
         logger.info('html_index: rendering index.html (default) ua=%s', ua[:200])
@@ -8454,7 +8493,7 @@ async def html_index(request: Request):
             pass
 
         circ_map = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'}
-        ctx = {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "bookmarked_todos": bookmarked_todos, "bookmarked_lists": bookmarked_lists, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "high_priority_items": context_high_priority_items if 'context_high_priority_items' in locals() else [], "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "show_all_tags": show_all_tags, "circ": circ_map, "recent_lists_24h": recent_24h}
+        ctx = {"request": request, "lists": list_rows, "lists_by_category": lists_by_category, "csrf_token": csrf_token, "client_tz": client_tz, "pinned_todos": pinned_todos, "pinned_lists": pinned_lists, "bookmarked_todos": bookmarked_todos, "bookmarked_lists": bookmarked_lists, "high_priority_todos": high_priority_todos, "high_priority_lists": high_priority_lists, "high_priority_items": context_high_priority_items if 'context_high_priority_items' in locals() else [], "cursors": cursors, "categories": categories, "calendar_occurrences": calendar_occurrences, "user_default_category_id": user_default_cat, "show_all_tags": show_all_tags, "circ": circ_map, "recent_lists_24h": recent_24h}
         try:
             # non-fatal pre-render to log payload length for diagnostics
             try:
@@ -10887,6 +10926,8 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
             "priority": getattr(lst, 'priority', None),
             # include bookmarked for initial SSR toggle state
             "bookmarked": getattr(lst, 'bookmarked', False),
+            # include pinned for initial SSR toggle state
+            "pinned": getattr(lst, 'pinned', False),
             # expose parent todo owner for sublist toolbar/navigation
             "parent_todo_id": getattr(lst, 'parent_todo_id', None),
             # expose parent list owner for nested list navigation (not yet used in UI)
@@ -11629,6 +11670,37 @@ async def html_bookmark_list(request: Request, list_id: int, bookmarked: str = F
     accept = (request.headers.get('Accept') or '')
     if 'application/json' in accept.lower():
         return JSONResponse({'ok': True, 'id': list_id, 'bookmarked': val})
+    ref = request.headers.get('Referer', f'/html_no_js/lists/{list_id}')
+    return RedirectResponse(url=ref, status_code=303)
+
+
+@app.post('/html_no_js/lists/{list_id}/pin')
+async def html_pin_list(request: Request, list_id: int, current_user: User = Depends(require_login)):
+    """Toggle or set the pinned flag for a list (owned by current user)."""
+    # CSRF check
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    # Allow either 'pinned' or legacy 'bookmarked' key for robustness
+    flag_val = form.get('pinned')
+    if flag_val is None:
+        flag_val = form.get('bookmarked')
+    val = str(flag_val).lower() in ('1','true','yes','on') if flag_val is not None else False
+    async with async_session() as sess:
+        lst = await sess.get(ListState, list_id)
+        if not lst:
+            raise HTTPException(status_code=404, detail='list not found')
+        if lst.owner_id not in (None, current_user.id):
+            raise HTTPException(status_code=403, detail='forbidden')
+        lst.pinned = val
+        lst.modified_at = now_utc()
+        sess.add(lst)
+        await sess.commit()
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse({'ok': True, 'id': list_id, 'pinned': val})
     ref = request.headers.get('Referer', f'/html_no_js/lists/{list_id}')
     return RedirectResponse(url=ref, status_code=303)
 

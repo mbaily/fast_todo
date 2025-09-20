@@ -159,6 +159,30 @@ window.tailwindList = (function () {
 				} else {
 					// List name updated - toast disabled
 				}
+
+				function initPinToggle() {
+					const btn = document.getElementById('pin-list-btn');
+					if (!btn) return;
+					const listRoot = document.getElementById('list-root');
+					const listId = listRoot?.querySelector('[data-list-id]')?.dataset?.listId || '';
+					btn.addEventListener('click', async () => {
+						if (!listId) return;
+						const cur = (btn.getAttribute('data-pinned') === '1');
+						const next = !cur;
+						btn.disabled = true;
+						try {
+							await patchJson(`/lists/${encodeURIComponent(listId)}`, { pinned: next });
+							btn.setAttribute('data-pinned', next ? '1' : '0');
+							btn.setAttribute('aria-pressed', next ? 'true' : 'false');
+							btn.textContent = next ? '📌' : '📍';
+						} catch (err) {
+							showToast('Failed to toggle pin', { type: 'error' });
+							console.error('pin toggle failed', err);
+						} finally {
+							btn.disabled = false;
+						}
+					});
+				}
 			} catch (err) {
 				showToast('Failed to update list name: ' + (err?.message || String(err)), { type: 'error' });
 				console.error('failed to update list name', err);
@@ -939,6 +963,7 @@ window.tailwindList = (function () {
 			initPriorityHandler();
 			initNameEdit();
 			initEditButton();
+			initPinToggle();
 			initCompleteToggle();
 			fetchAndRenderTags();
 			initTagEditor();

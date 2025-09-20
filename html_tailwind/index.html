@@ -71,6 +71,26 @@
         </section>
         {% endif %}
         
+        {% if pinned_lists and pinned_lists|length > 0 %}
+        <section class="pinned-lists mb-1">
+          <h3 class="text-sm font-semibold mb-1">Pinned Lists</h3>
+          <ul class="space-y-1">
+            {% for l in (pinned_lists | sort(attribute='name', case_sensitive=false)) %}
+            <li class="flex items-start gap-1 bg-black-800 rounded p-1">
+              <div class="mt-0.5 text-sky-400">📌</div>
+              <div class="flex-1">
+                <a class="font-medium text-slate-100 hover:underline" href="/html_tailwind/list?id={{ l.id }}">{{ l.name }}</a>
+              </div>
+              {% if l.priority or l.override_priority %}
+              {% set eff = l.override_priority if (l.override_priority is not none and (l.priority is none or l.override_priority > l.priority)) else l.priority %}
+              {% if eff %}<div class="text-xs text-slate-400">{{ eff }}</div>{% endif %}
+              {% endif %}
+            </li>
+            {% endfor %}
+          </ul>
+        </section>
+        {% endif %}
+
         {% if calendar_occurrences and calendar_occurrences|length > 0 %}
         <section class="calendar-summary mb-1">
           <h3 class="text-sm font-semibold mb-1">Calendar</h3>

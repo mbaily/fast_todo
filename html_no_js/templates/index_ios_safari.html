@@ -101,6 +101,17 @@
   </ul>
     {% endif %}
 
+    {% if pinned_lists and pinned_lists|length > 0 %}
+    <!-- <h3 style="margin-top:0.5rem">Pinned Lists</h3> -->
+    <ul style="padding-left: 0; list-style: none; margin: 0;">
+      {% for lst in (pinned_lists | sort(attribute='name', case_sensitive=false)) %}
+        <li>
+          📌 <a href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>
+        </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
     {% if (bookmarked_todos and bookmarked_todos|length > 0) or (bookmarked_lists and bookmarked_lists|length > 0) %}
     <!-- <h3 style="margin-top:0.5rem">Bookmarks</h3> -->
     {% if bookmarked_todos and bookmarked_todos|length > 0 %}

@@ -60,6 +60,10 @@
               <button id="edit-list-name-btn" class="px-2 py-1 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm rounded transition-colors duration-200" title="Edit list name">
                 ✏️
               </button>
+              <!-- Pin toggle -->
+              <button id="pin-list-btn" class="px-2 py-1 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm rounded transition-colors duration-200" title="Pin list" aria-pressed="{{ 'true' if list.pinned else 'false' }}" data-pinned="{{ '1' if list.pinned else '0' }}">
+                {% if list.pinned %}📌{% else %}📍{% endif %}
+              </button>
             </div>
 
 
@@ -248,7 +252,8 @@
     // Pass server state to JavaScript
     window.listState = {
       listsUpTop: {{ list.lists_up_top | default(false) | tojson | safe }},
-      listId: {{ list.id | default('null') | tojson | safe }}
+      listId: {{ list.id | default('null') | tojson | safe }},
+      pinned: {{ list.pinned | default(false) | tojson | safe }}
     };
     // Debug: log the rendered value
     console.log('Template rendered lists_up_top:', window.listState.listsUpTop);

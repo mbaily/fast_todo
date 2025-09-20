@@ -554,8 +554,20 @@ def _ensure_sqlite_minimal_migrations(url: str | None) -> None:
                         conn.commit()
                     except Exception:
                         pass
+                # Ensure pinned flag exists on liststate and helpful index
+                try:
+                    if lcols and 'pinned' not in lcols:
+                        cur.execute("ALTER TABLE liststate ADD COLUMN pinned INTEGER DEFAULT 0 NOT NULL")
+                        conn.commit()
+                except Exception:
+                    pass
                 try:
                     cur.execute("CREATE INDEX IF NOT EXISTS ix_liststate_bookmarked ON liststate(bookmarked)")
+                    conn.commit()
+                except Exception:
+                    pass
+                try:
+                    cur.execute("CREATE INDEX IF NOT EXISTS ix_liststate_pinned ON liststate(pinned)")
                     conn.commit()
                 except Exception:
                     pass

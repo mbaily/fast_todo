@@ -105,29 +105,43 @@
     </section>
   {% endif %}
 
-  <!-- Section: Pinned todos -->
-  {% if pinned_todos and pinned_todos|length > 0 %}
-    <section class="pinned-todos">
-      <!-- <h3>Pinned</h3> -->
-  <ul>
-  {# sort pinned_todos by modified_at (newest first). If modified_at is missing, fall back to original order #}
-  {% for t in (pinned_todos | sort(attribute='modified_at') | reverse) %}
-        <li>
-          <span class="pin-icon {% if t.pinned|default(false) %}pinned{% endif %}">{{ '📌' if t.pinned|default(false) else '📍' }}</span>
-          <a class="wrap-text{% if t.completed %} done{% endif %}" href="/html_no_js/todos/{{ t.id }}">{{ t.text }}</a>{% if t.priority %} {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %} <span class="meta priority-inline"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>{% endif %}
-           <span class="meta">in <a href="/html_no_js/lists/{{ t.list_id }}">{{ t.list_name or t.list_id }}</a></span>
-       {% if t.tags and t.tags|length > 0 %}
-             <div class="tags-inline">
-         {% for tag in (t.tags | sort) %}
-                 <a class="tag-chip" href="/html_no_js/search?q={{ tag|urlencode }}">{{ tag }}</a>
-               {% endfor %}
-             </div>
-           {% endif %}
-        </li>
-      {% endfor %}
-      </ul>
-    </section>
-  {% endif %}
+  <!-- Section: Pinned (todos and lists together) -->
+  {% if (pinned_todos and pinned_todos|length > 0) or (pinned_lists and pinned_lists|length > 0) %}
+        <section class="pinned-todos">
+          <ul>
+            {% if pinned_todos and pinned_todos|length > 0 %}
+              {% for t in (pinned_todos | sort(attribute='modified_at') | reverse) %}
+                <li>
+                  <span class="pin-icon {% if t.pinned|default(false) %}pinned{% endif %}">{{ '📌' if t.pinned|default(false) else '📍' }}</span>
+                  <a class="wrap-text{% if t.completed %} done{% endif %}" href="/html_no_js/todos/{{ t.id }}">{{ t.text }}</a>{% if t.priority %} {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %} <span class="meta priority-inline"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>{% endif %}
+                  <span class="meta">in <a href="/html_no_js/lists/{{ t.list_id }}">{{ t.list_name or t.list_id }}</a></span>
+                  {% if t.tags and t.tags|length > 0 %}
+                    <div class="tags-inline">
+                      {% for tag in (t.tags | sort) %}
+                        <a class="tag-chip" href="/html_no_js/search?q={{ tag|urlencode }}">{{ tag }}</a>
+                      {% endfor %}
+                    </div>
+                  {% endif %}
+                </li>
+              {% endfor %}
+            {% endif %}
+
+            {% if pinned_lists and pinned_lists|length > 0 %}
+              {% for lst in (pinned_lists | sort(attribute='name', case_sensitive=false)) %}
+                <li>
+                  <span class="list-icon" title="List">📁</span>
+                  <a class="list-title" href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>
+                  {% if lst.priority or lst.override_priority %}
+                    {% set eff = lst.override_priority if (lst.override_priority is not none and (lst.priority is none or lst.override_priority > lst.priority)) else lst.priority %}
+                    {% if eff %}{% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}<span class="meta priority-inline priority-override"><span class="priority-circle">{{ circ.get(eff, eff) }}</span></span>{% endif %}
+                  {% endif %}
+                  {% if lst.uncompleted_count is not none %}<span class="count-circle colour">{{ lst.uncompleted_count }}</span>{% endif %}
+                </li>
+              {% endfor %}
+            {% endif %}
+          </ul>
+        </section>
+      {% endif %}
 
   <!-- Section: Bookmarks (todos and lists) -->
   {% if (bookmarked_todos and bookmarked_todos|length > 0) or (bookmarked_lists and bookmarked_lists|length > 0) %}

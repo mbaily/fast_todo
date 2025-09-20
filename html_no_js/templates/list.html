@@ -190,6 +190,14 @@
                       data-state="{{ 'on' if list.bookmarked|default(false) else 'off' }}"
                       data-csrf="{{ csrf_token }}"
                       style="margin-left:0.5rem">{{ '🔖' if list.bookmarked|default(false) else '📑' }}</button>
+        <button type="button"
+          class="list-action-btn"
+          title="Toggle pin"
+          aria-label="Toggle pin"
+          data-pin-list="{{ list.id }}"
+          data-state="{{ 'on' if list.pinned|default(false) else 'off' }}"
+          data-csrf="{{ csrf_token }}"
+          style="margin-left:0.25rem">{{ '📌' if list.pinned|default(false) else '📍' }}</button>
               {# Collation controls (JS uses JSON endpoints; works only for owner which this page enforces) #}
               <span id="collation-controls" class="meta" data-is-collation="{{ 'true' if list.is_collation|default(false) else 'false' }}" data-collation-active="{{ 'true' if list.collation_active|default(false) else 'false' }}" style="margin-left:0.5rem; display:inline-flex; align-items:center; gap:0.4rem;">
                 <button type="button" id="btn-collation-toggle" title="Mark or unmark this list as a collation list">{{ 'Unmark Collation' if list.is_collation|default(false) else 'Mark as Collation' }}</button>

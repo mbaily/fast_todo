@@ -83,6 +83,36 @@
             });
         });
       });
+
+    // List pin buttons
+    document.querySelectorAll('[data-pin-list]')
+      .forEach(btn => {
+        btn.addEventListener('click', function(ev){
+          ev.preventDefault();
+          const listId = this.getAttribute('data-pin-list');
+          const url = `/html_no_js/lists/${encodeURIComponent(listId)}/pin`;
+          const token = this.getAttribute('data-csrf') || '';
+          const current = this.getAttribute('data-state') === 'on';
+          const next = !current;
+          const el = this;
+          el.disabled = true;
+          sendBookmark(url, token, next)
+            .then((json) => {
+              el.setAttribute('data-state', next ? 'on' : 'off');
+              el.textContent = next ? '📌' : '📍';
+              const evt = new CustomEvent('pin-changed', { detail: { kind: 'list', id: Number(listId), pinned: next, response: json }});
+              window.dispatchEvent(evt);
+            })
+            .catch((e) => {
+              console.error('Pin toggle failed', e);
+              el.classList.add('shake');
+              setTimeout(() => el.classList.remove('shake'), 600);
+            })
+            .finally(() => {
+              el.disabled = false;
+            });
+        });
+      });
   }
 
   if (document.readyState === 'loading') {

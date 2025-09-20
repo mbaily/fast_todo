@@ -34,6 +34,8 @@ class ListState(SQLModel, table=True):
     hide_done: bool = Field(default=False)
     # When true, this list is bookmarked and should appear in the Bookmarks section on index
     bookmarked: bool = Field(default=False, index=True)
+    # When true, this list is pinned and should appear in the Pinned section on index
+    pinned: bool = Field(default=False, index=True)
     # When true, render this list's sublists "up top" near the title
     lists_up_top: bool = Field(default=False)
     # If true, hide UI action icons (completion checkbox, pin, delete) for this list
