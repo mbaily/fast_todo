@@ -10,11 +10,11 @@
   <meta name="theme-color" content="#2b6cb0">
     <style>
       :root {
-        --page-side-margin: 0.5rem; /* keep in sync with body margin */
+        --page-side-margin: 0.1rem; /* keep in sync with body margin */
         --page-top-margin: var(--page-side-margin); /* per-page override for top margin */
-        --page-top-gap: 0.25rem; /* default vertical gap under header/toolbar; can be overridden per-page */
-        --full-bleed-right-gutter: 4rem; /* space to the right of full-bleed elements */
-        --full-bleed-padding: 0.75rem; /* comfortable padding inside full-bleed elements */
+        --page-top-gap: 0.1rem; /* default vertical gap under header/toolbar; can be overridden per-page */
+        --full-bleed-right-gutter: 0.1rem; /* space to the right of full-bleed elements */
+        --full-bleed-padding: 0.1rem; /* comfortable padding inside full-bleed elements */
         /* dark theme colors */
         --bg: #0b0f12;
         --surface: #0f1720;
@@ -108,11 +108,18 @@
           /* non-interactive pin icon used in index pinned list */
           .pin-icon { display: inline-block; width: 1.2rem; text-align: center; margin-right: 0.35rem; }
           .pin-icon.pinned { color: #ffb68a; }
-  .todo { align-items:flex-start; display:flex; gap:0.35rem; flex-wrap: nowrap; }
-      .todo-content { flex: 1 1 auto; min-width: 0; }
+  .todo { align-items:flex-start; display:flex; gap:0.35rem; flex-wrap: nowrap; min-width: 0; }
+    .todo-content { flex: 1 1 auto; min-width: 0; }
   /* Layout for todo rows: use natural flow next to the left controls (no fixed grid offset) */
-  .todo-content { flex: 1 1 auto; display:block; margin-left: 0; }
-  .todo-content .todo-main { flex: 1 1 auto; min-width: 8rem; }
+  .todo-content { flex: 1 1 auto; display:block; margin-left: 0; min-width: 0; }
+  /* allow todo main content to shrink fully so long titles wrap instead of overflowing */
+  .todo-content .todo-main { flex: 1 1 auto; min-width: 0; }
+  /* ensure titles inside todo-main can wrap/break anywhere when space is tight */
+  .todo-content .todo-main, .todo-content .todo-main a, .todo-content .todo-main .meta {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
   .todo-content .todo-action-right { flex: 0 0 auto; }
       @media (max-width: 480px) {
         .controls-left { gap: 0.2rem; }
@@ -278,6 +285,11 @@
         body { margin: var(--page-side-margin); }
         .todos-list { padding-left: 0; }
         .controls { margin-left: 0.5rem; }
+        /* on very small screens, be extra aggressive about breaking titles */
+        .todo-content .todo-main, .todo-content .todo-main a {
+          overflow-wrap: anywhere;
+          word-break: break-word;
+        }
       /* increase space between delete icon and list name on small screens
         Add !important to override the global collapse rule set earlier. */
   .lists-list .list-item { gap: 0.6rem !important; }

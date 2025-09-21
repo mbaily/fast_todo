@@ -9,14 +9,16 @@
     body { margin-top: 0 !important; }
     header { margin-top: 0 !important; }
     /* hide server-rendered occurrences when JS is present; keep layout space to avoid reflow */
-    .ft-js .todos-list.full-bleed { visibility: hidden; }
+    .ft-js .todos-list { visibility: hidden; }
+    /* calendar page: do not expand full-bleed container beyond 100% to avoid rounding-induced clipping */
+    section.full-bleed.calendar-bleed { width: 100% !important; max-width: 100% !important; }
   </style>
   <script>
     // Mark page as JS-enabled as early as possible to avoid showing a mismatched
     // server-rendered list briefly before the client replaces it.
     try { document.documentElement.classList.add('ft-js'); } catch (e) {}
   </script>
-  <section class="full-bleed">
+  <section class="full-bleed calendar-bleed">
     <div style="display:flex; align-items:center; gap:0.5rem;">
       <h2>Calendar - {{ year }}-{{ '%02d'|format(month) }}</h2>
       <div style="margin-left:auto">
@@ -32,7 +34,7 @@
         <input type="checkbox" id="hide_completed"> Hide completed
       </label>
       {% if occurrences_sorted and occurrences_sorted|length > 0 %}
-      <ul class="todos-list full-bleed">
+      <ul class="todos-list">
       {% for ev in occurrences_sorted %}
         <li class="todo">
           <div class="controls-left">
@@ -42,7 +44,7 @@
           </div>
           <div class="todo-content">
             <div class="todo-main wrap-text">
-              <div style="font-weight:700">
+              <div class="wrap-text" style="font-weight:700">
                 {% if ev.item_type == 'todo' %}
                   <a href="/html_no_js/todos/{{ ev.id }}">{{ ev.title }}</a>
                 {% elif ev.item_type == 'list' %}
@@ -59,7 +61,7 @@
       </ul>
       {% else %}
       <!-- Minimal skeleton list so JS can replace in-place -->
-      <ul class="todos-list full-bleed">
+      <ul class="todos-list">
         <li class="todo">
           <div class="todo-content">
             <div class="todo-main wrap-text">
@@ -148,11 +150,11 @@
         }
       } catch(e) { /* ignore storage/filter errors */ }
       // Ensure we always have a UL container to replace
-      let container = document.querySelector('.todos-list.full-bleed');
+      let container = document.querySelector('.todos-list');
       if (!container) {
         // Create a skeleton UL if none found (defensive)
         const sec = document.querySelector('section.full-bleed') || document.body;
-        const ulInit = document.createElement('ul'); ulInit.className = 'todos-list full-bleed';
+        const ulInit = document.createElement('ul'); ulInit.className = 'todos-list';
         const liInit = document.createElement('li'); liInit.className = 'todo'; liInit.innerHTML = '<div class="todo-content"><div class="todo-main wrap-text"><div class="meta">Loading calendar events...</div></div></div>';
         ulInit.appendChild(liInit);
         sec.appendChild(ulInit);
@@ -185,10 +187,10 @@
             });
           } catch(e) { /* ignore overall update errors */ }
           // Reveal the existing server-rendered list (we updated checkbox states above)
-          try { const existing = parent.querySelector('.todos-list.full-bleed'); if (existing) existing.style.visibility = 'visible'; } catch(e) {}
+          try { const existing = parent.querySelector('.todos-list'); if (existing) existing.style.visibility = 'visible'; } catch(e) {}
           return;
         }
-        const ul = document.createElement('ul'); ul.className = 'todos-list full-bleed';
+        const ul = document.createElement('ul'); ul.className = 'todos-list';
         const frag = document.createDocumentFragment();
         // read global in-flight map if present so we can preserve user actions
         const occInFlight = (window.__occInFlight || {});
@@ -220,7 +222,7 @@
           }
           occControls += `</div>`;
           const ignoredStyle = (showIgnored && ev.ignored) ? ' style="opacity:0.6;"' : '';
-      const html = `${occControls}\n  <div class="todo-content"${ignoredStyle}>\n    <div class="todo-main wrap-text">\n      <div style="font-weight:700">${title}${(showIgnored && ev.ignored) ? ' <span class="meta" style="margin-left:0.35rem;">(ignored)</span>' : ''}</div>\n      <div class="meta">${occDate}</div>\n    </div>\n  </div>\n  `;
+  const html = `${occControls}\n  <div class="todo-content"${ignoredStyle}>\n    <div class="todo-main wrap-text">\n      <div class=\"wrap-text\" style=\"font-weight:700\">${title}${(showIgnored && ev.ignored) ? ' <span class=\"meta\" style=\"margin-left:0.35rem;\">(ignored)</span>' : ''}</div>\n      <div class=\"meta\">${occDate}</div>\n    </div>\n  </div>\n  `;
           li.innerHTML = html; frag.appendChild(li);
         }
   ul.appendChild(frag);

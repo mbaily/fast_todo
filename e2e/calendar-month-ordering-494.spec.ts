@@ -31,11 +31,11 @@ test('calendar month view is chronologically ordered (Nov 2025)', async ({ page 
   await page.goto(`${BASE}/html_no_js/calendar?year=2025&month=11`, { waitUntil: 'networkidle' });
 
   // Wait for occurrences to load
-  const list = page.locator('.todos-list.full-bleed li.todo');
+  const list = page.locator('.todos-list li.todo');
   await expect(list.first()).toBeVisible({ timeout: 20000 });
 
   // Extract the sequence of displayed occurrence dates (ISO date or ISO datetime)
-  const metaTexts = await page.locator('.todos-list.full-bleed li.todo .meta').allTextContents();
+  const metaTexts = await page.locator('.todos-list li.todo .meta').allTextContents();
   expect(metaTexts.length).toBeGreaterThan(0);
 
   // Verify chronological (lexicographic) order
