@@ -641,48 +641,8 @@
             pinBtn.setAttribute('data-todo-id', todo.id);
             pinBtn.setAttribute('data-current-pinned', todo.pinned ? 'true' : 'false');
             pinBtn.textContent = todo.pinned ? '📌' : '📍';
-            pinBtn.addEventListener('click', function() {
-              var btn = this;
-              var todoId = btn.getAttribute('data-todo-id');
-              var currentlyPinned = btn.getAttribute('data-current-pinned') === 'true';
-              var newPinned = !currentlyPinned;
-              
-              // Update UI immediately for responsiveness
-              btn.classList.toggle('pinned', newPinned);
-              btn.textContent = newPinned ? '📌' : '📍';
-              btn.setAttribute('data-current-pinned', newPinned ? 'true' : 'false');
-              
-              // Send request to server
-              var fd = new FormData();
-              fd.append('pinned', newPinned ? 'true' : 'false');
-              var csrfInput = document.querySelector('input[name="_csrf"]');
-              if (csrfInput && csrfInput.value) fd.append('_csrf', csrfInput.value);
-              
-              fetch('/html_no_js/todos/' + encodeURIComponent(todoId) + '/pin', {
-                method: 'POST',
-                body: fd,
-                credentials: 'same-origin',
-                headers: { 'Accept': 'application/json' }
-              })
-              .then(function(res) {
-                if (!res.ok) {
-                  // Revert UI on error
-                  btn.classList.toggle('pinned', currentlyPinned);
-                  btn.textContent = currentlyPinned ? '📌' : '📍';
-                  btn.setAttribute('data-current-pinned', currentlyPinned ? 'true' : 'false');
-                  console.error('Pin update failed');
-                } else {
-                  try{ if (window.ftLog){ var nm=(document.querySelector('.list-title')||{}).textContent||''; window.ftLog(newPinned ? 'Pinned todo' : 'Unpinned todo', { item_type:'todo', item_id: Number(todoId), label: nm }); } }catch(_){ }
-                }
-              })
-              .catch(function(err) {
-                // Revert UI on error
-                btn.classList.toggle('pinned', currentlyPinned);
-                btn.textContent = currentlyPinned ? '📌' : '📍';
-                btn.setAttribute('data-current-pinned', currentlyPinned ? 'true' : 'false');
-                console.error('Pin update failed:', err);
-              });
-            });
+            // No direct click handler here: rely on the global delegated pin handler
+            // defined later in this page (document.body click listener for .pin-button).
             tdPin.appendChild(pinBtn);
           } catch(e) { /* ignored (tdPin build failed) */ }
           tr.appendChild(tdPin);
