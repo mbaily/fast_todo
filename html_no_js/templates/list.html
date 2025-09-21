@@ -1,6 +1,8 @@
 {% extends 'base.html' %}
 {% block title %}List: {{ list.name }} — Fast Todo (no-js){% endblock %}
 {% block content %}
+  <!-- DEBUG: MEDIA QUERY / BREAKPOINT INDICATOR -->
+  <!--<div id="breakpoint-debug" style="display:inline-block; margin:0 0 0.4rem 0; padding:0.2rem 0.5rem; background:#fbbf24; color:#111827; font-weight:800; font-size:0.78rem; border-radius:4px; text-transform:uppercase; letter-spacing:0.06em; box-shadow:0 2px 6px rgba(0,0,0,0.25)">MEDIA: DETECTING…</div>-->
   <!-- Section: Page styles specific to list view (layout, tooltips, mobile tweaks) -->
   <style>
     /* page-specific: remove top page margin so the site title sits flush to the top */
@@ -159,8 +161,11 @@
       {# Delete moved to page-toolbar below; keep this area compact and only show the complete toggle here. #}
     </div>
     <div class="list-main">
-  <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
-  <h3 class="list-title" style="margin:0; display:inline-flex; align-items:center; gap:0.35rem;">
+  <!--<div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">-->
+  <div>
+
+      <!--<h3 class="list-title" style="margin:0; display:inline-flex; align-items:center; gap:0.35rem;">-->
+    <h3 class="list-title" style="margin:0; align-items:center; gap:0.35rem;">
     {{ list.name }}
     {% if list.is_collation|default(false) %}
       {% set hue = (list.id * 47) % 360 %}
@@ -1790,6 +1795,7 @@
 {% block scripts %}
   {{ super() }}
   <script src="/static/no_js/todo.js"></script>
+  <script src="/static/no_js/breakpoint_debug.js"></script>
 <script>
 // Simple mark-storage helper used by mark icon on list page
 (function(){

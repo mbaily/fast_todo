@@ -33,6 +33,10 @@
   <!-- index-only search/create controls removed: this is a per-list page -->
 
   <main class="mt-1">
+    <!-- DEBUG: MEDIA QUERY / BREAKPOINT INDICATOR -->
+    <div id="breakpoint-debug" class="mb-2 inline-block rounded px-2 py-1 bg-amber-400 text-black text-xs sm:text-sm font-bold uppercase tracking-wide shadow">
+      MEDIA: DETECTING…
+    </div>
     <div id="list-root" class="mx-auto py-1 px-1">
       <!-- List header: name, completed toggle, edit, priority, tags -->
       <header class="bg-black-900 rounded-lg p-1 mb-1">
@@ -259,4 +263,5 @@
     console.log('Template rendered lists_up_top:', window.listState.listsUpTop);
   </script>
   <script src="/static/html_tailwind/tailwind_list.js"></script>
+  <script src="/static/html_tailwind/breakpoint_debug.js"></script>
 {% endblock %}
