@@ -184,6 +184,7 @@
           <li>
             <span class="pin-icon">🔖</span>
             <a class="wrap-text{% if t.completed %} done{% endif %}" href="/html_no_js/todos/{{ t.id }}">{{ t.text }}</a>{% if t.priority %} {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %} <span class="meta priority-inline"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>{% endif %}
+            {% if t.override_priority is not none and (t.priority is none or t.override_priority > t.priority) %}{% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %} <span class="meta priority-inline priority-override" title="Secondary priority (max child sublists)"><span class="priority-circle">{{ circ.get(t.override_priority, t.override_priority) }}</span></span>{% endif %}
             <span class="meta">in <a href="/html_no_js/lists/{{ t.list_id }}">{{ t.list_name or t.list_id }}</a></span>
             {% if t.tags and t.tags|length > 0 %}
             <div class="tags-inline">
@@ -202,9 +203,17 @@
           <li>
             <span class="pin-icon">🔖</span>
             <a class="list-title" href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>
-            {% if lst.priority or lst.override_priority %}
-              {% set eff = lst.override_priority if (lst.override_priority is not none and (lst.priority is none or lst.override_priority > lst.priority)) else lst.priority %}
-              {% if eff %}{% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}<span class="meta priority-inline priority-override"><span class="priority-circle">{{ circ.get(eff, eff) }}</span></span>{% endif %}
+            {# Show primary list priority if present #}
+            {% set lp = lst.priority %}
+            {% set op = lst.override_priority %}
+            {% if lp %}
+              {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
+              <span class="meta priority-inline"><span class="priority-circle">{{ circ.get(lp, lp) }}</span></span>
+            {% endif %}
+            {# If override exists and is strictly greater than primary, show it as an override badge (sand-colour) #}
+            {% if op is not none and (lp is none or op > lp) %}
+              {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
+              <span class="meta priority-inline priority-override" title="Highest uncompleted todo priority"><span class="priority-circle">{{ circ.get(op, op) }}</span></span>
             {% endif %}
             {% if lst.uncompleted_count is not none %}<span class="count-circle colour">{{ lst.uncompleted_count }}</span>{% endif %}
           </li>

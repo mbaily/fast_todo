@@ -146,6 +146,10 @@
             {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
             <span class="muted priority-inline"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>
           {% endif %}
+          {% if t.override_priority is not none and (t.priority is none or t.override_priority > t.priority) %}
+            {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
+            <span class="muted priority-inline priority-override" title="Secondary priority (max child sublists)"><span class="priority-circle">{{ circ.get(t.override_priority, t.override_priority) }}</span></span>
+          {% endif %}
           <span> in <a href="/html_no_js/lists/{{ t.list_id }}">{{ t.list_name or t.list_id }}</a></span>
           {% if t.tags and t.tags|length > 0 %}
             {% for tag in (t.tags | sort) %}
@@ -161,6 +165,17 @@
       {% for lst in (bookmarked_lists | sort(attribute='name', case_sensitive=false)) %}
         <li>
           🔖 <a href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>
+          {# show primary and (when higher) override priorities #}
+          {% set lp = lst.priority %}
+          {% set op = lst.override_priority %}
+          {% if lp %}
+            {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
+            <span class="muted priority-inline"><span class="priority-circle">{{ circ.get(lp, lp) }}</span></span>
+          {% endif %}
+          {% if op is not none and (lp is none or op > lp) %}
+            {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
+            <span class="muted priority-inline priority-override"><span class="priority-circle">{{ circ.get(op, op) }}</span></span>
+          {% endif %}
         </li>
       {% endfor %}
     </ul>

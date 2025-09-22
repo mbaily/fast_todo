@@ -8218,6 +8218,42 @@ async def html_index(request: Request):
                 for p in bookmarked_todos:
                     p['completed'] = p['id'] in completed_ids
 
+                # Compute secondary/override priority for bookmarked todos from immediate child sublists
+                try:
+                    if bm_ids:
+                        # Gather sublists owned by these todos
+                        qsubs = await sess.exec(
+                            select(ListState.parent_todo_id, ListState.priority, ListState.completed)
+                            .where(ListState.parent_todo_id.in_(bm_ids))
+                        )
+                        todo_sec: dict[int, int] = {}
+                        for parent_tid, spri, scompleted in qsubs.all():
+                            try:
+                                tid = int(parent_tid) if parent_tid is not None else None
+                            except Exception:
+                                tid = None
+                            if tid is None:
+                                continue
+                            # skip completed sublists
+                            if bool(scompleted):
+                                continue
+                            if spri is None:
+                                continue
+                            try:
+                                pv = int(spri)
+                            except Exception:
+                                continue
+                            cur = todo_sec.get(tid)
+                            if cur is None or pv > cur:
+                                todo_sec[tid] = pv
+                        # Attach to todo rows
+                        for p in bookmarked_todos:
+                            ov = todo_sec.get(int(p['id']))
+                            p['override_priority'] = ov if ov is not None else None
+                except Exception:
+                    # best-effort only
+                    pass
+
             # Bookmarked lists: include all owned lists (top-level or sublists).
             # Exclude lists that are direct children of the user's Trash list if present.
             qbl = select(ListState).where(ListState.owner_id == owner_id).where(ListState.bookmarked == True)
@@ -8244,6 +8280,101 @@ async def html_index(request: Request):
                 }
                 for l in bl_rows
             ]
+            # Compute override_priority for bookmarked lists similar to pinned lists
+            try:
+                bl_ids = [int(r['id']) for r in bookmarked_lists] if bookmarked_lists else []
+            except Exception:
+                bl_ids = []
+            if bl_ids:
+                try:
+                    # Gather todo priorities for these lists
+                    todo_q = await sess.exec(
+                        select(Todo.id, Todo.list_id, Todo.priority)
+                        .where(Todo.list_id.in_(bl_ids))
+                        .where(Todo.priority != None)
+                    )
+                    todo_rows = todo_q.all()
+                    todo_map: dict[int, list[tuple[int,int]]] = {}
+                    todo_ids: list[int] = []
+                    for tid, lid, pri in todo_rows:
+                        try:
+                            tid_i = int(tid); lid_i = int(lid)
+                        except Exception:
+                            continue
+                        if pri is None:
+                            continue
+                        todo_map.setdefault(lid_i, []).append((tid_i, int(pri)))
+                        todo_ids.append(tid_i)
+                    # Determine completed set for these todos (default completion type)
+                    completed_ids: set[int] = set()
+                    if todo_ids:
+                        try:
+                            qcomp = (
+                                select(TodoCompletion.todo_id)
+                                .join(CompletionType, CompletionType.id == TodoCompletion.completion_type_id)
+                                .where(TodoCompletion.todo_id.in_(todo_ids))
+                                .where(CompletionType.name == 'default')
+                                .where(TodoCompletion.done == True)
+                            )
+                            cres = await sess.exec(qcomp)
+                            completed_ids = set(r[0] if isinstance(r, tuple) else r for r in cres.all())
+                        except Exception:
+                            completed_ids = set()
+                    # Immediate child sublists' list-level priority (skip completed sublists)
+                    parent_to_sublists: dict[int, list[dict]] = {}
+                    try:
+                        qsubs = await sess.exec(
+                            select(ListState.id, ListState.priority, ListState.parent_list_id, ListState.completed)
+                            .where(ListState.parent_list_id.in_(bl_ids))
+                        )
+                        for sid, spri, parent_id, scompleted in qsubs.all():
+                            try:
+                                pid = int(parent_id)
+                            except Exception:
+                                continue
+                            parent_to_sublists.setdefault(pid, []).append({
+                                'id': sid,
+                                'priority': spri,
+                                'completed': bool(scompleted) if scompleted is not None else False,
+                            })
+                    except Exception:
+                        parent_to_sublists = {}
+
+                    # Compute max override per bookmarked list
+                    for row in bookmarked_lists:
+                        try:
+                            lid = int(row.get('id'))
+                        except Exception:
+                            continue
+                        max_p = None
+                        # from uncompleted todos
+                        for tid, pri in todo_map.get(lid, []) or []:
+                            if tid in completed_ids:
+                                continue
+                            try:
+                                pv = int(pri)
+                            except Exception:
+                                continue
+                            if max_p is None or pv > max_p:
+                                max_p = pv
+                        # from immediate child sublists' list-level priority
+                        for s in parent_to_sublists.get(lid, []) or []:
+                            sp = s.get('priority')
+                            if s.get('completed'):
+                                continue
+                            if sp is None:
+                                continue
+                            try:
+                                spv = int(sp)
+                            except Exception:
+                                continue
+                            if max_p is None or spv > max_p:
+                                max_p = spv
+                        if max_p is not None:
+                            row['override_priority'] = max_p
+                except Exception:
+                    # Non-fatal failure computing overrides for bookmarked lists
+                    pass
         except Exception:
             bookmarked_todos = []
             bookmarked_lists = []
