@@ -1912,6 +1912,24 @@ async def create_event_log(payload: EventLogIn, current_user: User = Depends(req
     Accepts JSON with a descriptive message and optional link fields.
     Returns a small JSON acknowledging creation.
     """
+    # Uppercase debug logs for todo completion metadata troubleshooting
+    try:
+        _msg = (payload.message or '')
+        _is_todo_complete = (payload.item_type == 'todo' and isinstance(_msg, str) and ('completed' in _msg.lower()))
+        if _is_todo_complete:
+            logger.warning(
+                "HTML_NO_JS EVENTLOG RECEIVED: USER=%s MESSAGE=%s ITEM_TYPE=%s ITEM_ID=%s URL=%s LABEL=%s METADATA=%s",
+                str(current_user.id),
+                _msg,
+                str(payload.item_type),
+                str(payload.item_id),
+                str(payload.url),
+                str(payload.label),
+                json.dumps(payload.metadata or {}, ensure_ascii=False)
+            )
+    except Exception:
+        pass
+
     async with async_session() as sess:
         # Serialize optional metadata dict to JSON for storage in metadata_json
         meta_json: str | None = None
@@ -1933,6 +1951,14 @@ async def create_event_log(payload: EventLogIn, current_user: User = Depends(req
         sess.add(row)
         await sess.commit()
         await sess.refresh(row)
+        try:
+            if 'completed' in (row.message or '').lower() and (row.item_type == 'todo'):
+                logger.warning(
+                    "HTML_NO_JS EVENTLOG STORED: ROW_ID=%s USER=%s CREATED_AT=%s ITEM_TYPE=%s ITEM_ID=%s METADATA_JSON=%s",
+                    str(row.id), str(row.user_id), str(row.created_at), str(row.item_type), str(row.item_id), str(row.metadata_json)
+                )
+        except Exception:
+            pass
         return { 'ok': True, 'id': row.id }
 
 
