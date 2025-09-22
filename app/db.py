@@ -544,6 +544,32 @@ def _ensure_sqlite_minimal_migrations(url: str | None) -> None:
                     cur.execute("CREATE INDEX IF NOT EXISTS ix_eventlog_user_created ON eventlog(user_id, created_at DESC)")
                 except Exception:
                     pass
+            # Ensure journalentry table exists for per-todo journals
+            try:
+                cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='journalentry'")
+                exists_je = cur.fetchone() is not None
+            except Exception:
+                exists_je = True
+            if not exists_je:
+                try:
+                    cur.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS journalentry (
+                          id INTEGER PRIMARY KEY,
+                          todo_id INTEGER NOT NULL,
+                          user_id INTEGER NOT NULL,
+                          content TEXT NOT NULL,
+                          created_at DATETIME,
+                          modified_at DATETIME,
+                          metadata_json TEXT
+                        )
+                        """
+                    )
+                    cur.execute("CREATE INDEX IF NOT EXISTS ix_journalentry_todo_id ON journalentry(todo_id)")
+                    cur.execute("CREATE INDEX IF NOT EXISTS ix_journalentry_user_id ON journalentry(user_id)")
+                    cur.execute("CREATE INDEX IF NOT EXISTS ix_journalentry_created ON journalentry(created_at DESC)")
+                except Exception:
+                    pass
             # Ensure bookmarked flag exists on liststate and helpful index
             try:
                 cur.execute("PRAGMA table_info('liststate')")
@@ -1084,6 +1110,32 @@ async def init_db():
             await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_itemlink_src ON itemlink(src_type, src_id, position)"))
         except Exception:
             pass
+        # Ensure journalentry table/indices exist (best-effort for older DBs)
+        try:
+            res = await conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='journalentry'"))
+            exists = res.fetchone() is not None
+        except Exception:
+            exists = True
+        if not exists:
+            try:
+                await conn.execute(text(
+                    """
+                    CREATE TABLE IF NOT EXISTS journalentry (
+                      id INTEGER PRIMARY KEY,
+                      todo_id INTEGER NOT NULL,
+                      user_id INTEGER NOT NULL,
+                      content TEXT NOT NULL,
+                      created_at DATETIME,
+                      modified_at DATETIME,
+                      metadata_json TEXT
+                    )
+                    """
+                ))
+                await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_journalentry_todo_id ON journalentry(todo_id)"))
+                await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_journalentry_user_id ON journalentry(user_id)"))
+                await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_journalentry_created ON journalentry(created_at DESC)"))
+            except Exception:
+                pass
         # defensive dedupe: if earlier test runs created duplicate rows
         # (possible before unique indexes were present), remove duplicates
         # keeping the first row for each unique key, then create the

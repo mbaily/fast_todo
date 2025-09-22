@@ -301,6 +301,21 @@
     </p>
   {% endif %}
 
+  <!-- Section: Journal (reactive) -->
+  <section aria-label="Journal" style="margin-top:1rem">
+    <h3 style="margin:0 0 .4rem 0">Journal</h3>
+  <div class="journal" data-todo-id="{{ todo.id }}" data-csrf="{{ csrf_token }}" data-tz="{{ client_tz }}">
+      <form class="journal-add" autocomplete="off" style="display:flex; gap:0.4rem; align-items:flex-start; flex-wrap:wrap;">
+        <label style="flex:1 1 240px; min-width:200px;">New entry<br>
+          <textarea name="content" rows="2" placeholder="Write a quick note…" style="width:100%;"></textarea>
+        </label>
+        <button type="submit" class="btn">Add</button>
+      </form>
+      <ul class="journal-list" style="list-style:none; padding:0; margin:0.5rem 0 0 0"></ul>
+      <p class="meta journal-empty" style="display:none; margin:0.3rem 0">No journal entries yet.</p>
+    </div>
+  </section>
+
   <!-- Section: Sublists (shown below content when Up top is disabled) -->
   {% if sublists is defined and (todo is defined and not todo.lists_up_top) %}
     <section aria-label="Sublists" style="margin-top:1rem">
@@ -451,4 +466,6 @@
   </script>
   <!-- Bookmark toggles (JS-only enhancement) -->
   <script src="/static/js/bookmarks.js"></script>
+  <!-- Journal client (reactive add/edit/delete) -->
+  <script src="/static/no_js/journal.js"></script>
 {% endblock %}

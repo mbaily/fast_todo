@@ -6,7 +6,8 @@ from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse
 
 from .db import async_session
-from .models import ListState, ListHashtag, Hashtag, Todo, TodoHashtag, CompletionType, TodoCompletion, Category, UserCollation, ItemLink
+from .models import ListState, ListHashtag, Hashtag, Todo, TodoHashtag, CompletionType, TodoCompletion, Category, UserCollation, ItemLink, JournalEntry
+from .utils import format_in_timezone
 from .auth import get_current_user as _gcu
 from .utils import extract_hashtags, now_utc, parse_metadata_json, validate_metadata_for_storage
 from sqlalchemy import select, func, or_, and_
@@ -213,6 +214,153 @@ async def client_create_list(request: Request):
     except Exception:
         pass
     return JSONResponse(payload)
+
+
+# ===== Journal entries (per-todo) =====
+
+def _safe_str(v):
+    try:
+        return str(v)
+    except Exception:
+        return ''
+
+@router.get('/todos/{todo_id}/journal', response_class=JSONResponse)
+async def list_journal_entries(request: Request, todo_id: int):
+    try:
+        current_user = await _gcu(token=None, request=request)
+    except HTTPException:
+        raise HTTPException(status_code=401, detail='authentication required')
+    async with async_session() as sess:
+        t = await sess.get(Todo, todo_id)
+        if not t:
+            raise HTTPException(status_code=404, detail='todo not found')
+        # verify visibility via parent list ownership
+        lst = await sess.get(ListState, t.list_id)
+        if not lst or lst.owner_id != current_user.id:
+            raise HTTPException(status_code=403, detail='forbidden')
+        q = await sess.scalars(
+            select(JournalEntry)
+            .where(JournalEntry.todo_id == todo_id)
+            .order_by(JournalEntry.created_at.desc())
+        )
+        rows = q.all()
+        # Optional timezone hint from client (IANA zone); when provided, include
+        # pre-formatted display strings matching the rest of the html_no_js UI.
+        tz = request.query_params.get('tz')
+        display_fmt = '%d/%m %-I:%M%p'
+        out = [
+            {
+                'id': r.id,
+                'todo_id': r.todo_id,
+                'content': r.content,
+                'created_at': (r.created_at.isoformat() if getattr(r, 'created_at', None) else None),
+                'modified_at': (r.modified_at.isoformat() if getattr(r, 'modified_at', None) else None),
+                # display strings (when tz is given)
+                'created_at_display': (format_in_timezone(r.created_at, tz, display_fmt) if (tz and getattr(r, 'created_at', None)) else None),
+                'modified_at_display': (format_in_timezone(r.modified_at, tz, display_fmt) if (tz and getattr(r, 'modified_at', None)) else None),
+                'metadata': parse_metadata_json(getattr(r, 'metadata_json', None)),
+            }
+            for r in rows
+        ]
+        return JSONResponse({'ok': True, 'entries': out})
+
+
+@router.post('/todos/{todo_id}/journal', response_class=JSONResponse)
+async def create_journal_entry(request: Request, todo_id: int):
+    try:
+        current_user = await _gcu(token=None, request=request)
+    except HTTPException:
+        raise HTTPException(status_code=401, detail='authentication required')
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    content = _safe_str((body.get('content') or '').strip())
+    if not content:
+        raise HTTPException(status_code=400, detail='content is required')
+    metadata = body.get('metadata') if isinstance(body, dict) else None
+    async with async_session() as sess:
+        t = await sess.get(Todo, todo_id)
+        if not t:
+            raise HTTPException(status_code=404, detail='todo not found')
+        lst = await sess.get(ListState, t.list_id)
+        if not lst or lst.owner_id != current_user.id:
+            raise HTTPException(status_code=403, detail='forbidden')
+        # validate metadata
+        meta_json = None
+        try:
+            meta_json = validate_metadata_for_storage(metadata)
+        except Exception:
+            meta_json = None
+        row = JournalEntry(todo_id=todo_id, user_id=current_user.id, content=content, created_at=now_utc(), modified_at=now_utc(), metadata_json=meta_json)
+        sess.add(row)
+        await sess.commit()
+        await sess.refresh(row)
+        resp = {'ok': True, 'entry': {'id': row.id, 'todo_id': row.todo_id, 'content': row.content, 'created_at': (row.created_at.isoformat() if row.created_at else None), 'modified_at': (row.modified_at.isoformat() if row.modified_at else None)}}
+        return JSONResponse(resp)
+
+
+@router.patch('/journal/{entry_id}', response_class=JSONResponse)
+async def update_journal_entry(request: Request, entry_id: int):
+    try:
+        current_user = await _gcu(token=None, request=request)
+    except HTTPException:
+        raise HTTPException(status_code=401, detail='authentication required')
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    content = body.get('content')
+    metadata = body.get('metadata') if isinstance(body, dict) else None
+    async with async_session() as sess:
+        r = await sess.get(JournalEntry, entry_id)
+        if not r:
+            raise HTTPException(status_code=404, detail='journal entry not found')
+        # Verify ownership via user and list
+        t = await sess.get(Todo, r.todo_id)
+        if not t:
+            raise HTTPException(status_code=404, detail='todo not found')
+        lst = await sess.get(ListState, t.list_id)
+        if not lst or lst.owner_id != current_user.id or r.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail='forbidden')
+        changed = False
+        if content is not None:
+            r.content = _safe_str(content)
+            changed = True
+        if metadata is not None:
+            try:
+                r.metadata_json = validate_metadata_for_storage(metadata)
+            except Exception:
+                r.metadata_json = r.metadata_json
+            changed = True
+        if changed:
+            r.modified_at = now_utc()
+            sess.add(r)
+            await sess.commit()
+            await sess.refresh(r)
+        return JSONResponse({'ok': True, 'entry': {'id': r.id, 'todo_id': r.todo_id, 'content': r.content, 'created_at': (r.created_at.isoformat() if r.created_at else None), 'modified_at': (r.modified_at.isoformat() if r.modified_at else None)}})
+
+
+@router.delete('/journal/{entry_id}', response_class=JSONResponse)
+async def delete_journal_entry(request: Request, entry_id: int):
+    try:
+        current_user = await _gcu(token=None, request=request)
+    except HTTPException:
+        raise HTTPException(status_code=401, detail='authentication required')
+    async with async_session() as sess:
+        r = await sess.get(JournalEntry, entry_id)
+        if not r:
+            return JSONResponse({'ok': True, 'deleted': False})
+        # verify owner
+        t = await sess.get(Todo, r.todo_id)
+        if not t:
+            raise HTTPException(status_code=404, detail='todo not found')
+        lst = await sess.get(ListState, t.list_id)
+        if not lst or lst.owner_id != current_user.id or r.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail='forbidden')
+        await sess.delete(r)
+        await sess.commit()
+        return JSONResponse({'ok': True, 'deleted': True})
 
 
 # ===== Collations (per-user multiple collection lists) =====

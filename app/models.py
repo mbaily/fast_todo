@@ -176,6 +176,8 @@ class Todo(SQLModel, table=True):
             "foreign_keys": "ListState.parent_todo_id",
         },
     )
+    # Journal entries (lightweight timestamped notes) owned by this todo
+    journal_entries: List["JournalEntry"] = Relationship(back_populates="todo")
 
 
 class TodoCompletion(SQLModel, table=True):
@@ -479,3 +481,22 @@ class EventLog(SQLModel, table=True):
     created_at: datetime | None = Field(default_factory=now_utc, index=True)
     # Arbitrary JSON metadata (JSON-encoded string)
     metadata_json: Optional[str] = None
+
+class JournalEntry(SQLModel, table=True):
+    """A lightweight per-todo journal entry.
+
+    Stores short freeform text with automatic timestamps. Entries are
+    scoped to a Todo and redundantly store the owning user_id for
+    quick authorization checks.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    todo_id: int = Field(foreign_key="todo.id", index=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    content: str
+    created_at: datetime | None = Field(default_factory=now_utc, index=True)
+    modified_at: datetime | None = Field(default_factory=now_utc)
+    # Arbitrary JSON metadata (JSON-encoded string)
+    metadata_json: Optional[str] = None
+
+    # relationships
+    todo: Optional[Todo] = Relationship(back_populates="journal_entries")
