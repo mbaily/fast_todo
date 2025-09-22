@@ -14,7 +14,8 @@
       item_type: safe(opts, 'item_type') || null,
       item_id: safe(opts, 'item_id') || null,
       url: safe(opts, 'url') || null,
-      label: safe(opts, 'label') || null
+      label: safe(opts, 'label') || null,
+      metadata: safe(opts, 'metadata') || null
     };
     try{ await post('/html_no_js/logs', payload); }catch(e){}
   };

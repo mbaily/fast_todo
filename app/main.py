@@ -1892,12 +1892,17 @@ async def post_server_log(request: Request, payload: LogPost):
     return {'ok': True}
 
 # ---------- html_no_js: user event logs ----------
+import json  # added for event log metadata handling
+
+
 class EventLogIn(BaseModel):
     message: str
     item_type: str | None = None
     item_id: int | None = None
     url: str | None = None
     label: str | None = None
+    # Optional metadata to carry additional labels (e.g., list_name, todo_name)
+    metadata: dict | None = None
 
 
 @app.post('/html_no_js/logs')
@@ -1908,9 +1913,23 @@ async def create_event_log(payload: EventLogIn, current_user: User = Depends(req
     Returns a small JSON acknowledging creation.
     """
     async with async_session() as sess:
-        row = EventLog(user_id=current_user.id, message=payload.message[:1000] if payload.message else '',
-                        item_type=(payload.item_type or None), item_id=payload.item_id,
-                        url=(payload.url or None), label=(payload.label or None), created_at=now_utc())
+        # Serialize optional metadata dict to JSON for storage in metadata_json
+        meta_json: str | None = None
+        try:
+            if payload.metadata is not None:
+                meta_json = json.dumps(payload.metadata)
+        except Exception:
+            meta_json = None
+        row = EventLog(
+            user_id=current_user.id,
+            message=payload.message[:1000] if payload.message else '',
+            item_type=(payload.item_type or None),
+            item_id=payload.item_id,
+            url=(payload.url or None),
+            label=(payload.label or None),
+            created_at=now_utc(),
+            metadata_json=meta_json,
+        )
         sess.add(row)
         await sess.commit()
         await sess.refresh(row)
@@ -1921,11 +1940,24 @@ async def create_event_log(payload: EventLogIn, current_user: User = Depends(req
 async def html_logs_page(request: Request, current_user: User = Depends(require_login)):
     """Render the per-user event logs as a page with truncate control."""
     async with async_session() as sess:
-        q = await sess.exec(select(EventLog).where(EventLog.user_id == current_user.id).order_by(EventLog.created_at.desc()).limit(500))
+        q = await sess.exec(
+            select(EventLog)
+            .where(EventLog.user_id == current_user.id)
+            .order_by(EventLog.created_at.desc())
+            .limit(500)
+        )
         items = q.all()
+    # Build a mapping of event id -> metadata dict for template use
+    logs_meta: dict[int, dict] = {}
+    for _ev in items:
+        try:
+            logs_meta[_ev.id] = json.loads(_ev.metadata_json) if _ev.metadata_json else {}
+        except Exception:
+            logs_meta[_ev.id] = {}
     return TEMPLATES.TemplateResponse('logs.html', {
         'request': request,
         'logs': items,
+        'logs_meta': logs_meta,
         'user': current_user,
     })
 

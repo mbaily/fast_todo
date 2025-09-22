@@ -719,7 +719,7 @@
 					.then(function(res){ if (!res.ok) throw new Error('Priority update failed'); return res.json().catch(function(){ return null; }); })
 					.then(function(){
 						try{ var circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'}; var el = document.querySelector('.todo-header .priority-circle'); if (el) el.textContent = v ? (circ[v] || v) : ''; }catch(_){ }
-						try{ var tid = (sel.getAttribute('id')||'').split('todo-priority-')[1] || null; if (window.ftLog && tid){ var ttl=(typeof window.__ftGetTodoTitle==='function')?window.__ftGetTodoTitle():''; window.ftLog('Changed priority', { item_type: 'todo', item_id: Number(tid), label: (ttl? (ttl + ' — '):'') + String(v||'') }); } }catch(_){ }
+						try{ var tid = (sel.getAttribute('id')||'').split('todo-priority-')[1] || null; if (window.ftLog && tid){ var ttl=(typeof window.__ftGetTodoTitle==='function')?window.__ftGetTodoTitle():''; window.ftLog('Changed priority', { item_type: 'todo', item_id: Number(tid), label: ttl }); } }catch(_){ }
 					})
 					.catch(function(){ try{ console && console.error && console.error('Priority update failed'); }catch(_){ } });
 			}catch(_){ }

@@ -10,19 +10,30 @@
     <ul style="list-style:none; padding-left:0; margin:0">
       {% for ev in logs %}
         <li style="margin:0.25rem 0;">
+          {% set meta = (logs_meta and logs_meta.get(ev.id)) or {} %}
           <span class="meta" style="margin-right:0.5rem">{{ ev.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</span>
           <span>{{ ev.message }}</span>
-          {% if ev.url %}
-            &nbsp; <a href="{{ ev.url }}">{{ ev.label or 'link' }}</a>
-          {% elif ev.item_type and ev.item_id %}
-            &nbsp; {% if ev.item_type == 'todo' %}
-              <a href="/html_no_js/todos/{{ ev.item_id }}">{{ ev.label or ('todo #' ~ ev.item_id) }}</a>
+          {% set has_item = ev.item_type and ev.item_id %}
+          {% set has_url = ev.url %}
+          {% if has_item %}
+            &nbsp;
+            {% if ev.item_type == 'todo' %}
+              <a href="/html_no_js/todos/{{ ev.item_id }}">{{ meta.todo_name or ev.label or ('todo #' ~ ev.item_id) }}</a>
             {% elif ev.item_type == 'list' %}
-              <a href="/html_no_js/lists/{{ ev.item_id }}">{{ ev.label or ('list #' ~ ev.item_id) }}</a>
+              <a href="/html_no_js/lists/{{ ev.item_id }}">{{ meta.list_name or ev.label or ('list #' ~ ev.item_id) }}</a>
             {% elif ev.item_type == 'hashtag' %}
               <a href="/html_no_js/search?q={{ ('#' ~ (ev.label or ev.item_id|string))|urlencode }}">{{ ev.label or ('#' ~ ev.item_id) }}</a>
             {% else %}
               <span class="muted">(no link)</span>
+            {% endif %}
+          {% endif %}
+          {% if has_url %}
+            &nbsp;
+            {# For list URL, use list_name from metadata if present; otherwise fall back to label or 'list' #}
+            {% if '/html_no_js/lists/' in ev.url %}
+              <a href="{{ ev.url }}">{{ meta.list_name or ev.label or 'list' }}</a>
+            {% else %}
+              <a href="{{ ev.url }}">{{ ev.label or 'link' }}</a>
             {% endif %}
           {% endif %}
         </li>
