@@ -62,6 +62,12 @@ DISABLE_CALENDAR_TEXT_SCAN = _trueish(os.getenv('DISABLE_CALENDAR_TEXT_SCAN', '0
 SKIP_INDEX_CALENDAR = _trueish(os.getenv('SKIP_INDEX_CALENDAR', '0'))
 
 
+# When true, the app is considered to be running in development mode.
+# Use DEV_MODE=1 in the environment (set by dev launch scripts) to enable
+# template banners and other dev-only UI affordances.
+DEV_MODE = _trueish(os.getenv('DEV_MODE', '0'))
+
+
 DOKUWIKI_NOTE_LINK_PREFIX = os.getenv('DOKUWIKI_NOTE_LINK_PREFIX', 'https://myserver.hopto.org/dokuwiki/doku.php?id=')
 
 # Optional local overrides: define variables in app/local_config.py to extend or

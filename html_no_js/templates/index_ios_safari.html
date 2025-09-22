@@ -129,6 +129,11 @@
         {% endfor %}
       </ul>
     {% endif %}
+    {% if config.DEV_MODE %}
+    <div style="position:sticky;top:0;z-index:900;background:#7c2d12;color:#fff;padding:0.35rem 0.6rem;border-bottom:2px solid #f97316;letter-spacing:0.03em;text-align:center;font-weight:700;margin:0.25rem 0;">
+      DEVELOPMENT SERVER
+    </div>
+    {% endif %}
 
     {% if (bookmarked_todos and bookmarked_todos|length > 0) or (bookmarked_lists and bookmarked_lists|length > 0) %}
     <!-- <h3 style="margin-top:0.5rem">Bookmarks</h3> -->

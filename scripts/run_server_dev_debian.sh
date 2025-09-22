@@ -170,6 +170,8 @@ fi
 
 if [ "$RELOAD" -eq 1 ]; then
   echo "[run_server] Starting uvicorn in dev mode (reload) on https://${HOST}:${PORT} (log_level=${UVICORN_LOG_LEVEL} access_log=${UVICORN_ACCESS_LOG})"
+  # Mark this process as development so templates can show a banner
+  export DEV_MODE=1
   if [ "$DEBUGPY" -eq 1 ]; then
     echo "[run_server] Enabling debugpy (wait=${DEBUGPY_WAIT})"
     export ENABLE_DEBUGPY=1
