@@ -8070,6 +8070,8 @@ async def html_index(request: Request):
                     {
                         'id': t.id,
                         'text': t.text,
+                        # include full note (may be None) so template can abbreviate / line-clamp
+                        'note': getattr(t, 'note', None),
                         'list_id': t.list_id,
                         'list_name': lm.get(t.list_id),
                         'modified_at': (t.modified_at.isoformat() if getattr(t, 'modified_at', None) else None),
@@ -8078,6 +8080,80 @@ async def html_index(request: Request):
                     }
                     for t in pin_rows
                 ]
+                # Fetch last journal entry (most recent created_at) for each pinned todo in one query
+                try:
+                    pin_ids_int = [int(p['id']) for p in pinned_todos]
+                except Exception:
+                    pin_ids_int = []
+                if pin_ids_int:
+                    try:
+                        # Use a window function (if supported) or correlated subquery fallback. SQLite supports window functions (ROW_NUMBER()) in modern versions.
+                        from sqlalchemy import literal_column
+                        try:
+                            jsub = (
+                                select(
+                                    JournalEntry.todo_id.label('jtodo_id'),
+                                    JournalEntry.content.label('jcontent'),
+                                    JournalEntry.created_at.label('jcreated_at'),
+                                    func.row_number().over(partition_by=JournalEntry.todo_id, order_by=JournalEntry.created_at.desc()).label('rn')
+                                )
+                                .where(JournalEntry.todo_id.in_(pin_ids_int))
+                            ).subquery()
+                            qlast = select(jsub.c.jtodo_id, jsub.c.jcontent, jsub.c.jcreated_at).where(jsub.c.rn == 1)
+                            jres = await sess.exec(qlast)
+                            last_map: dict[int, tuple[str, any]] = {}
+                            for tid, content, created in jres.all():
+                                try:
+                                    tid_i = int(tid)
+                                except Exception:
+                                    continue
+                                last_map[tid_i] = (content, created)
+                        except Exception:
+                            # Fallback: per-todo query (only if above fails). Keep it safe: stop on too many.
+                            last_map = {}
+                            for tid in pin_ids_int[:200]:  # hard cap
+                                try:
+                                    qone = await sess.exec(
+                                        select(JournalEntry.content, JournalEntry.created_at)
+                                        .where(JournalEntry.todo_id == tid)
+                                        .order_by(JournalEntry.created_at.desc())
+                                        .limit(1)
+                                    )
+                                    row = qone.first()
+                                    if row:
+                                        if isinstance(row, tuple):
+                                            content, created = row
+                                        else:
+                                            content = getattr(row, 'content', None)
+                                            created = getattr(row, 'created_at', None)
+                                        last_map[tid] = (content, created)
+                                except Exception:
+                                    continue
+                        # Attach abbreviated last journal entry text
+                        for p in pinned_todos:
+                            try:
+                                tid = int(p.get('id'))
+                            except Exception:
+                                continue
+                            pair = last_map.get(tid)
+                            if not pair:
+                                p['last_journal_entry'] = None
+                                continue
+                            content, created = pair
+                            if content is None:
+                                p['last_journal_entry'] = None
+                                continue
+                            # Abbreviate to ~120 chars similar to other truncations
+                            cstr = str(content)
+                            if len(cstr) > 120:
+                                cstr_abbrev = cstr[:120] + '…'
+                            else:
+                                cstr_abbrev = cstr
+                            p['last_journal_entry'] = cstr_abbrev
+                    except Exception:
+                        # Non-fatal: omit journal entries on error
+                        for p in pinned_todos:
+                            p['last_journal_entry'] = None
                 # attach tags for pinned todos
                 pin_ids = [p['id'] for p in pinned_todos]
                 if pin_ids:

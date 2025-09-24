@@ -91,6 +91,12 @@
             <span class="muted priority-inline"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>
           {% endif %}
           <span> in <a href="/html_no_js/lists/{{ t.list_id }}">{{ t.list_name or t.list_id }}</a></span>
+          {% if t.note %}
+            <div class="meta line-clamp-1 wrap-text" style="margin-top:0.15rem; max-width:60ch;">{{ t.note }}</div>
+          {% endif %}
+          {% if t.last_journal_entry %}
+            <div class="meta line-clamp-1 wrap-text" style="margin-top:0.15rem; max-width:60ch;">📝 {{ t.last_journal_entry }}</div>
+          {% endif %}
           {% if t.tags and t.tags|length > 0 %}
             {% for tag in (t.tags | sort) %}
               &nbsp;<a href="/html_no_js/search?q={{ tag|urlencode }}" style="background:#012383;color:#ffffff;border-radius:999px;text-decoration:none;font-size:0.95em;">{{ tag }}</a>
