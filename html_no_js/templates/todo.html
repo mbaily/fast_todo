@@ -252,6 +252,14 @@
   <!-- Section: Creation and modification timestamps -->
   <p class="meta">Created: {{ todo.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }} &nbsp; Modified: {{ todo.modified_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</p>
 
+  <!-- Section: Recurrence metadata -->
+  {% if todo.recurrence_rrule %}
+  <p class="meta">Recurrence info. rrule: '{{ todo.recurrence_rrule }}', dtstart: {{ todo.recurrence_dtstart|in_tz(client_tz, '%d/%m/%Y %-I:%M%p')  }}</p>
+  <!--<p class="meta">Recurrence meta: {{ todo.recurrence_meta }}</p>-->
+  <!--<p class="meta">Recurrence parser version: {{ todo.recurrence_parser_version }}</p>-->
+  {% endif %}
+
+
   <!-- Section: Edit todo (text and note editor) -->
   <form id="todo-edit-form" method="post" action="/html_no_js/todos/{{ todo.id }}/edit" autocomplete="off">
     {{ csrf_field() }}

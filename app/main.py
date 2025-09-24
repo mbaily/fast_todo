@@ -14236,6 +14236,10 @@ async def html_view_todo(request: Request, todo_id: int, current_user: User = De
             "lists_up_top": getattr(todo, 'lists_up_top', False),
             # persist Sort Links preference so template can render checkbox state
             "sort_links": getattr(todo, 'sort_links', False),
+            "recurrence_rrule": getattr(todo, 'recurrence_rrule', False),
+            "recurrence_meta": getattr(todo, 'recurrence_meta', False),
+            "recurrence_dtstart": getattr(todo, 'recurrence_dtstart', False),
+            "recurrence_parser_version": getattr(todo, 'recurrence_parser_version', False),
         }
         list_row = None
         if lst:
