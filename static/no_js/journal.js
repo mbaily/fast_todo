@@ -48,7 +48,18 @@
     var delBtn = el('button', { type: 'button', class: 'journal-delete', title: 'Delete' }); delBtn.textContent = '🗑';
     header.appendChild(editBtn); header.appendChild(delBtn);
     var body = el('div', { class: 'journal-body' });
-    var text = el('pre', { class: 'journal-text' }); text.textContent = e.content || '';
+    var text = el('pre', { class: 'journal-text', style: 'margin:0; padding:0.25rem 0; white-space:pre-wrap; overflow:hidden;' });
+    text.textContent = e.content || '';
+    // Defer height adjustment until in DOM
+    setTimeout(function(){
+      try{
+        // Let browser layout first
+        text.style.height = 'auto';
+        // If CSS elsewhere sets a fixed height, override with scrollHeight
+        var sh = text.scrollHeight;
+        if(sh){ text.style.height = sh + 'px'; }
+      }catch(_){ }
+    },0);
     body.appendChild(text);
     li.appendChild(header); li.appendChild(body);
     return li;
@@ -85,9 +96,43 @@
             var li = renderEntry({ id: e.id, content: e.content, created_at: e.created_at }, function(){ return createdStr; });
             ul.appendChild(li);
           });
+          // After all entries appended, ensure dynamic sizing (in case earlier timeout missed due to batching)
+          try{
+            requestAnimationFrame(function(){
+              var pres = ul.querySelectorAll('pre.journal-text');
+              for(var i=0;i<pres.length;i++){
+                var p = pres[i];
+                p.style.height = 'auto';
+                var sh = p.scrollHeight; if(sh){ p.style.height = sh + 'px'; }
+              }
+            });
+          }catch(_){ }
         })
         .catch(function(){ /* silent */ });
     }
+
+    function autoResize(ta){
+      try{
+        if(!ta) return;
+        ta.style.overflow = 'hidden';
+        // Reset height to allow shrink
+        ta.style.height = 'auto';
+        // Add small buffer (2px) to avoid scrollbar flash
+        ta.style.height = (ta.scrollHeight + 2) + 'px';
+      }catch(_){ }
+    }
+    function wireAutoResize(ta){
+      if(!ta || ta._autoResizeBound) return;
+      ta._autoResizeBound = true;
+      autoResize(ta);
+      ta.addEventListener('input', function(){ autoResize(ta); });
+    }
+
+    // Locate the add-form textarea early and wire auto-resize
+    try{
+      var addTa = form && form.querySelector('textarea[name="content"]');
+      if(addTa){ wireAutoResize(addTa); }
+    }catch(_){ }
 
     function onAdd(ev){
       ev.preventDefault();
@@ -98,7 +143,7 @@
         var body = JSON.stringify({ content: val });
         fetch('/client/json/todos/'+todoId+'/journal', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: body })
           .then(function(r){ if(!r.ok) throw new Error('create failed'); return r.json(); })
-          .then(function(_){ ta.value=''; load(); })
+          .then(function(_){ ta.value=''; autoResize(ta); load(); })
           .catch(function(){ /* silent */ });
       }catch(_){ }
     }
@@ -114,6 +159,7 @@
       var saveBtn = el('button', { type: 'button', class: 'journal-save' }); saveBtn.textContent = 'Save';
       var cancelBtn = el('button', { type: 'button', class: 'journal-cancel', style: 'margin-left:0.4rem' }); cancelBtn.textContent = 'Cancel';
       body.appendChild(ta); body.appendChild(el('div', { style: 'margin-top:0.3rem' }, [saveBtn, cancelBtn]));
+      wireAutoResize(ta);
     }
 
     function saveEdit(li){
