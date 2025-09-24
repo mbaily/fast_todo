@@ -20,6 +20,12 @@ Usage:
 #The web endpoints that use it are _create_todo_internal and _update_todo_internal in app.main: they call parse_text_to_rrule_string(...) and then persist the returned dtstart into todo.recurrence_dtstart.
 #It doesn’t read modified_at directly. However, update_todo sets modified_at = now_utc() right after, so dtstart and modified_at usually match in practice because both come from now_utc() at that moment.
 
+#in the test script test_recurrence_parsing.py are date anchors for 'recurrence+data' created randomly?
+#No. In that script, “recurrence+date” only occurs when parse_date_and_recurrence finds an explicit date anchor in the input text. The script doesn’t generate random anchors or synthesize dtstart for classification; if no date is found, it stays “recurrence-only.”
+
+#have a look at id 3 , where does the parsed_dt come from?
+#From app.utils.parse_date_and_recurrence(text). The script sets parsed_dt = dt returned by that function (then ISO-serialized). That dt is derived from any explicit date found in the text (numeric like 5/9, 2025‑09‑05, or month‑name forms). For yearless matches it uses the current year; all results are normalized to UTC. It’s not taken from modified_at, not synthesized by the test script, and not based on DEFAULT_TIMEZONE.
+
 from __future__ import annotations
 
 import argparse
