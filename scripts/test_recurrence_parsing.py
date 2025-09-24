@@ -28,6 +28,12 @@ Usage:
 
 #It comes from the fallback in app.utils.parse_date_and_recurrence: when no explicit date anchor is found, it calls dateparser’s DateDataParser on the whole phrase, which can produce a relative, “now”-anchored datetime. That returned datetime (normalized to UTC) is what your script records as parsed_dt. It’s not synthesized by the test script, not taken from modified_at, and not from DEFAULT_TIMEZONE—it's DateDataParser interpreting “every 3 days after work” relative to the current time.
 
+#current UTC time is 2025-09-24 not 2025-09-27 as in the parsed_dt test results. So where did that date 2025-09-27 come from?
+
+#It’s “now + 3 days” from dateparser’s DateDataParser.
+
+#In parse_date_and_recurrence, when no explicit date is found, it falls back to DateDataParser on the whole phrase. For “every 3 days after work”, DateDataParser interprets “every 3 days” as a relative offset and returns a datetime ≈ current time plus 3 days. We then normalize that to UTC and record it as parsed_dt. That’s why you see 2025‑09‑27… even though “today” was 2025‑09‑24 UTC.
+
 from __future__ import annotations
 
 import argparse
