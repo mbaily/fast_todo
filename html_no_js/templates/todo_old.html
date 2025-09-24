@@ -34,7 +34,7 @@
       {{ csrf_field() }}
       <button type="submit" class="tb-item" aria-label="Save todo">💾 <span class="sr-only">Save</span></button>
     </form>
-    <form id="todo-delete-form" method="post" action="/html_no_js/todos/{{ todo.id }}/delete" class="confirm-delete" data-confirm="Delete this todo? This cannot be undone." style="display:inline">
+  <form id="todo-delete-form" method="post" action="/html_no_js/todos/{{ todo.id }}/delete" class="confirm-delete" data-confirm="Delete this todo?" style="display:inline">
       {{ csrf_field() }}
       <input type="hidden" name="anchor" value="todo-{{ todo.id }}">
       <input type="hidden" name="list_id" value="{{ todo.list_id }}">

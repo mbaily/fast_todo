@@ -1742,7 +1742,7 @@
 
   <!-- Bottom delete control: provide a clear delete action at end of page -->
   <div style="margin-top:1rem;">
-    <form method="post" action="/html_no_js/lists/{{ list.id }}/delete" class="confirm-delete" data-confirm="Delete list '{{ list.name }}' and all its todos? This cannot be undone." style="display:inline">
+  <form method="post" action="/html_no_js/lists/{{ list.id }}/delete" class="confirm-delete" data-confirm="Delete list '{{ list.name }}' and all its todos?" style="display:inline">
       {{ csrf_field() }}
       <button type="submit" class="tb-item" aria-label="Delete list" title="Delete list">🗑 <span class="sr-only">Delete list</span></button>
     </form>

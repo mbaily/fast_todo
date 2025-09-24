@@ -33,7 +33,7 @@
   <nav class="page-toolbar" role="toolbar" aria-label="Todo actions" style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.6rem;">
     <!-- Save button submits the main edit form so required fields (text, note) are sent -->
     <button type="submit" class="tb-item" aria-label="Save todo" form="todo-edit-form">💾 <span class="sr-only">Save</span></button>
-    <form id="todo-delete-form" method="post" action="/html_no_js/todos/{{ todo.id }}/delete" class="confirm-delete" data-confirm="Delete this todo? This cannot be undone." style="display:inline">
+  <form id="todo-delete-form" method="post" action="/html_no_js/todos/{{ todo.id }}/delete" class="confirm-delete" data-confirm="Delete this todo?" style="display:inline">
       {{ csrf_field() }}
       <input type="hidden" name="anchor" value="todo-{{ todo.id }}">
       <input type="hidden" name="list_id" value="{{ todo.list_id }}">

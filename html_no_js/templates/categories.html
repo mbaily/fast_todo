@@ -198,7 +198,7 @@
       btnDelete.addEventListener('click', async () => {
         const val = selectedId;
         if (val == null) return;
-        const ok = window.confirm('Delete category and move its lists to Uncategorized? This cannot be undone.');
+  const ok = window.confirm('Delete category and move its lists to Uncategorized?');
         if (!ok) return;
         if (statusEl) statusEl.textContent = `Deleting #${val}...`;
         try {

@@ -342,20 +342,38 @@
     // Attach a native browser confirm dialog to forms with .confirm-delete
     (function(){
       if (!document) return;
-      function attach(){
-        document.querySelectorAll('form.confirm-delete').forEach(function(f){
-          if (f._confirmAttached) return; f._confirmAttached = true;
-          f.addEventListener('submit', function(ev){
-            var msg = f.getAttribute('data-confirm') || 'Are you sure?';
-            if (!window.confirm(msg)){
-              ev.preventDefault();
-              return false;
-            }
-            return true;
-          });
-        });
+      // Capture-phase listener to intercept even programmatic submit() calls.
+      // We also patch HTMLFormElement.prototype.submit to route through a confirm check
+      // when the form has class 'confirm-delete'.
+      function confirmOk(form){
+        var msg = form.getAttribute('data-confirm') || 'Are you sure?';
+        return window.confirm(msg);
       }
-      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', attach); else attach();
+      function submitHandler(ev){
+        try{
+          var f = ev.target;
+          if (!f || !f.classList || !f.classList.contains('confirm-delete')) return;
+          if (f._skipNextConfirm){ // allow bypass if explicitly set
+            f._skipNextConfirm = false; return; }
+          if (!confirmOk(f)){
+            ev.preventDefault();
+            ev.stopImmediatePropagation();
+          }
+        }catch(_){ }
+      }
+      document.addEventListener('submit', submitHandler, true); // capture
+      // Patch form.submit
+      try{
+        var origSubmit = HTMLFormElement.prototype.submit;
+        HTMLFormElement.prototype.submit = function(){
+          try{
+            if (this.classList && this.classList.contains('confirm-delete')){
+              if (!confirmOk(this)) return; // abort programmatic submit
+            }
+          }catch(_){ }
+          return origSubmit.apply(this, arguments);
+        };
+      }catch(_){ }
     })();
     </script>
     <script>
