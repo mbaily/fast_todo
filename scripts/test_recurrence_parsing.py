@@ -26,6 +26,8 @@ Usage:
 #have a look at id 3 , where does the parsed_dt come from?
 #From app.utils.parse_date_and_recurrence(text). The script sets parsed_dt = dt returned by that function (then ISO-serialized). That dt is derived from any explicit date found in the text (numeric like 5/9, 2025‑09‑05, or month‑name forms). For yearless matches it uses the current year; all results are normalized to UTC. It’s not taken from modified_at, not synthesized by the test script, and not based on DEFAULT_TIMEZONE.
 
+#It comes from the fallback in app.utils.parse_date_and_recurrence: when no explicit date anchor is found, it calls dateparser’s DateDataParser on the whole phrase, which can produce a relative, “now”-anchored datetime. That returned datetime (normalized to UTC) is what your script records as parsed_dt. It’s not synthesized by the test script, not taken from modified_at, and not from DEFAULT_TIMEZONE—it's DateDataParser interpreting “every 3 days after work” relative to the current time.
+
 from __future__ import annotations
 
 import argparse
