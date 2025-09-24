@@ -91,11 +91,15 @@
             <span class="muted priority-inline"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>
           {% endif %}
           <span> in <a href="/html_no_js/lists/{{ t.list_id }}">{{ t.list_name or t.list_id }}</a></span>
-          {% if t.note %}
-            <div class="meta line-clamp-1 wrap-text" style="margin-top:0.15rem; max-width:60ch;">{{ t.note }}</div>
-          {% endif %}
-          {% if t.last_journal_entry %}
-            <div class="meta line-clamp-1 wrap-text" style="margin-top:0.15rem; max-width:60ch;">📝 {{ t.last_journal_entry }}</div>
+          {% if t.note or t.last_journal_entry %}
+            <div style="margin-left:1.4rem; display:flex; flex-direction:column; gap:0.1rem; max-width:60ch;">
+              {% if t.note %}
+                <div class="meta line-clamp-1 wrap-text" style="margin-top:0.05rem;">{{ t.note }}</div>
+              {% endif %}
+              {% if t.last_journal_entry %}
+                <div class="meta line-clamp-1 wrap-text" style="margin-top:0.05rem;">📝 {{ t.last_journal_entry }}</div>
+              {% endif %}
+            </div>
           {% endif %}
           {% if t.tags and t.tags|length > 0 %}
             {% for tag in (t.tags | sort) %}

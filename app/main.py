@@ -20,7 +20,7 @@ import json
 import asyncio
 import os
 from contextvars import ContextVar
-from .models import Hashtag, TodoHashtag, ListHashtag, ServerState, Tombstone, Category
+from .models import Hashtag, TodoHashtag, ListHashtag, ServerState, Tombstone, Category, JournalEntry
 from .models import ItemLink
 from .models import UserCollation
 from .models import RecentListVisit, RecentTodoVisit
