@@ -135,6 +135,7 @@
         <input type="hidden" name="completed" value="{{ 'false' if list.completed else 'true' }}">
         <button type="submit" class="list-action-btn" title="{{ 'Unmark list complete' if list.completed else 'Mark list complete' }}" aria-label="Toggle list complete">{{ '☑' if list.completed else '☐' }}</button>
       </form>
+      <a href="/html_no_js/lists/{{ list.id }}/notes" class="list-action-btn" title="List notes" aria-label="List notes" style="text-decoration:none;">🗒</a>
       <script>
       (function(){
         try {

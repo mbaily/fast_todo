@@ -570,6 +570,32 @@ def _ensure_sqlite_minimal_migrations(url: str | None) -> None:
                     cur.execute("CREATE INDEX IF NOT EXISTS ix_journalentry_created ON journalentry(created_at DESC)")
                 except Exception:
                     pass
+            # Ensure listnote table exists for per-list notes
+            try:
+                cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='listnote'")
+                exists_ln = cur.fetchone() is not None
+            except Exception:
+                exists_ln = True
+            if not exists_ln:
+                try:
+                    cur.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS listnote (
+                          id INTEGER PRIMARY KEY,
+                          list_id INTEGER NOT NULL,
+                          user_id INTEGER NOT NULL,
+                          content TEXT NOT NULL,
+                          created_at DATETIME,
+                          modified_at DATETIME,
+                          metadata_json TEXT
+                        )
+                        """
+                    )
+                    cur.execute("CREATE INDEX IF NOT EXISTS ix_listnote_list_id ON listnote(list_id)")
+                    cur.execute("CREATE INDEX IF NOT EXISTS ix_listnote_user_id ON listnote(user_id)")
+                    cur.execute("CREATE INDEX IF NOT EXISTS ix_listnote_created ON listnote(created_at DESC)")
+                except Exception:
+                    pass
             # Ensure bookmarked flag exists on liststate and helpful index
             try:
                 cur.execute("PRAGMA table_info('liststate')")
@@ -1134,6 +1160,32 @@ async def init_db():
                 await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_journalentry_todo_id ON journalentry(todo_id)"))
                 await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_journalentry_user_id ON journalentry(user_id)"))
                 await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_journalentry_created ON journalentry(created_at DESC)"))
+            except Exception:
+                pass
+        # Ensure listnote table/indices exist (best-effort for older DBs)
+        try:
+            res = await conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='listnote'"))
+            exists_ln = res.fetchone() is not None
+        except Exception:
+            exists_ln = True
+        if not exists_ln:
+            try:
+                await conn.execute(text(
+                    """
+                    CREATE TABLE IF NOT EXISTS listnote (
+                      id INTEGER PRIMARY KEY,
+                      list_id INTEGER NOT NULL,
+                      user_id INTEGER NOT NULL,
+                      content TEXT NOT NULL,
+                      created_at DATETIME,
+                      modified_at DATETIME,
+                      metadata_json TEXT
+                    )
+                    """
+                ))
+                await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_listnote_list_id ON listnote(list_id)"))
+                await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_listnote_user_id ON listnote(user_id)"))
+                await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_listnote_created ON listnote(created_at DESC)"))
             except Exception:
                 pass
         # defensive dedupe: if earlier test runs created duplicate rows

@@ -73,6 +73,8 @@ class ListState(SQLModel, table=True):
     )
     hashtags: List["Hashtag"] = Relationship(back_populates="lists", link_model=ListHashtag)
     completion_types: List["CompletionType"] = Relationship(back_populates="list")
+    # Per-list freeform notes (ListNote rows)
+    list_notes: List["ListNote"] = Relationship(back_populates="list")
     # Relationship to owning parent todo (if any)
     parent_todo: Optional["Todo"] = Relationship(
         back_populates="child_lists",
@@ -500,3 +502,21 @@ class JournalEntry(SQLModel, table=True):
 
     # relationships
     todo: Optional[Todo] = Relationship(back_populates="journal_entries")
+
+
+class ListNote(SQLModel, table=True):
+    """A lightweight freeform note attached to a List.
+
+    Similar to JournalEntry but scoped to a ListState instead of a Todo and
+    intended for multiple short notes with explicit save buttons (no autosave).
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    list_id: int = Field(foreign_key="liststate.id", index=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    content: str
+    created_at: datetime | None = Field(default_factory=now_utc, index=True)
+    modified_at: datetime | None = Field(default_factory=now_utc)
+    metadata_json: Optional[str] = None
+
+    # relationship back to list
+    list: Optional[ListState] = Relationship(back_populates="list_notes")

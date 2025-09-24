@@ -11791,6 +11791,26 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
         },
     )
 
+@app.get('/html_no_js/lists/{list_id}/notes', response_class=HTMLResponse)
+async def html_view_list_notes(request: Request, list_id: int, current_user: User = Depends(require_login)):
+    async with async_session() as sess:
+        lst = await sess.get(ListState, list_id)
+        if not lst:
+            raise HTTPException(status_code=404, detail='list not found')
+        if lst.owner_id != current_user.id:
+            raise HTTPException(status_code=403, detail='forbidden')
+    tz_cookie = request.cookies.get('tz') if request.cookies else None
+    ctx = {
+        'request': request,
+        'list': {
+            'id': lst.id,
+            'name': lst.name,
+            'completed': lst.completed,
+        },
+        'client_tz': tz_cookie,
+    }
+    return TEMPLATES.TemplateResponse(request, 'list_notes.html', ctx)
+
 
 # ===== Tiny lookup endpoint for names/titles (used by Note combobox) =====
 @app.get('/api/lookup/names')

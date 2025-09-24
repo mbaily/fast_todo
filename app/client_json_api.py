@@ -6,7 +6,7 @@ from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse
 
 from .db import async_session
-from .models import ListState, ListHashtag, Hashtag, Todo, TodoHashtag, CompletionType, TodoCompletion, Category, UserCollation, ItemLink, JournalEntry
+from .models import ListState, ListHashtag, Hashtag, Todo, TodoHashtag, CompletionType, TodoCompletion, Category, UserCollation, ItemLink, JournalEntry, ListNote
 from .utils import format_in_timezone
 from .auth import get_current_user as _gcu
 from .utils import extract_hashtags, now_utc, parse_metadata_json, validate_metadata_for_storage
@@ -186,7 +186,12 @@ async def client_create_list(request: Request):
     Accepts JSON body {name: string, hashtags?: [...], category_id?: int} and returns created list id/name.
     """
     try:
-        current_user = await _gcu(token=None, request=request)
+        bearer = request.headers.get('Authorization')
+        explicit_token = None
+        if bearer and bearer.lower().startswith('bearer '):
+            explicit_token = bearer.split(' ',1)[1].strip()
+        # If we extracted a bearer token, pass it as token; else use cookie fallback by token=None
+        current_user = await _gcu(token=explicit_token if explicit_token else None, request=request)
     except HTTPException:
         raise HTTPException(status_code=401, detail='authentication required')
 
@@ -207,6 +212,10 @@ async def client_create_list(request: Request):
     except Exception:
         pass
     new_list = await create_list(request, name=name, current_user=current_user)
+    try:
+        logger.info('debug client_create_list created id=%s owner_id=%s', getattr(new_list,'id',None), getattr(new_list,'owner_id',None))
+    except Exception:
+        pass
     payload = {'ok': True}
     try:
         if new_list is not None:
@@ -263,6 +272,171 @@ async def list_journal_entries(request: Request, todo_id: int):
             for r in rows
         ]
         return JSONResponse({'ok': True, 'entries': out})
+
+
+# ===== List notes (per-list, explicit save) =====
+
+@router.get('/lists/{list_id}/notes', response_class=JSONResponse)
+async def list_list_notes(request: Request, list_id: int):
+        try:
+            bearer = request.headers.get('Authorization')
+            explicit_token = None
+            if bearer and bearer.lower().startswith('bearer '):
+                explicit_token = bearer.split(' ',1)[1].strip()
+            current_user = await _gcu(token=explicit_token if explicit_token else None, request=request)
+        except HTTPException:
+            raise HTTPException(status_code=401, detail='authentication required')
+        async with async_session() as sess:
+            lst = None
+            try:
+                qlst = await sess.scalars(select(ListState).where(ListState.id == list_id))
+                lst = qlst.first()
+            except Exception:
+                lst = None
+            if not lst:
+                raise HTTPException(status_code=404, detail='list not found')
+            if lst.owner_id != current_user.id:
+                raise HTTPException(status_code=403, detail='forbidden')
+            q = await sess.scalars(
+                select(ListNote)
+                .where(ListNote.list_id == list_id)
+                .order_by(ListNote.created_at.desc())
+            )
+            rows = q.all()
+            tz = request.query_params.get('tz')
+            display_fmt = '%d/%m %-I:%M%p'
+            out = [
+                {
+                    'id': r.id,
+                    'list_id': r.list_id,
+                    'content': r.content,
+                    'created_at': (r.created_at.isoformat() if getattr(r, 'created_at', None) else None),
+                    'modified_at': (r.modified_at.isoformat() if getattr(r, 'modified_at', None) else None),
+                    'created_at_display': (format_in_timezone(r.created_at, tz, display_fmt) if (tz and getattr(r, 'created_at', None)) else None),
+                    'modified_at_display': (format_in_timezone(r.modified_at, tz, display_fmt) if (tz and getattr(r, 'modified_at', None)) else None),
+                    'metadata': parse_metadata_json(getattr(r, 'metadata_json', None)),
+                }
+                for r in rows
+            ]
+            return JSONResponse({'ok': True, 'notes': out})
+
+@router.post('/lists/{list_id}/notes', response_class=JSONResponse)
+async def create_list_note(request: Request, list_id: int):
+        try:
+            bearer = request.headers.get('Authorization')
+            explicit_token = None
+            if bearer and bearer.lower().startswith('bearer '):
+                explicit_token = bearer.split(' ',1)[1].strip()
+            current_user = await _gcu(token=explicit_token if explicit_token else None, request=request)
+        except HTTPException:
+            raise HTTPException(status_code=401, detail='authentication required')
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        content = _safe_str((body.get('content') or '').strip())
+        if not content:
+            raise HTTPException(status_code=400, detail='content is required')
+        metadata = body.get('metadata') if isinstance(body, dict) else None
+        async with async_session() as sess:
+            lst = None
+            try:
+                qlst = await sess.scalars(select(ListState).where(ListState.id == list_id))
+                lst = qlst.first()
+            except Exception:
+                lst = None
+            try:
+                logger.info('debug create_list_note list_id=%s lst_found=%s current_user_id=%s', list_id, bool(lst), getattr(current_user,'id',None))
+            except Exception:
+                pass
+            if not lst:
+                raise HTTPException(status_code=404, detail='list not found')
+            if lst.owner_id != current_user.id:
+                raise HTTPException(status_code=403, detail='forbidden')
+            try:
+                meta_json = validate_metadata_for_storage(metadata)
+            except Exception:
+                meta_json = None
+            row = ListNote(list_id=list_id, user_id=current_user.id, content=content, created_at=now_utc(), modified_at=now_utc(), metadata_json=meta_json)
+            sess.add(row)
+            await sess.commit()
+            await sess.refresh(row)
+            return JSONResponse({'ok': True, 'note': {'id': row.id, 'list_id': row.list_id, 'content': row.content, 'created_at': (row.created_at.isoformat() if row.created_at else None), 'modified_at': (row.modified_at.isoformat() if row.modified_at else None)}})
+
+@router.patch('/list_notes/{note_id}', response_class=JSONResponse)
+async def update_list_note(request: Request, note_id: int):
+        try:
+            bearer = request.headers.get('Authorization')
+            explicit_token = None
+            if bearer and bearer.lower().startswith('bearer '):
+                explicit_token = bearer.split(' ',1)[1].strip()
+            current_user = await _gcu(token=explicit_token if explicit_token else None, request=request)
+        except HTTPException:
+            raise HTTPException(status_code=401, detail='authentication required')
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        content = body.get('content')
+        metadata = body.get('metadata') if isinstance(body, dict) else None
+        async with async_session() as sess:
+            r = await sess.get(ListNote, note_id)
+            if not r:
+                raise HTTPException(status_code=404, detail='note not found')
+            lst = None
+            try:
+                qlst = await sess.scalars(select(ListState).where(ListState.id == r.list_id))
+                lst = qlst.first()
+            except Exception:
+                lst = None
+            if not lst:
+                raise HTTPException(status_code=404, detail='list not found')
+            if lst.owner_id != current_user.id or r.user_id != current_user.id:
+                raise HTTPException(status_code=403, detail='forbidden')
+            changed = False
+            if content is not None:
+                r.content = _safe_str(content)
+                changed = True
+            if metadata is not None:
+                try:
+                    r.metadata_json = validate_metadata_for_storage(metadata)
+                except Exception:
+                    r.metadata_json = r.metadata_json
+                changed = True
+            if changed:
+                r.modified_at = now_utc()
+                sess.add(r)
+                await sess.commit()
+                await sess.refresh(r)
+            return JSONResponse({'ok': True, 'note': {'id': r.id, 'list_id': r.list_id, 'content': r.content, 'created_at': (r.created_at.isoformat() if r.created_at else None), 'modified_at': (r.modified_at.isoformat() if r.modified_at else None)}})
+
+@router.delete('/list_notes/{note_id}', response_class=JSONResponse)
+async def delete_list_note(request: Request, note_id: int):
+        try:
+            bearer = request.headers.get('Authorization')
+            explicit_token = None
+            if bearer and bearer.lower().startswith('bearer '):
+                explicit_token = bearer.split(' ',1)[1].strip()
+            current_user = await _gcu(token=explicit_token if explicit_token else None, request=request)
+        except HTTPException:
+            raise HTTPException(status_code=401, detail='authentication required')
+        async with async_session() as sess:
+            r = await sess.get(ListNote, note_id)
+            if not r:
+                return JSONResponse({'ok': True, 'deleted': False})
+            lst = None
+            try:
+                qlst = await sess.scalars(select(ListState).where(ListState.id == r.list_id))
+                lst = qlst.first()
+            except Exception:
+                lst = None
+            if not lst:
+                raise HTTPException(status_code=404, detail='list not found')
+            if lst.owner_id != current_user.id or r.user_id != current_user.id:
+                raise HTTPException(status_code=403, detail='forbidden')
+            await sess.delete(r)
+            await sess.commit()
+            return JSONResponse({'ok': True, 'deleted': True})
 
 
 @router.post('/todos/{todo_id}/journal', response_class=JSONResponse)
