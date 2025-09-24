@@ -26,6 +26,11 @@
           // Normalize href by removing protocol/host if present
           var path = href.replace(/^https?:\/\/(?:[^\/]+)\//, '');
           if (re.test(path)){
+            // Normalize path to strip any leading slash for prefix checks
+            var norm = path.charAt(0) === '/' ? path.slice(1) : path;
+            var notesPrefix = 'html_no_js/lists/' + String(listId) + '/notes';
+            // Also allow authors to mark anchors explicitly immune via data-static-icon
+            if (norm.indexOf(notesPrefix) === 0 || a.hasAttribute('data-static-icon')) return; // keep icon glyph
             a.textContent = name;
           }
         }catch(e){}
