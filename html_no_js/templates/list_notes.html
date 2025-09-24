@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block title %}List Notes: {{ list.name }} — Fast Todo (no-js){% endblock %}
+{% block content %}
+<style>
+  .list-notes-container { max-width: 860px; margin: 0 auto; }
+  .list-notes-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; }
+  .notes-actions button { font-size:0.9rem; }
+  ul.list-notes { list-style:none; padding:0; margin:1rem 0; display:flex; flex-direction:column; gap:1rem; }
+  .list-note { border:1px solid #d1d5db; border-radius:6px; padding:0.6rem 0.75rem 0.75rem; background:#ffffff; position:relative; }
+  .list-note textarea { width:100%; resize:vertical; min-height:3.6em; line-height:1.2; font-size:0.95rem; font-family:inherit; padding:0.4rem 0.5rem; box-sizing:border-box; }
+  .list-note.saved textarea { border:1px solid #e5e7eb; background:#f9fafb; }
+  .list-note .note-meta { font-size:0.7rem; color:#6b7280; margin-top:0.35rem; display:flex; gap:0.5rem; flex-wrap:wrap; }
+  .list-note .note-buttons { margin-top:0.4rem; display:flex; flex-wrap:wrap; gap:0.4rem; }
+  .list-note button { font-size:0.75rem; }
+  .add-note-form { margin-top:1rem; display:flex; flex-direction:column; gap:0.5rem; }
+  .add-note-form textarea { width:100%; resize:vertical; min-height:3.6em; font-family:inherit; line-height:1.2; }
+  .empty-notes { font-size:0.85rem; color:#6b7280; margin-top:1rem; }
+  @media (max-width:600px){
+    .list-notes-container { padding:0 0.5rem; }
+    .list-note { padding:0.55rem 0.55rem 0.7rem; }
+  }
+</style>
+<div class="list-notes-container" data-list-id="{{ list.id }}" id="list-notes-root">
+  <div class="list-notes-header">
+    <h1 style="margin:0; font-size:1.25rem;">🗒 Notes for <a href="/html_no_js/lists/{{ list.id }}" style="text-decoration:none;">{{ list.name }}</a></h1>
+    <div class="notes-actions">
+      <a href="/html_no_js/lists/{{ list.id }}" class="button" style="text-decoration:none;">← Back to List</a>
+    </div>
+  </div>
+  <p class="meta" style="margin:0.25rem 0 0.75rem;">Add short notes for this list. Each note saves only when you click Save. Use edit to modify later.</p>
+  <div class="add-note-form">
+    <label for="new-note-text" style="font-size:0.8rem; font-weight:600; letter-spacing:0.05em; text-transform:uppercase;">New Note</label>
+    <textarea id="new-note-text" placeholder="Type a note (multi-line, expands)…" maxlength="500" aria-label="New list note"></textarea>
+    <div>
+      <button type="button" id="btn-add-note">Add Note</button>
+      <span id="add-note-status" class="meta" style="margin-left:0.5rem;"></span>
+    </div>
+  </div>
+  <div class="empty-notes" style="display:none;" id="empty-notes">No notes yet.</div>
+  <ul class="list-notes" id="notes-list"></ul>
+</div>
+<script src="/static/no_js/list_notes.js"></script>
+{% endblock %}
