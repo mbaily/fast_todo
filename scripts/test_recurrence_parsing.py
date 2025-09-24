@@ -34,6 +34,15 @@ Usage:
 
 #In parse_date_and_recurrence, when no explicit date is found, it falls back to DateDataParser on the whole phrase. For “every 3 days after work”, DateDataParser interprets “every 3 days” as a relative offset and returns a datetime ≈ current time plus 3 days. We then normalize that to UTC and record it as parsed_dt. That’s why you see 2025‑09‑27… even though “today” was 2025‑09‑24 UTC.
 
+#Because “2 days” was treated as a relative date anchor by the extractor. Here’s the path:
+
+#In parse_date_and_recurrence, we first call extract_dates_meta(text).
+#dateparser.search.search_dates sees “2 days” and returns a datetime relative to “now” (by default, the most recent past when no “ago/in” is specified).
+#parse_date_and_recurrence uses that returned dt as the anchor and immediately returns (dt, rec).
+#That’s why parsed_dt is roughly “now − 2 days” when the script ran, even though the phrase contains no explicit calendar date.
+
+
+
 from __future__ import annotations
 
 import argparse
