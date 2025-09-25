@@ -1167,6 +1167,18 @@ def parse_recurrence_phrase(phrase: str) -> dict | None:
     if re.search(r"\bfortnight(?:ly)?\b", p):
         return {'freq': 'WEEKLY', 'interval': 2}
 
+    # Handle 'quarter' / 'quarters' / 'quarterly' as every 3 months
+    # First, check for explicit 'every N quarters'
+    m_q = re.search(r"every\s+(\d+)\s+quarters?", p)
+    if m_q:
+        try:
+            n = int(m_q.group(1))
+            return {'freq': 'MONTHLY', 'interval': 3 * n}
+        except Exception:
+            pass
+    if re.search(r"\bquarters?\b|\bquarterly\b", p):
+        return {'freq': 'MONTHLY', 'interval': 3}
+
     # weekday name map (used by several heuristics below)
     wd_map = {'monday':'MO','tuesday':'TU','wednesday':'WE','thursday':'TH','friday':'FR','saturday':'SA','sunday':'SU'}
     # common simple patterns
