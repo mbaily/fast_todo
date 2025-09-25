@@ -6,44 +6,11 @@ for each sample. Outputs a JSON and optional CSV with per-item results and a
 summary.
 
 Usage:
-  python scripts/test_recurrence_parsing.py \
+  python scripts/recurrence_parse_audit.py \
     --input data/recurrence_samples.json \
     --out data/recurrence_parse_results.json \
     --csv data/recurrence_parse_results.csv
 """
-
-# (primary), with app.utils.extract_dates_meta and a fallback to app.utils.parse_recurrence_phrase; recurrence_dict_to_rrule_string is used to render an RRULE string.
-
-# Question: what function in the web app injects the dtstart with the todo modification date if one isn't specified in the todo text or note istelf?
-
-#It’s synthesized in app.utils.parse_text_to_rrule_string. When there’s a recurrence phrase but no explicit date anchor, that function creates a dtstart using now_utc().
-#The web endpoints that use it are _create_todo_internal and _update_todo_internal in app.main: they call parse_text_to_rrule_string(...) and then persist the returned dtstart into todo.recurrence_dtstart.
-#It doesn’t read modified_at directly. However, update_todo sets modified_at = now_utc() right after, so dtstart and modified_at usually match in practice because both come from now_utc() at that moment.
-
-#in the test script test_recurrence_parsing.py are date anchors for 'recurrence+data' created randomly?
-#No. In that script, “recurrence+date” only occurs when parse_date_and_recurrence finds an explicit date anchor in the input text. The script doesn’t generate random anchors or synthesize dtstart for classification; if no date is found, it stays “recurrence-only.”
-
-#have a look at id 3 , where does the parsed_dt come from?
-#From app.utils.parse_date_and_recurrence(text). The script sets parsed_dt = dt returned by that function (then ISO-serialized). That dt is derived from any explicit date found in the text (numeric like 5/9, 2025‑09‑05, or month‑name forms). For yearless matches it uses the current year; all results are normalized to UTC. It’s not taken from modified_at, not synthesized by the test script, and not based on DEFAULT_TIMEZONE.
-
-#It comes from the fallback in app.utils.parse_date_and_recurrence: when no explicit date anchor is found, it calls dateparser’s DateDataParser on the whole phrase, which can produce a relative, “now”-anchored datetime. That returned datetime (normalized to UTC) is what your script records as parsed_dt. It’s not synthesized by the test script, not taken from modified_at, and not from DEFAULT_TIMEZONE—it's DateDataParser interpreting “every 3 days after work” relative to the current time.
-
-#current UTC time is 2025-09-24 not 2025-09-27 as in the parsed_dt test results. So where did that date 2025-09-27 come from?
-
-#It’s “now + 3 days” from dateparser’s DateDataParser.
-
-#In parse_date_and_recurrence, when no explicit date is found, it falls back to DateDataParser on the whole phrase. For “every 3 days after work”, DateDataParser interprets “every 3 days” as a relative offset and returns a datetime ≈ current time plus 3 days. We then normalize that to UTC and record it as parsed_dt. That’s why you see 2025‑09‑27… even though “today” was 2025‑09‑24 UTC.
-
-# test id 6
-
-#Because “2 days” was treated as a relative date anchor by the extractor. Here’s the path:
-
-#In parse_date_and_recurrence, we first call extract_dates_meta(text).
-#dateparser.search.search_dates sees “2 days” and returns a datetime relative to “now” (by default, the most recent past when no “ago/in” is specified).
-#parse_date_and_recurrence uses that returned dt as the anchor and immediately returns (dt, rec).
-#That’s why parsed_dt is roughly “now − 2 days” when the script ran, even though the phrase contains no explicit calendar date.
-
-
 
 from __future__ import annotations
 
@@ -51,7 +18,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
 
 def _ensure_project_on_path():
@@ -88,7 +55,6 @@ def json_safe(obj):
         if isinstance(obj, (str, int, float, bool)):
             return obj
         if isinstance(obj, (_dt.datetime, _dt.date, _dt.time)):
-            # prefer ISO
             try:
                 return obj.isoformat()
             except Exception:
@@ -97,9 +63,7 @@ def json_safe(obj):
             return {str(k): json_safe(v) for k, v in obj.items()}
         if isinstance(obj, (list, tuple, set)):
             return [json_safe(v) for v in obj]
-        # dateutil weekdays and similar types -> str
-        s = str(obj)
-        return s
+        return str(obj)
     except Exception:
         try:
             return str(obj)
@@ -120,13 +84,9 @@ def classify_result(dt, rec, plain_metas: List[dict]) -> str:
 
 
 def run_one(text: str) -> Dict[str, Any]:
-    # parse anchor date + recurrence (primary)
     dt, rec = parse_date_and_recurrence(text)
-    # extract plain dates (secondary)
     plain = extract_dates_meta(text)
-    # derive a recurrence string if rec exists
     rrule = recurrence_dict_to_rrule_string(rec or {}) if rec else ""
-    # fallback: try recurrence-only if parse_date_and_recurrence didn't find any
     if not rec:
         rec_only = parse_recurrence_phrase(text)
     else:
@@ -134,7 +94,6 @@ def run_one(text: str) -> Dict[str, Any]:
     kind = classify_result(dt, rec or rec_only, plain)
     out: Dict[str, Any] = {
         "parsed_dt": safe_iso(dt),
-        # JSON friendly recurrence dict
         "rec": json_safe(rec or rec_only) if (rec or rec_only) else None,
         "rrule": rrule if rrule else (recurrence_dict_to_rrule_string(rec_only) if rec_only else ""),
         "plain_dates_meta": json_safe(plain or []),
@@ -212,7 +171,6 @@ def main():
             for r in results:
                 w.writerow({k: r.get(k, "") for k in fields})
 
-    # Print concise summary
     print("Summary:")
     for k in [
         "total",

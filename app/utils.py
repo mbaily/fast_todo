@@ -883,11 +883,31 @@ def extract_dates_meta(text: str | None) -> list[dict]:
         # often appear in freeform notes and produce spurious calendar hits.
         GENERIC_ANCHOR_BLACKLIST = {'now', 'today', 'tonight', 'tonite', 'this', 'next'}
 
+        # Helper: skip relative-duration spans like "2 days", "3 weeks", etc.
+        def _is_relative_duration_span(s: str) -> bool:
+            try:
+                ss = s.strip().lower()
+                # Consider any span that starts with a relative-duration pattern
+                # as a relative duration, even if followed by tokens like 'at',
+                # 'after', etc. This avoids treating phrases like '3 weeks at'
+                # as explicit calendar dates.
+                return bool(re.match(r"^(?:in\s+)?\d+\s+(?:day|days|week|weeks|month|months|year|years)\b", ss))
+            except Exception:
+                return False
+
         for match_text, dt in results:
             # If the matched substring contains a generic anchor token (e.g.
             # 'today') or is a single ambiguous number-word, skip it. This
             # prevents spans like '25th today' from producing a date.
             if _contains_generic_anchor(match_text) or (len(match_text.strip().split()) == 1 and match_text.strip().lower() in NUMBER_WORDS):
+                continue
+
+            # Skip pure relative-duration spans (e.g., '2 days'). These often
+            # appear inside recurrence phrases like 'every 2 days' and should
+            # not be treated as explicit date anchors.
+            if _is_relative_duration_span(match_text):
+                # Always skip relative-duration spans; they are not explicit date anchors
+                # and are commonly part of recurrence phrases (e.g., 'every 3 weeks').
                 continue
 
             # If the matched span is a numeric sequence with separators (e.g.
@@ -1121,6 +1141,31 @@ def parse_recurrence_phrase(phrase: str) -> dict | None:
     if not phrase:
         return None
     p = phrase.strip().lower()
+    # Normalize common synonyms
+    p = re.sub(r"\beach\b", "every", p)
+    # Normalize ordinal words (first, second, third, etc.) to numbers after 'every'
+    ORDINAL_WORDS = {
+        'first': 1,
+        'second': 2,
+        'third': 3,
+        'fourth': 4,
+        'fifth': 5,
+        'sixth': 6,
+        'seventh': 7,
+        'eighth': 8,
+        'ninth': 9,
+        'tenth': 10,
+        'eleventh': 11,
+        'twelfth': 12,
+    }
+    def _ord_to_num(m):
+        word = m.group(1)
+        return f"every {ORDINAL_WORDS.get(word, word)} "
+    p = re.sub(r"\bevery\s+(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth)\b\s*", _ord_to_num, p)
+
+    # Handle 'fortnight' / 'fortnightly' as every 2 weeks
+    if re.search(r"\bfortnight(?:ly)?\b", p):
+        return {'freq': 'WEEKLY', 'interval': 2}
 
     # weekday name map (used by several heuristics below)
     wd_map = {'monday':'MO','tuesday':'TU','wednesday':'WE','thursday':'TH','friday':'FR','saturday':'SA','sunday':'SU'}
@@ -1447,7 +1492,13 @@ def parse_date_and_recurrence(text: str) -> tuple[datetime | None, dict | None]:
                 )
                 if results:
                     matched_text, parsed_dt = results[0]
-                    if dt is None:
+                    # If the matched span is a relative duration like '2 days',
+                    # do not adopt it as an anchor; leave dt as None so callers
+                    # can synthesize. Treat as relative if the span begins with
+                    # a duration token regardless of following words.
+                    ss = matched_text.strip().lower()
+                    is_rel = bool(re.match(r"^(?:in\s+)?\d+\s+(?:day|days|week|weeks|month|months|year|years)\b", ss))
+                    if not is_rel and dt is None:
                         dt = parsed_dt
         else:
             # No dt from DateDataParser: fall back to full search
@@ -1468,7 +1519,10 @@ def parse_date_and_recurrence(text: str) -> tuple[datetime | None, dict | None]:
         # If the matched_text contains a generic anchor token (e.g. 'today' or
         # 'now'), treat it as non-match to avoid interpreting casual words
         # (and mixed spans like '25th today') as explicit date anchors.
-        if _contains_generic_anchor(matched_text):
+        # Also suppress purely relative-duration spans (e.g., '2 days').
+        ss = matched_text.strip().lower()
+        is_rel = bool(re.match(r"^(?:in\s+)?\d+\s+(?:day|days|week|weeks|month|months|year|years)\b", ss))
+        if _contains_generic_anchor(matched_text) or is_rel:
             return None, None
 
         # find its position in the original text to extract the following phrase

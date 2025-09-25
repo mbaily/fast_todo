@@ -6279,13 +6279,17 @@ async def _create_todo_internal(text: str, note: Optional[str], list_id: int, pr
             clean_text = text
         # compute recurrence metadata for the todo text/note and persist
         from .utils import parse_text_to_rrule_string, parse_date_and_recurrence, extract_dates_meta
-        dtstart_val, rrule_str = parse_text_to_rrule_string(text or '')
-        _, recdict = parse_date_and_recurrence(text or '')
+        combined_for_parse = (text or '') + ('\n' + note if note else '')
+        # For recurrence-only phrases, parse_text_to_rrule_string will synthesize
+        # a dtstart (e.g., now_utc, honoring simple 'at 9am' time tokens).
+        dtstart_val, rrule_str = parse_text_to_rrule_string(combined_for_parse)
+        # Extract structured recurrence meta (non-RRULE details) using the same combined text
+        _, recdict = parse_date_and_recurrence(combined_for_parse)
         import json
         meta_json = json.dumps(recdict) if recdict else None
         # compute plain date metadata and JSON-encode for storage
         try:
-            pd_meta = extract_dates_meta((text or '') + '\n' + (note or ''))
+            pd_meta = extract_dates_meta(combined_for_parse)
             # store compact JSON with ISO dts
             def _j(m):
                 from datetime import datetime as _dt
@@ -6535,7 +6539,7 @@ async def _update_todo_internal(todo_id: int, payload: dict, current_user: User)
         if 'text' in payload or 'note' in payload:
             try:
                 from .utils import parse_text_to_rrule_string, parse_date_and_recurrence, extract_dates_meta
-                combined_text = (todo.text or '') + '\n' + (todo.note or '')
+                combined_text = (todo.text or '') + ('\n' + todo.note if todo.note else '')
                 dtstart_val, rrule_str = parse_text_to_rrule_string(combined_text)
                 _, recdict = parse_date_and_recurrence(combined_text)
                 import json
