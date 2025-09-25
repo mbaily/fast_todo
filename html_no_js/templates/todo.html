@@ -252,6 +252,11 @@
   <!-- Section: Creation and modification timestamps -->
   <p class="meta">Created: {{ todo.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }} &nbsp; Modified: {{ todo.modified_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</p>
 
+  <!-- Section: Plain date metadata -->
+  {% if todo.plain_dates_meta %}
+  <p class="meta">Plain date: {{ todo.plain_dates_meta }}</p>
+  {% endif %}
+
   <!-- Section: Recurrence metadata -->
   {% if todo.recurrence_rrule %}
   <p class="meta">Recurrence info. rrule: '{{ todo.recurrence_rrule }}', dtstart: {{ todo.recurrence_dtstart|in_tz(client_tz, '%d/%m/%Y %-I:%M%p')  }}</p>
