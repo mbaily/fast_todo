@@ -252,9 +252,9 @@
   <!-- Section: Creation and modification timestamps -->
   <p class="meta">Created: {{ todo.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }} &nbsp; Modified: {{ todo.modified_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</p>
 
-  <!-- Section: Plain date metadata -->
+  <!-- Section: Plain dates metadata -->
   {% if todo.plain_dates_meta %}
-  <p class="meta">Plain date: {{ todo.plain_dates_meta }}</p>
+  <p class="meta">Plain dates: {{ todo.plain_dates_meta }}</p>
   {% endif %}
 
   <!-- Section: Recurrence metadata -->

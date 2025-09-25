@@ -14244,6 +14244,7 @@ async def html_view_todo(request: Request, todo_id: int, current_user: User = De
             "recurrence_meta": getattr(todo, 'recurrence_meta', False),
             "recurrence_dtstart": getattr(todo, 'recurrence_dtstart', False),
             "recurrence_parser_version": getattr(todo, 'recurrence_parser_version', False),
+            "plain_dates_meta": getattr(todo, 'plain_dates_meta', False),
         }
         list_row = None
         if lst:
