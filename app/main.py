@@ -20,7 +20,7 @@ import json
 import asyncio
 import os
 from contextvars import ContextVar
-from .models import Hashtag, TodoHashtag, ListHashtag, ServerState, Tombstone, Category, JournalEntry
+from .models import Hashtag, TodoHashtag, ListHashtag, ServerState, Tombstone, Category, JournalEntry, UserHashtag
 from .models import ItemLink
 from .models import UserCollation
 from .models import RecentListVisit, RecentTodoVisit
@@ -5428,6 +5428,17 @@ async def add_list_hashtag(list_id: int, tag: str, current_user: User = Depends(
                 await sess.commit()
             except IntegrityError:
                 await sess.rollback()
+        # Record ownership
+        try:
+            if h and h.id is not None:
+                uh = UserHashtag(user_id=current_user.id, hashtag_id=int(h.id))
+                sess.add(uh)
+                try:
+                    await sess.commit()
+                except IntegrityError:
+                    await sess.rollback()
+        except Exception:
+            pass
         return {"list_id": list_id, "tag": tag}
 
 
@@ -5832,6 +5843,17 @@ async def add_todo_hashtag(todo_id: int, tag: str, current_user: _Optional[User]
             await sess.commit()
         except Exception:
             await sess.rollback()
+        # Record ownership if user context available
+        try:
+            if current_user and h and h.id is not None:
+                uh = UserHashtag(user_id=current_user.id, hashtag_id=int(h.id))
+                sess.add(uh)
+                try:
+                    await sess.commit()
+                except IntegrityError:
+                    await sess.rollback()
+        except Exception:
+            pass
         return {"todo_id": todo_id, "tag": tag}
 
 
@@ -5901,25 +5923,10 @@ async def bulk_create_hashtags_json(body: dict, current_user: User = Depends(req
 
     created: list[str] = []
     existing: list[str] = []
-    staging_list_id: int | None = None
+    staging_list_id: int | None = None  # deprecated: no longer used
 
     if norm_valid:
         async with async_session() as sess:
-            # Ensure per-user staging list exists (hidden-ish internal name)
-            STAGING_NAME = '_hashtags_staging'
-            try:
-                qlist = await sess.scalars(select(ListState).where(ListState.owner_id == current_user.id).where(ListState.name == STAGING_NAME))
-                staging = qlist.first()
-                if not staging:
-                    staging = ListState(name=STAGING_NAME, owner_id=current_user.id)
-                    sess.add(staging)
-                    await sess.commit()
-                    await sess.refresh(staging)
-                staging_list_id = int(staging.id)
-            except Exception:
-                await sess.rollback()
-                raise HTTPException(status_code=500, detail='failed to prepare staging list')
-
             # Fetch existing hashtags among requested
             try:
                 q_existing = await sess.exec(select(Hashtag).where(Hashtag.tag.in_(norm_valid)))
@@ -5946,27 +5953,17 @@ async def bulk_create_hashtags_json(body: dict, current_user: User = Depends(req
                     created.append(t)
                 else:
                     existing.append(t)
-            # Ensure associations to staging list
+            # Record ownership rows (best-effort)
             try:
-                # fetch existing links
-                hashtag_ids = [int(existing_map[t].id) for t in norm_valid if t in existing_map]
-                if hashtag_ids:
-                    q_links = await sess.exec(select(ListHashtag).where(ListHashtag.list_id == staging_list_id).where(ListHashtag.hashtag_id.in_(hashtag_ids)))
-                    linked_ids = {int(l.hashtag_id) for l in q_links.all() if getattr(l, 'hashtag_id', None) is not None}
-                    for t in norm_valid:
-                        row = existing_map.get(t)
-                        if not row:
-                            continue
-                        hid = int(row.id)
-                        if hid in linked_ids:
-                            continue
-                        sess.add(ListHashtag(list_id=staging_list_id, hashtag_id=hid))
+                hashtag_ids_all = [int(existing_map[t].id) for t in norm_valid if t in existing_map]
+                if hashtag_ids_all:
+                    for hid in hashtag_ids_all:
+                        sess.add(UserHashtag(user_id=current_user.id, hashtag_id=hid))
                     try:
                         await sess.commit()
                     except IntegrityError:
                         await sess.rollback()
             except Exception:
-                # association failure shouldn't fully abort
                 pass
 
     all_valid = norm_valid
@@ -7648,6 +7645,28 @@ async def _sync_list_hashtags(sess, list_id: int, tags: list[str]):
                 except IntegrityError:
                     await sess.rollback()
     await sess.commit()
+    # Backfill ownership for list owner so hashtags page shows them even without separate actions.
+    try:
+        lst_obj = await sess.get(ListState, list_id)
+        if lst_obj and lst_obj.owner_id is not None:
+            owner_id = lst_obj.owner_id
+            if desired_ids:
+                res_owned = await sess.exec(
+                    select(UserHashtag.hashtag_id)
+                    .where(UserHashtag.user_id == owner_id)
+                    .where(UserHashtag.hashtag_id.in_(desired_ids))
+                )
+                owned_set = {int(hid) for (hid,) in res_owned.all() if hid is not None}
+                new_ids = [hid for hid in desired_ids if hid not in owned_set]
+                if new_ids:
+                    for hid in new_ids:
+                        sess.add(UserHashtag(user_id=owner_id, hashtag_id=hid))
+                    try:
+                        await sess.commit()
+                    except IntegrityError:
+                        await sess.rollback()
+    except Exception:
+        pass
     return
 
 
@@ -12031,31 +12050,160 @@ async def api_lookup_names(request: Request, current_user: User = Depends(requir
 
 @app.get('/html_no_js/hashtags', response_class=HTMLResponse)
 async def html_no_js_hashtags(request: Request, current_user: User = Depends(require_login)):
-    """Unlinked page to list all Hashtag rows."""
+    """List all hashtags the user has ever created/used.
+
+    Adds a lazy backfill step: if there are hashtags currently linked to the user's
+    lists or todos but missing from UserHashtag (e.g. created before ownership tracking
+    was added, or introduced through older code paths), we insert those ownership rows
+    first. This keeps migration seamless without requiring an explicit one-off script
+    run in production.
+    """
     async with async_session() as sess:
-        # Only show hashtags that are associated with lists/todos visible to the current user.
-        # Visible lists: owner == current_user.id
-        # Visible todos: todos whose ListState.owner_id is current_user.id or NULL (public)
+        hashtags: list[Hashtag] = []
         try:
-            # Build an EXISTS-based query: select Hashtag rows where either
-            # a ListHashtag exists linking to a ListState owned by current_user
-            # OR a TodoHashtag exists linking to a Todo whose ListState is owned
-            # by current_user or is public (owner_id IS NULL).
-            from sqlalchemy import exists, and_, or_
-            lh_exists = exists().where(and_(ListHashtag.hashtag_id == Hashtag.id, ListHashtag.list_id == ListState.id, ListState.owner_id == current_user.id))
-            th_exists = exists().where(and_(TodoHashtag.hashtag_id == Hashtag.id, TodoHashtag.todo_id == Todo.id, Todo.list_id == ListState.id, or_(ListState.owner_id == current_user.id, ListState.owner_id == None)))
-            q = select(Hashtag).where(or_(lh_exists, th_exists)).order_by(Hashtag.tag.asc())
-            res = await sess.exec(q)
-            # some SQLModel/SQLAlchemy versions return a ScalarResult without
-            # a .scalars() helper; use .all() which works across versions.
-            hashtags = res.all()
+            # 1. Gather hashtag ids from list associations owned by user
+            # Also consider public (owner_id IS NULL) lists as visible sources; user should "own" tags they can see.
+            q_list_hids = (
+                select(ListHashtag.hashtag_id)
+                .join(ListState, ListState.id == ListHashtag.list_id)
+                .where(or_(ListState.owner_id == current_user.id, ListState.owner_id == None))
+            )
+            res_lh = await sess.exec(q_list_hids)
+            list_hids = set()
+            for row in res_lh.all():
+                if isinstance(row, (tuple, list)):
+                    hid = row[0]
+                else:
+                    hid = row
+                if hid is not None:
+                    try:
+                        list_hids.add(int(hid))
+                    except Exception:
+                        continue
+
+            # 2. Gather hashtag ids from todo associations via lists owned by user
+            q_todo_hids = (
+                select(TodoHashtag.hashtag_id)
+                .join(Todo, Todo.id == TodoHashtag.todo_id)
+                .join(ListState, ListState.id == Todo.list_id)
+                .where(or_(ListState.owner_id == current_user.id, ListState.owner_id == None))
+            )
+            res_th = await sess.exec(q_todo_hids)
+            todo_hids = set()
+            for row in res_th.all():
+                if isinstance(row, (tuple, list)):
+                    hid = row[0]
+                else:
+                    hid = row
+                if hid is not None:
+                    try:
+                        todo_hids.add(int(hid))
+                    except Exception:
+                        continue
+
+            all_assoc_hids = list_hids | todo_hids
+            missing: set[int] = set()
+            if all_assoc_hids:
+                # 3. Fetch existing ownership for those ids
+                q_owned = select(UserHashtag.hashtag_id).where(UserHashtag.user_id == current_user.id).where(UserHashtag.hashtag_id.in_(all_assoc_hids))
+                res_owned = await sess.exec(q_owned)
+                owned_ids = set()
+                for row in res_owned.all():
+                    if isinstance(row, (tuple, list)):
+                        hid = row[0]
+                    else:
+                        hid = row
+                    if hid is None:
+                        continue
+                    try:
+                        owned_ids.add(int(hid))
+                    except Exception:
+                        continue
+                missing = all_assoc_hids - owned_ids
+            # 4. Insert missing ownership rows (best-effort)
+            if missing:
+                logger.info('hashtags page: attempting ownership insert user_id=%s missing_count=%s ids_sample=%s', current_user.id, len(missing), list(sorted(missing))[:10])
+                for hid in missing:
+                    try:
+                        sess.add(UserHashtag(user_id=current_user.id, hashtag_id=hid))
+                    except Exception:
+                        continue
+                try:
+                    await sess.commit()
+                except IntegrityError:
+                    logger.warning('hashtags page: integrity error inserting ownership user_id=%s', current_user.id)
+                    await sess.rollback()
+                except Exception:
+                    logger.exception('hashtags page: unexpected error inserting ownership user_id=%s', current_user.id)
+                else:
+                    try:
+                        post_cnt = await sess.exec(select(sqlalchemy_func.count(UserHashtag.hashtag_id)).where(UserHashtag.user_id == current_user.id))
+                        logger.info('hashtags page: ownership insert complete user_id=%s new_total=%s', current_user.id, post_cnt.one()[0])
+                    except Exception:
+                        pass
+            # 5. Now query all user-owned hashtags
+            q = (
+                select(Hashtag)
+                .join(UserHashtag, UserHashtag.hashtag_id == Hashtag.id)
+                .where(UserHashtag.user_id == current_user.id)
+                .order_by(Hashtag.tag.asc())
+            )
+            res2 = await sess.exec(q)
+            hashtags = res2.all()
+            if not hashtags:
+                try:
+                    # extra diagnostic counts
+                    cnt_user = await sess.exec(select(sqlalchemy_func.count(UserHashtag.hashtag_id)).where(UserHashtag.user_id == current_user.id))
+                    user_cnt = cnt_user.one()[0]
+                    cnt_assoc = len(all_assoc_hids)
+                    logger.info('hashtags page debug: user_id=%s user_hashtag_rows=%s assoc_hids=%s missing=%s', current_user.id, user_cnt, cnt_assoc, len(missing))
+                    # Stronger fallback path: if there are association ids, attempt direct fetch
+                    if cnt_assoc > 0:
+                        # fetch hashtags by association ids directly
+                        assoc_fetch = await sess.exec(select(Hashtag).where(Hashtag.id.in_(all_assoc_hids)).order_by(Hashtag.tag.asc()))
+                        assoc_tags = assoc_fetch.all()
+                        if assoc_tags:
+                            # ensure ownership rows exist one-by-one (idempotent)
+                            for h in assoc_tags:
+                                try:
+                                    sess.add(UserHashtag(user_id=current_user.id, hashtag_id=int(h.id)))
+                                except Exception:
+                                    pass
+                            try:
+                                await sess.commit()
+                            except IntegrityError:
+                                await sess.rollback()
+                            hashtags = assoc_tags  # use as display fallback now
+                            logger.info('hashtags page fallback populated %s tags directly from associations for user_id=%s', len(hashtags), current_user.id)
+                except Exception:
+                    pass
         except Exception:
-            logger.exception('failed to load hashtags for user id=%s', getattr(current_user, 'id', None))
+            logger.exception('failed to load/backfill user-owned hashtags id=%s', getattr(current_user, 'id', None))
             hashtags = []
     from .auth import create_csrf_token
     csrf_token = create_csrf_token(current_user.username)
-    debug_flag = str(request.query_params.get('debug','')).lower() in ('1','true','yes')
-    return TEMPLATES.TemplateResponse(request, 'hashtags.html', {'request': request, 'hashtags': hashtags, 'csrf_token': csrf_token, 'current_user': current_user, 'debug': debug_flag})
+    qp = request.query_params
+    debug_flag = str(qp.get('debug','')).lower() in ('1','true','yes')
+    nobackfill = str(qp.get('nobackfill','')).lower() in ('1','true','yes')
+    if nobackfill:
+        # When nobackfill is requested, re-run the selection but SKIP the ownership insertion logic.
+        # We achieve this by re-querying purely user-owned hashtags WITHOUT attempting to insert missing ownership.
+        # If the earlier logic inserted ownership already in this request, it will still appear; for a true
+        # baseline view, load with nobackfill=1 on a cold start (before visiting without the flag).
+        try:
+            # direct user-owned only
+            async with async_session() as sess:
+                q_nb = (
+                    select(Hashtag)
+                    .join(UserHashtag, UserHashtag.hashtag_id == Hashtag.id)
+                    .where(UserHashtag.user_id == current_user.id)
+                    .order_by(Hashtag.tag.asc())
+                )
+                res_nb = await sess.exec(q_nb)
+                hashtags = res_nb.all()
+        except Exception:
+            pass
+    return TEMPLATES.TemplateResponse(request, 'hashtags.html', {'request': request, 'hashtags': hashtags, 'csrf_token': csrf_token, 'current_user': current_user, 'debug': debug_flag, 'nobackfill': nobackfill})
 
 
 @app.post('/html_no_js/hashtags/delete')
@@ -12071,8 +12219,15 @@ async def html_no_js_hashtags_delete(request: Request, current_user: User = Depe
     # owns all associated lists/todos for the requested tags (in which case
     # allow the owner to delete their own tags).
     tags_raw = form.get('tags', '') or ''
-    # tags may be comma-separated; allow whitespace
-    tags_list = [t.strip() for t in tags_raw.split(',') if t and t.strip()]
+    # Accept commas, whitespace, newlines as separators
+    import re as _re
+    # Replace newlines and tabs with spaces, then split on commas OR whitespace blocks
+    interim = tags_raw.replace('\n', ' ').replace('\r',' ').replace('\t',' ')
+    parts = []
+    for chunk in interim.split(','):
+        parts.extend(_re.split(r'\s+', chunk))
+    tags_list = [t.strip() for t in parts if t and t.strip()]
+    logger.info('hashtags delete: raw_input=%r parsed_list=%r user_id=%s', tags_raw, tags_list, getattr(current_user,'id',None))
     if not tags_list:
         # nothing to do
         ref = request.headers.get('Referer', '/html_no_js/hashtags')
@@ -12083,9 +12238,15 @@ async def html_no_js_hashtags_delete(request: Request, current_user: User = Depe
         try:
             nt = normalize_hashtag(t)
         except Exception:
-            # ignore invalid tokens
-            continue
+            # legacy fallback: accept existing stored form if it starts with '#'
+            # and contains only hex/alnum chars after '#', even if first char not a letter
+            tt = t.strip()
+            if tt.startswith('#') and len(tt) > 1 and all(ch.isalnum() for ch in tt[1:]):
+                nt = '#' + tt[1:].lower()
+            else:
+                continue
         norm_tags.append(nt)
+    logger.info('hashtags delete: normalized=%r user_id=%s', norm_tags, getattr(current_user,'id',None))
     if not norm_tags:
         ref = request.headers.get('Referer', '/html_no_js/hashtags')
         return RedirectResponse(url=ref, status_code=303)
@@ -12096,6 +12257,7 @@ async def html_no_js_hashtags_delete(request: Request, current_user: User = Depe
             # find matching hashtag rows
             qh_res = await sess.exec(select(Hashtag).where(Hashtag.tag.in_(norm_tags)))
             hs = qh_res.all()
+            logger.info('hashtags delete: matched_rows=%s for normalized=%r user_id=%s', len(hs), norm_tags, getattr(current_user,'id',None))
             ids = [int(h.id) for h in hs]
             if not ids:
                 # nothing matched
@@ -12105,13 +12267,27 @@ async def html_no_js_hashtags_delete(request: Request, current_user: User = Depe
             # Determine owners of associated lists and todos for these hashtag ids
             q_list_assoc = select(ListState.owner_id).join(ListHashtag, ListHashtag.list_id == ListState.id).where(ListHashtag.hashtag_id.in_(ids))
             la_res = await sess.exec(q_list_assoc)
-            # la_res.all() returns list of rows which may be simple values; normalize to set
-            list_owner_ids = {r for r in la_res.all() if r is not None}
+            list_owner_ids = set()
+            for row in la_res.all():
+                if isinstance(row, (tuple, list)):
+                    oid = row[0]
+                else:
+                    oid = row
+                if oid is not None:
+                    list_owner_ids.add(int(oid))
             q_todo_assoc = select(ListState.owner_id).join(Todo, Todo.list_id == ListState.id).join(TodoHashtag, TodoHashtag.todo_id == Todo.id).where(TodoHashtag.hashtag_id.in_(ids))
             ta_res = await sess.exec(q_todo_assoc)
-            todo_owner_ids = {r for r in ta_res.all() if r is not None}
+            todo_owner_ids = set()
+            for row in ta_res.all():
+                if isinstance(row, (tuple, list)):
+                    oid = row[0]
+                else:
+                    oid = row
+                if oid is not None:
+                    todo_owner_ids.add(int(oid))
 
             assoc_owner_ids = list_owner_ids.union(todo_owner_ids)
+            logger.info('hashtags delete: list_owner_ids=%r todo_owner_ids=%r combined=%r user_id=%s', list_owner_ids, todo_owner_ids, assoc_owner_ids, getattr(current_user,'id',None))
             # If there are no associated owner ids (only associations to lists with NULL owner), treat as public and require admin
             allow_owner_delete = False
             if assoc_owner_ids:
@@ -12124,10 +12300,28 @@ async def html_no_js_hashtags_delete(request: Request, current_user: User = Depe
 
             # delete associations and hashtags
             if ids:
-                await sess.exec(sa_delete(ListHashtag).where(ListHashtag.hashtag_id.in_(ids)))
-                await sess.exec(sa_delete(TodoHashtag).where(TodoHashtag.hashtag_id.in_(ids)))
-                await sess.exec(sa_delete(Hashtag).where(Hashtag.id.in_(ids)))
-                await sess.commit()
+                dry = str(request.query_params.get('dry','')).lower() in ('1','true','yes')
+                unown = str(request.query_params.get('unown','')).lower() in ('1','true','yes')
+                if dry:
+                    logger.info('hashtags delete dry-run user_id=%s tags=%s ids=%s allow_owner_delete=%s admin=%s unown=%s', current_user.id, norm_tags, ids, allow_owner_delete, getattr(current_user,'is_admin',False), unown)
+                elif unown and not getattr(current_user,'is_admin',False):
+                    # Only remove this user's ownership rows; leave global hashtags intact.
+                    await sess.exec(sa_delete(UserHashtag).where(UserHashtag.user_id == current_user.id, UserHashtag.hashtag_id.in_(ids)))
+                    await sess.commit()
+                    logger.info('hashtags unown result user_id=%s tags=%s', current_user.id, norm_tags)
+                else:
+                    # Full delete (permission already validated above)
+                    await sess.exec(sa_delete(UserHashtag).where(UserHashtag.hashtag_id.in_(ids)))
+                    await sess.exec(sa_delete(ListHashtag).where(ListHashtag.hashtag_id.in_(ids)))
+                    await sess.exec(sa_delete(TodoHashtag).where(TodoHashtag.hashtag_id.in_(ids)))
+                    await sess.exec(sa_delete(Hashtag).where(Hashtag.id.in_(ids)))
+                    await sess.commit()
+                    try:
+                        chk = await sess.exec(select(Hashtag.id).where(Hashtag.id.in_(ids)))
+                        remaining = [int(r[0] if isinstance(r,(tuple,list)) else r) for r in chk.all()]
+                        logger.info('hashtags delete result user_id=%s tags=%s remaining_ids=%s', current_user.id, norm_tags, remaining)
+                    except Exception:
+                        pass
         except Exception:
             await sess.rollback()
             raise
@@ -12136,6 +12330,125 @@ async def html_no_js_hashtags_delete(request: Request, current_user: User = Depe
         return JSONResponse({'ok': True, 'deleted': norm_tags})
     ref = request.headers.get('Referer', '/html_no_js/hashtags')
     return RedirectResponse(url=ref, status_code=303)
+
+
+# Diagnostic endpoint (admin only) to inspect hashtag linkage state.
+@app.get('/debug/hashtags_state')
+async def debug_hashtags_state(tags: str, current_user: User = Depends(require_login)):
+    if not getattr(current_user, 'is_admin', False):
+        raise HTTPException(status_code=403, detail='admin only')
+    raw_tags = [t.strip() for t in (tags or '').split(',') if t.strip()]
+    from .utils import normalize_hashtag as _nh
+    norm: list[str] = []
+    for t in raw_tags:
+        try:
+            nt = _nh(t)
+        except Exception:
+            continue
+        if nt not in norm:
+            norm.append(nt)
+    out = {}
+    async with async_session() as sess:
+        qh = await sess.exec(select(Hashtag).where(Hashtag.tag.in_(norm)))
+        hs = qh.all()
+        out['input'] = norm
+        out['hashtags'] = [ {'id': int(h.id), 'tag': h.tag } for h in hs ]
+        ids = [int(h.id) for h in hs]
+        if ids:
+            q_user = await sess.exec(select(UserHashtag.user_id, UserHashtag.hashtag_id).where(UserHashtag.hashtag_id.in_(ids)))
+            out['user_hashtags'] = [ {'user_id': int(r[0]) if isinstance(r,(tuple,list)) else None, 'hashtag_id': int(r[1]) if isinstance(r,(tuple,list)) else None } for r in q_user.all() ]
+            q_l = await sess.exec(select(ListHashtag.list_id, ListHashtag.hashtag_id).where(ListHashtag.hashtag_id.in_(ids)))
+            out['list_hashtags'] = [ {'list_id': int(r[0]) if isinstance(r,(tuple,list)) else None, 'hashtag_id': int(r[1]) if isinstance(r,(tuple,list)) else None } for r in q_l.all() ]
+            q_t = await sess.exec(select(TodoHashtag.todo_id, TodoHashtag.hashtag_id).where(TodoHashtag.hashtag_id.in_(ids)))
+            out['todo_hashtags'] = [ {'todo_id': int(r[0]) if isinstance(r,(tuple,list)) else None, 'hashtag_id': int(r[1]) if isinstance(r,(tuple,list)) else None } for r in q_t.all() ]
+    return JSONResponse(out)
+
+
+@app.post('/debug/write_hashtags_log')
+async def debug_write_hashtags_log(request: Request, current_user: User = Depends(require_login)):
+    """Admin-only endpoint: write hashtag state for provided comma-separated 'tags' to a log file.
+    Query/body params:
+      tags: comma-separated list of tags (required)
+      path: relative path inside workspace (default: debug_logs/hashtags_debug.log)
+      mode: 'overwrite' (default) or 'append'
+    Overwrite will truncate the file first. Returns JSON with file path and counts.
+    """
+    if not getattr(current_user, 'is_admin', False):
+        raise HTTPException(status_code=403, detail='admin only')
+    data = {}
+    if request.headers.get('content-type','').startswith('application/json'):
+        try:
+            data = await request.json()
+        except Exception:
+            data = {}
+    params = request.query_params
+    tags_raw = (data.get('tags') if isinstance(data, dict) else None) or params.get('tags') or ''
+    all_flag = False
+    if tags_raw.strip() == '__ALL__':
+        all_flag = True
+    raw_list = [t.strip() for t in tags_raw.split(',') if t.strip() and t.strip() != '__ALL__']
+    from .utils import normalize_hashtag as _nh
+    norm: list[str] = []
+    for t in raw_list:
+        try:
+            nt = _nh(t)
+        except Exception:
+            continue
+        if nt not in norm:
+            norm.append(nt)
+    rel_path = (data.get('path') if isinstance(data, dict) else None) or params.get('path') or 'debug_logs/hashtags_debug.log'
+    mode = ((data.get('mode') if isinstance(data, dict) else None) or params.get('mode') or 'overwrite').lower()
+    if mode not in ('overwrite','append'):
+        mode = 'overwrite'
+    async with async_session() as sess:
+        if all_flag:
+            qh = await sess.exec(select(Hashtag))
+        else:
+            qh = await sess.exec(select(Hashtag).where(Hashtag.tag.in_(norm)))
+        hs = qh.all()
+        ids = [int(h.id) for h in hs]
+        q_user = q_list = q_todo = []
+        if ids:
+            r_user = await sess.exec(select(UserHashtag.user_id, UserHashtag.hashtag_id).where(UserHashtag.hashtag_id.in_(ids)))
+            q_user = [ {'user_id': int(r[0]) if isinstance(r,(tuple,list)) else None, 'hashtag_id': int(r[1]) if isinstance(r,(tuple,list)) else None } for r in r_user.all() ]
+            r_list = await sess.exec(select(ListHashtag.list_id, ListHashtag.hashtag_id).where(ListHashtag.hashtag_id.in_(ids)))
+            q_list = [ {'list_id': int(r[0]) if isinstance(r,(tuple,list)) else None, 'hashtag_id': int(r[1]) if isinstance(r,(tuple,list)) else None } for r in r_list.all() ]
+            r_todo = await sess.exec(select(TodoHashtag.todo_id, TodoHashtag.hashtag_id).where(TodoHashtag.hashtag_id.in_(ids)))
+            q_todo = [ {'todo_id': int(r[0]) if isinstance(r,(tuple,list)) else None, 'hashtag_id': int(r[1]) if isinstance(r,(tuple,list)) else None } for r in r_todo.all() ]
+        # Build anomaly summary
+        anomalies = {
+            'no_ownership': [],  # hashtag ids with no user ownership rows but have list/todo associations
+            'orphan_hashtags': [], # hashtag ids with neither ownership nor associations
+        }
+        if ids:
+            assoc_ids = {d['hashtag_id'] for d in q_list} | {d['hashtag_id'] for d in q_todo}
+            owned_ids = {d['hashtag_id'] for d in q_user}
+            for hid in ids:
+                if hid not in owned_ids and hid in assoc_ids:
+                    anomalies['no_ownership'].append(hid)
+                if hid not in owned_ids and hid not in assoc_ids:
+                    anomalies['orphan_hashtags'].append(hid)
+    content = {
+        'input': norm,
+        'all': all_flag,
+        'hashtags': [ {'id': int(h.id), 'tag': h.tag } for h in hs ],
+        'user_hashtags': q_user,
+        'list_hashtags': q_list,
+        'todo_hashtags': q_todo,
+        'anomalies': anomalies,
+        'mode': mode,
+        'path': rel_path,
+    }
+    import json, os
+    base_dir = os.getcwd()
+    abs_path = os.path.join(base_dir, rel_path)
+    os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+    fmode = 'w' if mode == 'overwrite' else 'a'
+    with open(abs_path, fmode, encoding='utf-8') as f:
+        f.write(json.dumps(content, indent=2, ensure_ascii=False))
+        f.write('\n')
+    logger.info('debug write hashtags log user_id=%s tags=%s file=%s mode=%s', current_user.id, norm, abs_path, mode)
+    return JSONResponse({'ok': True, 'written': abs_path, 'tag_count': len(norm), 'hashtag_rows': len(hs)})
 
 
 @app.post('/html_no_js/lists/{list_id}/priority')

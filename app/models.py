@@ -109,6 +109,19 @@ class Hashtag(SQLModel, table=True):
     metadata_json: Optional[str] = None
 
 
+class UserHashtag(SQLModel, table=True):
+    """Explicit ownership link so we can list all hashtags a user has ever used/created.
+
+    Composite primary key (user_id, hashtag_id) keeps storage minimal.
+    first_seen_at is advisory; not updated on repeats.
+    """
+    user_id: int = Field(foreign_key='user.id', primary_key=True)
+    hashtag_id: int = Field(foreign_key='hashtag.id', primary_key=True)
+    first_seen_at: datetime | None = Field(default_factory=now_utc, index=True)
+    # Optional future metadata field
+    metadata_json: Optional[str] = None
+
+
 class CompletionType(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str

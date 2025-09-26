@@ -21,9 +21,9 @@
       {% if debug %}
         <div style="margin:0.5rem 0; color:var(--muted); font-size:0.9rem;">Debug: user={{ current_user.username }} (id={{ current_user.id }}), visible_tags={{ hashtags|length }}</div>
       {% endif %}
-      <div class="tags-wrap" aria-label="All hashtags" id="hashtags-wrap">
+      <div class="tags-wrap" aria-label="All hashtags" id="hashtags-wrap" {% if nobackfill %}data-nobackfill="1"{% endif %}>
         {% for h in hashtags %}
-          <a class="tag-chip" href="/html_no_js/search?q={{ h.tag|urlencode }}" data-tag="{{ h.tag }}">{{ h.tag }}</a>
+          <a class="tag-chip" href="/html_no_js/search?q={{ h.tag|urlencode }}" data-tag="{{ h.tag }}" data-own="0" data-list="0" data-todo="0">{{ h.tag }}</a>
         {% endfor %}
       </div>
       <div style="margin:0.5rem 0; display:flex; gap:1rem; align-items:center;">
