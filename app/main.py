@@ -12288,15 +12288,29 @@ async def html_no_js_hashtags_delete(request: Request, current_user: User = Depe
 
             assoc_owner_ids = list_owner_ids.union(todo_owner_ids)
             logger.info('hashtags delete: list_owner_ids=%r todo_owner_ids=%r combined=%r user_id=%s', list_owner_ids, todo_owner_ids, assoc_owner_ids, getattr(current_user,'id',None))
-            # If there are no associated owner ids (only associations to lists with NULL owner), treat as public and require admin
+            # Permission logic:
+            # 1. Admin always allowed.
+            # 2. Non-admin allowed when:
+            #    - All associated owner ids (if any) are either the current user OR None (public lists), and
+            #    - There is no other distinct user owner.
             allow_owner_delete = False
-            if assoc_owner_ids:
-                # allow non-admin if and only if the only owner id present is the current user
-                if assoc_owner_ids == {current_user.id}:
-                    allow_owner_delete = True
-
+            if not getattr(current_user, 'is_admin', False):
+                if not assoc_owner_ids:
+                    # Only public/NULL-owned associations: treat as user-only context if the user is the sole owner of the hashtag via UserHashtag rows.
+                    # Check that no other users own these hashtag ids.
+                    q_other_owners = await sess.exec(
+                        select(UserHashtag.user_id).where(UserHashtag.hashtag_id.in_(ids)).where(UserHashtag.user_id != current_user.id)
+                    )
+                    others = {int(r[0]) if isinstance(r,(tuple,list)) else int(r) for r in q_other_owners.all()}
+                    if not others:
+                        allow_owner_delete = True
+                else:
+                    # If all real owners are just the current user
+                    if assoc_owner_ids == {current_user.id}:
+                        allow_owner_delete = True
+            # Deny if neither admin nor allowed by ownership rule
             if not getattr(current_user, 'is_admin', False) and not allow_owner_delete:
-                raise HTTPException(status_code=403, detail='admin required')
+                raise HTTPException(status_code=403, detail='admin required or tag shared by other owners')
 
             # delete associations and hashtags
             if ids:
