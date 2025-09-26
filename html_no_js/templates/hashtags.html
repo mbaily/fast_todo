@@ -35,7 +35,17 @@
   {% else %}
     <div class="meta">No hashtags found.</div>
   {% endif %}
+  <div id="bulk-create-box" style="margin:0.75rem 0 1rem 0;">
+    <label for="bulk-create-input" style="display:block; font-weight:600; margin-bottom:0.25rem;">Create multiple hashtags</label>
+    <textarea id="bulk-create-input" rows="2" placeholder="#shop1 #groceries #mitre10" style="width:100%; max-width:520px; font-family:monospace; resize:vertical;"></textarea>
+    <div style="margin-top:0.35rem; display:flex; gap:0.5rem; align-items:center;">
+      <button type="button" id="bulk-create-btn">Create hashtags</button>
+      <span id="bulk-create-status" style="font-size:0.85rem; color:var(--muted);"></span>
+    </div>
+  </div>
+  <script src="/static/no_js/hashtags.js"></script>
   <script>
+    // legacy inline script retained (selection + deletion). New bulk logic moved to /static/no_js/hashtags.js
     (function(){
       var selectChk = document.getElementById('select-mode-checkbox');
       var wrap = document.getElementById('hashtags-wrap');

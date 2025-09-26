@@ -5835,6 +5835,151 @@ async def add_todo_hashtag(todo_id: int, tag: str, current_user: _Optional[User]
         return {"todo_id": todo_id, "tag": tag}
 
 
+# ------------------------------------------------------------
+# Bulk hashtag creation (global for a user)
+# ------------------------------------------------------------
+@app.post('/hashtags/bulk_create/json')
+async def bulk_create_hashtags_json(body: dict, current_user: User = Depends(require_login)):
+    """Create multiple hashtags for the current user in one call.
+
+    Accepts JSON body: {"tags": "#a #b #c"} OR {"tags": ["#a", "#b #c"]}
+
+    Behaviour:
+      - Parses whitespace/comma separated tokens
+      - Normalizes each via normalize_hashtag (enforces lowercase, leading '#')
+      - Deduplicates
+      - Invalid tokens are reported in `invalid` (original raw token)
+      - Creates any missing Hashtag rows
+      - Associates all valid hashtags with a per-user staging list so they
+        become visible on the /html_no_js/hashtags page (that page only shows
+        hashtags with at least one list/todo association owned by the user)
+      - Idempotent: existing hashtags and associations are left intact
+
+    Returns JSON: {
+        ok: true,
+        created: [... newly created normalized tags ...],
+        existing: [... valid tags that already existed ...],
+        invalid: [... raw invalid tokens ...],
+        all: [... union created+existing ...],
+        list_id: <staging list id>
+    }
+    """
+    if not isinstance(body, dict):  # defensive
+        raise HTTPException(status_code=400, detail='invalid body')
+    raw = body.get('tags')
+    if raw is None:
+        return {'ok': True, 'created': [], 'existing': [], 'invalid': [], 'all': [], 'list_id': None}
+    import re as _re
+    tokens: list[str] = []
+    if isinstance(raw, str):
+        tokens = [t for t in _re.split(r'[\s,]+', raw) if t]
+    elif isinstance(raw, (list, tuple)):
+        for part in raw:
+            if isinstance(part, str):
+                tokens.extend([t for t in _re.split(r'[\s,]+', part) if t])
+    else:
+        raise HTTPException(status_code=400, detail='invalid tags payload')
+    if not tokens:
+        return {'ok': True, 'created': [], 'existing': [], 'invalid': [], 'all': [], 'list_id': None}
+
+    seen: set[str] = set()
+    norm_valid: list[str] = []
+    invalid: list[str] = []
+    for tok in tokens:
+        if not tok:
+            continue
+        try:
+            # allow tokens without leading '#'
+            candidate = tok if tok.startswith('#') else ('#' + tok)
+            norm = normalize_hashtag(candidate)
+        except Exception:
+            invalid.append(tok)
+            continue
+        if norm not in seen:
+            seen.add(norm)
+            norm_valid.append(norm)
+
+    created: list[str] = []
+    existing: list[str] = []
+    staging_list_id: int | None = None
+
+    if norm_valid:
+        async with async_session() as sess:
+            # Ensure per-user staging list exists (hidden-ish internal name)
+            STAGING_NAME = '_hashtags_staging'
+            try:
+                qlist = await sess.scalars(select(ListState).where(ListState.owner_id == current_user.id).where(ListState.name == STAGING_NAME))
+                staging = qlist.first()
+                if not staging:
+                    staging = ListState(name=STAGING_NAME, owner_id=current_user.id)
+                    sess.add(staging)
+                    await sess.commit()
+                    await sess.refresh(staging)
+                staging_list_id = int(staging.id)
+            except Exception:
+                await sess.rollback()
+                raise HTTPException(status_code=500, detail='failed to prepare staging list')
+
+            # Fetch existing hashtags among requested
+            try:
+                q_existing = await sess.exec(select(Hashtag).where(Hashtag.tag.in_(norm_valid)))
+                existing_rows = q_existing.all()
+            except Exception:
+                existing_rows = []
+            existing_map = {h.tag: h for h in existing_rows if getattr(h, 'tag', None)}
+            # Determine which need creation
+            to_create = [t for t in norm_valid if t not in existing_map]
+            if to_create:
+                for t in to_create:
+                    sess.add(Hashtag(tag=t))
+                try:
+                    await sess.commit()
+                except IntegrityError:
+                    await sess.rollback()
+                # re-fetch to include newly created
+                q2 = await sess.exec(select(Hashtag).where(Hashtag.tag.in_(norm_valid)))
+                all_rows = q2.all()
+                existing_map = {h.tag: h for h in all_rows if getattr(h, 'tag', None)}
+            # classify created vs existing
+            for t in norm_valid:
+                if t in to_create:
+                    created.append(t)
+                else:
+                    existing.append(t)
+            # Ensure associations to staging list
+            try:
+                # fetch existing links
+                hashtag_ids = [int(existing_map[t].id) for t in norm_valid if t in existing_map]
+                if hashtag_ids:
+                    q_links = await sess.exec(select(ListHashtag).where(ListHashtag.list_id == staging_list_id).where(ListHashtag.hashtag_id.in_(hashtag_ids)))
+                    linked_ids = {int(l.hashtag_id) for l in q_links.all() if getattr(l, 'hashtag_id', None) is not None}
+                    for t in norm_valid:
+                        row = existing_map.get(t)
+                        if not row:
+                            continue
+                        hid = int(row.id)
+                        if hid in linked_ids:
+                            continue
+                        sess.add(ListHashtag(list_id=staging_list_id, hashtag_id=hid))
+                    try:
+                        await sess.commit()
+                    except IntegrityError:
+                        await sess.rollback()
+            except Exception:
+                # association failure shouldn't fully abort
+                pass
+
+    all_valid = norm_valid
+    return {
+        'ok': True,
+        'created': created,
+        'existing': existing,
+        'invalid': invalid,
+        'all': all_valid,
+        'list_id': staging_list_id,
+    }
+
+
 async def _remove_todo_hashtag_core(sess, todo_id: int, tag: str, current_user: _Optional[User]):
     try:
         tag = normalize_hashtag(tag)
