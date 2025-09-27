@@ -15224,7 +15224,13 @@ async def html_remove_todo_link(request: Request, todo_id: int, link_id: int, cu
 
 
 @app.post('/html_no_js/todos/{todo_id}/sublists/create')
-async def html_create_sublist(request: Request, todo_id: int, name: str = Form(...), current_user: User = Depends(require_login)):
+async def html_create_sublist(
+    request: Request,
+    todo_id: int,
+    name: str = Form(...),
+    top: Optional[str] = Form(None),
+    current_user: User = Depends(require_login),
+):
     # require CSRF and validate ownership via parent list
     form = await request.form()
     token = form.get('_csrf')
@@ -15244,13 +15250,35 @@ async def html_create_sublist(request: Request, todo_id: int, name: str = Form(.
         norm_name = remove_hashtags_from_text((name or '').lstrip())
         if not norm_name:
             raise HTTPException(status_code=400, detail='name is required')
-        # Determine next position among siblings (append to end)
+        place_top = False
+        if top is not None:
+            tv = top.lower()
+            place_top = tv in ('1', 'true', 'on', 'yes')
+        await _normalize_sublist_positions(sess, todo_id)
         try:
-            qmax = await sess.exec(select(ListState.parent_todo_position).where(ListState.parent_todo_id == todo_id))
-            positions = [p[0] if isinstance(p, (tuple, list)) else p for p in qmax.fetchall()]
-            next_pos = (max([pp for pp in positions if pp is not None]) + 1) if positions else 0
+            qsiblings = await sess.exec(
+                select(ListState)
+                .where(ListState.parent_todo_id == todo_id)
+                .order_by(ListState.parent_todo_position.asc(), ListState.created_at.asc())
+            )
+            siblings = qsiblings.all()
         except Exception:
+            siblings = []
+        if place_top and siblings:
+            for sib in siblings:
+                cur = getattr(sib, 'parent_todo_position', None)
+                if cur is None:
+                    continue
+                sib.parent_todo_position = cur + 1
+                sess.add(sib)
             next_pos = 0
+        else:
+            try:
+                existing_positions = [getattr(sib, 'parent_todo_position', None) for sib in siblings]
+                filtered = [pos for pos in existing_positions if pos is not None]
+                next_pos = (max(filtered) + 1) if filtered else 0
+            except Exception:
+                next_pos = 0
         sub = ListState(name=norm_name, owner_id=current_user.id, parent_todo_id=todo_id, parent_todo_position=next_pos)
         sess.add(sub)
         await sess.commit()
@@ -15264,7 +15292,14 @@ async def html_create_sublist(request: Request, todo_id: int, name: str = Form(.
             await sess.rollback()
     accept = (request.headers.get('Accept') or '')
     if 'application/json' in accept.lower():
-        return JSONResponse({'ok': True, 'id': sub.id, 'name': sub.name, 'parent_todo_id': todo_id})
+        return JSONResponse({
+            'ok': True,
+            'id': sub.id,
+            'name': sub.name,
+            'parent_todo_id': todo_id,
+            'parent_todo_position': getattr(sub, 'parent_todo_position', None),
+            'parent_list_position': getattr(sub, 'parent_todo_position', None),
+        })
     return _redirect_or_json(request, f'/html_no_js/todos/{todo_id}')
 
 
@@ -15426,7 +15461,13 @@ async def _normalize_list_sublists_positions(sess, parent_list_id: int):
 
 
 @app.post('/html_no_js/lists/{list_id}/sublists/create')
-async def html_create_list_sublist(request: Request, list_id: int, name: str = Form(...), current_user: User = Depends(require_login)):
+async def html_create_list_sublist(
+    request: Request,
+    list_id: int,
+    name: str = Form(...),
+    top: Optional[str] = Form(None),
+    current_user: User = Depends(require_login),
+):
     form = await request.form()
     token = form.get('_csrf')
     from .auth import verify_csrf_token
@@ -15441,12 +15482,36 @@ async def html_create_list_sublist(request: Request, list_id: int, name: str = F
         norm_name = remove_hashtags_from_text((name or '').lstrip())
         if not norm_name:
             raise HTTPException(status_code=400, detail='name is required')
+        place_top = False
+        if top is not None:
+            tv = top.lower()
+            place_top = tv in ('1', 'true', 'on', 'yes')
+        await _normalize_list_sublists_positions(sess, list_id)
         try:
-            qmax = await sess.exec(select(ListState.parent_list_position).where(ListState.parent_list_id == list_id))
-            positions = [p[0] if isinstance(p, (tuple, list)) else p for p in qmax.fetchall()]
-            next_pos = (max([pp for pp in positions if pp is not None]) + 1) if positions else 0
+            qsiblings = await sess.exec(
+                select(ListState)
+                .where(ListState.parent_list_id == list_id)
+                .order_by(ListState.parent_list_position.asc(), ListState.created_at.asc())
+            )
+            siblings = qsiblings.all()
         except Exception:
+            siblings = []
+        next_pos: int
+        if place_top and siblings:
+            for sib in siblings:
+                cur = getattr(sib, 'parent_list_position', None)
+                if cur is None:
+                    continue
+                sib.parent_list_position = cur + 1
+                sess.add(sib)
             next_pos = 0
+        else:
+            try:
+                existing_positions = [getattr(sib, 'parent_list_position', None) for sib in siblings]
+                filtered = [pos for pos in existing_positions if pos is not None]
+                next_pos = (max(filtered) + 1) if filtered else 0
+            except Exception:
+                next_pos = 0
         sub = ListState(name=norm_name, owner_id=current_user.id, parent_list_id=list_id, parent_list_position=next_pos)
         sess.add(sub)
         await sess.commit()
@@ -15459,7 +15524,13 @@ async def html_create_list_sublist(request: Request, list_id: int, name: str = F
             await sess.rollback()
         accept = (request.headers.get('Accept') or '')
         if 'application/json' in accept.lower():
-            return JSONResponse({'ok': True, 'id': sub.id, 'name': sub.name, 'parent_list_id': list_id})
+            return JSONResponse({
+                'ok': True,
+                'id': sub.id,
+                'name': sub.name,
+                'parent_list_id': list_id,
+                'parent_list_position': getattr(sub, 'parent_list_position', None),
+            })
         return RedirectResponse(url=f'/html_no_js/lists/{list_id}', status_code=303)
 
 

@@ -766,13 +766,27 @@
 // Intercept sublist creation and insert new sublist into the DOM using the JSON endpoint
 (function(){
 	try{
-		function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#39;'); }
+		function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+		function syncParentListPositions(listEl){
+			try{
+				if (!listEl) return;
+				var items = listEl.querySelectorAll('li.list-item');
+				if (!items || !items.length) return;
+				items.forEach(function(item, idx){ item.setAttribute('data-parent-list-position', String(idx)); });
+			}catch(_){ }
+		}
 		document.body.addEventListener('submit', function(ev){
 			var form = ev.target; if (!form || form.tagName !== 'FORM') return; var action = form.getAttribute('action') || '';
 			if (action.indexOf('/sublists/create') === -1) return; ev.preventDefault();
 			try{
 				var fd = new FormData(form);
 				var csrf = document.querySelector('input[name="_csrf"]'); if (csrf && csrf.value) fd.append('_csrf', csrf.value);
+				var topField = form.querySelector('input[name="top"]');
+				var placeTop = false;
+				if (topField){
+					if (typeof topField.checked === 'boolean' && topField.type && topField.type.toLowerCase() === 'checkbox') placeTop = !!topField.checked;
+					else { var tv = (topField.value || '').toString().toLowerCase(); placeTop = (tv === 'true' || tv === '1' || tv === 'on'); }
+				}
 				fetch(action, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
 					.then(function(res){ if (!res.ok) throw new Error('Create sublist failed'); return res.json().catch(function(){ return null; }); })
 					.then(function(sub){
@@ -782,6 +796,7 @@
 							if (!ul) ul = document.querySelector('.lists-list');
 							if (!ul){ ul = document.createElement('ul'); ul.className = 'lists-list'; if (form.parentNode) form.parentNode.insertBefore(ul, form.nextSibling); }
 							var li = document.createElement('li'); li.className = 'list-item'; li.id = 'list-' + sub.id;
+							li.setAttribute('data-completed', 'false');
 							li.innerHTML = '<div class="list-action-left" style="display:flex;gap:0.25rem;align-items:center;">'
 								+ '<form method="post" action="' + action.replace('/sublists/create','/sublists/' + sub.id + '/move') + '" style="display:inline">'
 								+ '<input type="hidden" name="direction" value="up">'
@@ -791,12 +806,37 @@
 								+ '<button type="submit" class="list-action-btn" title="Move down">⬇️</button></form></div>'
 								+ '<div class="list-main"><a class="list-title" href="/html_no_js/lists/' + sub.id + '">' + escapeHtml(sub.name) + '</a>'
 								+ ' <button type="button" class="list-action-btn edit-list-btn" data-list-id="' + sub.id + '" data-list-name="' + escapeHtml(sub.name) + '" title="Edit list name">✏️</button></div>';
-							ul.appendChild(li);
+							var siblings = Array.from(ul.querySelectorAll('li.list-item'));
+							var rawPos = sub && Object.prototype.hasOwnProperty.call(sub, 'parent_list_position') ? sub.parent_list_position : null;
+							var numericPos = null;
+							if (typeof rawPos === 'number' && !isNaN(rawPos)) numericPos = rawPos;
+							else if (typeof rawPos === 'string' && rawPos.trim() !== ''){
+								var parsedPos = parseInt(rawPos, 10);
+								numericPos = isNaN(parsedPos) ? null : parsedPos;
+							}
+							var targetNode = null;
+							if (numericPos !== null){
+								for (var i = 0; i < siblings.length; i++){
+									var sib = siblings[i];
+									var sibAttr = sib ? sib.getAttribute('data-parent-list-position') : null;
+									var sibPos = sibAttr === null ? null : parseInt(sibAttr, 10);
+									if (sibPos === null || isNaN(sibPos) || sibPos >= numericPos){ targetNode = sib; break; }
+								}
+							}
+							if (!targetNode && placeTop && siblings.length){ targetNode = siblings[0]; }
+							if (targetNode) ul.insertBefore(li, targetNode); else ul.appendChild(li);
+							var assignedPos;
+							if (numericPos !== null) assignedPos = numericPos;
+							else if (placeTop) assignedPos = 0;
+							else assignedPos = siblings.length;
+							li.setAttribute('data-parent-list-position', String(assignedPos));
+							syncParentListPositions(ul);
 							try{ if (window.ftLog) window.ftLog('Added sublist', { item_type: 'list', item_id: Number(sub.id), label: String(sub.name||'') }); }catch(_){ }
 							// Clear and refocus the sublist name input for faster consecutive entries
 							try {
 								var nameInput = form.querySelector('input[name="name"]');
 								if (nameInput) { nameInput.value = ''; nameInput.focus(); }
+								if (topField && typeof topField.checked === 'boolean') topField.checked = false;
 							} catch(_) {}
 						}catch(_){ }
 					})

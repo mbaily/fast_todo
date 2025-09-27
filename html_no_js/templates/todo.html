@@ -198,6 +198,10 @@
           <input type="text" name="name" required placeholder="Sublist name" autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false">
         </label>
         <button type="submit">Create</button>
+        <label for="todo-top-sublist-checkbox-{{ todo.id }}-up" style="display:inline-flex; align-items:center; gap:0.35rem; margin-left:0.5rem;">
+          <input id="todo-top-sublist-checkbox-{{ todo.id }}-up" type="checkbox" name="top" value="true">
+          <span>Top</span>
+        </label>
       </form>
       {% if sublists|length > 0 %}
         <ul class="lists-list">
@@ -349,6 +353,10 @@
           <input type="text" name="name" required placeholder="Sublist name" autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false">
         </label>
         <button type="submit">Create</button>
+        <label for="todo-top-sublist-checkbox-{{ todo.id }}-down" style="display:inline-flex; align-items:center; gap:0.35rem; margin-left:0.5rem;">
+          <input id="todo-top-sublist-checkbox-{{ todo.id }}-down" type="checkbox" name="top" value="true">
+          <span>Top</span>
+        </label>
       </form>
       {% if sublists|length > 0 %}
         <ul class="lists-list">
