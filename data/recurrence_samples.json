@@ -1,0 +1,5005 @@
+{
+  "count": 1000,
+  "items": [
+    {
+      "id": 1,
+      "text": "Errands: buy milk every 3 weeks at Bunnings",
+      "core": "every 3 weeks"
+    },
+    {
+      "id": 2,
+      "text": "Bills: each fortnight starting 2025-09-15 buy milk",
+      "core": "each fortnight starting 2025-09-15"
+    },
+    {
+      "id": 3,
+      "text": "book dentist 2024-11-15 #work",
+      "core": "2024-11-15"
+    },
+    {
+      "id": 4,
+      "text": "Task: water the plants 2025-06-11 for project X",
+      "core": "2025-06-11"
+    },
+    {
+      "id": 5,
+      "text": "pay electricity bill every second week at 5:30pm — before lunch",
+      "core": "every second week at 5:30pm"
+    },
+    {
+      "id": 6,
+      "text": "Groceries: water the plants every 2 weeks",
+      "core": "every 2 weeks"
+    },
+    {
+      "id": 7,
+      "text": "TODO: mow the lawn every Monday at 9am (evening)",
+      "core": "every Monday at 9am"
+    },
+    {
+      "id": 8,
+      "text": "every quarter book dentist",
+      "core": "every quarter"
+    },
+    {
+      "id": 9,
+      "text": "buy milk every week on Monday starting 2026-07-17 for project X",
+      "core": "every week on Monday starting 2026-07-17"
+    },
+    {
+      "id": 10,
+      "text": "Groceries: 2025-05-25 clean garage",
+      "core": "2025-05-25"
+    },
+    {
+      "id": 11,
+      "text": "Next: every 2 months buy milk — asap",
+      "core": "every 2 months"
+    },
+    {
+      "id": 12,
+      "text": "Next: pay electricity bill every Wednesday #home",
+      "core": "every Wednesday"
+    },
+    {
+      "id": 13,
+      "text": "Task: clean garage 04/05/2025",
+      "core": "04/05/2025"
+    },
+    {
+      "id": 14,
+      "text": "call plumber 08/02/2026 (evening)",
+      "core": "08/02/2026"
+    },
+    {
+      "id": 15,
+      "text": "Chore: 10/07/2024 mow the lawn #home",
+      "core": "10/07/2024"
+    },
+    {
+      "id": 16,
+      "text": "Plan: pay electricity bill every month on the 1st after work",
+      "core": "every month on the 1st"
+    },
+    {
+      "id": 17,
+      "text": "Task: every Tuesday on weekends review PR",
+      "core": "every Tuesday on weekends"
+    },
+    {
+      "id": 18,
+      "text": "Groceries: book dentist every 3 days on weekends for project X",
+      "core": "every 3 days on weekends"
+    },
+    {
+      "id": 19,
+      "text": "Reminder: every Friday review PR #work",
+      "core": "every Friday"
+    },
+    {
+      "id": 20,
+      "text": "Note: 04/10/2025 wash car — before lunch",
+      "core": "04/10/2025"
+    },
+    {
+      "id": 21,
+      "text": "Bills: mow the lawn 05/21/2026",
+      "core": "05/21/2026"
+    },
+    {
+      "id": 22,
+      "text": "Reminder: 23/01/2025 water the plants #home",
+      "core": "23/01/2025"
+    },
+    {
+      "id": 23,
+      "text": "TODO: call plumber 08/02/2026",
+      "core": "08/02/2026"
+    },
+    {
+      "id": 24,
+      "text": "Task: backup photos 22/07/2026 after work",
+      "core": "22/07/2026"
+    },
+    {
+      "id": 25,
+      "text": "Follow up: backup photos every month",
+      "core": "every month"
+    },
+    {
+      "id": 26,
+      "text": "Bills: water the plants every Monday at 5:30pm — asap",
+      "core": "every Monday at 5:30pm"
+    },
+    {
+      "id": 27,
+      "text": "Reminder: every Tuesday email client — before lunch",
+      "core": "every Tuesday"
+    },
+    {
+      "id": 28,
+      "text": "Reminder: email client every month on weekdays after work",
+      "core": "every month on weekdays"
+    },
+    {
+      "id": 29,
+      "text": "Note: every 2 weeks pay electricity bill at Bunnings",
+      "core": "every 2 weeks"
+    },
+    {
+      "id": 30,
+      "text": "Errands: 01/12/2026 review PR with John",
+      "core": "01/12/2026"
+    },
+    {
+      "id": 31,
+      "text": "Follow up: every week on Monday on weekends email client after work",
+      "core": "every week on Monday on weekends"
+    },
+    {
+      "id": 32,
+      "text": "Note: clean garage every 3 days — asap",
+      "core": "every 3 days"
+    },
+    {
+      "id": 33,
+      "text": "Note: 2026-07-26 pay electricity bill",
+      "core": "2026-07-26"
+    },
+    {
+      "id": 34,
+      "text": "Follow up: call plumber 18/10/2024 (low)",
+      "core": "18/10/2024"
+    },
+    {
+      "id": 35,
+      "text": "TODO: clean garage 2026-07-02 after work",
+      "core": "2026-07-02"
+    },
+    {
+      "id": 36,
+      "text": "TODO: every second day mow the lawn — before lunch",
+      "core": "every second day"
+    },
+    {
+      "id": 37,
+      "text": "Note: wash car 31/10/2024 (evening)",
+      "core": "31/10/2024"
+    },
+    {
+      "id": 38,
+      "text": "TODO: 07/09/2025 buy milk",
+      "core": "07/09/2025"
+    },
+    {
+      "id": 39,
+      "text": "Note: email client every 3 weeks on weekends",
+      "core": "every 3 weeks on weekends"
+    },
+    {
+      "id": 40,
+      "text": "every Sunday backup photos with John",
+      "core": "every Sunday"
+    },
+    {
+      "id": 41,
+      "text": "Task: backup photos every quarter starting 2025-12-06",
+      "core": "every quarter starting 2025-12-06"
+    },
+    {
+      "id": 42,
+      "text": "Chore: mow the lawn every Wednesday",
+      "core": "every Wednesday"
+    },
+    {
+      "id": 43,
+      "text": "Plan: email client 11/13/2024",
+      "core": "11/13/2024"
+    },
+    {
+      "id": 44,
+      "text": "book dentist every week on Monday",
+      "core": "every week on Monday"
+    },
+    {
+      "id": 45,
+      "text": "Reminder: 2025-10-30 email client (low)",
+      "core": "2025-10-30"
+    },
+    {
+      "id": 46,
+      "text": "every Saturday on weekends clean garage after work",
+      "core": "every Saturday on weekends"
+    },
+    {
+      "id": 47,
+      "text": "Chore: call plumber every Tuesday on weekdays",
+      "core": "every Tuesday on weekdays"
+    },
+    {
+      "id": 48,
+      "text": "Plan: 03/06/2026 wash car",
+      "core": "03/06/2026"
+    },
+    {
+      "id": 49,
+      "text": "Odd jobs: update spreadsheet 05/28/2026",
+      "core": "05/28/2026"
+    },
+    {
+      "id": 50,
+      "text": "Task: review PR every 4 weeks",
+      "core": "every 4 weeks"
+    },
+    {
+      "id": 51,
+      "text": "Task: email client every Friday with John",
+      "core": "every Friday"
+    },
+    {
+      "id": 52,
+      "text": "Task: every second week review PR (low)",
+      "core": "every second week"
+    },
+    {
+      "id": 53,
+      "text": "Note: water the plants every weekend (low)",
+      "core": "every weekend"
+    },
+    {
+      "id": 54,
+      "text": "buy milk every weekend #work",
+      "core": "every weekend"
+    },
+    {
+      "id": 55,
+      "text": "Bills: water the plants every 5 days — before lunch",
+      "core": "every 5 days"
+    },
+    {
+      "id": 56,
+      "text": "Next: wash car every 4 days",
+      "core": "every 4 days"
+    },
+    {
+      "id": 57,
+      "text": "Follow up: clean garage every 5 days on weekdays #work",
+      "core": "every 5 days on weekdays"
+    },
+    {
+      "id": 58,
+      "text": "Chore: 04/12/2025 email client for project X",
+      "core": "04/12/2025"
+    },
+    {
+      "id": 59,
+      "text": "Next: email client every year on 25/12",
+      "core": "every year on 25/12"
+    },
+    {
+      "id": 60,
+      "text": "Note: mow the lawn 2026-08-24 at Bunnings",
+      "core": "2026-08-24"
+    },
+    {
+      "id": 61,
+      "text": "buy milk 01/23/2026 #work",
+      "core": "01/23/2026"
+    },
+    {
+      "id": 62,
+      "text": "Task: 10/27/2025 wash car",
+      "core": "10/27/2025"
+    },
+    {
+      "id": 63,
+      "text": "Reminder: every year review PR — before lunch",
+      "core": "every year"
+    },
+    {
+      "id": 64,
+      "text": "buy milk every Wednesday starting 05/27/2026 #work",
+      "core": "every Wednesday starting 05/27/2026"
+    },
+    {
+      "id": 65,
+      "text": "Next: every Wednesday review PR at Bunnings",
+      "core": "every Wednesday"
+    },
+    {
+      "id": 66,
+      "text": "TODO: water the plants 2026-02-25 (low)",
+      "core": "2026-02-25"
+    },
+    {
+      "id": 67,
+      "text": "Reminder: wash car every second day (evening)",
+      "core": "every second day"
+    },
+    {
+      "id": 68,
+      "text": "Reminder: 02/08/2026 review PR (evening)",
+      "core": "02/08/2026"
+    },
+    {
+      "id": 69,
+      "text": "Note: wash car every month on the 1st #work",
+      "core": "every month on the 1st"
+    },
+    {
+      "id": 70,
+      "text": "Bills: water the plants every 3 days",
+      "core": "every 3 days"
+    },
+    {
+      "id": 71,
+      "text": "Next: backup photos 2025-08-12 — asap",
+      "core": "2025-08-12"
+    },
+    {
+      "id": 72,
+      "text": "Groceries: 04/06/2026 book dentist",
+      "core": "04/06/2026"
+    },
+    {
+      "id": 73,
+      "text": "Next: book dentist every 3 days",
+      "core": "every 3 days"
+    },
+    {
+      "id": 74,
+      "text": "Groceries: 2025-03-12 pay electricity bill",
+      "core": "2025-03-12"
+    },
+    {
+      "id": 75,
+      "text": "Errands: every week on Monday review PR",
+      "core": "every week on Monday"
+    },
+    {
+      "id": 76,
+      "text": "Odd jobs: water the plants every Thursday starting 19/12/2025",
+      "core": "every Thursday starting 19/12/2025"
+    },
+    {
+      "id": 77,
+      "text": "Next: water the plants every year with John",
+      "core": "every year"
+    },
+    {
+      "id": 78,
+      "text": "Note: call plumber each fortnight at Bunnings",
+      "core": "each fortnight"
+    },
+    {
+      "id": 79,
+      "text": "TODO: mow the lawn every quarter starting 09/08/2026 (evening)",
+      "core": "every quarter starting 09/08/2026"
+    },
+    {
+      "id": 80,
+      "text": "Groceries: wash car 2026-03-10 with John",
+      "core": "2026-03-10"
+    },
+    {
+      "id": 81,
+      "text": "Chore: book dentist 2026-07-11",
+      "core": "2026-07-11"
+    },
+    {
+      "id": 82,
+      "text": "Groceries: clean garage every 5 days at 9am — before lunch",
+      "core": "every 5 days at 9am"
+    },
+    {
+      "id": 83,
+      "text": "Next: mow the lawn every month on the 1st",
+      "core": "every month on the 1st"
+    },
+    {
+      "id": 84,
+      "text": "buy milk every 3 weeks — before lunch",
+      "core": "every 3 weeks"
+    },
+    {
+      "id": 85,
+      "text": "Next: 2025-10-11 email client",
+      "core": "2025-10-11"
+    },
+    {
+      "id": 86,
+      "text": "Next: buy milk every 4 weeks starting 30/06/2026 — before lunch",
+      "core": "every 4 weeks starting 30/06/2026"
+    },
+    {
+      "id": 87,
+      "text": "Task: 08/17/2025 backup photos (evening)",
+      "core": "08/17/2025"
+    },
+    {
+      "id": 88,
+      "text": "2024-10-30 water the plants with John",
+      "core": "2024-10-30"
+    },
+    {
+      "id": 89,
+      "text": "Follow up: email client every 2 days at 5:30pm at Bunnings",
+      "core": "every 2 days at 5:30pm"
+    },
+    {
+      "id": 90,
+      "text": "wash car every month on the 1st (evening)",
+      "core": "every month on the 1st"
+    },
+    {
+      "id": 91,
+      "text": "Plan: call plumber 26/11/2024",
+      "core": "26/11/2024"
+    },
+    {
+      "id": 92,
+      "text": "TODO: water the plants every second day (low)",
+      "core": "every second day"
+    },
+    {
+      "id": 93,
+      "text": "Plan: water the plants 04/16/2026 (evening)",
+      "core": "04/16/2026"
+    },
+    {
+      "id": 94,
+      "text": "Next: water the plants every Wednesday for project X",
+      "core": "every Wednesday"
+    },
+    {
+      "id": 95,
+      "text": "Plan: 01/23/2026 update spreadsheet (low)",
+      "core": "01/23/2026"
+    },
+    {
+      "id": 96,
+      "text": "update spreadsheet every 3 days",
+      "core": "every 3 days"
+    },
+    {
+      "id": 97,
+      "text": "Errands: backup photos every 4 weeks with John",
+      "core": "every 4 weeks"
+    },
+    {
+      "id": 98,
+      "text": "Odd jobs: every Thursday mow the lawn for project X",
+      "core": "every Thursday"
+    },
+    {
+      "id": 99,
+      "text": "Follow up: buy milk 07/08/2025 at Bunnings",
+      "core": "07/08/2025"
+    },
+    {
+      "id": 100,
+      "text": "buy milk every 5 days on weekdays (evening)",
+      "core": "every 5 days on weekdays"
+    },
+    {
+      "id": 101,
+      "text": "Reminder: update spreadsheet 13/04/2026",
+      "core": "13/04/2026"
+    },
+    {
+      "id": 102,
+      "text": "Follow up: every Tuesday pay electricity bill after work",
+      "core": "every Tuesday"
+    },
+    {
+      "id": 103,
+      "text": "Next: water the plants 31/03/2026 (evening)",
+      "core": "31/03/2026"
+    },
+    {
+      "id": 104,
+      "text": "Note: wash car every day for project X",
+      "core": "every day"
+    },
+    {
+      "id": 105,
+      "text": "Task: wash car every Saturday — before lunch",
+      "core": "every Saturday"
+    },
+    {
+      "id": 106,
+      "text": "Note: 04/11/2025 buy milk",
+      "core": "04/11/2025"
+    },
+    {
+      "id": 107,
+      "text": "Plan: review PR 2026-03-16 — asap",
+      "core": "2026-03-16"
+    },
+    {
+      "id": 108,
+      "text": "Bills: book dentist every 4 weeks",
+      "core": "every 4 weeks"
+    },
+    {
+      "id": 109,
+      "text": "wash car every weekday with John",
+      "core": "every weekday"
+    },
+    {
+      "id": 110,
+      "text": "Bills: water the plants every Tuesday on weekends",
+      "core": "every Tuesday on weekends"
+    },
+    {
+      "id": 111,
+      "text": "Errands: buy milk 06/18/2026",
+      "core": "06/18/2026"
+    },
+    {
+      "id": 112,
+      "text": "review PR every week on Monday starting 06/11/2025 after work",
+      "core": "every week on Monday starting 06/11/2025"
+    },
+    {
+      "id": 113,
+      "text": "TODO: buy milk every 2 days for project X",
+      "core": "every 2 days"
+    },
+    {
+      "id": 114,
+      "text": "call plumber every day",
+      "core": "every day"
+    },
+    {
+      "id": 115,
+      "text": "Errands: wash car every month on the 1st",
+      "core": "every month on the 1st"
+    },
+    {
+      "id": 116,
+      "text": "Plan: clean garage 2026-04-12 with John",
+      "core": "2026-04-12"
+    },
+    {
+      "id": 117,
+      "text": "Reminder: every week on Monday at 5:30pm review PR",
+      "core": "every week on Monday at 5:30pm"
+    },
+    {
+      "id": 118,
+      "text": "Plan: wash car every second week on weekdays for project X",
+      "core": "every second week on weekdays"
+    },
+    {
+      "id": 119,
+      "text": "Groceries: call plumber every month on the 1st — asap",
+      "core": "every month on the 1st"
+    },
+    {
+      "id": 120,
+      "text": "Errands: wash car each fortnight",
+      "core": "each fortnight"
+    },
+    {
+      "id": 121,
+      "text": "Reminder: backup photos every day — before lunch",
+      "core": "every day"
+    },
+    {
+      "id": 122,
+      "text": "Next: 06/29/2025 mow the lawn — before lunch",
+      "core": "06/29/2025"
+    },
+    {
+      "id": 123,
+      "text": "Odd jobs: 2025-04-29 buy milk after work",
+      "core": "2025-04-29"
+    },
+    {
+      "id": 124,
+      "text": "Odd jobs: every weekend wash car #work",
+      "core": "every weekend"
+    },
+    {
+      "id": 125,
+      "text": "every quarter at 5:30pm mow the lawn (low)",
+      "core": "every quarter at 5:30pm"
+    },
+    {
+      "id": 126,
+      "text": "Odd jobs: pay electricity bill every 2 months — before lunch",
+      "core": "every 2 months"
+    },
+    {
+      "id": 127,
+      "text": "Note: 01/20/2026 clean garage (evening)",
+      "core": "01/20/2026"
+    },
+    {
+      "id": 128,
+      "text": "Reminder: 2025-05-01 buy milk after work",
+      "core": "2025-05-01"
+    },
+    {
+      "id": 129,
+      "text": "Follow up: every year on 25/12 at 9am review PR (low)",
+      "core": "every year on 25/12 at 9am"
+    },
+    {
+      "id": 130,
+      "text": "Note: review PR 10/13/2025",
+      "core": "10/13/2025"
+    },
+    {
+      "id": 131,
+      "text": "Groceries: backup photos 21/12/2025 — asap",
+      "core": "21/12/2025"
+    },
+    {
+      "id": 132,
+      "text": "Groceries: update spreadsheet every Monday",
+      "core": "every Monday"
+    },
+    {
+      "id": 133,
+      "text": "Task: water the plants 15/01/2026 #work",
+      "core": "15/01/2026"
+    },
+    {
+      "id": 134,
+      "text": "Reminder: every 3 weeks at 5:30pm book dentist with John",
+      "core": "every 3 weeks at 5:30pm"
+    },
+    {
+      "id": 135,
+      "text": "every day on weekdays update spreadsheet",
+      "core": "every day on weekdays"
+    },
+    {
+      "id": 136,
+      "text": "Next: email client every Thursday",
+      "core": "every Thursday"
+    },
+    {
+      "id": 137,
+      "text": "email client every 4 weeks at 9am for project X",
+      "core": "every 4 weeks at 9am"
+    },
+    {
+      "id": 138,
+      "text": "Bills: 26/07/2026 backup photos #home",
+      "core": "26/07/2026"
+    },
+    {
+      "id": 139,
+      "text": "review PR every Tuesday with John",
+      "core": "every Tuesday"
+    },
+    {
+      "id": 140,
+      "text": "Errands: every 4 weeks at 5:30pm water the plants #work",
+      "core": "every 4 weeks at 5:30pm"
+    },
+    {
+      "id": 141,
+      "text": "Note: mow the lawn every Wednesday with John",
+      "core": "every Wednesday"
+    },
+    {
+      "id": 142,
+      "text": "Errands: backup photos every 5 days at 5:30pm after work",
+      "core": "every 5 days at 5:30pm"
+    },
+    {
+      "id": 143,
+      "text": "buy milk 03/24/2025 #work",
+      "core": "03/24/2025"
+    },
+    {
+      "id": 144,
+      "text": "TODO: book dentist every day at 9am #home",
+      "core": "every day at 9am"
+    },
+    {
+      "id": 145,
+      "text": "Groceries: backup photos 2026-08-01",
+      "core": "2026-08-01"
+    },
+    {
+      "id": 146,
+      "text": "Next: email client every year — before lunch",
+      "core": "every year"
+    },
+    {
+      "id": 147,
+      "text": "Reminder: clean garage 05/12/2024 — before lunch",
+      "core": "05/12/2024"
+    },
+    {
+      "id": 148,
+      "text": "Reminder: 01/05/2026 call plumber",
+      "core": "01/05/2026"
+    },
+    {
+      "id": 149,
+      "text": "2025-05-07 water the plants for project X",
+      "core": "2025-05-07"
+    },
+    {
+      "id": 150,
+      "text": "Reminder: book dentist 27/06/2025 (evening)",
+      "core": "27/06/2025"
+    },
+    {
+      "id": 151,
+      "text": "Chore: water the plants every month on the 1st with John",
+      "core": "every month on the 1st"
+    },
+    {
+      "id": 152,
+      "text": "Groceries: 2025-02-17 wash car with John",
+      "core": "2025-02-17"
+    },
+    {
+      "id": 153,
+      "text": "every Tuesday mow the lawn — before lunch",
+      "core": "every Tuesday"
+    },
+    {
+      "id": 154,
+      "text": "Errands: update spreadsheet 05/11/2024",
+      "core": "05/11/2024"
+    },
+    {
+      "id": 155,
+      "text": "clean garage every 2 days — before lunch",
+      "core": "every 2 days"
+    },
+    {
+      "id": 156,
+      "text": "water the plants every Tuesday with John",
+      "core": "every Tuesday"
+    },
+    {
+      "id": 157,
+      "text": "Bills: mow the lawn every day on weekends at Bunnings",
+      "core": "every day on weekends"
+    },
+    {
+      "id": 158,
+      "text": "Task: every Thursday pay electricity bill for project X",
+      "core": "every Thursday"
+    },
+    {
+      "id": 159,
+      "text": "Next: mow the lawn every day — before lunch",
+      "core": "every day"
+    },
+    {
+      "id": 160,
+      "text": "Groceries: clean garage every month on the 1st",
+      "core": "every month on the 1st"
+    },
+    {
+      "id": 161,
+      "text": "TODO: wash car every Tuesday",
+      "core": "every Tuesday"
+    },
+    {
+      "id": 162,
+      "text": "Reminder: pay electricity bill 2025-05-30 for project X",
+      "core": "2025-05-30"
+    },
+    {
+      "id": 163,
+      "text": "TODO: review PR 12/22/2024",
+      "core": "12/22/2024"
+    },
+    {
+      "id": 164,
+      "text": "Reminder: book dentist 08/02/2025 at Bunnings",
+      "core": "08/02/2025"
+    },
+    {
+      "id": 165,
+      "text": "Next: call plumber 2025-01-14 #work",
+      "core": "2025-01-14"
+    },
+    {
+      "id": 166,
+      "text": "backup photos every Saturday at Bunnings",
+      "core": "every Saturday"
+    },
+    {
+      "id": 167,
+      "text": "Chore: buy milk 11/14/2024 (evening)",
+      "core": "11/14/2024"
+    },
+    {
+      "id": 168,
+      "text": "Plan: 2026-09-09 wash car — before lunch",
+      "core": "2026-09-09"
+    },
+    {
+      "id": 169,
+      "text": "Odd jobs: mow the lawn every Wednesday at 9am — asap",
+      "core": "every Wednesday at 9am"
+    },
+    {
+      "id": 170,
+      "text": "Task: wash car 2026-06-18 at Bunnings",
+      "core": "2026-06-18"
+    },
+    {
+      "id": 171,
+      "text": "every 4 weeks buy milk (low)",
+      "core": "every 4 weeks"
+    },
+    {
+      "id": 172,
+      "text": "Chore: pay electricity bill 2024-11-03 for project X",
+      "core": "2024-11-03"
+    },
+    {
+      "id": 173,
+      "text": "Plan: call plumber every second week",
+      "core": "every second week"
+    },
+    {
+      "id": 174,
+      "text": "Bills: 07/03/2026 water the plants (evening)",
+      "core": "07/03/2026"
+    },
+    {
+      "id": 175,
+      "text": "call plumber 07/09/2026 — before lunch",
+      "core": "07/09/2026"
+    },
+    {
+      "id": 176,
+      "text": "Task: review PR every year on 25/12 at Bunnings",
+      "core": "every year on 25/12"
+    },
+    {
+      "id": 177,
+      "text": "Task: 2025-12-11 water the plants (evening)",
+      "core": "2025-12-11"
+    },
+    {
+      "id": 178,
+      "text": "TODO: each fortnight backup photos",
+      "core": "each fortnight"
+    },
+    {
+      "id": 179,
+      "text": "Next: 12/12/2025 update spreadsheet at Bunnings",
+      "core": "12/12/2025"
+    },
+    {
+      "id": 180,
+      "text": "Follow up: every 2 months email client",
+      "core": "every 2 months"
+    },
+    {
+      "id": 181,
+      "text": "Bills: backup photos 06/25/2026",
+      "core": "06/25/2026"
+    },
+    {
+      "id": 182,
+      "text": "call plumber every month with John",
+      "core": "every month"
+    },
+    {
+      "id": 183,
+      "text": "Bills: backup photos 06/18/2025 at Bunnings",
+      "core": "06/18/2025"
+    },
+    {
+      "id": 184,
+      "text": "Follow up: 17/02/2026 backup photos",
+      "core": "17/02/2026"
+    },
+    {
+      "id": 185,
+      "text": "Odd jobs: mow the lawn every month on weekdays #home",
+      "core": "every month on weekdays"
+    },
+    {
+      "id": 186,
+      "text": "Task: every 3 days mow the lawn — asap",
+      "core": "every 3 days"
+    },
+    {
+      "id": 187,
+      "text": "Chore: mow the lawn every Sunday with John",
+      "core": "every Sunday"
+    },
+    {
+      "id": 188,
+      "text": "Plan: every year update spreadsheet",
+      "core": "every year"
+    },
+    {
+      "id": 189,
+      "text": "every Saturday book dentist",
+      "core": "every Saturday"
+    },
+    {
+      "id": 190,
+      "text": "water the plants every second day (low)",
+      "core": "every second day"
+    },
+    {
+      "id": 191,
+      "text": "TODO: call plumber 2026-05-17 at Bunnings",
+      "core": "2026-05-17"
+    },
+    {
+      "id": 192,
+      "text": "Reminder: update spreadsheet 2024-12-20 — before lunch",
+      "core": "2024-12-20"
+    },
+    {
+      "id": 193,
+      "text": "TODO: every week on Monday buy milk #work",
+      "core": "every week on Monday"
+    },
+    {
+      "id": 194,
+      "text": "Note: backup photos every Tuesday — asap",
+      "core": "every Tuesday"
+    },
+    {
+      "id": 195,
+      "text": "Bills: email client every 5 days on weekdays — asap",
+      "core": "every 5 days on weekdays"
+    },
+    {
+      "id": 196,
+      "text": "Errands: every 5 days at 9am email client for project X",
+      "core": "every 5 days at 9am"
+    },
+    {
+      "id": 197,
+      "text": "clean garage 06/24/2025",
+      "core": "06/24/2025"
+    },
+    {
+      "id": 198,
+      "text": "TODO: clean garage every Monday with John",
+      "core": "every Monday"
+    },
+    {
+      "id": 199,
+      "text": "Follow up: email client every Saturday at Bunnings",
+      "core": "every Saturday"
+    },
+    {
+      "id": 200,
+      "text": "Chore: every weekend update spreadsheet at Bunnings",
+      "core": "every weekend"
+    },
+    {
+      "id": 201,
+      "text": "Reminder: update spreadsheet every Friday after work",
+      "core": "every Friday"
+    },
+    {
+      "id": 202,
+      "text": "Next: call plumber every second day",
+      "core": "every second day"
+    },
+    {
+      "id": 203,
+      "text": "Note: clean garage every Sunday (low)",
+      "core": "every Sunday"
+    },
+    {
+      "id": 204,
+      "text": "Groceries: update spreadsheet every second week",
+      "core": "every second week"
+    },
+    {
+      "id": 205,
+      "text": "Plan: every weekend review PR",
+      "core": "every weekend"
+    },
+    {
+      "id": 206,
+      "text": "clean garage every quarter (evening)",
+      "core": "every quarter"
+    },
+    {
+      "id": 207,
+      "text": "every Thursday email client",
+      "core": "every Thursday"
+    },
+    {
+      "id": 208,
+      "text": "Plan: wash car every 2 weeks starting 02/09/2025 for project X",
+      "core": "every 2 weeks starting 02/09/2025"
+    },
+    {
+      "id": 209,
+      "text": "call plumber every 3 weeks",
+      "core": "every 3 weeks"
+    },
+    {
+      "id": 210,
+      "text": "2026-07-21 wash car",
+      "core": "2026-07-21"
+    },
+    {
+      "id": 211,
+      "text": "Chore: book dentist every year on 25/12 on weekdays",
+      "core": "every year on 25/12 on weekdays"
+    },
+    {
+      "id": 212,
+      "text": "Reminder: update spreadsheet every 2 weeks",
+      "core": "every 2 weeks"
+    },
+    {
+      "id": 213,
+      "text": "mow the lawn 04/03/2025 for project X",
+      "core": "04/03/2025"
+    },
+    {
+      "id": 214,
+      "text": "Bills: water the plants every second day at 5:30pm — before lunch",
+      "core": "every second day at 5:30pm"
+    },
+    {
+      "id": 215,
+      "text": "Task: mow the lawn every weekday for project X",
+      "core": "every weekday"
+    },
+    {
+      "id": 216,
+      "text": "every Monday backup photos at Bunnings",
+      "core": "every Monday"
+    },
+    {
+      "id": 217,
+      "text": "Plan: wash car every second day",
+      "core": "every second day"
+    },
+    {
+      "id": 218,
+      "text": "Chore: mow the lawn every second day after work",
+      "core": "every second day"
+    },
+    {
+      "id": 219,
+      "text": "Reminder: every year at 9am clean garage #home",
+      "core": "every year at 9am"
+    },
+    {
+      "id": 220,
+      "text": "Odd jobs: water the plants every 4 days with John",
+      "core": "every 4 days"
+    },
+    {
+      "id": 221,
+      "text": "TODO: pay electricity bill every Wednesday",
+      "core": "every Wednesday"
+    },
+    {
+      "id": 222,
+      "text": "Next: email client every week on Monday for project X",
+      "core": "every week on Monday"
+    },
+    {
+      "id": 223,
+      "text": "Follow up: review PR 07/31/2026 at Bunnings",
+      "core": "07/31/2026"
+    },
+    {
+      "id": 224,
+      "text": "water the plants every 2 days starting 2024-10-26",
+      "core": "every 2 days starting 2024-10-26"
+    },
+    {
+      "id": 225,
+      "text": "Bills: call plumber every weekday at Bunnings",
+      "core": "every weekday"
+    },
+    {
+      "id": 226,
+      "text": "Next: update spreadsheet 09/28/2025",
+      "core": "09/28/2025"
+    },
+    {
+      "id": 227,
+      "text": "Next: 12/06/2025 backup photos after work",
+      "core": "12/06/2025"
+    },
+    {
+      "id": 228,
+      "text": "Note: every weekend wash car #home",
+      "core": "every weekend"
+    },
+    {
+      "id": 229,
+      "text": "Next: clean garage every second week on weekdays",
+      "core": "every second week on weekdays"
+    },
+    {
+      "id": 230,
+      "text": "TODO: review PR every second day at 9am",
+      "core": "every second day at 9am"
+    },
+    {
+      "id": 231,
+      "text": "Plan: book dentist 01/02/2026 — before lunch",
+      "core": "01/02/2026"
+    },
+    {
+      "id": 232,
+      "text": "Reminder: pay electricity bill 09/07/2026 #home",
+      "core": "09/07/2026"
+    },
+    {
+      "id": 233,
+      "text": "Note: water the plants every month on the 1st",
+      "core": "every month on the 1st"
+    },
+    {
+      "id": 234,
+      "text": "Odd jobs: pay electricity bill every month on the 1st on weekdays after work",
+      "core": "every month on the 1st on weekdays"
+    },
+    {
+      "id": 235,
+      "text": "Odd jobs: email client every second day on weekends",
+      "core": "every second day on weekends"
+    },
+    {
+      "id": 236,
+      "text": "Next: pay electricity bill 02/11/2024 after work",
+      "core": "02/11/2024"
+    },
+    {
+      "id": 237,
+      "text": "Follow up: 2025-11-14 book dentist with John",
+      "core": "2025-11-14"
+    },
+    {
+      "id": 238,
+      "text": "Chore: every 4 weeks clean garage for project X",
+      "core": "every 4 weeks"
+    },
+    {
+      "id": 239,
+      "text": "Groceries: 13/01/2026 review PR",
+      "core": "13/01/2026"
+    },
+    {
+      "id": 240,
+      "text": "Note: water the plants 01/30/2026",
+      "core": "01/30/2026"
+    },
+    {
+      "id": 241,
+      "text": "Plan: every second week on weekends buy milk (low)",
+      "core": "every second week on weekends"
+    },
+    {
+      "id": 242,
+      "text": "review PR 06/17/2025 — asap",
+      "core": "06/17/2025"
+    },
+    {
+      "id": 243,
+      "text": "Chore: every 3 days on weekdays book dentist",
+      "core": "every 3 days on weekdays"
+    },
+    {
+      "id": 244,
+      "text": "Odd jobs: 2026-04-20 pay electricity bill #home",
+      "core": "2026-04-20"
+    },
+    {
+      "id": 245,
+      "text": "Errands: every year update spreadsheet — before lunch",
+      "core": "every year"
+    },
+    {
+      "id": 246,
+      "text": "TODO: clean garage every weekend (low)",
+      "core": "every weekend"
+    },
+    {
+      "id": 247,
+      "text": "Follow up: review PR 28/07/2025",
+      "core": "28/07/2025"
+    },
+    {
+      "id": 248,
+      "text": "Task: 07/18/2026 review PR for project X",
+      "core": "07/18/2026"
+    },
+    {
+      "id": 249,
+      "text": "Chore: every 3 weeks mow the lawn #work",
+      "core": "every 3 weeks"
+    },
+    {
+      "id": 250,
+      "text": "TODO: mow the lawn every quarter — asap",
+      "core": "every quarter"
+    },
+    {
+      "id": 251,
+      "text": "Reminder: every quarter email client",
+      "core": "every quarter"
+    },
+    {
+      "id": 252,
+      "text": "Plan: every 2 weeks buy milk — before lunch",
+      "core": "every 2 weeks"
+    },
+    {
+      "id": 253,
+      "text": "04/06/2026 clean garage for project X",
+      "core": "04/06/2026"
+    },
+    {
+      "id": 254,
+      "text": "Bills: pay electricity bill every second week — asap",
+      "core": "every second week"
+    },
+    {
+      "id": 255,
+      "text": "Odd jobs: email client every 4 weeks — before lunch",
+      "core": "every 4 weeks"
+    },
+    {
+      "id": 256,
+      "text": "Follow up: every Monday at 5:30pm wash car",
+      "core": "every Monday at 5:30pm"
+    },
+    {
+      "id": 257,
+      "text": "Chore: mow the lawn every day #home",
+      "core": "every day"
+    },
+    {
+      "id": 258,
+      "text": "Groceries: every second week book dentist #work",
+      "core": "every second week"
+    },
+    {
+      "id": 259,
+      "text": "Reminder: 04/09/2025 update spreadsheet — before lunch",
+      "core": "04/09/2025"
+    },
+    {
+      "id": 260,
+      "text": "Groceries: email client 15/01/2026 at Bunnings",
+      "core": "15/01/2026"
+    },
+    {
+      "id": 261,
+      "text": "Reminder: call plumber 26/06/2025 for project X",
+      "core": "26/06/2025"
+    },
+    {
+      "id": 262,
+      "text": "Plan: pay electricity bill every 4 days #home",
+      "core": "every 4 days"
+    },
+    {
+      "id": 263,
+      "text": "Groceries: clean garage each fortnight on weekends (low)",
+      "core": "each fortnight on weekends"
+    },
+    {
+      "id": 264,
+      "text": "Task: 2025-12-30 clean garage with John",
+      "core": "2025-12-30"
+    },
+    {
+      "id": 265,
+      "text": "Follow up: book dentist every second day on weekends — asap",
+      "core": "every second day on weekends"
+    },
+    {
+      "id": 266,
+      "text": "backup photos every month",
+      "core": "every month"
+    },
+    {
+      "id": 267,
+      "text": "Reminder: pay electricity bill every 4 weeks at Bunnings",
+      "core": "every 4 weeks"
+    },
+    {
+      "id": 268,
+      "text": "Chore: 04/28/2025 wash car at Bunnings",
+      "core": "04/28/2025"
+    },
+    {
+      "id": 269,
+      "text": "Chore: mow the lawn 21/07/2026",
+      "core": "21/07/2026"
+    },
+    {
+      "id": 270,
+      "text": "Reminder: every month on the 1st review PR #home",
+      "core": "every month on the 1st"
+    },
+    {
+      "id": 271,
+      "text": "book dentist 25/09/2026 — asap",
+      "core": "25/09/2026"
+    },
+    {
+      "id": 272,
+      "text": "Chore: every month buy milk after work",
+      "core": "every month"
+    },
+    {
+      "id": 273,
+      "text": "Plan: call plumber every week on Monday",
+      "core": "every week on Monday"
+    },
+    {
+      "id": 274,
+      "text": "Bills: pay electricity bill every 2 months on weekends #home",
+      "core": "every 2 months on weekends"
+    },
+    {
+      "id": 275,
+      "text": "Odd jobs: update spreadsheet every Saturday #home",
+      "core": "every Saturday"
+    },
+    {
+      "id": 276,
+      "text": "Odd jobs: mow the lawn every 2 months at Bunnings",
+      "core": "every 2 months"
+    },
+    {
+      "id": 277,
+      "text": "Plan: email client every 3 days at Bunnings",
+      "core": "every 3 days"
+    },
+    {
+      "id": 278,
+      "text": "Plan: 2025-10-24 mow the lawn #work",
+      "core": "2025-10-24"
+    },
+    {
+      "id": 279,
+      "text": "TODO: 12/10/2025 mow the lawn #home",
+      "core": "12/10/2025"
+    },
+    {
+      "id": 280,
+      "text": "Follow up: wash car every 2 days for project X",
+      "core": "every 2 days"
+    },
+    {
+      "id": 281,
+      "text": "Chore: buy milk every 2 weeks (evening)",
+      "core": "every 2 weeks"
+    },
+    {
+      "id": 282,
+      "text": "Follow up: every Sunday water the plants (evening)",
+      "core": "every Sunday"
+    },
+    {
+      "id": 283,
+      "text": "Note: buy milk every year (low)",
+      "core": "every year"
+    },
+    {
+      "id": 284,
+      "text": "clean garage every day #work",
+      "core": "every day"
+    },
+    {
+      "id": 285,
+      "text": "book dentist 15/02/2026",
+      "core": "15/02/2026"
+    },
+    {
+      "id": 286,
+      "text": "2024-10-15 pay electricity bill #home",
+      "core": "2024-10-15"
+    },
+    {
+      "id": 287,
+      "text": "Chore: clean garage every 5 days at 9am with John",
+      "core": "every 5 days at 9am"
+    },
+    {
+      "id": 288,
+      "text": "Task: call plumber every year #work",
+      "core": "every year"
+    },
+    {
+      "id": 289,
+      "text": "Reminder: mow the lawn every second day",
+      "core": "every second day"
+    },
+    {
+      "id": 290,
+      "text": "Errands: update spreadsheet every Thursday",
+      "core": "every Thursday"
+    },
+    {
+      "id": 291,
+      "text": "Groceries: every 4 weeks backup photos for project X",
+      "core": "every 4 weeks"
+    },
+    {
+      "id": 292,
+      "text": "mow the lawn every Sunday",
+      "core": "every Sunday"
+    },
+    {
+      "id": 293,
+      "text": "Task: clean garage 05/23/2025 — asap",
+      "core": "05/23/2025"
+    },
+    {
+      "id": 294,
+      "text": "clean garage 07/07/2026 for project X",
+      "core": "07/07/2026"
+    },
+    {
+      "id": 295,
+      "text": "Next: every Saturday water the plants #work",
+      "core": "every Saturday"
+    },
+    {
+      "id": 296,
+      "text": "Groceries: 01/05/2026 book dentist (evening)",
+      "core": "01/05/2026"
+    },
+    {
+      "id": 297,
+      "text": "Errands: update spreadsheet every Sunday #home",
+      "core": "every Sunday"
+    },
+    {
+      "id": 298,
+      "text": "clean garage 01/25/2025 (low)",
+      "core": "01/25/2025"
+    },
+    {
+      "id": 299,
+      "text": "Bills: every year on 25/12 update spreadsheet #work",
+      "core": "every year on 25/12"
+    },
+    {
+      "id": 300,
+      "text": "Errands: wash car every second day on weekdays — asap",
+      "core": "every second day on weekdays"
+    },
+    {
+      "id": 301,
+      "text": "Reminder: pay electricity bill every 2 days starting 12/18/2024",
+      "core": "every 2 days starting 12/18/2024"
+    },
+    {
+      "id": 302,
+      "text": "Next: every Monday at 5:30pm backup photos at Bunnings",
+      "core": "every Monday at 5:30pm"
+    },
+    {
+      "id": 303,
+      "text": "Follow up: review PR every Saturday at 9am with John",
+      "core": "every Saturday at 9am"
+    },
+    {
+      "id": 304,
+      "text": "Errands: buy milk each fortnight starting 31/08/2025 (evening)",
+      "core": "each fortnight starting 31/08/2025"
+    },
+    {
+      "id": 305,
+      "text": "Odd jobs: every Sunday wash car (low)",
+      "core": "every Sunday"
+    },
+    {
+      "id": 306,
+      "text": "Bills: every 3 weeks mow the lawn — before lunch",
+      "core": "every 3 weeks"
+    },
+    {
+      "id": 307,
+      "text": "Note: every Wednesday book dentist with John",
+      "core": "every Wednesday"
+    },
+    {
+      "id": 308,
+      "text": "Odd jobs: every Sunday clean garage for project X",
+      "core": "every Sunday"
+    },
+    {
+      "id": 309,
+      "text": "Reminder: every Monday clean garage (evening)",
+      "core": "every Monday"
+    },
+    {
+      "id": 310,
+      "text": "TODO: mow the lawn every 4 weeks (evening)",
+      "core": "every 4 weeks"
+    },
+    {
+      "id": 311,
+      "text": "Chore: pay electricity bill every month after work",
+      "core": "every month"
+    },
+    {
+      "id": 312,
+      "text": "Bills: water the plants 19/04/2026 for project X",
+      "core": "19/04/2026"
+    },
+    {
+      "id": 313,
+      "text": "Bills: email client 2025-04-29",
+      "core": "2025-04-29"
+    },
+    {
+      "id": 314,
+      "text": "Follow up: clean garage every 3 weeks (evening)",
+      "core": "every 3 weeks"
+    },
+    {
+      "id": 315,
+      "text": "Next: buy milk every month on the 1st",
+      "core": "every month on the 1st"
+    },
+    {
+      "id": 316,
+      "text": "Chore: every 5 days pay electricity bill after work",
+      "core": "every 5 days"
+    },
+    {
+      "id": 317,
+      "text": "Task: mow the lawn every 3 weeks",
+      "core": "every 3 weeks"
+    },
+    {
+      "id": 318,
+      "text": "Bills: every weekday at 5:30pm call plumber for project X",
+      "core": "every weekday at 5:30pm"
+    },
+    {
+      "id": 319,
+      "text": "pay electricity bill 02/03/2026",
+      "core": "02/03/2026"
+    },
+    {
+      "id": 320,
+      "text": "Reminder: 2026-01-25 review PR #home",
+      "core": "2026-01-25"
+    },
+    {
+      "id": 321,
+      "text": "Errands: mow the lawn every second week — asap",
+      "core": "every second week"
+    },
+    {
+      "id": 322,
+      "text": "Task: water the plants every year",
+      "core": "every year"
+    },
+    {
+      "id": 323,
+      "text": "Reminder: call plumber 01/08/2026 (evening)",
+      "core": "01/08/2026"
+    },
+    {
+      "id": 324,
+      "text": "Odd jobs: clean garage every second day (evening)",
+      "core": "every second day"
+    },
+    {
+      "id": 325,
+      "text": "Next: every quarter water the plants (low)",
+      "core": "every quarter"
+    },
+    {
+      "id": 326,
+      "text": "Plan: pay electricity bill 2025-01-10 (low)",
+      "core": "2025-01-10"
+    },
+    {
+      "id": 327,
+      "text": "every day on weekdays pay electricity bill",
+      "core": "every day on weekdays"
+    },
+    {
+      "id": 328,
+      "text": "Reminder: update spreadsheet every Thursday #home",
+      "core": "every Thursday"
+    },
+    {
+      "id": 329,
+      "text": "Plan: backup photos 2024-12-30 — asap",
+      "core": "2024-12-30"
+    },
+    {
+      "id": 330,
+      "text": "Chore: wash car every Friday at 5:30pm for project X",
+      "core": "every Friday at 5:30pm"
+    },
+    {
+      "id": 331,
+      "text": "Task: mow the lawn 05/08/2026 — before lunch",
+      "core": "05/08/2026"
+    },
+    {
+      "id": 332,
+      "text": "clean garage every year after work",
+      "core": "every year"
+    },
+    {
+      "id": 333,
+      "text": "Errands: call plumber 10/12/2024 after work",
+      "core": "10/12/2024"
+    },
+    {
+      "id": 334,
+      "text": "Plan: every 5 days review PR",
+      "core": "every 5 days"
+    },
+    {
+      "id": 335,
+      "text": "Follow up: every quarter book dentist #home",
+      "core": "every quarter"
+    },
+    {
+      "id": 336,
+      "text": "Bills: call plumber every 4 days after work",
+      "core": "every 4 days"
+    },
+    {
+      "id": 337,
+      "text": "TODO: water the plants 2026-05-01",
+      "core": "2026-05-01"
+    },
+    {
+      "id": 338,
+      "text": "update spreadsheet every month for project X",
+      "core": "every month"
+    },
+    {
+      "id": 339,
+      "text": "Groceries: every 4 weeks mow the lawn — before lunch",
+      "core": "every 4 weeks"
+    },
+    {
+      "id": 340,
+      "text": "Reminder: every Sunday buy milk (low)",
+      "core": "every Sunday"
+    },
+    {
+      "id": 341,
+      "text": "18/04/2026 book dentist — before lunch",
+      "core": "18/04/2026"
+    },
+    {
+      "id": 342,
+      "text": "Reminder: water the plants every 2 days on weekends with John",
+      "core": "every 2 days on weekends"
+    },
+    {
+      "id": 343,
+      "text": "Groceries: backup photos every Sunday for project X",
+      "core": "every Sunday"
+    },
+    {
+      "id": 344,
+      "text": "call plumber every year",
+      "core": "every year"
+    },
+    {
+      "id": 345,
+      "text": "Chore: backup photos every second week at 9am after work",
+      "core": "every second week at 9am"
+    },
+    {
+      "id": 346,
+      "text": "Reminder: every Tuesday wash car after work",
+      "core": "every Tuesday"
+    },
+    {
+      "id": 347,
+      "text": "mow the lawn every 4 weeks at 9am",
+      "core": "every 4 weeks at 9am"
+    },
+    {
+      "id": 348,
+      "text": "2025-11-10 buy milk (low)",
+      "core": "2025-11-10"
+    },
+    {
+      "id": 349,
+      "text": "Plan: water the plants every Tuesday with John",
+      "core": "every Tuesday"
+    },
+    {
+      "id": 350,
+      "text": "Task: water the plants every quarter",
+      "core": "every quarter"
+    },
+    {
+      "id": 351,
+      "text": "27/06/2026 wash car for project X",
+      "core": "27/06/2026"
+    },
+    {
+      "id": 352,
+      "text": "Bills: buy milk every day at 5:30pm after work",
+      "core": "every day at 5:30pm"
+    },
+    {
+      "id": 353,
+      "text": "Follow up: wash car every Friday at 5:30pm #home",
+      "core": "every Friday at 5:30pm"
+    },
+    {
+      "id": 354,
+      "text": "Note: 2026-01-31 water the plants",
+      "core": "2026-01-31"
+    },
+    {
+      "id": 355,
+      "text": "Bills: every weekday wash car — asap",
+      "core": "every weekday"
+    },
+    {
+      "id": 356,
+      "text": "Errands: 29/07/2025 pay electricity bill — before lunch",
+      "core": "29/07/2025"
+    },
+    {
+      "id": 357,
+      "text": "Chore: 07/11/2024 water the plants at Bunnings",
+      "core": "07/11/2024"
+    },
+    {
+      "id": 358,
+      "text": "Chore: every day at 5:30pm backup photos",
+      "core": "every day at 5:30pm"
+    },
+    {
+      "id": 359,
+      "text": "Reminder: mow the lawn every month — before lunch",
+      "core": "every month"
+    },
+    {
+      "id": 360,
+      "text": "Task: every year on 25/12 at 9am mow the lawn (low)",
+      "core": "every year on 25/12 at 9am"
+    },
+    {
+      "id": 361,
+      "text": "Plan: buy milk every 4 days — asap",
+      "core": "every 4 days"
+    },
+    {
+      "id": 362,
+      "text": "Groceries: wash car every 5 days #work",
+      "core": "every 5 days"
+    },
+    {
+      "id": 363,
+      "text": "each fortnight starting 12/05/2026 update spreadsheet (low)",
+      "core": "each fortnight starting 12/05/2026"
+    },
+    {
+      "id": 364,
+      "text": "Groceries: 2026-01-10 book dentist",
+      "core": "2026-01-10"
+    },
+    {
+      "id": 365,
+      "text": "Odd jobs: every second day update spreadsheet",
+      "core": "every second day"
+    },
+    {
+      "id": 366,
+      "text": "Bills: email client 2026-09-22",
+      "core": "2026-09-22"
+    },
+    {
+      "id": 367,
+      "text": "mow the lawn every 3 weeks for project X",
+      "core": "every 3 weeks"
+    },
+    {
+      "id": 368,
+      "text": "Bills: call plumber every Friday (evening)",
+      "core": "every Friday"
+    },
+    {
+      "id": 369,
+      "text": "book dentist 01/07/2026 for project X",
+      "core": "01/07/2026"
+    },
+    {
+      "id": 370,
+      "text": "buy milk every week on Monday",
+      "core": "every week on Monday"
+    },
+    {
+      "id": 371,
+      "text": "Groceries: every weekday at 5:30pm review PR for project X",
+      "core": "every weekday at 5:30pm"
+    },
+    {
+      "id": 372,
+      "text": "Task: every 2 weeks mow the lawn",
+      "core": "every 2 weeks"
+    },
+    {
+      "id": 373,
+      "text": "Odd jobs: clean garage every 4 weeks with John",
+      "core": "every 4 weeks"
+    },
+    {
+      "id": 374,
+      "text": "Note: backup photos 15/11/2025 (low)",
+      "core": "15/11/2025"
+    },
+    {
+      "id": 375,
+      "text": "Groceries: mow the lawn every Thursday at 9am — before lunch",
+      "core": "every Thursday at 9am"
+    },
+    {
+      "id": 376,
+      "text": "Groceries: every week on Monday book dentist for project X",
+      "core": "every week on Monday"
+    },
+    {
+      "id": 377,
+      "text": "Errands: call plumber 19/11/2025 for project X",
+      "core": "19/11/2025"
+    },
+    {
+      "id": 378,
+      "text": "Odd jobs: 14/01/2025 review PR after work",
+      "core": "14/01/2025"
+    },
+    {
+      "id": 379,
+      "text": "Plan: 04/16/2025 email client",
+      "core": "04/16/2025"
+    },
+    {
+      "id": 380,
+      "text": "Groceries: mow the lawn every Saturday #work",
+      "core": "every Saturday"
+    },
+    {
+      "id": 381,
+      "text": "Bills: email client every Saturday (low)",
+      "core": "every Saturday"
+    },
+    {
+      "id": 382,
+      "text": "review PR 01/27/2025 (evening)",
+      "core": "01/27/2025"
+    },
+    {
+      "id": 383,
+      "text": "Plan: 09/11/2025 call plumber",
+      "core": "09/11/2025"
+    },
+    {
+      "id": 384,
+      "text": "mow the lawn 08/27/2025",
+      "core": "08/27/2025"
+    },
+    {
+      "id": 385,
+      "text": "Errands: backup photos every month on the 1st on weekdays for project X",
+      "core": "every month on the 1st on weekdays"
+    },
+    {
+      "id": 386,
+      "text": "Groceries: pay electricity bill each fortnight — asap",
+      "core": "each fortnight"
+    },
+    {
+      "id": 387,
+      "text": "Reminder: buy milk every Thursday (evening)",
+      "core": "every Thursday"
+    },
+    {
+      "id": 388,
+      "text": "Plan: every 2 months on weekends update spreadsheet — asap",
+      "core": "every 2 months on weekends"
+    },
+    {
+      "id": 389,
+      "text": "Chore: clean garage 23/05/2026 #work",
+      "core": "23/05/2026"
+    },
+    {
+      "id": 390,
+      "text": "TODO: review PR every month on the 1st after work",
+      "core": "every month on the 1st"
+    },
+    {
+      "id": 391,
+      "text": "every year on 25/12 update spreadsheet #work",
+      "core": "every year on 25/12"
+    },
+    {
+      "id": 392,
+      "text": "call plumber 01/11/2025 #work",
+      "core": "01/11/2025"
+    },
+    {
+      "id": 393,
+      "text": "Odd jobs: every 4 days review PR",
+      "core": "every 4 days"
+    },
+    {
+      "id": 394,
+      "text": "TODO: 12/09/2026 water the plants with John",
+      "core": "12/09/2026"
+    },
+    {
+      "id": 395,
+      "text": "TODO: 09/26/2024 buy milk",
+      "core": "09/26/2024"
+    },
+    {
+      "id": 396,
+      "text": "Errands: mow the lawn every Sunday — asap",
+      "core": "every Sunday"
+    },
+    {
+      "id": 397,
+      "text": "Groceries: 29/03/2026 water the plants — before lunch",
+      "core": "29/03/2026"
+    },
+    {
+      "id": 398,
+      "text": "Odd jobs: 11/01/2025 email client with John",
+      "core": "11/01/2025"
+    },
+    {
+      "id": 399,
+      "text": "Chore: call plumber 17/10/2024 — before lunch",
+      "core": "17/10/2024"
+    },
+    {
+      "id": 400,
+      "text": "Plan: book dentist every Tuesday #work",
+      "core": "every Tuesday"
+    },
+    {
+      "id": 401,
+      "text": "Plan: every Monday at 5:30pm book dentist — before lunch",
+      "core": "every Monday at 5:30pm"
+    },
+    {
+      "id": 402,
+      "text": "Errands: buy milk every 3 weeks — asap",
+      "core": "every 3 weeks"
+    },
+    {
+      "id": 403,
+      "text": "TODO: email client every 3 weeks — asap",
+      "core": "every 3 weeks"
+    },
+    {
+      "id": 404,
+      "text": "every Wednesday buy milk #home",
+      "core": "every Wednesday"
+    },
+    {
+      "id": 405,
+      "text": "Bills: email client each fortnight on weekends (low)",
+      "core": "each fortnight on weekends"
+    },
+    {
+      "id": 406,
+      "text": "Follow up: review PR every 2 weeks at Bunnings",
+      "core": "every 2 weeks"
+    },
+    {
+      "id": 407,
+      "text": "review PR 09/23/2025 (low)",
+      "core": "09/23/2025"
+    },
+    {
+      "id": 408,
+      "text": "Odd jobs: every Friday at 9am book dentist for project X",
+      "core": "every Friday at 9am"
+    },
+    {
+      "id": 409,
+      "text": "TODO: 2024-12-23 call plumber",
+      "core": "2024-12-23"
+    },
+    {
+      "id": 410,
+      "text": "Plan: every 3 days on weekdays book dentist #work",
+      "core": "every 3 days on weekdays"
+    },
+    {
+      "id": 411,
+      "text": "07/05/2025 review PR at Bunnings",
+      "core": "07/05/2025"
+    },
+    {
+      "id": 412,
+      "text": "Next: every month backup photos",
+      "core": "every month"
+    },
+    {
+      "id": 413,
+      "text": "Plan: book dentist every Sunday starting 2025-06-24 with John",
+      "core": "every Sunday starting 2025-06-24"
+    },
+    {
+      "id": 414,
+      "text": "Groceries: clean garage every weekend for project X",
+      "core": "every weekend"
+    },
+    {
+      "id": 415,
+      "text": "Next: every Sunday on weekends clean garage",
+      "core": "every Sunday on weekends"
+    },
+    {
+      "id": 416,
+      "text": "Plan: update spreadsheet 12/13/2025 #work",
+      "core": "12/13/2025"
+    },
+    {
+      "id": 417,
+      "text": "2025-10-17 email client after work",
+      "core": "2025-10-17"
+    },
+    {
+      "id": 418,
+      "text": "Next: update spreadsheet 05/01/2026 — before lunch",
+      "core": "05/01/2026"
+    },
+    {
+      "id": 419,
+      "text": "Next: book dentist 01/25/2026 at Bunnings",
+      "core": "01/25/2026"
+    },
+    {
+      "id": 420,
+      "text": "Plan: every Tuesday wash car",
+      "core": "every Tuesday"
+    },
+    {
+      "id": 421,
+      "text": "Plan: water the plants every 2 weeks (evening)",
+      "core": "every 2 weeks"
+    },
+    {
+      "id": 422,
+      "text": "Groceries: every second day wash car",
+      "core": "every second day"
+    },
+    {
+      "id": 423,
+      "text": "Task: every year starting 07/08/2025 pay electricity bill at Bunnings",
+      "core": "every year starting 07/08/2025"
+    },
+    {
+      "id": 424,
+      "text": "Plan: backup photos 01/16/2025",
+      "core": "01/16/2025"
+    },
+    {
+      "id": 425,
+      "text": "book dentist 2024-12-26",
+      "core": "2024-12-26"
+    },
+    {
+      "id": 426,
+      "text": "Task: water the plants 08/22/2025",
+      "core": "08/22/2025"
+    },
+    {
+      "id": 427,
+      "text": "Bills: every Thursday on weekdays book dentist",
+      "core": "every Thursday on weekdays"
+    },
+    {
+      "id": 428,
+      "text": "Next: update spreadsheet 2026-03-07 after work",
+      "core": "2026-03-07"
+    },
+    {
+      "id": 429,
+      "text": "every quarter wash car at Bunnings",
+      "core": "every quarter"
+    },
+    {
+      "id": 430,
+      "text": "TODO: every month at 9am wash car #home",
+      "core": "every month at 9am"
+    },
+    {
+      "id": 431,
+      "text": "every Monday call plumber #work",
+      "core": "every Monday"
+    },
+    {
+      "id": 432,
+      "text": "update spreadsheet every second week after work",
+      "core": "every second week"
+    },
+    {
+      "id": 433,
+      "text": "buy milk 06/04/2026 for project X",
+      "core": "06/04/2026"
+    },
+    {
+      "id": 434,
+      "text": "every 3 days starting 05/19/2025 backup photos — asap",
+      "core": "every 3 days starting 05/19/2025"
+    },
+    {
+      "id": 435,
+      "text": "Note: review PR every Thursday for project X",
+      "core": "every Thursday"
+    },
+    {
+      "id": 436,
+      "text": "TODO: every week on Monday pay electricity bill (low)",
+      "core": "every week on Monday"
+    },
+    {
+      "id": 437,
+      "text": "review PR 02/02/2026",
+      "core": "02/02/2026"
+    },
+    {
+      "id": 438,
+      "text": "Follow up: 2025-02-07 backup photos after work",
+      "core": "2025-02-07"
+    },
+    {
+      "id": 439,
+      "text": "backup photos every Saturday at 5:30pm #work",
+      "core": "every Saturday at 5:30pm"
+    },
+    {
+      "id": 440,
+      "text": "Follow up: mow the lawn every Sunday starting 2026-02-16 after work",
+      "core": "every Sunday starting 2026-02-16"
+    },
+    {
+      "id": 441,
+      "text": "Errands: 2025-02-16 mow the lawn",
+      "core": "2025-02-16"
+    },
+    {
+      "id": 442,
+      "text": "Note: every Tuesday update spreadsheet",
+      "core": "every Tuesday"
+    },
+    {
+      "id": 443,
+      "text": "Plan: book dentist every Wednesday with John",
+      "core": "every Wednesday"
+    },
+    {
+      "id": 444,
+      "text": "Plan: clean garage every 2 weeks at 9am after work",
+      "core": "every 2 weeks at 9am"
+    },
+    {
+      "id": 445,
+      "text": "Plan: every 3 weeks starting 2024-11-27 mow the lawn",
+      "core": "every 3 weeks starting 2024-11-27"
+    },
+    {
+      "id": 446,
+      "text": "book dentist every Wednesday on weekdays with John",
+      "core": "every Wednesday on weekdays"
+    },
+    {
+      "id": 447,
+      "text": "TODO: backup photos every 5 days starting 12/12/2024 #work",
+      "core": "every 5 days starting 12/12/2024"
+    },
+    {
+      "id": 448,
+      "text": "Next: every weekend review PR with John",
+      "core": "every weekend"
+    },
+    {
+      "id": 449,
+      "text": "Note: review PR each fortnight — before lunch",
+      "core": "each fortnight"
+    },
+    {
+      "id": 450,
+      "text": "Plan: mow the lawn every 2 days",
+      "core": "every 2 days"
+    },
+    {
+      "id": 451,
+      "text": "Next: wash car every quarter (evening)",
+      "core": "every quarter"
+    },
+    {
+      "id": 452,
+      "text": "Plan: update spreadsheet every 3 days with John",
+      "core": "every 3 days"
+    },
+    {
+      "id": 453,
+      "text": "Reminder: pay electricity bill every day — asap",
+      "core": "every day"
+    },
+    {
+      "id": 454,
+      "text": "Follow up: 07/12/2025 water the plants with John",
+      "core": "07/12/2025"
+    },
+    {
+      "id": 455,
+      "text": "Plan: wash car 19/12/2025 #work",
+      "core": "19/12/2025"
+    },
+    {
+      "id": 456,
+      "text": "Groceries: mow the lawn 01/03/2026 — before lunch",
+      "core": "01/03/2026"
+    },
+    {
+      "id": 457,
+      "text": "Chore: wash car every Saturday starting 02/14/2026",
+      "core": "every Saturday starting 02/14/2026"
+    },
+    {
+      "id": 458,
+      "text": "call plumber every 2 days — asap",
+      "core": "every 2 days"
+    },
+    {
+      "id": 459,
+      "text": "Follow up: 07/23/2026 book dentist",
+      "core": "07/23/2026"
+    },
+    {
+      "id": 460,
+      "text": "Task: buy milk every Friday at 5:30pm (low)",
+      "core": "every Friday at 5:30pm"
+    },
+    {
+      "id": 461,
+      "text": "Bills: every month book dentist — before lunch",
+      "core": "every month"
+    },
+    {
+      "id": 462,
+      "text": "pay electricity bill every 4 weeks at 9am",
+      "core": "every 4 weeks at 9am"
+    },
+    {
+      "id": 463,
+      "text": "Task: book dentist 03/12/2025 #home",
+      "core": "03/12/2025"
+    },
+    {
+      "id": 464,
+      "text": "Bills: every year on 25/12 water the plants (low)",
+      "core": "every year on 25/12"
+    },
+    {
+      "id": 465,
+      "text": "Chore: 06/30/2025 update spreadsheet",
+      "core": "06/30/2025"
+    },
+    {
+      "id": 466,
+      "text": "TODO: mow the lawn 08/23/2026 #work",
+      "core": "08/23/2026"
+    },
+    {
+      "id": 467,
+      "text": "Odd jobs: review PR 2025-12-29 after work",
+      "core": "2025-12-29"
+    },
+    {
+      "id": 468,
+      "text": "every 3 weeks wash car",
+      "core": "every 3 weeks"
+    },
+    {
+      "id": 469,
+      "text": "call plumber every 4 weeks",
+      "core": "every 4 weeks"
+    },
+    {
+      "id": 470,
+      "text": "Task: buy milk every year on weekends",
+      "core": "every year on weekends"
+    },
+    {
+      "id": 471,
+      "text": "Note: mow the lawn 2026-02-23 after work",
+      "core": "2026-02-23"
+    },
+    {
+      "id": 472,
+      "text": "TODO: call plumber every 4 days on weekdays with John",
+      "core": "every 4 days on weekdays"
+    },
+    {
+      "id": 473,
+      "text": "Note: every Friday update spreadsheet with John",
+      "core": "every Friday"
+    },
+    {
+      "id": 474,
+      "text": "Task: call plumber every second week for project X",
+      "core": "every second week"
+    },
+    {
+      "id": 475,
+      "text": "Task: every 2 days on weekends email client after work",
+      "core": "every 2 days on weekends"
+    },
+    {
+      "id": 476,
+      "text": "Next: pay electricity bill every Saturday starting 2025-09-30",
+      "core": "every Saturday starting 2025-09-30"
+    },
+    {
+      "id": 477,
+      "text": "Bills: every 5 days book dentist",
+      "core": "every 5 days"
+    },
+    {
+      "id": 478,
+      "text": "Odd jobs: pay electricity bill 08/16/2026 with John",
+      "core": "08/16/2026"
+    },
+    {
+      "id": 479,
+      "text": "Next: every 4 weeks review PR (low)",
+      "core": "every 4 weeks"
+    },
+    {
+      "id": 480,
+      "text": "TODO: 01/25/2025 mow the lawn at Bunnings",
+      "core": "01/25/2025"
+    },
+    {
+      "id": 481,
+      "text": "TODO: pay electricity bill 2026-08-13 — before lunch",
+      "core": "2026-08-13"
+    },
+    {
+      "id": 482,
+      "text": "Plan: 28/11/2025 book dentist #work",
+      "core": "28/11/2025"
+    },
+    {
+      "id": 483,
+      "text": "Errands: buy milk 15/04/2025 with John",
+      "core": "15/04/2025"
+    },
+    {
+      "id": 484,
+      "text": "TODO: review PR every week on Monday (low)",
+      "core": "every week on Monday"
+    },
+    {
+      "id": 485,
+      "text": "Note: 2025-03-16 pay electricity bill (evening)",
+      "core": "2025-03-16"
+    },
+    {
+      "id": 486,
+      "text": "call plumber every year for project X",
+      "core": "every year"
+    },
+    {
+      "id": 487,
+      "text": "Odd jobs: mow the lawn 02/20/2026 after work",
+      "core": "02/20/2026"
+    },
+    {
+      "id": 488,
+      "text": "TODO: call plumber every quarter on weekends — asap",
+      "core": "every quarter on weekends"
+    },
+    {
+      "id": 489,
+      "text": "email client 05/09/2025",
+      "core": "05/09/2025"
+    },
+    {
+      "id": 490,
+      "text": "wash car every Saturday",
+      "core": "every Saturday"
+    },
+    {
+      "id": 491,
+      "text": "Next: clean garage 09/24/2026 — before lunch",
+      "core": "09/24/2026"
+    },
+    {
+      "id": 492,
+      "text": "wash car every quarter",
+      "core": "every quarter"
+    },
+    {
+      "id": 493,
+      "text": "Next: backup photos 05/12/2025 #home",
+      "core": "05/12/2025"
+    },
+    {
+      "id": 494,
+      "text": "Errands: every day review PR",
+      "core": "every day"
+    },
+    {
+      "id": 495,
+      "text": "Next: every 4 days water the plants — asap",
+      "core": "every 4 days"
+    },
+    {
+      "id": 496,
+      "text": "Chore: 04/19/2025 update spreadsheet",
+      "core": "04/19/2025"
+    },
+    {
+      "id": 497,
+      "text": "Odd jobs: pay electricity bill 18/11/2024 for project X",
+      "core": "18/11/2024"
+    },
+    {
+      "id": 498,
+      "text": "pay electricity bill every month on the 1st at Bunnings",
+      "core": "every month on the 1st"
+    },
+    {
+      "id": 499,
+      "text": "Reminder: every 5 days starting 20/09/2026 call plumber",
+      "core": "every 5 days starting 20/09/2026"
+    },
+    {
+      "id": 500,
+      "text": "Groceries: buy milk every second day",
+      "core": "every second day"
+    },
+    {
+      "id": 501,
+      "text": "Plan: mow the lawn 05/29/2025 — asap",
+      "core": "05/29/2025"
+    },
+    {
+      "id": 502,
+      "text": "pay electricity bill every quarter (low)",
+      "core": "every quarter"
+    },
+    {
+      "id": 503,
+      "text": "Plan: update spreadsheet every 4 weeks — asap",
+      "core": "every 4 weeks"
+    },
+    {
+      "id": 504,
+      "text": "Odd jobs: review PR 2026-08-03 (evening)",
+      "core": "2026-08-03"
+    },
+    {
+      "id": 505,
+      "text": "every quarter starting 28/02/2026 book dentist with John",
+      "core": "every quarter starting 28/02/2026"
+    },
+    {
+      "id": 506,
+      "text": "Groceries: email client every 2 weeks starting 05/18/2026",
+      "core": "every 2 weeks starting 05/18/2026"
+    },
+    {
+      "id": 507,
+      "text": "Reminder: book dentist every year on 25/12 with John",
+      "core": "every year on 25/12"
+    },
+    {
+      "id": 508,
+      "text": "Task: email client 2025-12-15",
+      "core": "2025-12-15"
+    },
+    {
+      "id": 509,
+      "text": "TODO: 07/08/2025 pay electricity bill with John",
+      "core": "07/08/2025"
+    },
+    {
+      "id": 510,
+      "text": "Note: pay electricity bill every year at 5:30pm (low)",
+      "core": "every year at 5:30pm"
+    },
+    {
+      "id": 511,
+      "text": "Note: wash car every week on Monday",
+      "core": "every week on Monday"
+    },
+    {
+      "id": 512,
+      "text": "Odd jobs: buy milk every weekend #home",
+      "core": "every weekend"
+    },
+    {
+      "id": 513,
+      "text": "Reminder: every year clean garage (low)",
+      "core": "every year"
+    },
+    {
+      "id": 514,
+      "text": "01/29/2026 email client #work",
+      "core": "01/29/2026"
+    },
+    {
+      "id": 515,
+      "text": "Follow up: 2025-02-14 water the plants #work",
+      "core": "2025-02-14"
+    },
+    {
+      "id": 516,
+      "text": "Follow up: backup photos 2025-03-14 — before lunch",
+      "core": "2025-03-14"
+    },
+    {
+      "id": 517,
+      "text": "Bills: email client every 4 weeks at 5:30pm with John",
+      "core": "every 4 weeks at 5:30pm"
+    },
+    {
+      "id": 518,
+      "text": "Note: call plumber every Tuesday after work",
+      "core": "every Tuesday"
+    },
+    {
+      "id": 519,
+      "text": "Odd jobs: water the plants 03/27/2025",
+      "core": "03/27/2025"
+    },
+    {
+      "id": 520,
+      "text": "Task: update spreadsheet every 2 months",
+      "core": "every 2 months"
+    },
+    {
+      "id": 521,
+      "text": "Follow up: 06/11/2025 update spreadsheet",
+      "core": "06/11/2025"
+    },
+    {
+      "id": 522,
+      "text": "email client 09/29/2024",
+      "core": "09/29/2024"
+    },
+    {
+      "id": 523,
+      "text": "Follow up: every Tuesday on weekdays pay electricity bill — asap",
+      "core": "every Tuesday on weekdays"
+    },
+    {
+      "id": 524,
+      "text": "Next: every Saturday on weekdays buy milk for project X",
+      "core": "every Saturday on weekdays"
+    },
+    {
+      "id": 525,
+      "text": "Chore: buy milk every 2 days #home",
+      "core": "every 2 days"
+    },
+    {
+      "id": 526,
+      "text": "every Wednesday wash car (low)",
+      "core": "every Wednesday"
+    },
+    {
+      "id": 527,
+      "text": "mow the lawn 06/19/2025 — asap",
+      "core": "06/19/2025"
+    },
+    {
+      "id": 528,
+      "text": "TODO: buy milk every weekend on weekends #home",
+      "core": "every weekend on weekends"
+    },
+    {
+      "id": 529,
+      "text": "wash car each fortnight",
+      "core": "each fortnight"
+    },
+    {
+      "id": 530,
+      "text": "Task: review PR 09/22/2026 #work",
+      "core": "09/22/2026"
+    },
+    {
+      "id": 531,
+      "text": "Odd jobs: buy milk every 2 days (evening)",
+      "core": "every 2 days"
+    },
+    {
+      "id": 532,
+      "text": "Task: pay electricity bill every Saturday at Bunnings",
+      "core": "every Saturday"
+    },
+    {
+      "id": 533,
+      "text": "Odd jobs: pay electricity bill 13/11/2025 after work",
+      "core": "13/11/2025"
+    },
+    {
+      "id": 534,
+      "text": "Follow up: every Thursday review PR at Bunnings",
+      "core": "every Thursday"
+    },
+    {
+      "id": 535,
+      "text": "every month pay electricity bill — before lunch",
+      "core": "every month"
+    },
+    {
+      "id": 536,
+      "text": "Odd jobs: 2026-02-16 buy milk #home",
+      "core": "2026-02-16"
+    },
+    {
+      "id": 537,
+      "text": "Note: 09/02/2026 mow the lawn at Bunnings",
+      "core": "09/02/2026"
+    },
+    {
+      "id": 538,
+      "text": "Plan: 04/15/2026 review PR (low)",
+      "core": "04/15/2026"
+    },
+    {
+      "id": 539,
+      "text": "email client 26/08/2025 after work",
+      "core": "26/08/2025"
+    },
+    {
+      "id": 540,
+      "text": "backup photos every Wednesday #work",
+      "core": "every Wednesday"
+    },
+    {
+      "id": 541,
+      "text": "Odd jobs: 2025-03-07 email client at Bunnings",
+      "core": "2025-03-07"
+    },
+    {
+      "id": 542,
+      "text": "Note: buy milk every 4 days on weekends — asap",
+      "core": "every 4 days on weekends"
+    },
+    {
+      "id": 543,
+      "text": "TODO: 2025-05-15 backup photos",
+      "core": "2025-05-15"
+    },
+    {
+      "id": 544,
+      "text": "12/23/2025 call plumber",
+      "core": "12/23/2025"
+    },
+    {
+      "id": 545,
+      "text": "Note: pay electricity bill every month — asap",
+      "core": "every month"
+    },
+    {
+      "id": 546,
+      "text": "buy milk 12/29/2025 (evening)",
+      "core": "12/29/2025"
+    },
+    {
+      "id": 547,
+      "text": "Bills: 28/06/2026 update spreadsheet #home",
+      "core": "28/06/2026"
+    },
+    {
+      "id": 548,
+      "text": "Task: pay electricity bill 2026-09-10 (low)",
+      "core": "2026-09-10"
+    },
+    {
+      "id": 549,
+      "text": "Odd jobs: pay electricity bill 08/29/2025 — before lunch",
+      "core": "08/29/2025"
+    },
+    {
+      "id": 550,
+      "text": "Plan: email client every 3 days on weekends",
+      "core": "every 3 days on weekends"
+    },
+    {
+      "id": 551,
+      "text": "Odd jobs: update spreadsheet every 4 days at Bunnings",
+      "core": "every 4 days"
+    },
+    {
+      "id": 552,
+      "text": "Bills: update spreadsheet 2026-03-05 #work",
+      "core": "2026-03-05"
+    },
+    {
+      "id": 553,
+      "text": "Reminder: book dentist every year on 25/12",
+      "core": "every year on 25/12"
+    },
+    {
+      "id": 554,
+      "text": "Errands: clean garage 04/14/2026 — before lunch",
+      "core": "04/14/2026"
+    },
+    {
+      "id": 555,
+      "text": "Bills: 28/03/2026 pay electricity bill at Bunnings",
+      "core": "28/03/2026"
+    },
+    {
+      "id": 556,
+      "text": "review PR every week on Monday on weekends",
+      "core": "every week on Monday on weekends"
+    },
+    {
+      "id": 557,
+      "text": "2024-12-06 call plumber with John",
+      "core": "2024-12-06"
+    },
+    {
+      "id": 558,
+      "text": "Chore: buy milk 09/04/2025 with John",
+      "core": "09/04/2025"
+    },
+    {
+      "id": 559,
+      "text": "pay electricity bill 2024-10-17",
+      "core": "2024-10-17"
+    },
+    {
+      "id": 560,
+      "text": "Chore: every Wednesday buy milk (low)",
+      "core": "every Wednesday"
+    },
+    {
+      "id": 561,
+      "text": "Odd jobs: call plumber every 2 weeks (evening)",
+      "core": "every 2 weeks"
+    },
+    {
+      "id": 562,
+      "text": "Odd jobs: every Friday at 9am email client — before lunch",
+      "core": "every Friday at 9am"
+    },
+    {
+      "id": 563,
+      "text": "Follow up: water the plants every 3 weeks starting 12/01/2026",
+      "core": "every 3 weeks starting 12/01/2026"
+    },
+    {
+      "id": 564,
+      "text": "Reminder: update spreadsheet every week on Monday (low)",
+      "core": "every week on Monday"
+    },
+    {
+      "id": 565,
+      "text": "Odd jobs: email client every weekend at 9am #home",
+      "core": "every weekend at 9am"
+    },
+    {
+      "id": 566,
+      "text": "Plan: update spreadsheet 09/05/2026 at Bunnings",
+      "core": "09/05/2026"
+    },
+    {
+      "id": 567,
+      "text": "Bills: email client 02/21/2025",
+      "core": "02/21/2025"
+    },
+    {
+      "id": 568,
+      "text": "Groceries: review PR 10/29/2024 — asap",
+      "core": "10/29/2024"
+    },
+    {
+      "id": 569,
+      "text": "Bills: review PR every Monday — before lunch",
+      "core": "every Monday"
+    },
+    {
+      "id": 570,
+      "text": "Chore: every 2 weeks wash car for project X",
+      "core": "every 2 weeks"
+    },
+    {
+      "id": 571,
+      "text": "Errands: email client 01/12/2024 after work",
+      "core": "01/12/2024"
+    },
+    {
+      "id": 572,
+      "text": "every month on the 1st pay electricity bill with John",
+      "core": "every month on the 1st"
+    },
+    {
+      "id": 573,
+      "text": "backup photos every 2 days",
+      "core": "every 2 days"
+    },
+    {
+      "id": 574,
+      "text": "Odd jobs: email client 10/03/2025",
+      "core": "10/03/2025"
+    },
+    {
+      "id": 575,
+      "text": "Errands: every 2 months water the plants",
+      "core": "every 2 months"
+    },
+    {
+      "id": 576,
+      "text": "Next: every year on weekdays water the plants after work",
+      "core": "every year on weekdays"
+    },
+    {
+      "id": 577,
+      "text": "Bills: wash car every second day",
+      "core": "every second day"
+    },
+    {
+      "id": 578,
+      "text": "Reminder: 2025-06-12 email client with John",
+      "core": "2025-06-12"
+    },
+    {
+      "id": 579,
+      "text": "Groceries: mow the lawn 10/17/2024",
+      "core": "10/17/2024"
+    },
+    {
+      "id": 580,
+      "text": "every 5 days starting 2025-08-07 book dentist (evening)",
+      "core": "every 5 days starting 2025-08-07"
+    },
+    {
+      "id": 581,
+      "text": "Next: every Friday buy milk",
+      "core": "every Friday"
+    },
+    {
+      "id": 582,
+      "text": "Reminder: email client every second week starting 30/05/2025 #work",
+      "core": "every second week starting 30/05/2025"
+    },
+    {
+      "id": 583,
+      "text": "mow the lawn every week on Monday at 5:30pm (low)",
+      "core": "every week on Monday at 5:30pm"
+    },
+    {
+      "id": 584,
+      "text": "Bills: book dentist every Monday (evening)",
+      "core": "every Monday"
+    },
+    {
+      "id": 585,
+      "text": "Follow up: call plumber 12/27/2024",
+      "core": "12/27/2024"
+    },
+    {
+      "id": 586,
+      "text": "Reminder: 03/01/2025 water the plants",
+      "core": "03/01/2025"
+    },
+    {
+      "id": 587,
+      "text": "Errands: water the plants every year on 25/12 #home",
+      "core": "every year on 25/12"
+    },
+    {
+      "id": 588,
+      "text": "every 3 weeks water the plants",
+      "core": "every 3 weeks"
+    },
+    {
+      "id": 589,
+      "text": "Note: backup photos every quarter #work",
+      "core": "every quarter"
+    },
+    {
+      "id": 590,
+      "text": "backup photos every second week (low)",
+      "core": "every second week"
+    },
+    {
+      "id": 591,
+      "text": "TODO: book dentist 2025-03-22 #work",
+      "core": "2025-03-22"
+    },
+    {
+      "id": 592,
+      "text": "Follow up: every Thursday review PR",
+      "core": "every Thursday"
+    },
+    {
+      "id": 593,
+      "text": "book dentist 06/20/2025",
+      "core": "06/20/2025"
+    },
+    {
+      "id": 594,
+      "text": "Plan: book dentist every Sunday with John",
+      "core": "every Sunday"
+    },
+    {
+      "id": 595,
+      "text": "Chore: wash car every 2 days (low)",
+      "core": "every 2 days"
+    },
+    {
+      "id": 596,
+      "text": "Next: every year at 9am wash car",
+      "core": "every year at 9am"
+    },
+    {
+      "id": 597,
+      "text": "Groceries: pay electricity bill every Thursday",
+      "core": "every Thursday"
+    },
+    {
+      "id": 598,
+      "text": "Task: 12/02/2025 book dentist (low)",
+      "core": "12/02/2025"
+    },
+    {
+      "id": 599,
+      "text": "Odd jobs: email client 19/03/2025 with John",
+      "core": "19/03/2025"
+    },
+    {
+      "id": 600,
+      "text": "Plan: email client every weekend starting 2024-10-04",
+      "core": "every weekend starting 2024-10-04"
+    },
+    {
+      "id": 601,
+      "text": "Plan: every Monday review PR #work",
+      "core": "every Monday"
+    },
+    {
+      "id": 602,
+      "text": "TODO: 12/16/2025 mow the lawn (low)",
+      "core": "12/16/2025"
+    },
+    {
+      "id": 603,
+      "text": "Follow up: buy milk every quarter after work",
+      "core": "every quarter"
+    },
+    {
+      "id": 604,
+      "text": "Chore: clean garage every weekday starting 2025-12-05 at Bunnings",
+      "core": "every weekday starting 2025-12-05"
+    },
+    {
+      "id": 605,
+      "text": "Follow up: water the plants 2024-09-28 #home",
+      "core": "2024-09-28"
+    },
+    {
+      "id": 606,
+      "text": "Note: pay electricity bill 09/25/2026 at Bunnings",
+      "core": "09/25/2026"
+    },
+    {
+      "id": 607,
+      "text": "TODO: email client every Friday — asap",
+      "core": "every Friday"
+    },
+    {
+      "id": 608,
+      "text": "every Sunday at 9am book dentist",
+      "core": "every Sunday at 9am"
+    },
+    {
+      "id": 609,
+      "text": "Bills: review PR 24/11/2024 #home",
+      "core": "24/11/2024"
+    },
+    {
+      "id": 610,
+      "text": "Reminder: update spreadsheet 16/05/2025 for project X",
+      "core": "16/05/2025"
+    },
+    {
+      "id": 611,
+      "text": "Errands: every 5 days pay electricity bill",
+      "core": "every 5 days"
+    },
+    {
+      "id": 612,
+      "text": "Errands: review PR 09/21/2026 — before lunch",
+      "core": "09/21/2026"
+    },
+    {
+      "id": 613,
+      "text": "every month on the 1st water the plants (evening)",
+      "core": "every month on the 1st"
+    },
+    {
+      "id": 614,
+      "text": "review PR 07/01/2025 — before lunch",
+      "core": "07/01/2025"
+    },
+    {
+      "id": 615,
+      "text": "Bills: update spreadsheet 02/17/2026",
+      "core": "02/17/2026"
+    },
+    {
+      "id": 616,
+      "text": "Note: every second week wash car",
+      "core": "every second week"
+    },
+    {
+      "id": 617,
+      "text": "Chore: book dentist every 3 weeks — asap",
+      "core": "every 3 weeks"
+    },
+    {
+      "id": 618,
+      "text": "Chore: book dentist every 2 weeks (evening)",
+      "core": "every 2 weeks"
+    },
+    {
+      "id": 619,
+      "text": "Next: every 2 days on weekends book dentist #home",
+      "core": "every 2 days on weekends"
+    },
+    {
+      "id": 620,
+      "text": "Follow up: wash car 04/27/2025 with John",
+      "core": "04/27/2025"
+    },
+    {
+      "id": 621,
+      "text": "Odd jobs: review PR every quarter at Bunnings",
+      "core": "every quarter"
+    },
+    {
+      "id": 622,
+      "text": "Next: every 4 weeks at 9am mow the lawn at Bunnings",
+      "core": "every 4 weeks at 9am"
+    },
+    {
+      "id": 623,
+      "text": "Groceries: every month on the 1st mow the lawn for project X",
+      "core": "every month on the 1st"
+    },
+    {
+      "id": 624,
+      "text": "TODO: book dentist each fortnight on weekdays",
+      "core": "each fortnight on weekdays"
+    },
+    {
+      "id": 625,
+      "text": "07/29/2025 review PR",
+      "core": "07/29/2025"
+    },
+    {
+      "id": 626,
+      "text": "Note: review PR 2025-11-16 #home",
+      "core": "2025-11-16"
+    },
+    {
+      "id": 627,
+      "text": "Chore: every second week email client (evening)",
+      "core": "every second week"
+    },
+    {
+      "id": 628,
+      "text": "TODO: call plumber every 5 days on weekdays",
+      "core": "every 5 days on weekdays"
+    },
+    {
+      "id": 629,
+      "text": "Groceries: every 2 weeks on weekends water the plants",
+      "core": "every 2 weeks on weekends"
+    },
+    {
+      "id": 630,
+      "text": "Chore: water the plants 12/04/2024 — before lunch",
+      "core": "12/04/2024"
+    },
+    {
+      "id": 631,
+      "text": "Task: book dentist every Saturday — asap",
+      "core": "every Saturday"
+    },
+    {
+      "id": 632,
+      "text": "TODO: book dentist every Monday starting 2024-10-06 after work",
+      "core": "every Monday starting 2024-10-06"
+    },
+    {
+      "id": 633,
+      "text": "Chore: wash car every Saturday starting 04/20/2026 — asap",
+      "core": "every Saturday starting 04/20/2026"
+    },
+    {
+      "id": 634,
+      "text": "Odd jobs: update spreadsheet every year on 25/12 on weekends #home",
+      "core": "every year on 25/12 on weekends"
+    },
+    {
+      "id": 635,
+      "text": "Bills: clean garage every 2 weeks",
+      "core": "every 2 weeks"
+    },
+    {
+      "id": 636,
+      "text": "Reminder: 02/08/2025 update spreadsheet (evening)",
+      "core": "02/08/2025"
+    },
+    {
+      "id": 637,
+      "text": "TODO: every Friday update spreadsheet",
+      "core": "every Friday"
+    },
+    {
+      "id": 638,
+      "text": "Odd jobs: buy milk every 3 days",
+      "core": "every 3 days"
+    },
+    {
+      "id": 639,
+      "text": "Note: water the plants every month after work",
+      "core": "every month"
+    },
+    {
+      "id": 640,
+      "text": "Next: book dentist 06/23/2026",
+      "core": "06/23/2026"
+    },
+    {
+      "id": 641,
+      "text": "Odd jobs: every Thursday mow the lawn for project X",
+      "core": "every Thursday"
+    },
+    {
+      "id": 642,
+      "text": "Reminder: water the plants every 4 days",
+      "core": "every 4 days"
+    },
+    {
+      "id": 643,
+      "text": "Note: 30/12/2025 buy milk (low)",
+      "core": "30/12/2025"
+    },
+    {
+      "id": 644,
+      "text": "Errands: book dentist every quarter starting 04/21/2026",
+      "core": "every quarter starting 04/21/2026"
+    },
+    {
+      "id": 645,
+      "text": "Task: 02/06/2026 update spreadsheet at Bunnings",
+      "core": "02/06/2026"
+    },
+    {
+      "id": 646,
+      "text": "Note: water the plants every second week at 9am with John",
+      "core": "every second week at 9am"
+    },
+    {
+      "id": 647,
+      "text": "Bills: mow the lawn each fortnight on weekdays (evening)",
+      "core": "each fortnight on weekdays"
+    },
+    {
+      "id": 648,
+      "text": "Next: email client every second week at 9am",
+      "core": "every second week at 9am"
+    },
+    {
+      "id": 649,
+      "text": "Plan: wash car every 5 days",
+      "core": "every 5 days"
+    },
+    {
+      "id": 650,
+      "text": "Task: every month on the 1st book dentist for project X",
+      "core": "every month on the 1st"
+    },
+    {
+      "id": 651,
+      "text": "update spreadsheet every month at 5:30pm — before lunch",
+      "core": "every month at 5:30pm"
+    },
+    {
+      "id": 652,
+      "text": "Bills: every 3 weeks water the plants",
+      "core": "every 3 weeks"
+    },
+    {
+      "id": 653,
+      "text": "Follow up: book dentist 2025-10-20",
+      "core": "2025-10-20"
+    },
+    {
+      "id": 654,
+      "text": "Chore: clean garage 09/19/2025",
+      "core": "09/19/2025"
+    },
+    {
+      "id": 655,
+      "text": "Follow up: every year review PR — asap",
+      "core": "every year"
+    },
+    {
+      "id": 656,
+      "text": "Odd jobs: every 4 weeks on weekends buy milk",
+      "core": "every 4 weeks on weekends"
+    },
+    {
+      "id": 657,
+      "text": "Follow up: every Wednesday starting 04/21/2026 buy milk at Bunnings",
+      "core": "every Wednesday starting 04/21/2026"
+    },
+    {
+      "id": 658,
+      "text": "Errands: pay electricity bill every Tuesday (low)",
+      "core": "every Tuesday"
+    },
+    {
+      "id": 659,
+      "text": "Groceries: call plumber every 2 weeks at 5:30pm with John",
+      "core": "every 2 weeks at 5:30pm"
+    },
+    {
+      "id": 660,
+      "text": "every 2 months call plumber for project X",
+      "core": "every 2 months"
+    },
+    {
+      "id": 661,
+      "text": "email client 16/04/2026",
+      "core": "16/04/2026"
+    },
+    {
+      "id": 662,
+      "text": "Follow up: buy milk 02/24/2026 (evening)",
+      "core": "02/24/2026"
+    },
+    {
+      "id": 663,
+      "text": "TODO: call plumber every weekday for project X",
+      "core": "every weekday"
+    },
+    {
+      "id": 664,
+      "text": "Odd jobs: every Wednesday on weekdays backup photos at Bunnings",
+      "core": "every Wednesday on weekdays"
+    },
+    {
+      "id": 665,
+      "text": "Bills: email client 2026-03-01 at Bunnings",
+      "core": "2026-03-01"
+    },
+    {
+      "id": 666,
+      "text": "TODO: email client 07/11/2024 — before lunch",
+      "core": "07/11/2024"
+    },
+    {
+      "id": 667,
+      "text": "Plan: water the plants every month on the 1st at Bunnings",
+      "core": "every month on the 1st"
+    },
+    {
+      "id": 668,
+      "text": "book dentist 08/04/2025 after work",
+      "core": "08/04/2025"
+    },
+    {
+      "id": 669,
+      "text": "Reminder: pay electricity bill 28/10/2024 for project X",
+      "core": "28/10/2024"
+    },
+    {
+      "id": 670,
+      "text": "Plan: each fortnight water the plants with John",
+      "core": "each fortnight"
+    },
+    {
+      "id": 671,
+      "text": "Follow up: every 4 days at 9am wash car #home",
+      "core": "every 4 days at 9am"
+    },
+    {
+      "id": 672,
+      "text": "TODO: every Wednesday email client after work",
+      "core": "every Wednesday"
+    },
+    {
+      "id": 673,
+      "text": "Task: book dentist every year on 25/12 for project X",
+      "core": "every year on 25/12"
+    },
+    {
+      "id": 674,
+      "text": "Follow up: pay electricity bill every 3 weeks #home",
+      "core": "every 3 weeks"
+    },
+    {
+      "id": 675,
+      "text": "Follow up: book dentist 2024-12-07 for project X",
+      "core": "2024-12-07"
+    },
+    {
+      "id": 676,
+      "text": "water the plants 08/09/2026",
+      "core": "08/09/2026"
+    },
+    {
+      "id": 677,
+      "text": "Groceries: every Sunday buy milk (evening)",
+      "core": "every Sunday"
+    },
+    {
+      "id": 678,
+      "text": "Next: every Monday at 9am mow the lawn (low)",
+      "core": "every Monday at 9am"
+    },
+    {
+      "id": 679,
+      "text": "Task: update spreadsheet every 2 weeks",
+      "core": "every 2 weeks"
+    },
+    {
+      "id": 680,
+      "text": "wash car every 2 days",
+      "core": "every 2 days"
+    },
+    {
+      "id": 681,
+      "text": "Note: review PR 08/13/2025",
+      "core": "08/13/2025"
+    },
+    {
+      "id": 682,
+      "text": "Chore: 2024-12-26 clean garage (evening)",
+      "core": "2024-12-26"
+    },
+    {
+      "id": 683,
+      "text": "Bills: buy milk every 5 days on weekends (low)",
+      "core": "every 5 days on weekends"
+    },
+    {
+      "id": 684,
+      "text": "TODO: every 4 days at 9am clean garage #work",
+      "core": "every 4 days at 9am"
+    },
+    {
+      "id": 685,
+      "text": "Reminder: call plumber every second week #home",
+      "core": "every second week"
+    },
+    {
+      "id": 686,
+      "text": "TODO: clean garage 29/10/2024 #home",
+      "core": "29/10/2024"
+    },
+    {
+      "id": 687,
+      "text": "Note: every Tuesday at 5:30pm update spreadsheet #work",
+      "core": "every Tuesday at 5:30pm"
+    },
+    {
+      "id": 688,
+      "text": "Follow up: mow the lawn every Monday on weekdays — before lunch",
+      "core": "every Monday on weekdays"
+    },
+    {
+      "id": 689,
+      "text": "Odd jobs: water the plants every Wednesday on weekends — asap",
+      "core": "every Wednesday on weekends"
+    },
+    {
+      "id": 690,
+      "text": "Follow up: mow the lawn 14/03/2026",
+      "core": "14/03/2026"
+    },
+    {
+      "id": 691,
+      "text": "Task: wash car every 5 days",
+      "core": "every 5 days"
+    },
+    {
+      "id": 692,
+      "text": "Odd jobs: 2024-12-02 email client — asap",
+      "core": "2024-12-02"
+    },
+    {
+      "id": 693,
+      "text": "Next: review PR every 2 months",
+      "core": "every 2 months"
+    },
+    {
+      "id": 694,
+      "text": "Groceries: pay electricity bill every Wednesday #home",
+      "core": "every Wednesday"
+    },
+    {
+      "id": 695,
+      "text": "Note: mow the lawn every month on the 1st starting 12/09/2026 #home",
+      "core": "every month on the 1st starting 12/09/2026"
+    },
+    {
+      "id": 696,
+      "text": "Follow up: pay electricity bill 03/30/2026 — asap",
+      "core": "03/30/2026"
+    },
+    {
+      "id": 697,
+      "text": "Plan: email client 2026-03-30",
+      "core": "2026-03-30"
+    },
+    {
+      "id": 698,
+      "text": "water the plants 2025-03-27 with John",
+      "core": "2025-03-27"
+    },
+    {
+      "id": 699,
+      "text": "Bills: clean garage 16/04/2026",
+      "core": "16/04/2026"
+    },
+    {
+      "id": 700,
+      "text": "Reminder: clean garage every 5 days starting 16/09/2025",
+      "core": "every 5 days starting 16/09/2025"
+    },
+    {
+      "id": 701,
+      "text": "Chore: every year pay electricity bill (low)",
+      "core": "every year"
+    },
+    {
+      "id": 702,
+      "text": "update spreadsheet every 3 days starting 31/10/2025",
+      "core": "every 3 days starting 31/10/2025"
+    },
+    {
+      "id": 703,
+      "text": "Plan: call plumber every Sunday #work",
+      "core": "every Sunday"
+    },
+    {
+      "id": 704,
+      "text": "Follow up: 2025-06-12 call plumber #home",
+      "core": "2025-06-12"
+    },
+    {
+      "id": 705,
+      "text": "clean garage 08/04/2026 with John",
+      "core": "08/04/2026"
+    },
+    {
+      "id": 706,
+      "text": "Odd jobs: water the plants 14/07/2026 after work",
+      "core": "14/07/2026"
+    },
+    {
+      "id": 707,
+      "text": "Chore: 2025-03-28 call plumber",
+      "core": "2025-03-28"
+    },
+    {
+      "id": 708,
+      "text": "clean garage every Wednesday — asap",
+      "core": "every Wednesday"
+    },
+    {
+      "id": 709,
+      "text": "Plan: every 5 days water the plants",
+      "core": "every 5 days"
+    },
+    {
+      "id": 710,
+      "text": "Follow up: wash car every year on weekdays — asap",
+      "core": "every year on weekdays"
+    },
+    {
+      "id": 711,
+      "text": "Follow up: buy milk 23/06/2025 — asap",
+      "core": "23/06/2025"
+    },
+    {
+      "id": 712,
+      "text": "Reminder: book dentist 26/05/2026 — asap",
+      "core": "26/05/2026"
+    },
+    {
+      "id": 713,
+      "text": "Chore: backup photos 2026-09-20",
+      "core": "2026-09-20"
+    },
+    {
+      "id": 714,
+      "text": "Plan: mow the lawn every day on weekdays #home",
+      "core": "every day on weekdays"
+    },
+    {
+      "id": 715,
+      "text": "Odd jobs: water the plants 03/08/2026",
+      "core": "03/08/2026"
+    },
+    {
+      "id": 716,
+      "text": "Plan: every 4 weeks wash car",
+      "core": "every 4 weeks"
+    },
+    {
+      "id": 717,
+      "text": "email client every week on Monday — before lunch",
+      "core": "every week on Monday"
+    },
+    {
+      "id": 718,
+      "text": "Groceries: update spreadsheet every month on weekends (low)",
+      "core": "every month on weekends"
+    },
+    {
+      "id": 719,
+      "text": "TODO: call plumber 09/08/2025",
+      "core": "09/08/2025"
+    },
+    {
+      "id": 720,
+      "text": "Odd jobs: mow the lawn every year on 25/12",
+      "core": "every year on 25/12"
+    },
+    {
+      "id": 721,
+      "text": "2025-06-19 update spreadsheet",
+      "core": "2025-06-19"
+    },
+    {
+      "id": 722,
+      "text": "Next: pay electricity bill every second week on weekends (low)",
+      "core": "every second week on weekends"
+    },
+    {
+      "id": 723,
+      "text": "Plan: review PR 2024-09-28 at Bunnings",
+      "core": "2024-09-28"
+    },
+    {
+      "id": 724,
+      "text": "Note: book dentist every 2 weeks on weekdays — asap",
+      "core": "every 2 weeks on weekdays"
+    },
+    {
+      "id": 725,
+      "text": "Task: review PR 2025-07-17 #work",
+      "core": "2025-07-17"
+    },
+    {
+      "id": 726,
+      "text": "Odd jobs: wash car every 3 days on weekends #home",
+      "core": "every 3 days on weekends"
+    },
+    {
+      "id": 727,
+      "text": "Groceries: 05/26/2025 update spreadsheet (low)",
+      "core": "05/26/2025"
+    },
+    {
+      "id": 728,
+      "text": "Note: call plumber 2026-06-04 at Bunnings",
+      "core": "2026-06-04"
+    },
+    {
+      "id": 729,
+      "text": "every Monday on weekdays update spreadsheet",
+      "core": "every Monday on weekdays"
+    },
+    {
+      "id": 730,
+      "text": "wash car 08/09/2026",
+      "core": "08/09/2026"
+    },
+    {
+      "id": 731,
+      "text": "call plumber every year on 25/12 #work",
+      "core": "every year on 25/12"
+    },
+    {
+      "id": 732,
+      "text": "Note: book dentist each fortnight",
+      "core": "each fortnight"
+    },
+    {
+      "id": 733,
+      "text": "Chore: every Sunday water the plants with John",
+      "core": "every Sunday"
+    },
+    {
+      "id": 734,
+      "text": "TODO: pay electricity bill 09/28/2024 after work",
+      "core": "09/28/2024"
+    },
+    {
+      "id": 735,
+      "text": "Follow up: update spreadsheet every Wednesday at Bunnings",
+      "core": "every Wednesday"
+    },
+    {
+      "id": 736,
+      "text": "Reminder: every month mow the lawn",
+      "core": "every month"
+    },
+    {
+      "id": 737,
+      "text": "Groceries: clean garage 10/09/2026 — asap",
+      "core": "10/09/2026"
+    },
+    {
+      "id": 738,
+      "text": "pay electricity bill every Saturday (low)",
+      "core": "every Saturday"
+    },
+    {
+      "id": 739,
+      "text": "Errands: 09/24/2026 book dentist for project X",
+      "core": "09/24/2026"
+    },
+    {
+      "id": 740,
+      "text": "Errands: every 4 weeks wash car",
+      "core": "every 4 weeks"
+    },
+    {
+      "id": 741,
+      "text": "water the plants 2026-06-14",
+      "core": "2026-06-14"
+    },
+    {
+      "id": 742,
+      "text": "Groceries: email client every Saturday",
+      "core": "every Saturday"
+    },
+    {
+      "id": 743,
+      "text": "buy milk every quarter (evening)",
+      "core": "every quarter"
+    },
+    {
+      "id": 744,
+      "text": "Errands: clean garage every 5 days at Bunnings",
+      "core": "every 5 days"
+    },
+    {
+      "id": 745,
+      "text": "Odd jobs: wash car every Thursday",
+      "core": "every Thursday"
+    },
+    {
+      "id": 746,
+      "text": "Next: 2026-02-05 book dentist after work",
+      "core": "2026-02-05"
+    },
+    {
+      "id": 747,
+      "text": "Next: every 2 weeks on weekdays mow the lawn — asap",
+      "core": "every 2 weeks on weekdays"
+    },
+    {
+      "id": 748,
+      "text": "Bills: mow the lawn 16/11/2025 after work",
+      "core": "16/11/2025"
+    },
+    {
+      "id": 749,
+      "text": "Groceries: mow the lawn every 5 days starting 2025-10-29 for project X",
+      "core": "every 5 days starting 2025-10-29"
+    },
+    {
+      "id": 750,
+      "text": "update spreadsheet every week on Monday with John",
+      "core": "every week on Monday"
+    },
+    {
+      "id": 751,
+      "text": "Note: every weekday at 9am water the plants",
+      "core": "every weekday at 9am"
+    },
+    {
+      "id": 752,
+      "text": "Chore: call plumber 2025-09-03 (low)",
+      "core": "2025-09-03"
+    },
+    {
+      "id": 753,
+      "text": "Groceries: pay electricity bill every Tuesday with John",
+      "core": "every Tuesday"
+    },
+    {
+      "id": 754,
+      "text": "Chore: every week on Monday on weekdays backup photos",
+      "core": "every week on Monday on weekdays"
+    },
+    {
+      "id": 755,
+      "text": "TODO: water the plants every 3 days at 9am — asap",
+      "core": "every 3 days at 9am"
+    },
+    {
+      "id": 756,
+      "text": "Odd jobs: every month on the 1st pay electricity bill (evening)",
+      "core": "every month on the 1st"
+    },
+    {
+      "id": 757,
+      "text": "Errands: every 5 days call plumber — before lunch",
+      "core": "every 5 days"
+    },
+    {
+      "id": 758,
+      "text": "Task: water the plants 2026-01-31 (evening)",
+      "core": "2026-01-31"
+    },
+    {
+      "id": 759,
+      "text": "TODO: book dentist every second day",
+      "core": "every second day"
+    },
+    {
+      "id": 760,
+      "text": "Errands: 2025-01-21 buy milk at Bunnings",
+      "core": "2025-01-21"
+    },
+    {
+      "id": 761,
+      "text": "Reminder: pay electricity bill 2025-02-19 after work",
+      "core": "2025-02-19"
+    },
+    {
+      "id": 762,
+      "text": "Bills: every day email client (low)",
+      "core": "every day"
+    },
+    {
+      "id": 763,
+      "text": "TODO: wash car every Friday on weekends",
+      "core": "every Friday on weekends"
+    },
+    {
+      "id": 764,
+      "text": "Reminder: call plumber 03/09/2025 — asap",
+      "core": "03/09/2025"
+    },
+    {
+      "id": 765,
+      "text": "clean garage every second week on weekdays #work",
+      "core": "every second week on weekdays"
+    },
+    {
+      "id": 766,
+      "text": "every 2 months at 9am buy milk",
+      "core": "every 2 months at 9am"
+    },
+    {
+      "id": 767,
+      "text": "TODO: every year on 25/12 mow the lawn after work",
+      "core": "every year on 25/12"
+    },
+    {
+      "id": 768,
+      "text": "Task: every month on the 1st at 5:30pm pay electricity bill #home",
+      "core": "every month on the 1st at 5:30pm"
+    },
+    {
+      "id": 769,
+      "text": "Next: wash car every quarter at 9am for project X",
+      "core": "every quarter at 9am"
+    },
+    {
+      "id": 770,
+      "text": "every 2 months wash car — before lunch",
+      "core": "every 2 months"
+    },
+    {
+      "id": 771,
+      "text": "Odd jobs: 12/03/2024 pay electricity bill",
+      "core": "12/03/2024"
+    },
+    {
+      "id": 772,
+      "text": "Groceries: call plumber every Friday",
+      "core": "every Friday"
+    },
+    {
+      "id": 773,
+      "text": "every second day book dentist",
+      "core": "every second day"
+    },
+    {
+      "id": 774,
+      "text": "Next: 2026-01-28 update spreadsheet at Bunnings",
+      "core": "2026-01-28"
+    },
+    {
+      "id": 775,
+      "text": "Odd jobs: mow the lawn every month on the 1st — before lunch",
+      "core": "every month on the 1st"
+    },
+    {
+      "id": 776,
+      "text": "Plan: call plumber every week on Monday at 9am — before lunch",
+      "core": "every week on Monday at 9am"
+    },
+    {
+      "id": 777,
+      "text": "Next: every weekend clean garage — before lunch",
+      "core": "every weekend"
+    },
+    {
+      "id": 778,
+      "text": "Note: update spreadsheet every weekend on weekdays at Bunnings",
+      "core": "every weekend on weekdays"
+    },
+    {
+      "id": 779,
+      "text": "Odd jobs: 26/10/2024 clean garage (evening)",
+      "core": "26/10/2024"
+    },
+    {
+      "id": 780,
+      "text": "Groceries: 04/09/2025 book dentist",
+      "core": "04/09/2025"
+    },
+    {
+      "id": 781,
+      "text": "Chore: review PR every year on 25/12",
+      "core": "every year on 25/12"
+    },
+    {
+      "id": 782,
+      "text": "Odd jobs: 06/05/2025 buy milk",
+      "core": "06/05/2025"
+    },
+    {
+      "id": 783,
+      "text": "Task: pay electricity bill 10/11/2025 (low)",
+      "core": "10/11/2025"
+    },
+    {
+      "id": 784,
+      "text": "Task: update spreadsheet every quarter after work",
+      "core": "every quarter"
+    },
+    {
+      "id": 785,
+      "text": "Bills: review PR 08/28/2026 #work",
+      "core": "08/28/2026"
+    },
+    {
+      "id": 786,
+      "text": "Plan: buy milk 11/14/2025",
+      "core": "11/14/2025"
+    },
+    {
+      "id": 787,
+      "text": "wash car every 5 days on weekends with John",
+      "core": "every 5 days on weekends"
+    },
+    {
+      "id": 788,
+      "text": "Task: pay electricity bill 08/01/2026 (low)",
+      "core": "08/01/2026"
+    },
+    {
+      "id": 789,
+      "text": "Groceries: backup photos every 2 months",
+      "core": "every 2 months"
+    },
+    {
+      "id": 790,
+      "text": "TODO: update spreadsheet each fortnight on weekdays (evening)",
+      "core": "each fortnight on weekdays"
+    },
+    {
+      "id": 791,
+      "text": "Next: every Tuesday buy milk — before lunch",
+      "core": "every Tuesday"
+    },
+    {
+      "id": 792,
+      "text": "Reminder: every 4 weeks at 5:30pm backup photos #home",
+      "core": "every 4 weeks at 5:30pm"
+    },
+    {
+      "id": 793,
+      "text": "Next: clean garage every Monday on weekdays #work",
+      "core": "every Monday on weekdays"
+    },
+    {
+      "id": 794,
+      "text": "Plan: 17/06/2025 clean garage",
+      "core": "17/06/2025"
+    },
+    {
+      "id": 795,
+      "text": "Task: clean garage every month on the 1st starting 05/04/2026 — before lunch",
+      "core": "every month on the 1st starting 05/04/2026"
+    },
+    {
+      "id": 796,
+      "text": "water the plants every quarter on weekends — before lunch",
+      "core": "every quarter on weekends"
+    },
+    {
+      "id": 797,
+      "text": "Note: water the plants every Sunday after work",
+      "core": "every Sunday"
+    },
+    {
+      "id": 798,
+      "text": "Plan: review PR every weekend at 5:30pm",
+      "core": "every weekend at 5:30pm"
+    },
+    {
+      "id": 799,
+      "text": "every 4 weeks book dentist #work",
+      "core": "every 4 weeks"
+    },
+    {
+      "id": 800,
+      "text": "Errands: wash car 2025-06-24 after work",
+      "core": "2025-06-24"
+    },
+    {
+      "id": 801,
+      "text": "Note: every Sunday on weekends call plumber after work",
+      "core": "every Sunday on weekends"
+    },
+    {
+      "id": 802,
+      "text": "Note: wash car 22/04/2025 — before lunch",
+      "core": "22/04/2025"
+    },
+    {
+      "id": 803,
+      "text": "Plan: mow the lawn 2026-02-09 (evening)",
+      "core": "2026-02-09"
+    },
+    {
+      "id": 804,
+      "text": "Odd jobs: 24/08/2026 update spreadsheet",
+      "core": "24/08/2026"
+    },
+    {
+      "id": 805,
+      "text": "Task: wash car every 5 days",
+      "core": "every 5 days"
+    },
+    {
+      "id": 806,
+      "text": "Follow up: update spreadsheet every 5 days",
+      "core": "every 5 days"
+    },
+    {
+      "id": 807,
+      "text": "Odd jobs: review PR every quarter with John",
+      "core": "every quarter"
+    },
+    {
+      "id": 808,
+      "text": "Note: every Friday book dentist #home",
+      "core": "every Friday"
+    },
+    {
+      "id": 809,
+      "text": "call plumber 24/10/2024",
+      "core": "24/10/2024"
+    },
+    {
+      "id": 810,
+      "text": "Bills: email client 14/02/2026",
+      "core": "14/02/2026"
+    },
+    {
+      "id": 811,
+      "text": "Follow up: 2024-11-18 pay electricity bill (evening)",
+      "core": "2024-11-18"
+    },
+    {
+      "id": 812,
+      "text": "Bills: backup photos 11/22/2024 #home",
+      "core": "11/22/2024"
+    },
+    {
+      "id": 813,
+      "text": "Bills: every Friday update spreadsheet #home",
+      "core": "every Friday"
+    },
+    {
+      "id": 814,
+      "text": "Chore: wash car every Friday with John",
+      "core": "every Friday"
+    },
+    {
+      "id": 815,
+      "text": "Bills: 2026-06-15 call plumber #home",
+      "core": "2026-06-15"
+    },
+    {
+      "id": 816,
+      "text": "clean garage 17/06/2025",
+      "core": "17/06/2025"
+    },
+    {
+      "id": 817,
+      "text": "Note: book dentist every Thursday at Bunnings",
+      "core": "every Thursday"
+    },
+    {
+      "id": 818,
+      "text": "Errands: 30/06/2026 book dentist at Bunnings",
+      "core": "30/06/2026"
+    },
+    {
+      "id": 819,
+      "text": "Follow up: every 2 months backup photos at Bunnings",
+      "core": "every 2 months"
+    },
+    {
+      "id": 820,
+      "text": "Bills: update spreadsheet every 4 weeks after work",
+      "core": "every 4 weeks"
+    },
+    {
+      "id": 821,
+      "text": "update spreadsheet every 3 days",
+      "core": "every 3 days"
+    },
+    {
+      "id": 822,
+      "text": "Next: 2025-04-15 wash car",
+      "core": "2025-04-15"
+    },
+    {
+      "id": 823,
+      "text": "Errands: pay electricity bill every 4 days",
+      "core": "every 4 days"
+    },
+    {
+      "id": 824,
+      "text": "04/02/2026 mow the lawn after work",
+      "core": "04/02/2026"
+    },
+    {
+      "id": 825,
+      "text": "call plumber every 3 days",
+      "core": "every 3 days"
+    },
+    {
+      "id": 826,
+      "text": "book dentist every year (evening)",
+      "core": "every year"
+    },
+    {
+      "id": 827,
+      "text": "Follow up: every 2 weeks clean garage — asap",
+      "core": "every 2 weeks"
+    },
+    {
+      "id": 828,
+      "text": "Bills: pay electricity bill 2026-06-10",
+      "core": "2026-06-10"
+    },
+    {
+      "id": 829,
+      "text": "Follow up: water the plants 05/23/2025 #work",
+      "core": "05/23/2025"
+    },
+    {
+      "id": 830,
+      "text": "Next: water the plants 2025-03-13 — before lunch",
+      "core": "2025-03-13"
+    },
+    {
+      "id": 831,
+      "text": "update spreadsheet 10/19/2024 — before lunch",
+      "core": "10/19/2024"
+    },
+    {
+      "id": 832,
+      "text": "Reminder: update spreadsheet 2025-10-15 #work",
+      "core": "2025-10-15"
+    },
+    {
+      "id": 833,
+      "text": "Errands: every 4 days update spreadsheet",
+      "core": "every 4 days"
+    },
+    {
+      "id": 834,
+      "text": "Reminder: review PR every second week",
+      "core": "every second week"
+    },
+    {
+      "id": 835,
+      "text": "Next: every Sunday starting 15/03/2026 pay electricity bill — asap",
+      "core": "every Sunday starting 15/03/2026"
+    },
+    {
+      "id": 836,
+      "text": "Chore: every 5 days wash car",
+      "core": "every 5 days"
+    },
+    {
+      "id": 837,
+      "text": "Reminder: wash car 01/24/2025 — before lunch",
+      "core": "01/24/2025"
+    },
+    {
+      "id": 838,
+      "text": "Next: call plumber every Friday after work",
+      "core": "every Friday"
+    },
+    {
+      "id": 839,
+      "text": "TODO: pay electricity bill 11/22/2024",
+      "core": "11/22/2024"
+    },
+    {
+      "id": 840,
+      "text": "TODO: water the plants 2025-04-23 #home",
+      "core": "2025-04-23"
+    },
+    {
+      "id": 841,
+      "text": "Task: call plumber 10/30/2024",
+      "core": "10/30/2024"
+    },
+    {
+      "id": 842,
+      "text": "Plan: call plumber every day",
+      "core": "every day"
+    },
+    {
+      "id": 843,
+      "text": "Plan: every 3 weeks review PR #work",
+      "core": "every 3 weeks"
+    },
+    {
+      "id": 844,
+      "text": "Reminder: book dentist 25/10/2024 #home",
+      "core": "25/10/2024"
+    },
+    {
+      "id": 845,
+      "text": "25/04/2026 water the plants (evening)",
+      "core": "25/04/2026"
+    },
+    {
+      "id": 846,
+      "text": "Note: book dentist every Tuesday at Bunnings",
+      "core": "every Tuesday"
+    },
+    {
+      "id": 847,
+      "text": "review PR 24/08/2026 (evening)",
+      "core": "24/08/2026"
+    },
+    {
+      "id": 848,
+      "text": "TODO: update spreadsheet every month at 5:30pm (evening)",
+      "core": "every month at 5:30pm"
+    },
+    {
+      "id": 849,
+      "text": "mow the lawn every quarter",
+      "core": "every quarter"
+    },
+    {
+      "id": 850,
+      "text": "Task: 08/10/2024 book dentist (low)",
+      "core": "08/10/2024"
+    },
+    {
+      "id": 851,
+      "text": "Reminder: update spreadsheet 2026-05-21",
+      "core": "2026-05-21"
+    },
+    {
+      "id": 852,
+      "text": "Errands: clean garage 2026-07-07 — before lunch",
+      "core": "2026-07-07"
+    },
+    {
+      "id": 853,
+      "text": "Chore: water the plants every Friday at 9am for project X",
+      "core": "every Friday at 9am"
+    },
+    {
+      "id": 854,
+      "text": "Follow up: update spreadsheet every Thursday",
+      "core": "every Thursday"
+    },
+    {
+      "id": 855,
+      "text": "Errands: pay electricity bill every month on the 1st at 9am",
+      "core": "every month on the 1st at 9am"
+    },
+    {
+      "id": 856,
+      "text": "Task: every month book dentist with John",
+      "core": "every month"
+    },
+    {
+      "id": 857,
+      "text": "Chore: book dentist every 2 weeks on weekends",
+      "core": "every 2 weeks on weekends"
+    },
+    {
+      "id": 858,
+      "text": "Odd jobs: backup photos every 4 days after work",
+      "core": "every 4 days"
+    },
+    {
+      "id": 859,
+      "text": "Bills: review PR every Saturday (low)",
+      "core": "every Saturday"
+    },
+    {
+      "id": 860,
+      "text": "Plan: every Thursday mow the lawn for project X",
+      "core": "every Thursday"
+    },
+    {
+      "id": 861,
+      "text": "review PR every Wednesday at Bunnings",
+      "core": "every Wednesday"
+    },
+    {
+      "id": 862,
+      "text": "review PR every second week — asap",
+      "core": "every second week"
+    },
+    {
+      "id": 863,
+      "text": "Chore: every second day at 5:30pm pay electricity bill for project X",
+      "core": "every second day at 5:30pm"
+    },
+    {
+      "id": 864,
+      "text": "Odd jobs: 29/07/2026 review PR",
+      "core": "29/07/2026"
+    },
+    {
+      "id": 865,
+      "text": "TODO: update spreadsheet every weekday starting 09/17/2026 after work",
+      "core": "every weekday starting 09/17/2026"
+    },
+    {
+      "id": 866,
+      "text": "Follow up: buy milk every Tuesday",
+      "core": "every Tuesday"
+    },
+    {
+      "id": 867,
+      "text": "Plan: every Thursday backup photos #home",
+      "core": "every Thursday"
+    },
+    {
+      "id": 868,
+      "text": "mow the lawn each fortnight at 9am #work",
+      "core": "each fortnight at 9am"
+    },
+    {
+      "id": 869,
+      "text": "Groceries: water the plants 10/04/2025",
+      "core": "10/04/2025"
+    },
+    {
+      "id": 870,
+      "text": "Bills: every 4 weeks email client",
+      "core": "every 4 weeks"
+    },
+    {
+      "id": 871,
+      "text": "Next: every 2 days mow the lawn (low)",
+      "core": "every 2 days"
+    },
+    {
+      "id": 872,
+      "text": "Groceries: email client every quarter #work",
+      "core": "every quarter"
+    },
+    {
+      "id": 873,
+      "text": "Groceries: update spreadsheet 26/07/2025 — asap",
+      "core": "26/07/2025"
+    },
+    {
+      "id": 874,
+      "text": "TODO: 2026-06-27 buy milk — before lunch",
+      "core": "2026-06-27"
+    },
+    {
+      "id": 875,
+      "text": "Errands: every weekend book dentist for project X",
+      "core": "every weekend"
+    },
+    {
+      "id": 876,
+      "text": "Bills: buy milk every quarter on weekends — asap",
+      "core": "every quarter on weekends"
+    },
+    {
+      "id": 877,
+      "text": "Note: 2025-08-16 email client after work",
+      "core": "2025-08-16"
+    },
+    {
+      "id": 878,
+      "text": "Follow up: every Tuesday email client at Bunnings",
+      "core": "every Tuesday"
+    },
+    {
+      "id": 879,
+      "text": "TODO: 2026-03-27 buy milk #home",
+      "core": "2026-03-27"
+    },
+    {
+      "id": 880,
+      "text": "Chore: update spreadsheet every Thursday #home",
+      "core": "every Thursday"
+    },
+    {
+      "id": 881,
+      "text": "Bills: call plumber every month on the 1st starting 2026-06-29",
+      "core": "every month on the 1st starting 2026-06-29"
+    },
+    {
+      "id": 882,
+      "text": "buy milk every weekend — before lunch",
+      "core": "every weekend"
+    },
+    {
+      "id": 883,
+      "text": "Odd jobs: every Monday starting 17/01/2026 backup photos after work",
+      "core": "every Monday starting 17/01/2026"
+    },
+    {
+      "id": 884,
+      "text": "TODO: wash car 2026-03-13 with John",
+      "core": "2026-03-13"
+    },
+    {
+      "id": 885,
+      "text": "Follow up: 05/12/2025 mow the lawn",
+      "core": "05/12/2025"
+    },
+    {
+      "id": 886,
+      "text": "TODO: review PR 11/05/2026 with John",
+      "core": "11/05/2026"
+    },
+    {
+      "id": 887,
+      "text": "email client every 2 weeks (low)",
+      "core": "every 2 weeks"
+    },
+    {
+      "id": 888,
+      "text": "Bills: update spreadsheet every 4 weeks for project X",
+      "core": "every 4 weeks"
+    },
+    {
+      "id": 889,
+      "text": "Reminder: email client every Monday (low)",
+      "core": "every Monday"
+    },
+    {
+      "id": 890,
+      "text": "clean garage every year",
+      "core": "every year"
+    },
+    {
+      "id": 891,
+      "text": "Errands: every Saturday wash car",
+      "core": "every Saturday"
+    },
+    {
+      "id": 892,
+      "text": "Odd jobs: mow the lawn every quarter for project X",
+      "core": "every quarter"
+    },
+    {
+      "id": 893,
+      "text": "Follow up: email client 2025-03-17",
+      "core": "2025-03-17"
+    },
+    {
+      "id": 894,
+      "text": "Plan: pay electricity bill every second day on weekdays at Bunnings",
+      "core": "every second day on weekdays"
+    },
+    {
+      "id": 895,
+      "text": "book dentist every weekday at Bunnings",
+      "core": "every weekday"
+    },
+    {
+      "id": 896,
+      "text": "Errands: email client every Thursday #work",
+      "core": "every Thursday"
+    },
+    {
+      "id": 897,
+      "text": "Task: review PR every quarter",
+      "core": "every quarter"
+    },
+    {
+      "id": 898,
+      "text": "Odd jobs: backup photos every month starting 2026-09-08",
+      "core": "every month starting 2026-09-08"
+    },
+    {
+      "id": 899,
+      "text": "Next: 05/10/2024 book dentist",
+      "core": "05/10/2024"
+    },
+    {
+      "id": 900,
+      "text": "Follow up: email client 04/20/2025 #home",
+      "core": "04/20/2025"
+    },
+    {
+      "id": 901,
+      "text": "Follow up: every Sunday update spreadsheet",
+      "core": "every Sunday"
+    },
+    {
+      "id": 902,
+      "text": "Errands: backup photos every Sunday",
+      "core": "every Sunday"
+    },
+    {
+      "id": 903,
+      "text": "Note: update spreadsheet 2026-05-01 (evening)",
+      "core": "2026-05-01"
+    },
+    {
+      "id": 904,
+      "text": "Chore: every Friday call plumber",
+      "core": "every Friday"
+    },
+    {
+      "id": 905,
+      "text": "Bills: water the plants every Friday (evening)",
+      "core": "every Friday"
+    },
+    {
+      "id": 906,
+      "text": "Reminder: every second week review PR — asap",
+      "core": "every second week"
+    },
+    {
+      "id": 907,
+      "text": "Follow up: 24/11/2025 buy milk #work",
+      "core": "24/11/2025"
+    },
+    {
+      "id": 908,
+      "text": "buy milk 2026-08-16 after work",
+      "core": "2026-08-16"
+    },
+    {
+      "id": 909,
+      "text": "every 2 weeks water the plants",
+      "core": "every 2 weeks"
+    },
+    {
+      "id": 910,
+      "text": "Follow up: water the plants every month — asap",
+      "core": "every month"
+    },
+    {
+      "id": 911,
+      "text": "Next: water the plants 14/01/2025 (evening)",
+      "core": "14/01/2025"
+    },
+    {
+      "id": 912,
+      "text": "Errands: book dentist every 3 weeks",
+      "core": "every 3 weeks"
+    },
+    {
+      "id": 913,
+      "text": "Plan: water the plants 10/07/2025 (low)",
+      "core": "10/07/2025"
+    },
+    {
+      "id": 914,
+      "text": "Next: 29/09/2024 call plumber — asap",
+      "core": "29/09/2024"
+    },
+    {
+      "id": 915,
+      "text": "Plan: every second day clean garage — before lunch",
+      "core": "every second day"
+    },
+    {
+      "id": 916,
+      "text": "Groceries: book dentist 07/28/2025",
+      "core": "07/28/2025"
+    },
+    {
+      "id": 917,
+      "text": "Task: backup photos every weekend with John",
+      "core": "every weekend"
+    },
+    {
+      "id": 918,
+      "text": "Reminder: every year on 25/12 wash car — before lunch",
+      "core": "every year on 25/12"
+    },
+    {
+      "id": 919,
+      "text": "Follow up: every 4 weeks call plumber at Bunnings",
+      "core": "every 4 weeks"
+    },
+    {
+      "id": 920,
+      "text": "Reminder: update spreadsheet every 4 days at Bunnings",
+      "core": "every 4 days"
+    },
+    {
+      "id": 921,
+      "text": "Plan: mow the lawn 03/07/2026",
+      "core": "03/07/2026"
+    },
+    {
+      "id": 922,
+      "text": "Next: every month on the 1st on weekends email client at Bunnings",
+      "core": "every month on the 1st on weekends"
+    },
+    {
+      "id": 923,
+      "text": "Odd jobs: wash car every Sunday starting 24/01/2025 at Bunnings",
+      "core": "every Sunday starting 24/01/2025"
+    },
+    {
+      "id": 924,
+      "text": "Reminder: 17/06/2025 backup photos with John",
+      "core": "17/06/2025"
+    },
+    {
+      "id": 925,
+      "text": "Follow up: every year on weekdays book dentist for project X",
+      "core": "every year on weekdays"
+    },
+    {
+      "id": 926,
+      "text": "wash car 2024-11-24 #work",
+      "core": "2024-11-24"
+    },
+    {
+      "id": 927,
+      "text": "Task: buy milk every 2 months",
+      "core": "every 2 months"
+    },
+    {
+      "id": 928,
+      "text": "Task: 2024-12-02 call plumber (evening)",
+      "core": "2024-12-02"
+    },
+    {
+      "id": 929,
+      "text": "Plan: backup photos every 2 months at Bunnings",
+      "core": "every 2 months"
+    },
+    {
+      "id": 930,
+      "text": "Groceries: buy milk 09/23/2026 — before lunch",
+      "core": "09/23/2026"
+    },
+    {
+      "id": 931,
+      "text": "TODO: every Sunday at 5:30pm update spreadsheet — asap",
+      "core": "every Sunday at 5:30pm"
+    },
+    {
+      "id": 932,
+      "text": "Follow up: review PR 12/22/2024 at Bunnings",
+      "core": "12/22/2024"
+    },
+    {
+      "id": 933,
+      "text": "TODO: mow the lawn every month #home",
+      "core": "every month"
+    },
+    {
+      "id": 934,
+      "text": "Next: backup photos 26/11/2025 after work",
+      "core": "26/11/2025"
+    },
+    {
+      "id": 935,
+      "text": "Groceries: buy milk 04/03/2026 after work",
+      "core": "04/03/2026"
+    },
+    {
+      "id": 936,
+      "text": "mow the lawn every 3 days for project X",
+      "core": "every 3 days"
+    },
+    {
+      "id": 937,
+      "text": "TODO: review PR 2025-07-04 after work",
+      "core": "2025-07-04"
+    },
+    {
+      "id": 938,
+      "text": "Chore: 04/09/2025 book dentist (evening)",
+      "core": "04/09/2025"
+    },
+    {
+      "id": 939,
+      "text": "clean garage every Thursday for project X",
+      "core": "every Thursday"
+    },
+    {
+      "id": 940,
+      "text": "Plan: wash car 14/09/2025",
+      "core": "14/09/2025"
+    },
+    {
+      "id": 941,
+      "text": "Reminder: water the plants every Monday (evening)",
+      "core": "every Monday"
+    },
+    {
+      "id": 942,
+      "text": "Groceries: update spreadsheet 2026-01-15",
+      "core": "2026-01-15"
+    },
+    {
+      "id": 943,
+      "text": "Task: call plumber 20/02/2025 after work",
+      "core": "20/02/2025"
+    },
+    {
+      "id": 944,
+      "text": "Bills: every year buy milk",
+      "core": "every year"
+    },
+    {
+      "id": 945,
+      "text": "backup photos 02/01/2025",
+      "core": "02/01/2025"
+    },
+    {
+      "id": 946,
+      "text": "Follow up: every Wednesday review PR for project X",
+      "core": "every Wednesday"
+    },
+    {
+      "id": 947,
+      "text": "Task: every week on Monday email client — asap",
+      "core": "every week on Monday"
+    },
+    {
+      "id": 948,
+      "text": "Next: 2025-03-11 water the plants",
+      "core": "2025-03-11"
+    },
+    {
+      "id": 949,
+      "text": "every Wednesday backup photos — asap",
+      "core": "every Wednesday"
+    },
+    {
+      "id": 950,
+      "text": "Reminder: email client 2025-10-08 after work",
+      "core": "2025-10-08"
+    },
+    {
+      "id": 951,
+      "text": "Reminder: every 2 weeks at 5:30pm mow the lawn (evening)",
+      "core": "every 2 weeks at 5:30pm"
+    },
+    {
+      "id": 952,
+      "text": "Task: water the plants 03/21/2026 at Bunnings",
+      "core": "03/21/2026"
+    },
+    {
+      "id": 953,
+      "text": "Note: buy milk 09/01/2026",
+      "core": "09/01/2026"
+    },
+    {
+      "id": 954,
+      "text": "Plan: 26/03/2025 update spreadsheet (low)",
+      "core": "26/03/2025"
+    },
+    {
+      "id": 955,
+      "text": "Groceries: review PR every Saturday (evening)",
+      "core": "every Saturday"
+    },
+    {
+      "id": 956,
+      "text": "TODO: update spreadsheet every week on Monday (evening)",
+      "core": "every week on Monday"
+    },
+    {
+      "id": 957,
+      "text": "Errands: call plumber 2026-01-03 #work",
+      "core": "2026-01-03"
+    },
+    {
+      "id": 958,
+      "text": "Errands: water the plants every Friday #work",
+      "core": "every Friday"
+    },
+    {
+      "id": 959,
+      "text": "review PR every 4 days at 5:30pm (low)",
+      "core": "every 4 days at 5:30pm"
+    },
+    {
+      "id": 960,
+      "text": "buy milk every Wednesday #home",
+      "core": "every Wednesday"
+    },
+    {
+      "id": 961,
+      "text": "every 2 months wash car",
+      "core": "every 2 months"
+    },
+    {
+      "id": 962,
+      "text": "buy milk every 4 days — asap",
+      "core": "every 4 days"
+    },
+    {
+      "id": 963,
+      "text": "call plumber every 4 days on weekends with John",
+      "core": "every 4 days on weekends"
+    },
+    {
+      "id": 964,
+      "text": "Reminder: mow the lawn every year",
+      "core": "every year"
+    },
+    {
+      "id": 965,
+      "text": "Reminder: email client 2024-12-23",
+      "core": "2024-12-23"
+    },
+    {
+      "id": 966,
+      "text": "Plan: every month at 5:30pm pay electricity bill — asap",
+      "core": "every month at 5:30pm"
+    },
+    {
+      "id": 967,
+      "text": "TODO: buy milk 06/05/2026 for project X",
+      "core": "06/05/2026"
+    },
+    {
+      "id": 968,
+      "text": "Task: review PR every Monday — before lunch",
+      "core": "every Monday"
+    },
+    {
+      "id": 969,
+      "text": "every Friday starting 18/09/2025 pay electricity bill at Bunnings",
+      "core": "every Friday starting 18/09/2025"
+    },
+    {
+      "id": 970,
+      "text": "Odd jobs: call plumber every day on weekends for project X",
+      "core": "every day on weekends"
+    },
+    {
+      "id": 971,
+      "text": "TODO: each fortnight starting 05/14/2026 mow the lawn",
+      "core": "each fortnight starting 05/14/2026"
+    },
+    {
+      "id": 972,
+      "text": "Groceries: clean garage every Monday with John",
+      "core": "every Monday"
+    },
+    {
+      "id": 973,
+      "text": "Groceries: backup photos every day",
+      "core": "every day"
+    },
+    {
+      "id": 974,
+      "text": "11/06/2025 mow the lawn — before lunch",
+      "core": "11/06/2025"
+    },
+    {
+      "id": 975,
+      "text": "Task: every 2 days email client — asap",
+      "core": "every 2 days"
+    },
+    {
+      "id": 976,
+      "text": "TODO: update spreadsheet 07/01/2025",
+      "core": "07/01/2025"
+    },
+    {
+      "id": 977,
+      "text": "Next: backup photos 23/01/2026 for project X",
+      "core": "23/01/2026"
+    },
+    {
+      "id": 978,
+      "text": "Odd jobs: clean garage every Thursday #work",
+      "core": "every Thursday"
+    },
+    {
+      "id": 979,
+      "text": "update spreadsheet every quarter (evening)",
+      "core": "every quarter"
+    },
+    {
+      "id": 980,
+      "text": "Task: 02/14/2025 clean garage — asap",
+      "core": "02/14/2025"
+    },
+    {
+      "id": 981,
+      "text": "Bills: email client 14/09/2025 #home",
+      "core": "14/09/2025"
+    },
+    {
+      "id": 982,
+      "text": "Plan: pay electricity bill 2026-08-14 with John",
+      "core": "2026-08-14"
+    },
+    {
+      "id": 983,
+      "text": "Note: 14/05/2025 call plumber #home",
+      "core": "14/05/2025"
+    },
+    {
+      "id": 984,
+      "text": "TODO: 13/04/2025 email client #home",
+      "core": "13/04/2025"
+    },
+    {
+      "id": 985,
+      "text": "review PR every 4 weeks — before lunch",
+      "core": "every 4 weeks"
+    },
+    {
+      "id": 986,
+      "text": "Note: every year buy milk for project X",
+      "core": "every year"
+    },
+    {
+      "id": 987,
+      "text": "Next: pay electricity bill every year on 25/12 (evening)",
+      "core": "every year on 25/12"
+    },
+    {
+      "id": 988,
+      "text": "Next: wash car 10/15/2024",
+      "core": "10/15/2024"
+    },
+    {
+      "id": 989,
+      "text": "Reminder: 22/09/2025 email client (low)",
+      "core": "22/09/2025"
+    },
+    {
+      "id": 990,
+      "text": "Note: every 5 days on weekends water the plants (evening)",
+      "core": "every 5 days on weekends"
+    },
+    {
+      "id": 991,
+      "text": "mow the lawn 2025-10-21",
+      "core": "2025-10-21"
+    },
+    {
+      "id": 992,
+      "text": "27/03/2026 buy milk for project X",
+      "core": "27/03/2026"
+    },
+    {
+      "id": 993,
+      "text": "10/31/2024 email client",
+      "core": "10/31/2024"
+    },
+    {
+      "id": 994,
+      "text": "Note: every 4 weeks update spreadsheet with John",
+      "core": "every 4 weeks"
+    },
+    {
+      "id": 995,
+      "text": "Errands: water the plants 2026-01-19 after work",
+      "core": "2026-01-19"
+    },
+    {
+      "id": 996,
+      "text": "Reminder: update spreadsheet 2025-11-22 (low)",
+      "core": "2025-11-22"
+    },
+    {
+      "id": 997,
+      "text": "every Saturday call plumber",
+      "core": "every Saturday"
+    },
+    {
+      "id": 998,
+      "text": "book dentist every 4 days at 5:30pm at Bunnings",
+      "core": "every 4 days at 5:30pm"
+    },
+    {
+      "id": 999,
+      "text": "Next: mow the lawn every weekday for project X",
+      "core": "every weekday"
+    },
+    {
+      "id": 1000,
+      "text": "review PR every year on 25/12 on weekdays #work",
+      "core": "every year on 25/12 on weekdays"
+    }
+  ]
+}

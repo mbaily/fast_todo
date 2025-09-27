@@ -1,0 +1,1001 @@
+id,kind,parsed_dt,rrule,text,core
+1,recurrence-only,,FREQ=WEEKLY;INTERVAL=3,Errands: buy milk every 3 weeks at Bunnings,every 3 weeks
+2,recurrence+date,2025-09-15T00:00:00+00:00,FREQ=WEEKLY;INTERVAL=2,Bills: each fortnight starting 2025-09-15 buy milk,each fortnight starting 2025-09-15
+3,date-only,2024-11-15T00:00:00+00:00,,book dentist 2024-11-15 #work,2024-11-15
+4,date-only,2025-06-11T00:00:00+00:00,,Task: water the plants 2025-06-11 for project X,2025-06-11
+5,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,pay electricity bill every second week at 5:30pm — before lunch,every second week at 5:30pm
+6,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Groceries: water the plants every 2 weeks,every 2 weeks
+7,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,TODO: mow the lawn every Monday at 9am (evening),every Monday at 9am
+8,recurrence-only,,FREQ=MONTHLY;INTERVAL=3,every quarter book dentist,every quarter
+9,recurrence+date,2026-07-17T00:00:00+00:00,FREQ=WEEKLY;BYDAY=MO,buy milk every week on Monday starting 2026-07-17 for project X,every week on Monday starting 2026-07-17
+10,date-only,2025-05-25T00:00:00+00:00,,Groceries: 2025-05-25 clean garage,2025-05-25
+11,recurrence-only,,FREQ=MONTHLY;INTERVAL=2,Next: every 2 months buy milk — asap,every 2 months
+12,recurrence-only,,FREQ=WEEKLY;BYDAY=WE,Next: pay electricity bill every Wednesday #home,every Wednesday
+13,date-only,2025-05-04T00:00:00+00:00,,Task: clean garage 04/05/2025,04/05/2025
+14,date-only,2026-02-08T00:00:00+00:00,,call plumber 08/02/2026 (evening),08/02/2026
+15,date-only,2024-07-10T00:00:00+00:00,,Chore: 10/07/2024 mow the lawn #home,10/07/2024
+16,recurrence-only,,FREQ=MONTHLY,Plan: pay electricity bill every month on the 1st after work,every month on the 1st
+17,recurrence-only,,FREQ=WEEKLY;BYDAY=TU,Task: every Tuesday on weekends review PR,every Tuesday on weekends
+18,recurrence-only,,FREQ=DAILY;INTERVAL=3,Groceries: book dentist every 3 days on weekends for project X,every 3 days on weekends
+19,recurrence-only,,FREQ=WEEKLY;BYDAY=FR,Reminder: every Friday review PR #work,every Friday
+20,date-only,2025-10-04T00:00:00+00:00,,Note: 04/10/2025 wash car — before lunch,04/10/2025
+21,date-only,2026-05-21T00:00:00+00:00,,Bills: mow the lawn 05/21/2026,05/21/2026
+22,date-only,2025-01-23T00:00:00+00:00,,Reminder: 23/01/2025 water the plants #home,23/01/2025
+23,date-only,2026-02-08T00:00:00+00:00,,TODO: call plumber 08/02/2026,08/02/2026
+24,date-only,2026-07-22T00:00:00+00:00,,Task: backup photos 22/07/2026 after work,22/07/2026
+25,recurrence-only,,FREQ=MONTHLY,Follow up: backup photos every month,every month
+26,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,Bills: water the plants every Monday at 5:30pm — asap,every Monday at 5:30pm
+27,recurrence-only,,FREQ=WEEKLY;BYDAY=TU,Reminder: every Tuesday email client — before lunch,every Tuesday
+28,recurrence-only,,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",Reminder: email client every month on weekdays after work,every month on weekdays
+29,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Note: every 2 weeks pay electricity bill at Bunnings,every 2 weeks
+30,date-only,2026-12-01T00:00:00+00:00,,Errands: 01/12/2026 review PR with John,01/12/2026
+31,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,Follow up: every week on Monday on weekends email client after work,every week on Monday on weekends
+32,recurrence-only,,FREQ=DAILY;INTERVAL=3,Note: clean garage every 3 days — asap,every 3 days
+33,date-only,2026-07-26T00:00:00+00:00,,Note: 2026-07-26 pay electricity bill,2026-07-26
+34,date-only,2024-10-18T00:00:00+00:00,,Follow up: call plumber 18/10/2024 (low),18/10/2024
+35,date-only,2026-07-02T00:00:00+00:00,,TODO: clean garage 2026-07-02 after work,2026-07-02
+36,recurrence-only,,FREQ=DAILY;INTERVAL=2,TODO: every second day mow the lawn — before lunch,every second day
+37,date-only,2024-10-31T00:00:00+00:00,,Note: wash car 31/10/2024 (evening),31/10/2024
+38,date-only,2025-09-07T00:00:00+00:00,,TODO: 07/09/2025 buy milk,07/09/2025
+39,recurrence-only,,FREQ=WEEKLY;INTERVAL=3,Note: email client every 3 weeks on weekends,every 3 weeks on weekends
+40,recurrence-only,,FREQ=WEEKLY;BYDAY=SU,every Sunday backup photos with John,every Sunday
+41,recurrence+date,2025-12-06T00:00:00+00:00,FREQ=MONTHLY;INTERVAL=3,Task: backup photos every quarter starting 2025-12-06,every quarter starting 2025-12-06
+42,recurrence-only,,FREQ=WEEKLY;BYDAY=WE,Chore: mow the lawn every Wednesday,every Wednesday
+43,date-only,2024-11-13T00:00:00+00:00,,Plan: email client 11/13/2024,11/13/2024
+44,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,book dentist every week on Monday,every week on Monday
+45,date-only,2025-10-30T00:00:00+00:00,,Reminder: 2025-10-30 email client (low),2025-10-30
+46,recurrence-only,,FREQ=WEEKLY;BYDAY=SA,every Saturday on weekends clean garage after work,every Saturday on weekends
+47,recurrence-only,,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",Chore: call plumber every Tuesday on weekdays,every Tuesday on weekdays
+48,date-only,2026-06-03T00:00:00+00:00,,Plan: 03/06/2026 wash car,03/06/2026
+49,date-only,2026-05-28T00:00:00+00:00,,Odd jobs: update spreadsheet 05/28/2026,05/28/2026
+50,recurrence-only,,FREQ=WEEKLY;INTERVAL=4,Task: review PR every 4 weeks,every 4 weeks
+51,recurrence-only,,FREQ=WEEKLY;BYDAY=FR,Task: email client every Friday with John,every Friday
+52,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Task: every second week review PR (low),every second week
+53,recurrence-only,,FREQ=WEEKLY,Note: water the plants every weekend (low),every weekend
+54,recurrence-only,,FREQ=WEEKLY,buy milk every weekend #work,every weekend
+55,recurrence-only,,FREQ=DAILY;INTERVAL=5,Bills: water the plants every 5 days — before lunch,every 5 days
+56,recurrence-only,,FREQ=DAILY;INTERVAL=4,Next: wash car every 4 days,every 4 days
+57,recurrence-only,,FREQ=DAILY;INTERVAL=5,Follow up: clean garage every 5 days on weekdays #work,every 5 days on weekdays
+58,date-only,2025-12-04T00:00:00+00:00,,Chore: 04/12/2025 email client for project X,04/12/2025
+59,recurrence+date,2025-12-25T00:00:00+00:00,FREQ=YEARLY,Next: email client every year on 25/12,every year on 25/12
+60,date-only,2026-08-24T00:00:00+00:00,,Note: mow the lawn 2026-08-24 at Bunnings,2026-08-24
+61,date-only,2026-01-23T00:00:00+00:00,,buy milk 01/23/2026 #work,01/23/2026
+62,date-only,2025-10-27T00:00:00+00:00,,Task: 10/27/2025 wash car,10/27/2025
+63,recurrence-only,,FREQ=YEARLY,Reminder: every year review PR — before lunch,every year
+64,recurrence+date,2026-05-27T00:00:00+00:00,FREQ=WEEKLY;BYDAY=WE,buy milk every Wednesday starting 05/27/2026 #work,every Wednesday starting 05/27/2026
+65,recurrence-only,,FREQ=WEEKLY;BYDAY=WE,Next: every Wednesday review PR at Bunnings,every Wednesday
+66,date-only,2026-02-25T00:00:00+00:00,,TODO: water the plants 2026-02-25 (low),2026-02-25
+67,recurrence-only,,FREQ=DAILY;INTERVAL=2,Reminder: wash car every second day (evening),every second day
+68,date-only,2026-08-02T00:00:00+00:00,,Reminder: 02/08/2026 review PR (evening),02/08/2026
+69,recurrence-only,,FREQ=MONTHLY,Note: wash car every month on the 1st #work,every month on the 1st
+70,recurrence-only,,FREQ=DAILY;INTERVAL=3,Bills: water the plants every 3 days,every 3 days
+71,date-only,2025-08-12T00:00:00+00:00,,Next: backup photos 2025-08-12 — asap,2025-08-12
+72,date-only,2026-06-04T00:00:00+00:00,,Groceries: 04/06/2026 book dentist,04/06/2026
+73,recurrence-only,,FREQ=DAILY;INTERVAL=3,Next: book dentist every 3 days,every 3 days
+74,date-only,2025-03-12T00:00:00+00:00,,Groceries: 2025-03-12 pay electricity bill,2025-03-12
+75,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,Errands: every week on Monday review PR,every week on Monday
+76,recurrence+date,2025-12-19T00:00:00+00:00,FREQ=WEEKLY;BYDAY=TH,Odd jobs: water the plants every Thursday starting 19/12/2025,every Thursday starting 19/12/2025
+77,recurrence-only,,FREQ=YEARLY,Next: water the plants every year with John,every year
+78,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Note: call plumber each fortnight at Bunnings,each fortnight
+79,recurrence+date,2026-08-09T00:00:00+00:00,FREQ=MONTHLY;INTERVAL=3,TODO: mow the lawn every quarter starting 09/08/2026 (evening),every quarter starting 09/08/2026
+80,date-only,2026-03-10T00:00:00+00:00,,Groceries: wash car 2026-03-10 with John,2026-03-10
+81,date-only,2026-07-11T00:00:00+00:00,,Chore: book dentist 2026-07-11,2026-07-11
+82,recurrence-only,,FREQ=DAILY;INTERVAL=5,Groceries: clean garage every 5 days at 9am — before lunch,every 5 days at 9am
+83,recurrence-only,,FREQ=MONTHLY,Next: mow the lawn every month on the 1st,every month on the 1st
+84,recurrence-only,,FREQ=WEEKLY;INTERVAL=3,buy milk every 3 weeks — before lunch,every 3 weeks
+85,date-only,2025-10-11T00:00:00+00:00,,Next: 2025-10-11 email client,2025-10-11
+86,recurrence+date,2026-06-30T00:00:00+00:00,FREQ=WEEKLY;INTERVAL=4,Next: buy milk every 4 weeks starting 30/06/2026 — before lunch,every 4 weeks starting 30/06/2026
+87,date-only,2025-08-17T00:00:00+00:00,,Task: 08/17/2025 backup photos (evening),08/17/2025
+88,date-only,2024-10-30T00:00:00+00:00,,2024-10-30 water the plants with John,2024-10-30
+89,recurrence-only,,FREQ=DAILY;INTERVAL=2,Follow up: email client every 2 days at 5:30pm at Bunnings,every 2 days at 5:30pm
+90,recurrence-only,,FREQ=MONTHLY,wash car every month on the 1st (evening),every month on the 1st
+91,date-only,2024-11-26T00:00:00+00:00,,Plan: call plumber 26/11/2024,26/11/2024
+92,recurrence-only,,FREQ=DAILY;INTERVAL=2,TODO: water the plants every second day (low),every second day
+93,date-only,2026-04-16T00:00:00+00:00,,Plan: water the plants 04/16/2026 (evening),04/16/2026
+94,recurrence-only,,FREQ=WEEKLY;BYDAY=WE,Next: water the plants every Wednesday for project X,every Wednesday
+95,date-only,2026-01-23T00:00:00+00:00,,Plan: 01/23/2026 update spreadsheet (low),01/23/2026
+96,recurrence-only,,FREQ=DAILY;INTERVAL=3,update spreadsheet every 3 days,every 3 days
+97,recurrence-only,,FREQ=WEEKLY;INTERVAL=4,Errands: backup photos every 4 weeks with John,every 4 weeks
+98,recurrence-only,,FREQ=WEEKLY;BYDAY=TH,Odd jobs: every Thursday mow the lawn for project X,every Thursday
+99,date-only,2025-08-07T00:00:00+00:00,,Follow up: buy milk 07/08/2025 at Bunnings,07/08/2025
+100,recurrence-only,,FREQ=DAILY;INTERVAL=5,buy milk every 5 days on weekdays (evening),every 5 days on weekdays
+101,date-only,2026-04-13T00:00:00+00:00,,Reminder: update spreadsheet 13/04/2026,13/04/2026
+102,recurrence-only,,FREQ=WEEKLY;BYDAY=TU,Follow up: every Tuesday pay electricity bill after work,every Tuesday
+103,date-only,2026-03-31T00:00:00+00:00,,Next: water the plants 31/03/2026 (evening),31/03/2026
+104,recurrence-only,,FREQ=DAILY,Note: wash car every day for project X,every day
+105,recurrence-only,,FREQ=WEEKLY;BYDAY=SA,Task: wash car every Saturday — before lunch,every Saturday
+106,date-only,2025-11-04T00:00:00+00:00,,Note: 04/11/2025 buy milk,04/11/2025
+107,date-only,2026-03-16T00:00:00+00:00,,Plan: review PR 2026-03-16 — asap,2026-03-16
+108,recurrence-only,,FREQ=WEEKLY;INTERVAL=4,Bills: book dentist every 4 weeks,every 4 weeks
+109,recurrence-only,,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",wash car every weekday with John,every weekday
+110,recurrence-only,,FREQ=WEEKLY;BYDAY=TU,Bills: water the plants every Tuesday on weekends,every Tuesday on weekends
+111,date-only,2026-06-18T00:00:00+00:00,,Errands: buy milk 06/18/2026,06/18/2026
+112,recurrence+date,2025-11-06T00:00:00+00:00,FREQ=WEEKLY;BYDAY=MO,review PR every week on Monday starting 06/11/2025 after work,every week on Monday starting 06/11/2025
+113,recurrence-only,,FREQ=DAILY;INTERVAL=2,TODO: buy milk every 2 days for project X,every 2 days
+114,recurrence-only,,FREQ=DAILY,call plumber every day,every day
+115,recurrence-only,,FREQ=MONTHLY,Errands: wash car every month on the 1st,every month on the 1st
+116,date-only,2026-04-12T00:00:00+00:00,,Plan: clean garage 2026-04-12 with John,2026-04-12
+117,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,Reminder: every week on Monday at 5:30pm review PR,every week on Monday at 5:30pm
+118,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Plan: wash car every second week on weekdays for project X,every second week on weekdays
+119,recurrence-only,,FREQ=MONTHLY,Groceries: call plumber every month on the 1st — asap,every month on the 1st
+120,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Errands: wash car each fortnight,each fortnight
+121,recurrence-only,,FREQ=DAILY,Reminder: backup photos every day — before lunch,every day
+122,date-only,2025-06-29T00:00:00+00:00,,Next: 06/29/2025 mow the lawn — before lunch,06/29/2025
+123,date-only,2025-04-29T00:00:00+00:00,,Odd jobs: 2025-04-29 buy milk after work,2025-04-29
+124,recurrence-only,,FREQ=WEEKLY,Odd jobs: every weekend wash car #work,every weekend
+125,recurrence-only,,FREQ=MONTHLY;INTERVAL=3,every quarter at 5:30pm mow the lawn (low),every quarter at 5:30pm
+126,recurrence-only,,FREQ=MONTHLY;INTERVAL=2,Odd jobs: pay electricity bill every 2 months — before lunch,every 2 months
+127,date-only,2026-01-20T00:00:00+00:00,,Note: 01/20/2026 clean garage (evening),01/20/2026
+128,date-only,2025-05-01T00:00:00+00:00,,Reminder: 2025-05-01 buy milk after work,2025-05-01
+129,recurrence+date,2025-12-25T00:00:00+00:00,FREQ=YEARLY,Follow up: every year on 25/12 at 9am review PR (low),every year on 25/12 at 9am
+130,date-only,2025-10-13T00:00:00+00:00,,Note: review PR 10/13/2025,10/13/2025
+131,date-only,2025-12-21T00:00:00+00:00,,Groceries: backup photos 21/12/2025 — asap,21/12/2025
+132,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,Groceries: update spreadsheet every Monday,every Monday
+133,date-only,2026-01-15T00:00:00+00:00,,Task: water the plants 15/01/2026 #work,15/01/2026
+134,recurrence-only,,FREQ=WEEKLY;INTERVAL=3,Reminder: every 3 weeks at 5:30pm book dentist with John,every 3 weeks at 5:30pm
+135,recurrence-only,,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",every day on weekdays update spreadsheet,every day on weekdays
+136,recurrence-only,,FREQ=WEEKLY;BYDAY=TH,Next: email client every Thursday,every Thursday
+137,recurrence-only,,FREQ=WEEKLY;INTERVAL=4,email client every 4 weeks at 9am for project X,every 4 weeks at 9am
+138,date-only,2026-07-26T00:00:00+00:00,,Bills: 26/07/2026 backup photos #home,26/07/2026
+139,recurrence-only,,FREQ=WEEKLY;BYDAY=TU,review PR every Tuesday with John,every Tuesday
+140,recurrence-only,,FREQ=WEEKLY;INTERVAL=4,Errands: every 4 weeks at 5:30pm water the plants #work,every 4 weeks at 5:30pm
+141,recurrence-only,,FREQ=WEEKLY;BYDAY=WE,Note: mow the lawn every Wednesday with John,every Wednesday
+142,recurrence-only,,FREQ=DAILY;INTERVAL=5,Errands: backup photos every 5 days at 5:30pm after work,every 5 days at 5:30pm
+143,date-only,2025-03-24T00:00:00+00:00,,buy milk 03/24/2025 #work,03/24/2025
+144,recurrence-only,,FREQ=DAILY,TODO: book dentist every day at 9am #home,every day at 9am
+145,date-only,2026-08-01T00:00:00+00:00,,Groceries: backup photos 2026-08-01,2026-08-01
+146,recurrence-only,,FREQ=YEARLY,Next: email client every year — before lunch,every year
+147,date-only,2024-12-05T00:00:00+00:00,,Reminder: clean garage 05/12/2024 — before lunch,05/12/2024
+148,date-only,2026-05-01T00:00:00+00:00,,Reminder: 01/05/2026 call plumber,01/05/2026
+149,date-only,2025-05-07T00:00:00+00:00,,2025-05-07 water the plants for project X,2025-05-07
+150,date-only,2025-06-27T00:00:00+00:00,,Reminder: book dentist 27/06/2025 (evening),27/06/2025
+151,recurrence-only,,FREQ=MONTHLY,Chore: water the plants every month on the 1st with John,every month on the 1st
+152,date-only,2025-02-17T00:00:00+00:00,,Groceries: 2025-02-17 wash car with John,2025-02-17
+153,recurrence-only,,FREQ=WEEKLY;BYDAY=TU,every Tuesday mow the lawn — before lunch,every Tuesday
+154,date-only,2024-11-05T00:00:00+00:00,,Errands: update spreadsheet 05/11/2024,05/11/2024
+155,recurrence-only,,FREQ=DAILY;INTERVAL=2,clean garage every 2 days — before lunch,every 2 days
+156,recurrence-only,,FREQ=WEEKLY;BYDAY=TU,water the plants every Tuesday with John,every Tuesday
+157,recurrence-only,,FREQ=DAILY,Bills: mow the lawn every day on weekends at Bunnings,every day on weekends
+158,recurrence-only,,FREQ=WEEKLY;BYDAY=TH,Task: every Thursday pay electricity bill for project X,every Thursday
+159,recurrence-only,,FREQ=DAILY,Next: mow the lawn every day — before lunch,every day
+160,recurrence-only,,FREQ=MONTHLY,Groceries: clean garage every month on the 1st,every month on the 1st
+161,recurrence-only,,FREQ=WEEKLY;BYDAY=TU,TODO: wash car every Tuesday,every Tuesday
+162,date-only,2025-05-30T00:00:00+00:00,,Reminder: pay electricity bill 2025-05-30 for project X,2025-05-30
+163,date-only,2024-12-22T00:00:00+00:00,,TODO: review PR 12/22/2024,12/22/2024
+164,date-only,2025-02-08T00:00:00+00:00,,Reminder: book dentist 08/02/2025 at Bunnings,08/02/2025
+165,date-only,2025-01-14T00:00:00+00:00,,Next: call plumber 2025-01-14 #work,2025-01-14
+166,recurrence-only,,FREQ=WEEKLY;BYDAY=SA,backup photos every Saturday at Bunnings,every Saturday
+167,date-only,2024-11-14T00:00:00+00:00,,Chore: buy milk 11/14/2024 (evening),11/14/2024
+168,date-only,2026-09-09T00:00:00+00:00,,Plan: 2026-09-09 wash car — before lunch,2026-09-09
+169,recurrence-only,,FREQ=WEEKLY;BYDAY=WE,Odd jobs: mow the lawn every Wednesday at 9am — asap,every Wednesday at 9am
+170,date-only,2026-06-18T00:00:00+00:00,,Task: wash car 2026-06-18 at Bunnings,2026-06-18
+171,recurrence-only,,FREQ=WEEKLY;INTERVAL=4,every 4 weeks buy milk (low),every 4 weeks
+172,date-only,2024-11-03T00:00:00+00:00,,Chore: pay electricity bill 2024-11-03 for project X,2024-11-03
+173,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Plan: call plumber every second week,every second week
+174,date-only,2026-03-07T00:00:00+00:00,,Bills: 07/03/2026 water the plants (evening),07/03/2026
+175,date-only,2026-09-07T00:00:00+00:00,,call plumber 07/09/2026 — before lunch,07/09/2026
+176,recurrence+date,2025-12-25T00:00:00+00:00,FREQ=YEARLY,Task: review PR every year on 25/12 at Bunnings,every year on 25/12
+177,date-only,2025-12-11T00:00:00+00:00,,Task: 2025-12-11 water the plants (evening),2025-12-11
+178,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,TODO: each fortnight backup photos,each fortnight
+179,date-only,2025-12-12T00:00:00+00:00,,Next: 12/12/2025 update spreadsheet at Bunnings,12/12/2025
+180,recurrence-only,,FREQ=MONTHLY;INTERVAL=2,Follow up: every 2 months email client,every 2 months
+181,date-only,2026-06-25T00:00:00+00:00,,Bills: backup photos 06/25/2026,06/25/2026
+182,recurrence-only,,FREQ=MONTHLY,call plumber every month with John,every month
+183,date-only,2025-06-18T00:00:00+00:00,,Bills: backup photos 06/18/2025 at Bunnings,06/18/2025
+184,date-only,2026-02-17T00:00:00+00:00,,Follow up: 17/02/2026 backup photos,17/02/2026
+185,recurrence-only,,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",Odd jobs: mow the lawn every month on weekdays #home,every month on weekdays
+186,recurrence-only,,FREQ=DAILY;INTERVAL=3,Task: every 3 days mow the lawn — asap,every 3 days
+187,recurrence-only,,FREQ=WEEKLY;BYDAY=SU,Chore: mow the lawn every Sunday with John,every Sunday
+188,recurrence-only,,FREQ=YEARLY,Plan: every year update spreadsheet,every year
+189,recurrence-only,,FREQ=WEEKLY;BYDAY=SA,every Saturday book dentist,every Saturday
+190,recurrence-only,,FREQ=DAILY;INTERVAL=2,water the plants every second day (low),every second day
+191,date-only,2026-05-17T00:00:00+00:00,,TODO: call plumber 2026-05-17 at Bunnings,2026-05-17
+192,date-only,2024-12-20T00:00:00+00:00,,Reminder: update spreadsheet 2024-12-20 — before lunch,2024-12-20
+193,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,TODO: every week on Monday buy milk #work,every week on Monday
+194,recurrence-only,,FREQ=WEEKLY;BYDAY=TU,Note: backup photos every Tuesday — asap,every Tuesday
+195,recurrence-only,,FREQ=DAILY;INTERVAL=5,Bills: email client every 5 days on weekdays — asap,every 5 days on weekdays
+196,recurrence-only,,FREQ=DAILY;INTERVAL=5,Errands: every 5 days at 9am email client for project X,every 5 days at 9am
+197,date-only,2025-06-24T00:00:00+00:00,,clean garage 06/24/2025,06/24/2025
+198,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,TODO: clean garage every Monday with John,every Monday
+199,recurrence-only,,FREQ=WEEKLY;BYDAY=SA,Follow up: email client every Saturday at Bunnings,every Saturday
+200,recurrence-only,,FREQ=WEEKLY,Chore: every weekend update spreadsheet at Bunnings,every weekend
+201,recurrence-only,,FREQ=WEEKLY;BYDAY=FR,Reminder: update spreadsheet every Friday after work,every Friday
+202,recurrence-only,,FREQ=DAILY;INTERVAL=2,Next: call plumber every second day,every second day
+203,recurrence-only,,FREQ=WEEKLY;BYDAY=SU,Note: clean garage every Sunday (low),every Sunday
+204,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Groceries: update spreadsheet every second week,every second week
+205,recurrence-only,,FREQ=WEEKLY,Plan: every weekend review PR,every weekend
+206,recurrence-only,,FREQ=MONTHLY;INTERVAL=3,clean garage every quarter (evening),every quarter
+207,recurrence-only,,FREQ=WEEKLY;BYDAY=TH,every Thursday email client,every Thursday
+208,recurrence+date,2025-09-02T00:00:00+00:00,FREQ=WEEKLY;INTERVAL=2,Plan: wash car every 2 weeks starting 02/09/2025 for project X,every 2 weeks starting 02/09/2025
+209,recurrence-only,,FREQ=WEEKLY;INTERVAL=3,call plumber every 3 weeks,every 3 weeks
+210,date-only,2026-07-21T00:00:00+00:00,,2026-07-21 wash car,2026-07-21
+211,recurrence+date,2025-12-25T00:00:00+00:00,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",Chore: book dentist every year on 25/12 on weekdays,every year on 25/12 on weekdays
+212,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Reminder: update spreadsheet every 2 weeks,every 2 weeks
+213,date-only,2025-03-04T00:00:00+00:00,,mow the lawn 04/03/2025 for project X,04/03/2025
+214,recurrence-only,,FREQ=DAILY;INTERVAL=2,Bills: water the plants every second day at 5:30pm — before lunch,every second day at 5:30pm
+215,recurrence-only,,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",Task: mow the lawn every weekday for project X,every weekday
+216,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,every Monday backup photos at Bunnings,every Monday
+217,recurrence-only,,FREQ=DAILY;INTERVAL=2,Plan: wash car every second day,every second day
+218,recurrence-only,,FREQ=DAILY;INTERVAL=2,Chore: mow the lawn every second day after work,every second day
+219,recurrence-only,,FREQ=YEARLY,Reminder: every year at 9am clean garage #home,every year at 9am
+220,recurrence-only,,FREQ=DAILY;INTERVAL=4,Odd jobs: water the plants every 4 days with John,every 4 days
+221,recurrence-only,,FREQ=WEEKLY;BYDAY=WE,TODO: pay electricity bill every Wednesday,every Wednesday
+222,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,Next: email client every week on Monday for project X,every week on Monday
+223,date-only,2026-07-31T00:00:00+00:00,,Follow up: review PR 07/31/2026 at Bunnings,07/31/2026
+224,recurrence+date,2024-10-26T00:00:00+00:00,FREQ=DAILY;INTERVAL=2,water the plants every 2 days starting 2024-10-26,every 2 days starting 2024-10-26
+225,recurrence-only,,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",Bills: call plumber every weekday at Bunnings,every weekday
+226,date-only,2025-09-28T00:00:00+00:00,,Next: update spreadsheet 09/28/2025,09/28/2025
+227,date-only,2025-06-12T00:00:00+00:00,,Next: 12/06/2025 backup photos after work,12/06/2025
+228,recurrence-only,,FREQ=WEEKLY,Note: every weekend wash car #home,every weekend
+229,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Next: clean garage every second week on weekdays,every second week on weekdays
+230,recurrence-only,,FREQ=DAILY;INTERVAL=2,TODO: review PR every second day at 9am,every second day at 9am
+231,date-only,2026-02-01T00:00:00+00:00,,Plan: book dentist 01/02/2026 — before lunch,01/02/2026
+232,date-only,2026-07-09T00:00:00+00:00,,Reminder: pay electricity bill 09/07/2026 #home,09/07/2026
+233,recurrence-only,,FREQ=MONTHLY,Note: water the plants every month on the 1st,every month on the 1st
+234,recurrence-only,,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",Odd jobs: pay electricity bill every month on the 1st on weekdays after work,every month on the 1st on weekdays
+235,recurrence-only,,FREQ=DAILY;INTERVAL=2,Odd jobs: email client every second day on weekends,every second day on weekends
+236,date-only,2024-11-02T00:00:00+00:00,,Next: pay electricity bill 02/11/2024 after work,02/11/2024
+237,date-only,2025-11-14T00:00:00+00:00,,Follow up: 2025-11-14 book dentist with John,2025-11-14
+238,recurrence-only,,FREQ=WEEKLY;INTERVAL=4,Chore: every 4 weeks clean garage for project X,every 4 weeks
+239,date-only,2026-01-13T00:00:00+00:00,,Groceries: 13/01/2026 review PR,13/01/2026
+240,date-only,2026-01-30T00:00:00+00:00,,Note: water the plants 01/30/2026,01/30/2026
+241,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Plan: every second week on weekends buy milk (low),every second week on weekends
+242,date-only,2025-06-17T00:00:00+00:00,,review PR 06/17/2025 — asap,06/17/2025
+243,recurrence-only,,FREQ=DAILY;INTERVAL=3,Chore: every 3 days on weekdays book dentist,every 3 days on weekdays
+244,date-only,2026-04-20T00:00:00+00:00,,Odd jobs: 2026-04-20 pay electricity bill #home,2026-04-20
+245,recurrence-only,,FREQ=YEARLY,Errands: every year update spreadsheet — before lunch,every year
+246,recurrence-only,,FREQ=WEEKLY,TODO: clean garage every weekend (low),every weekend
+247,date-only,2025-07-28T00:00:00+00:00,,Follow up: review PR 28/07/2025,28/07/2025
+248,date-only,2026-07-18T00:00:00+00:00,,Task: 07/18/2026 review PR for project X,07/18/2026
+249,recurrence-only,,FREQ=WEEKLY;INTERVAL=3,Chore: every 3 weeks mow the lawn #work,every 3 weeks
+250,recurrence-only,,FREQ=MONTHLY;INTERVAL=3,TODO: mow the lawn every quarter — asap,every quarter
+251,recurrence-only,,FREQ=MONTHLY;INTERVAL=3,Reminder: every quarter email client,every quarter
+252,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Plan: every 2 weeks buy milk — before lunch,every 2 weeks
+253,date-only,2026-06-04T00:00:00+00:00,,04/06/2026 clean garage for project X,04/06/2026
+254,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Bills: pay electricity bill every second week — asap,every second week
+255,recurrence-only,,FREQ=WEEKLY;INTERVAL=4,Odd jobs: email client every 4 weeks — before lunch,every 4 weeks
+256,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,Follow up: every Monday at 5:30pm wash car,every Monday at 5:30pm
+257,recurrence-only,,FREQ=DAILY,Chore: mow the lawn every day #home,every day
+258,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Groceries: every second week book dentist #work,every second week
+259,date-only,2025-09-04T00:00:00+00:00,,Reminder: 04/09/2025 update spreadsheet — before lunch,04/09/2025
+260,date-only,2026-01-15T00:00:00+00:00,,Groceries: email client 15/01/2026 at Bunnings,15/01/2026
+261,date-only,2025-06-26T00:00:00+00:00,,Reminder: call plumber 26/06/2025 for project X,26/06/2025
+262,recurrence-only,,FREQ=DAILY;INTERVAL=4,Plan: pay electricity bill every 4 days #home,every 4 days
+263,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Groceries: clean garage each fortnight on weekends (low),each fortnight on weekends
+264,date-only,2025-12-30T00:00:00+00:00,,Task: 2025-12-30 clean garage with John,2025-12-30
+265,recurrence-only,,FREQ=DAILY;INTERVAL=2,Follow up: book dentist every second day on weekends — asap,every second day on weekends
+266,recurrence-only,,FREQ=MONTHLY,backup photos every month,every month
+267,recurrence-only,,FREQ=WEEKLY;INTERVAL=4,Reminder: pay electricity bill every 4 weeks at Bunnings,every 4 weeks
+268,date-only,2025-04-28T00:00:00+00:00,,Chore: 04/28/2025 wash car at Bunnings,04/28/2025
+269,date-only,2026-07-21T00:00:00+00:00,,Chore: mow the lawn 21/07/2026,21/07/2026
+270,recurrence-only,,FREQ=MONTHLY,Reminder: every month on the 1st review PR #home,every month on the 1st
+271,date-only,2026-09-25T00:00:00+00:00,,book dentist 25/09/2026 — asap,25/09/2026
+272,recurrence-only,,FREQ=MONTHLY,Chore: every month buy milk after work,every month
+273,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,Plan: call plumber every week on Monday,every week on Monday
+274,recurrence-only,,FREQ=MONTHLY;INTERVAL=2,Bills: pay electricity bill every 2 months on weekends #home,every 2 months on weekends
+275,recurrence-only,,FREQ=WEEKLY;BYDAY=SA,Odd jobs: update spreadsheet every Saturday #home,every Saturday
+276,recurrence-only,,FREQ=MONTHLY;INTERVAL=2,Odd jobs: mow the lawn every 2 months at Bunnings,every 2 months
+277,recurrence-only,,FREQ=DAILY;INTERVAL=3,Plan: email client every 3 days at Bunnings,every 3 days
+278,date-only,2025-10-24T00:00:00+00:00,,Plan: 2025-10-24 mow the lawn #work,2025-10-24
+279,date-only,2025-10-12T00:00:00+00:00,,TODO: 12/10/2025 mow the lawn #home,12/10/2025
+280,recurrence-only,,FREQ=DAILY;INTERVAL=2,Follow up: wash car every 2 days for project X,every 2 days
+281,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Chore: buy milk every 2 weeks (evening),every 2 weeks
+282,recurrence-only,,FREQ=WEEKLY;BYDAY=SU,Follow up: every Sunday water the plants (evening),every Sunday
+283,recurrence-only,,FREQ=YEARLY,Note: buy milk every year (low),every year
+284,recurrence-only,,FREQ=DAILY,clean garage every day #work,every day
+285,date-only,2026-02-15T00:00:00+00:00,,book dentist 15/02/2026,15/02/2026
+286,date-only,2024-10-15T00:00:00+00:00,,2024-10-15 pay electricity bill #home,2024-10-15
+287,recurrence-only,,FREQ=DAILY;INTERVAL=5,Chore: clean garage every 5 days at 9am with John,every 5 days at 9am
+288,recurrence-only,,FREQ=YEARLY,Task: call plumber every year #work,every year
+289,recurrence-only,,FREQ=DAILY;INTERVAL=2,Reminder: mow the lawn every second day,every second day
+290,recurrence-only,,FREQ=WEEKLY;BYDAY=TH,Errands: update spreadsheet every Thursday,every Thursday
+291,recurrence-only,,FREQ=WEEKLY;INTERVAL=4,Groceries: every 4 weeks backup photos for project X,every 4 weeks
+292,recurrence-only,,FREQ=WEEKLY;BYDAY=SU,mow the lawn every Sunday,every Sunday
+293,date-only,2025-05-23T00:00:00+00:00,,Task: clean garage 05/23/2025 — asap,05/23/2025
+294,date-only,2026-07-07T00:00:00+00:00,,clean garage 07/07/2026 for project X,07/07/2026
+295,recurrence-only,,FREQ=WEEKLY;BYDAY=SA,Next: every Saturday water the plants #work,every Saturday
+296,date-only,2026-05-01T00:00:00+00:00,,Groceries: 01/05/2026 book dentist (evening),01/05/2026
+297,recurrence-only,,FREQ=WEEKLY;BYDAY=SU,Errands: update spreadsheet every Sunday #home,every Sunday
+298,date-only,2025-01-25T00:00:00+00:00,,clean garage 01/25/2025 (low),01/25/2025
+299,recurrence+date,2025-12-25T00:00:00+00:00,FREQ=YEARLY,Bills: every year on 25/12 update spreadsheet #work,every year on 25/12
+300,recurrence-only,,FREQ=DAILY;INTERVAL=2,Errands: wash car every second day on weekdays — asap,every second day on weekdays
+301,recurrence+date,2024-12-18T00:00:00+00:00,FREQ=DAILY;INTERVAL=2,Reminder: pay electricity bill every 2 days starting 12/18/2024,every 2 days starting 12/18/2024
+302,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,Next: every Monday at 5:30pm backup photos at Bunnings,every Monday at 5:30pm
+303,recurrence-only,,FREQ=WEEKLY;BYDAY=SA,Follow up: review PR every Saturday at 9am with John,every Saturday at 9am
+304,recurrence+date,2025-08-31T00:00:00+00:00,FREQ=WEEKLY;INTERVAL=2,Errands: buy milk each fortnight starting 31/08/2025 (evening),each fortnight starting 31/08/2025
+305,recurrence-only,,FREQ=WEEKLY;BYDAY=SU,Odd jobs: every Sunday wash car (low),every Sunday
+306,recurrence-only,,FREQ=WEEKLY;INTERVAL=3,Bills: every 3 weeks mow the lawn — before lunch,every 3 weeks
+307,recurrence-only,,FREQ=WEEKLY;BYDAY=WE,Note: every Wednesday book dentist with John,every Wednesday
+308,recurrence-only,,FREQ=WEEKLY;BYDAY=SU,Odd jobs: every Sunday clean garage for project X,every Sunday
+309,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,Reminder: every Monday clean garage (evening),every Monday
+310,recurrence-only,,FREQ=WEEKLY;INTERVAL=4,TODO: mow the lawn every 4 weeks (evening),every 4 weeks
+311,recurrence-only,,FREQ=MONTHLY,Chore: pay electricity bill every month after work,every month
+312,date-only,2026-04-19T00:00:00+00:00,,Bills: water the plants 19/04/2026 for project X,19/04/2026
+313,date-only,2025-04-29T00:00:00+00:00,,Bills: email client 2025-04-29,2025-04-29
+314,recurrence-only,,FREQ=WEEKLY;INTERVAL=3,Follow up: clean garage every 3 weeks (evening),every 3 weeks
+315,recurrence-only,,FREQ=MONTHLY,Next: buy milk every month on the 1st,every month on the 1st
+316,recurrence-only,,FREQ=DAILY;INTERVAL=5,Chore: every 5 days pay electricity bill after work,every 5 days
+317,recurrence-only,,FREQ=WEEKLY;INTERVAL=3,Task: mow the lawn every 3 weeks,every 3 weeks
+318,recurrence-only,,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",Bills: every weekday at 5:30pm call plumber for project X,every weekday at 5:30pm
+319,date-only,2026-03-02T00:00:00+00:00,,pay electricity bill 02/03/2026,02/03/2026
+320,date-only,2026-01-25T00:00:00+00:00,,Reminder: 2026-01-25 review PR #home,2026-01-25
+321,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Errands: mow the lawn every second week — asap,every second week
+322,recurrence-only,,FREQ=YEARLY,Task: water the plants every year,every year
+323,date-only,2026-08-01T00:00:00+00:00,,Reminder: call plumber 01/08/2026 (evening),01/08/2026
+324,recurrence-only,,FREQ=DAILY;INTERVAL=2,Odd jobs: clean garage every second day (evening),every second day
+325,recurrence-only,,FREQ=MONTHLY;INTERVAL=3,Next: every quarter water the plants (low),every quarter
+326,date-only,2025-01-10T00:00:00+00:00,,Plan: pay electricity bill 2025-01-10 (low),2025-01-10
+327,recurrence-only,,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",every day on weekdays pay electricity bill,every day on weekdays
+328,recurrence-only,,FREQ=WEEKLY;BYDAY=TH,Reminder: update spreadsheet every Thursday #home,every Thursday
+329,date-only,2024-12-30T00:00:00+00:00,,Plan: backup photos 2024-12-30 — asap,2024-12-30
+330,recurrence-only,,FREQ=WEEKLY;BYDAY=FR,Chore: wash car every Friday at 5:30pm for project X,every Friday at 5:30pm
+331,date-only,2026-08-05T00:00:00+00:00,,Task: mow the lawn 05/08/2026 — before lunch,05/08/2026
+332,recurrence-only,,FREQ=YEARLY,clean garage every year after work,every year
+333,date-only,2024-12-10T00:00:00+00:00,,Errands: call plumber 10/12/2024 after work,10/12/2024
+334,recurrence-only,,FREQ=DAILY;INTERVAL=5,Plan: every 5 days review PR,every 5 days
+335,recurrence-only,,FREQ=MONTHLY;INTERVAL=3,Follow up: every quarter book dentist #home,every quarter
+336,recurrence-only,,FREQ=DAILY;INTERVAL=4,Bills: call plumber every 4 days after work,every 4 days
+337,date-only,2026-05-01T00:00:00+00:00,,TODO: water the plants 2026-05-01,2026-05-01
+338,recurrence-only,,FREQ=MONTHLY,update spreadsheet every month for project X,every month
+339,recurrence-only,,FREQ=WEEKLY;INTERVAL=4,Groceries: every 4 weeks mow the lawn — before lunch,every 4 weeks
+340,recurrence-only,,FREQ=WEEKLY;BYDAY=SU,Reminder: every Sunday buy milk (low),every Sunday
+341,date-only,2026-04-18T00:00:00+00:00,,18/04/2026 book dentist — before lunch,18/04/2026
+342,recurrence-only,,FREQ=DAILY;INTERVAL=2,Reminder: water the plants every 2 days on weekends with John,every 2 days on weekends
+343,recurrence-only,,FREQ=WEEKLY;BYDAY=SU,Groceries: backup photos every Sunday for project X,every Sunday
+344,recurrence-only,,FREQ=YEARLY,call plumber every year,every year
+345,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Chore: backup photos every second week at 9am after work,every second week at 9am
+346,recurrence-only,,FREQ=WEEKLY;BYDAY=TU,Reminder: every Tuesday wash car after work,every Tuesday
+347,recurrence-only,,FREQ=WEEKLY;INTERVAL=4,mow the lawn every 4 weeks at 9am,every 4 weeks at 9am
+348,date-only,2025-11-10T00:00:00+00:00,,2025-11-10 buy milk (low),2025-11-10
+349,recurrence-only,,FREQ=WEEKLY;BYDAY=TU,Plan: water the plants every Tuesday with John,every Tuesday
+350,recurrence-only,,FREQ=MONTHLY;INTERVAL=3,Task: water the plants every quarter,every quarter
+351,date-only,2026-06-27T00:00:00+00:00,,27/06/2026 wash car for project X,27/06/2026
+352,recurrence-only,,FREQ=DAILY,Bills: buy milk every day at 5:30pm after work,every day at 5:30pm
+353,recurrence-only,,FREQ=WEEKLY;BYDAY=FR,Follow up: wash car every Friday at 5:30pm #home,every Friday at 5:30pm
+354,date-only,2026-01-31T00:00:00+00:00,,Note: 2026-01-31 water the plants,2026-01-31
+355,recurrence-only,,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",Bills: every weekday wash car — asap,every weekday
+356,date-only,2025-07-29T00:00:00+00:00,,Errands: 29/07/2025 pay electricity bill — before lunch,29/07/2025
+357,date-only,2024-11-07T00:00:00+00:00,,Chore: 07/11/2024 water the plants at Bunnings,07/11/2024
+358,recurrence-only,,FREQ=DAILY,Chore: every day at 5:30pm backup photos,every day at 5:30pm
+359,recurrence-only,,FREQ=MONTHLY,Reminder: mow the lawn every month — before lunch,every month
+360,recurrence+date,2025-12-25T00:00:00+00:00,FREQ=YEARLY,Task: every year on 25/12 at 9am mow the lawn (low),every year on 25/12 at 9am
+361,recurrence-only,,FREQ=DAILY;INTERVAL=4,Plan: buy milk every 4 days — asap,every 4 days
+362,recurrence-only,,FREQ=DAILY;INTERVAL=5,Groceries: wash car every 5 days #work,every 5 days
+363,recurrence+date,2026-05-12T00:00:00+00:00,FREQ=WEEKLY;INTERVAL=2,each fortnight starting 12/05/2026 update spreadsheet (low),each fortnight starting 12/05/2026
+364,date-only,2026-01-10T00:00:00+00:00,,Groceries: 2026-01-10 book dentist,2026-01-10
+365,recurrence-only,,FREQ=DAILY;INTERVAL=2,Odd jobs: every second day update spreadsheet,every second day
+366,date-only,2026-09-22T00:00:00+00:00,,Bills: email client 2026-09-22,2026-09-22
+367,recurrence-only,,FREQ=WEEKLY;INTERVAL=3,mow the lawn every 3 weeks for project X,every 3 weeks
+368,recurrence-only,,FREQ=WEEKLY;BYDAY=FR,Bills: call plumber every Friday (evening),every Friday
+369,date-only,2026-07-01T00:00:00+00:00,,book dentist 01/07/2026 for project X,01/07/2026
+370,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,buy milk every week on Monday,every week on Monday
+371,recurrence-only,,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",Groceries: every weekday at 5:30pm review PR for project X,every weekday at 5:30pm
+372,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Task: every 2 weeks mow the lawn,every 2 weeks
+373,recurrence-only,,FREQ=WEEKLY;INTERVAL=4,Odd jobs: clean garage every 4 weeks with John,every 4 weeks
+374,date-only,2025-11-15T00:00:00+00:00,,Note: backup photos 15/11/2025 (low),15/11/2025
+375,recurrence-only,,FREQ=WEEKLY;BYDAY=TH,Groceries: mow the lawn every Thursday at 9am — before lunch,every Thursday at 9am
+376,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,Groceries: every week on Monday book dentist for project X,every week on Monday
+377,date-only,2025-11-19T00:00:00+00:00,,Errands: call plumber 19/11/2025 for project X,19/11/2025
+378,date-only,2025-01-14T00:00:00+00:00,,Odd jobs: 14/01/2025 review PR after work,14/01/2025
+379,date-only,2025-04-16T00:00:00+00:00,,Plan: 04/16/2025 email client,04/16/2025
+380,recurrence-only,,FREQ=WEEKLY;BYDAY=SA,Groceries: mow the lawn every Saturday #work,every Saturday
+381,recurrence-only,,FREQ=WEEKLY;BYDAY=SA,Bills: email client every Saturday (low),every Saturday
+382,date-only,2025-01-27T00:00:00+00:00,,review PR 01/27/2025 (evening),01/27/2025
+383,date-only,2025-11-09T00:00:00+00:00,,Plan: 09/11/2025 call plumber,09/11/2025
+384,date-only,2025-08-27T00:00:00+00:00,,mow the lawn 08/27/2025,08/27/2025
+385,recurrence-only,,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",Errands: backup photos every month on the 1st on weekdays for project X,every month on the 1st on weekdays
+386,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Groceries: pay electricity bill each fortnight — asap,each fortnight
+387,recurrence-only,,FREQ=WEEKLY;BYDAY=TH,Reminder: buy milk every Thursday (evening),every Thursday
+388,recurrence-only,,FREQ=MONTHLY;INTERVAL=2,Plan: every 2 months on weekends update spreadsheet — asap,every 2 months on weekends
+389,date-only,2026-05-23T00:00:00+00:00,,Chore: clean garage 23/05/2026 #work,23/05/2026
+390,recurrence-only,,FREQ=MONTHLY,TODO: review PR every month on the 1st after work,every month on the 1st
+391,recurrence+date,2025-12-25T00:00:00+00:00,FREQ=YEARLY,every year on 25/12 update spreadsheet #work,every year on 25/12
+392,date-only,2025-11-01T00:00:00+00:00,,call plumber 01/11/2025 #work,01/11/2025
+393,recurrence-only,,FREQ=DAILY;INTERVAL=4,Odd jobs: every 4 days review PR,every 4 days
+394,date-only,2026-09-12T00:00:00+00:00,,TODO: 12/09/2026 water the plants with John,12/09/2026
+395,date-only,2024-09-26T00:00:00+00:00,,TODO: 09/26/2024 buy milk,09/26/2024
+396,recurrence-only,,FREQ=WEEKLY;BYDAY=SU,Errands: mow the lawn every Sunday — asap,every Sunday
+397,date-only,2026-03-29T00:00:00+00:00,,Groceries: 29/03/2026 water the plants — before lunch,29/03/2026
+398,date-only,2025-01-11T00:00:00+00:00,,Odd jobs: 11/01/2025 email client with John,11/01/2025
+399,date-only,2024-10-17T00:00:00+00:00,,Chore: call plumber 17/10/2024 — before lunch,17/10/2024
+400,recurrence-only,,FREQ=WEEKLY;BYDAY=TU,Plan: book dentist every Tuesday #work,every Tuesday
+401,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,Plan: every Monday at 5:30pm book dentist — before lunch,every Monday at 5:30pm
+402,recurrence-only,,FREQ=WEEKLY;INTERVAL=3,Errands: buy milk every 3 weeks — asap,every 3 weeks
+403,recurrence-only,,FREQ=WEEKLY;INTERVAL=3,TODO: email client every 3 weeks — asap,every 3 weeks
+404,recurrence-only,,FREQ=WEEKLY;BYDAY=WE,every Wednesday buy milk #home,every Wednesday
+405,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Bills: email client each fortnight on weekends (low),each fortnight on weekends
+406,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Follow up: review PR every 2 weeks at Bunnings,every 2 weeks
+407,date-only,2025-09-23T00:00:00+00:00,,review PR 09/23/2025 (low),09/23/2025
+408,recurrence-only,,FREQ=WEEKLY;BYDAY=FR,Odd jobs: every Friday at 9am book dentist for project X,every Friday at 9am
+409,date-only,2024-12-23T00:00:00+00:00,,TODO: 2024-12-23 call plumber,2024-12-23
+410,recurrence-only,,FREQ=DAILY;INTERVAL=3,Plan: every 3 days on weekdays book dentist #work,every 3 days on weekdays
+411,date-only,2025-05-07T00:00:00+00:00,,07/05/2025 review PR at Bunnings,07/05/2025
+412,recurrence-only,,FREQ=MONTHLY,Next: every month backup photos,every month
+413,recurrence+date,2025-06-24T00:00:00+00:00,FREQ=WEEKLY;BYDAY=SU,Plan: book dentist every Sunday starting 2025-06-24 with John,every Sunday starting 2025-06-24
+414,recurrence-only,,FREQ=WEEKLY,Groceries: clean garage every weekend for project X,every weekend
+415,recurrence-only,,FREQ=WEEKLY;BYDAY=SU,Next: every Sunday on weekends clean garage,every Sunday on weekends
+416,date-only,2025-12-13T00:00:00+00:00,,Plan: update spreadsheet 12/13/2025 #work,12/13/2025
+417,date-only,2025-10-17T00:00:00+00:00,,2025-10-17 email client after work,2025-10-17
+418,date-only,2026-01-05T00:00:00+00:00,,Next: update spreadsheet 05/01/2026 — before lunch,05/01/2026
+419,date-only,2026-01-25T00:00:00+00:00,,Next: book dentist 01/25/2026 at Bunnings,01/25/2026
+420,recurrence-only,,FREQ=WEEKLY;BYDAY=TU,Plan: every Tuesday wash car,every Tuesday
+421,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Plan: water the plants every 2 weeks (evening),every 2 weeks
+422,recurrence-only,,FREQ=DAILY;INTERVAL=2,Groceries: every second day wash car,every second day
+423,recurrence+date,2025-08-07T00:00:00+00:00,FREQ=YEARLY,Task: every year starting 07/08/2025 pay electricity bill at Bunnings,every year starting 07/08/2025
+424,date-only,2025-01-16T00:00:00+00:00,,Plan: backup photos 01/16/2025,01/16/2025
+425,date-only,2024-12-26T00:00:00+00:00,,book dentist 2024-12-26,2024-12-26
+426,date-only,2025-08-22T00:00:00+00:00,,Task: water the plants 08/22/2025,08/22/2025
+427,recurrence-only,,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",Bills: every Thursday on weekdays book dentist,every Thursday on weekdays
+428,date-only,2026-03-07T00:00:00+00:00,,Next: update spreadsheet 2026-03-07 after work,2026-03-07
+429,recurrence-only,,FREQ=MONTHLY;INTERVAL=3,every quarter wash car at Bunnings,every quarter
+430,recurrence-only,,FREQ=MONTHLY,TODO: every month at 9am wash car #home,every month at 9am
+431,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,every Monday call plumber #work,every Monday
+432,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,update spreadsheet every second week after work,every second week
+433,date-only,2026-04-06T00:00:00+00:00,,buy milk 06/04/2026 for project X,06/04/2026
+434,recurrence+date,2025-05-19T00:00:00+00:00,FREQ=DAILY;INTERVAL=3,every 3 days starting 05/19/2025 backup photos — asap,every 3 days starting 05/19/2025
+435,recurrence-only,,FREQ=WEEKLY;BYDAY=TH,Note: review PR every Thursday for project X,every Thursday
+436,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,TODO: every week on Monday pay electricity bill (low),every week on Monday
+437,date-only,2026-02-02T00:00:00+00:00,,review PR 02/02/2026,02/02/2026
+438,date-only,2025-02-07T00:00:00+00:00,,Follow up: 2025-02-07 backup photos after work,2025-02-07
+439,recurrence-only,,FREQ=WEEKLY;BYDAY=SA,backup photos every Saturday at 5:30pm #work,every Saturday at 5:30pm
+440,recurrence+date,2026-02-16T00:00:00+00:00,FREQ=WEEKLY;BYDAY=SU,Follow up: mow the lawn every Sunday starting 2026-02-16 after work,every Sunday starting 2026-02-16
+441,date-only,2025-02-16T00:00:00+00:00,,Errands: 2025-02-16 mow the lawn,2025-02-16
+442,recurrence-only,,FREQ=WEEKLY;BYDAY=TU,Note: every Tuesday update spreadsheet,every Tuesday
+443,recurrence-only,,FREQ=WEEKLY;BYDAY=WE,Plan: book dentist every Wednesday with John,every Wednesday
+444,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Plan: clean garage every 2 weeks at 9am after work,every 2 weeks at 9am
+445,recurrence+date,2024-11-27T00:00:00+00:00,FREQ=WEEKLY;INTERVAL=3,Plan: every 3 weeks starting 2024-11-27 mow the lawn,every 3 weeks starting 2024-11-27
+446,recurrence-only,,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",book dentist every Wednesday on weekdays with John,every Wednesday on weekdays
+447,recurrence+date,2024-12-12T00:00:00+00:00,FREQ=DAILY;INTERVAL=5,TODO: backup photos every 5 days starting 12/12/2024 #work,every 5 days starting 12/12/2024
+448,recurrence-only,,FREQ=WEEKLY,Next: every weekend review PR with John,every weekend
+449,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Note: review PR each fortnight — before lunch,each fortnight
+450,recurrence-only,,FREQ=DAILY;INTERVAL=2,Plan: mow the lawn every 2 days,every 2 days
+451,recurrence-only,,FREQ=MONTHLY;INTERVAL=3,Next: wash car every quarter (evening),every quarter
+452,recurrence-only,,FREQ=DAILY;INTERVAL=3,Plan: update spreadsheet every 3 days with John,every 3 days
+453,recurrence-only,,FREQ=DAILY,Reminder: pay electricity bill every day — asap,every day
+454,date-only,2025-12-07T00:00:00+00:00,,Follow up: 07/12/2025 water the plants with John,07/12/2025
+455,date-only,2025-12-19T00:00:00+00:00,,Plan: wash car 19/12/2025 #work,19/12/2025
+456,date-only,2026-03-01T00:00:00+00:00,,Groceries: mow the lawn 01/03/2026 — before lunch,01/03/2026
+457,recurrence+date,2026-02-14T00:00:00+00:00,FREQ=WEEKLY;BYDAY=SA,Chore: wash car every Saturday starting 02/14/2026,every Saturday starting 02/14/2026
+458,recurrence-only,,FREQ=DAILY;INTERVAL=2,call plumber every 2 days — asap,every 2 days
+459,date-only,2026-07-23T00:00:00+00:00,,Follow up: 07/23/2026 book dentist,07/23/2026
+460,recurrence-only,,FREQ=WEEKLY;BYDAY=FR,Task: buy milk every Friday at 5:30pm (low),every Friday at 5:30pm
+461,recurrence-only,,FREQ=MONTHLY,Bills: every month book dentist — before lunch,every month
+462,recurrence-only,,FREQ=WEEKLY;INTERVAL=4,pay electricity bill every 4 weeks at 9am,every 4 weeks at 9am
+463,date-only,2025-12-03T00:00:00+00:00,,Task: book dentist 03/12/2025 #home,03/12/2025
+464,recurrence+date,2025-12-25T00:00:00+00:00,FREQ=YEARLY,Bills: every year on 25/12 water the plants (low),every year on 25/12
+465,date-only,2025-06-30T00:00:00+00:00,,Chore: 06/30/2025 update spreadsheet,06/30/2025
+466,date-only,2026-08-23T00:00:00+00:00,,TODO: mow the lawn 08/23/2026 #work,08/23/2026
+467,date-only,2025-12-29T00:00:00+00:00,,Odd jobs: review PR 2025-12-29 after work,2025-12-29
+468,recurrence-only,,FREQ=WEEKLY;INTERVAL=3,every 3 weeks wash car,every 3 weeks
+469,recurrence-only,,FREQ=WEEKLY;INTERVAL=4,call plumber every 4 weeks,every 4 weeks
+470,recurrence-only,,FREQ=YEARLY,Task: buy milk every year on weekends,every year on weekends
+471,date-only,2026-02-23T00:00:00+00:00,,Note: mow the lawn 2026-02-23 after work,2026-02-23
+472,recurrence-only,,FREQ=DAILY;INTERVAL=4,TODO: call plumber every 4 days on weekdays with John,every 4 days on weekdays
+473,recurrence-only,,FREQ=WEEKLY;BYDAY=FR,Note: every Friday update spreadsheet with John,every Friday
+474,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Task: call plumber every second week for project X,every second week
+475,recurrence-only,,FREQ=DAILY;INTERVAL=2,Task: every 2 days on weekends email client after work,every 2 days on weekends
+476,recurrence+date,2025-09-30T00:00:00+00:00,FREQ=WEEKLY;BYDAY=SA,Next: pay electricity bill every Saturday starting 2025-09-30,every Saturday starting 2025-09-30
+477,recurrence-only,,FREQ=DAILY;INTERVAL=5,Bills: every 5 days book dentist,every 5 days
+478,date-only,2026-08-16T00:00:00+00:00,,Odd jobs: pay electricity bill 08/16/2026 with John,08/16/2026
+479,recurrence-only,,FREQ=WEEKLY;INTERVAL=4,Next: every 4 weeks review PR (low),every 4 weeks
+480,date-only,2025-01-25T00:00:00+00:00,,TODO: 01/25/2025 mow the lawn at Bunnings,01/25/2025
+481,date-only,2026-08-13T00:00:00+00:00,,TODO: pay electricity bill 2026-08-13 — before lunch,2026-08-13
+482,date-only,2025-11-28T00:00:00+00:00,,Plan: 28/11/2025 book dentist #work,28/11/2025
+483,date-only,2025-04-15T00:00:00+00:00,,Errands: buy milk 15/04/2025 with John,15/04/2025
+484,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,TODO: review PR every week on Monday (low),every week on Monday
+485,date-only,2025-03-16T00:00:00+00:00,,Note: 2025-03-16 pay electricity bill (evening),2025-03-16
+486,recurrence-only,,FREQ=YEARLY,call plumber every year for project X,every year
+487,date-only,2026-02-20T00:00:00+00:00,,Odd jobs: mow the lawn 02/20/2026 after work,02/20/2026
+488,recurrence-only,,FREQ=MONTHLY;INTERVAL=3,TODO: call plumber every quarter on weekends — asap,every quarter on weekends
+489,date-only,2025-09-05T00:00:00+00:00,,email client 05/09/2025,05/09/2025
+490,recurrence-only,,FREQ=WEEKLY;BYDAY=SA,wash car every Saturday,every Saturday
+491,date-only,2026-09-24T00:00:00+00:00,,Next: clean garage 09/24/2026 — before lunch,09/24/2026
+492,recurrence-only,,FREQ=MONTHLY;INTERVAL=3,wash car every quarter,every quarter
+493,date-only,2025-12-05T00:00:00+00:00,,Next: backup photos 05/12/2025 #home,05/12/2025
+494,recurrence-only,,FREQ=DAILY,Errands: every day review PR,every day
+495,recurrence-only,,FREQ=DAILY;INTERVAL=4,Next: every 4 days water the plants — asap,every 4 days
+496,date-only,2025-04-19T00:00:00+00:00,,Chore: 04/19/2025 update spreadsheet,04/19/2025
+497,date-only,2024-11-18T00:00:00+00:00,,Odd jobs: pay electricity bill 18/11/2024 for project X,18/11/2024
+498,recurrence-only,,FREQ=MONTHLY,pay electricity bill every month on the 1st at Bunnings,every month on the 1st
+499,recurrence+date,2026-09-20T00:00:00+00:00,FREQ=DAILY;INTERVAL=5,Reminder: every 5 days starting 20/09/2026 call plumber,every 5 days starting 20/09/2026
+500,recurrence-only,,FREQ=DAILY;INTERVAL=2,Groceries: buy milk every second day,every second day
+501,date-only,2025-05-29T00:00:00+00:00,,Plan: mow the lawn 05/29/2025 — asap,05/29/2025
+502,recurrence-only,,FREQ=MONTHLY;INTERVAL=3,pay electricity bill every quarter (low),every quarter
+503,recurrence-only,,FREQ=WEEKLY;INTERVAL=4,Plan: update spreadsheet every 4 weeks — asap,every 4 weeks
+504,date-only,2026-08-03T00:00:00+00:00,,Odd jobs: review PR 2026-08-03 (evening),2026-08-03
+505,recurrence+date,2026-02-28T00:00:00+00:00,FREQ=MONTHLY;INTERVAL=3,every quarter starting 28/02/2026 book dentist with John,every quarter starting 28/02/2026
+506,recurrence+date,2026-05-18T00:00:00+00:00,FREQ=WEEKLY;INTERVAL=2,Groceries: email client every 2 weeks starting 05/18/2026,every 2 weeks starting 05/18/2026
+507,recurrence+date,2025-12-25T00:00:00+00:00,FREQ=YEARLY,Reminder: book dentist every year on 25/12 with John,every year on 25/12
+508,date-only,2025-12-15T00:00:00+00:00,,Task: email client 2025-12-15,2025-12-15
+509,date-only,2025-08-07T00:00:00+00:00,,TODO: 07/08/2025 pay electricity bill with John,07/08/2025
+510,recurrence-only,,FREQ=YEARLY,Note: pay electricity bill every year at 5:30pm (low),every year at 5:30pm
+511,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,Note: wash car every week on Monday,every week on Monday
+512,recurrence-only,,FREQ=WEEKLY,Odd jobs: buy milk every weekend #home,every weekend
+513,recurrence-only,,FREQ=YEARLY,Reminder: every year clean garage (low),every year
+514,date-only,2026-01-29T00:00:00+00:00,,01/29/2026 email client #work,01/29/2026
+515,date-only,2025-02-14T00:00:00+00:00,,Follow up: 2025-02-14 water the plants #work,2025-02-14
+516,date-only,2025-03-14T00:00:00+00:00,,Follow up: backup photos 2025-03-14 — before lunch,2025-03-14
+517,recurrence-only,,FREQ=WEEKLY;INTERVAL=4,Bills: email client every 4 weeks at 5:30pm with John,every 4 weeks at 5:30pm
+518,recurrence-only,,FREQ=WEEKLY;BYDAY=TU,Note: call plumber every Tuesday after work,every Tuesday
+519,date-only,2025-03-27T00:00:00+00:00,,Odd jobs: water the plants 03/27/2025,03/27/2025
+520,recurrence-only,,FREQ=MONTHLY;INTERVAL=2,Task: update spreadsheet every 2 months,every 2 months
+521,date-only,2025-11-06T00:00:00+00:00,,Follow up: 06/11/2025 update spreadsheet,06/11/2025
+522,date-only,2024-09-29T00:00:00+00:00,,email client 09/29/2024,09/29/2024
+523,recurrence-only,,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",Follow up: every Tuesday on weekdays pay electricity bill — asap,every Tuesday on weekdays
+524,recurrence-only,,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",Next: every Saturday on weekdays buy milk for project X,every Saturday on weekdays
+525,recurrence-only,,FREQ=DAILY;INTERVAL=2,Chore: buy milk every 2 days #home,every 2 days
+526,recurrence-only,,FREQ=WEEKLY;BYDAY=WE,every Wednesday wash car (low),every Wednesday
+527,date-only,2025-06-19T00:00:00+00:00,,mow the lawn 06/19/2025 — asap,06/19/2025
+528,recurrence-only,,FREQ=WEEKLY,TODO: buy milk every weekend on weekends #home,every weekend on weekends
+529,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,wash car each fortnight,each fortnight
+530,date-only,2026-09-22T00:00:00+00:00,,Task: review PR 09/22/2026 #work,09/22/2026
+531,recurrence-only,,FREQ=DAILY;INTERVAL=2,Odd jobs: buy milk every 2 days (evening),every 2 days
+532,recurrence-only,,FREQ=WEEKLY;BYDAY=SA,Task: pay electricity bill every Saturday at Bunnings,every Saturday
+533,date-only,2025-11-13T00:00:00+00:00,,Odd jobs: pay electricity bill 13/11/2025 after work,13/11/2025
+534,recurrence-only,,FREQ=WEEKLY;BYDAY=TH,Follow up: every Thursday review PR at Bunnings,every Thursday
+535,recurrence-only,,FREQ=MONTHLY,every month pay electricity bill — before lunch,every month
+536,date-only,2026-02-16T00:00:00+00:00,,Odd jobs: 2026-02-16 buy milk #home,2026-02-16
+537,date-only,2026-02-09T00:00:00+00:00,,Note: 09/02/2026 mow the lawn at Bunnings,09/02/2026
+538,date-only,2026-04-15T00:00:00+00:00,,Plan: 04/15/2026 review PR (low),04/15/2026
+539,date-only,2025-08-26T00:00:00+00:00,,email client 26/08/2025 after work,26/08/2025
+540,recurrence-only,,FREQ=WEEKLY;BYDAY=WE,backup photos every Wednesday #work,every Wednesday
+541,date-only,2025-03-07T00:00:00+00:00,,Odd jobs: 2025-03-07 email client at Bunnings,2025-03-07
+542,recurrence-only,,FREQ=DAILY;INTERVAL=4,Note: buy milk every 4 days on weekends — asap,every 4 days on weekends
+543,date-only,2025-05-15T00:00:00+00:00,,TODO: 2025-05-15 backup photos,2025-05-15
+544,date-only,2025-12-23T00:00:00+00:00,,12/23/2025 call plumber,12/23/2025
+545,recurrence-only,,FREQ=MONTHLY,Note: pay electricity bill every month — asap,every month
+546,date-only,2025-12-29T00:00:00+00:00,,buy milk 12/29/2025 (evening),12/29/2025
+547,date-only,2026-06-28T00:00:00+00:00,,Bills: 28/06/2026 update spreadsheet #home,28/06/2026
+548,date-only,2026-09-10T00:00:00+00:00,,Task: pay electricity bill 2026-09-10 (low),2026-09-10
+549,date-only,2025-08-29T00:00:00+00:00,,Odd jobs: pay electricity bill 08/29/2025 — before lunch,08/29/2025
+550,recurrence-only,,FREQ=DAILY;INTERVAL=3,Plan: email client every 3 days on weekends,every 3 days on weekends
+551,recurrence-only,,FREQ=DAILY;INTERVAL=4,Odd jobs: update spreadsheet every 4 days at Bunnings,every 4 days
+552,date-only,2026-03-05T00:00:00+00:00,,Bills: update spreadsheet 2026-03-05 #work,2026-03-05
+553,recurrence+date,2025-12-25T00:00:00+00:00,FREQ=YEARLY,Reminder: book dentist every year on 25/12,every year on 25/12
+554,date-only,2026-04-14T00:00:00+00:00,,Errands: clean garage 04/14/2026 — before lunch,04/14/2026
+555,date-only,2026-03-28T00:00:00+00:00,,Bills: 28/03/2026 pay electricity bill at Bunnings,28/03/2026
+556,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,review PR every week on Monday on weekends,every week on Monday on weekends
+557,date-only,2024-12-06T00:00:00+00:00,,2024-12-06 call plumber with John,2024-12-06
+558,date-only,2025-04-09T00:00:00+00:00,,Chore: buy milk 09/04/2025 with John,09/04/2025
+559,date-only,2024-10-17T00:00:00+00:00,,pay electricity bill 2024-10-17,2024-10-17
+560,recurrence-only,,FREQ=WEEKLY;BYDAY=WE,Chore: every Wednesday buy milk (low),every Wednesday
+561,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Odd jobs: call plumber every 2 weeks (evening),every 2 weeks
+562,recurrence-only,,FREQ=WEEKLY;BYDAY=FR,Odd jobs: every Friday at 9am email client — before lunch,every Friday at 9am
+563,recurrence+date,2026-01-12T00:00:00+00:00,FREQ=WEEKLY;INTERVAL=3,Follow up: water the plants every 3 weeks starting 12/01/2026,every 3 weeks starting 12/01/2026
+564,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,Reminder: update spreadsheet every week on Monday (low),every week on Monday
+565,recurrence-only,,FREQ=WEEKLY,Odd jobs: email client every weekend at 9am #home,every weekend at 9am
+566,date-only,2026-05-09T00:00:00+00:00,,Plan: update spreadsheet 09/05/2026 at Bunnings,09/05/2026
+567,date-only,2025-02-21T00:00:00+00:00,,Bills: email client 02/21/2025,02/21/2025
+568,date-only,2024-10-29T00:00:00+00:00,,Groceries: review PR 10/29/2024 — asap,10/29/2024
+569,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,Bills: review PR every Monday — before lunch,every Monday
+570,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Chore: every 2 weeks wash car for project X,every 2 weeks
+571,date-only,2024-12-01T00:00:00+00:00,,Errands: email client 01/12/2024 after work,01/12/2024
+572,recurrence-only,,FREQ=MONTHLY,every month on the 1st pay electricity bill with John,every month on the 1st
+573,recurrence-only,,FREQ=DAILY;INTERVAL=2,backup photos every 2 days,every 2 days
+574,date-only,2025-03-10T00:00:00+00:00,,Odd jobs: email client 10/03/2025,10/03/2025
+575,recurrence-only,,FREQ=MONTHLY;INTERVAL=2,Errands: every 2 months water the plants,every 2 months
+576,recurrence-only,,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",Next: every year on weekdays water the plants after work,every year on weekdays
+577,recurrence-only,,FREQ=DAILY;INTERVAL=2,Bills: wash car every second day,every second day
+578,date-only,2025-06-12T00:00:00+00:00,,Reminder: 2025-06-12 email client with John,2025-06-12
+579,date-only,2024-10-17T00:00:00+00:00,,Groceries: mow the lawn 10/17/2024,10/17/2024
+580,recurrence+date,2025-08-07T00:00:00+00:00,FREQ=DAILY;INTERVAL=5,every 5 days starting 2025-08-07 book dentist (evening),every 5 days starting 2025-08-07
+581,recurrence-only,,FREQ=WEEKLY;BYDAY=FR,Next: every Friday buy milk,every Friday
+582,recurrence+date,2025-05-30T00:00:00+00:00,FREQ=WEEKLY;INTERVAL=2,Reminder: email client every second week starting 30/05/2025 #work,every second week starting 30/05/2025
+583,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,mow the lawn every week on Monday at 5:30pm (low),every week on Monday at 5:30pm
+584,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,Bills: book dentist every Monday (evening),every Monday
+585,date-only,2024-12-27T00:00:00+00:00,,Follow up: call plumber 12/27/2024,12/27/2024
+586,date-only,2025-01-03T00:00:00+00:00,,Reminder: 03/01/2025 water the plants,03/01/2025
+587,recurrence+date,2025-12-25T00:00:00+00:00,FREQ=YEARLY,Errands: water the plants every year on 25/12 #home,every year on 25/12
+588,recurrence-only,,FREQ=WEEKLY;INTERVAL=3,every 3 weeks water the plants,every 3 weeks
+589,recurrence-only,,FREQ=MONTHLY;INTERVAL=3,Note: backup photos every quarter #work,every quarter
+590,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,backup photos every second week (low),every second week
+591,date-only,2025-03-22T00:00:00+00:00,,TODO: book dentist 2025-03-22 #work,2025-03-22
+592,recurrence-only,,FREQ=WEEKLY;BYDAY=TH,Follow up: every Thursday review PR,every Thursday
+593,date-only,2025-06-20T00:00:00+00:00,,book dentist 06/20/2025,06/20/2025
+594,recurrence-only,,FREQ=WEEKLY;BYDAY=SU,Plan: book dentist every Sunday with John,every Sunday
+595,recurrence-only,,FREQ=DAILY;INTERVAL=2,Chore: wash car every 2 days (low),every 2 days
+596,recurrence-only,,FREQ=YEARLY,Next: every year at 9am wash car,every year at 9am
+597,recurrence-only,,FREQ=WEEKLY;BYDAY=TH,Groceries: pay electricity bill every Thursday,every Thursday
+598,date-only,2025-02-12T00:00:00+00:00,,Task: 12/02/2025 book dentist (low),12/02/2025
+599,date-only,2025-03-19T00:00:00+00:00,,Odd jobs: email client 19/03/2025 with John,19/03/2025
+600,recurrence+date,2024-10-04T00:00:00+00:00,FREQ=WEEKLY,Plan: email client every weekend starting 2024-10-04,every weekend starting 2024-10-04
+601,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,Plan: every Monday review PR #work,every Monday
+602,date-only,2025-12-16T00:00:00+00:00,,TODO: 12/16/2025 mow the lawn (low),12/16/2025
+603,recurrence-only,,FREQ=MONTHLY;INTERVAL=3,Follow up: buy milk every quarter after work,every quarter
+604,recurrence+date,2025-12-05T00:00:00+00:00,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",Chore: clean garage every weekday starting 2025-12-05 at Bunnings,every weekday starting 2025-12-05
+605,date-only,2024-09-28T00:00:00+00:00,,Follow up: water the plants 2024-09-28 #home,2024-09-28
+606,date-only,2026-09-25T00:00:00+00:00,,Note: pay electricity bill 09/25/2026 at Bunnings,09/25/2026
+607,recurrence-only,,FREQ=WEEKLY;BYDAY=FR,TODO: email client every Friday — asap,every Friday
+608,recurrence-only,,FREQ=WEEKLY;BYDAY=SU,every Sunday at 9am book dentist,every Sunday at 9am
+609,date-only,2024-11-24T00:00:00+00:00,,Bills: review PR 24/11/2024 #home,24/11/2024
+610,date-only,2025-05-16T00:00:00+00:00,,Reminder: update spreadsheet 16/05/2025 for project X,16/05/2025
+611,recurrence-only,,FREQ=DAILY;INTERVAL=5,Errands: every 5 days pay electricity bill,every 5 days
+612,date-only,2026-09-21T00:00:00+00:00,,Errands: review PR 09/21/2026 — before lunch,09/21/2026
+613,recurrence-only,,FREQ=MONTHLY,every month on the 1st water the plants (evening),every month on the 1st
+614,date-only,2025-01-07T00:00:00+00:00,,review PR 07/01/2025 — before lunch,07/01/2025
+615,date-only,2026-02-17T00:00:00+00:00,,Bills: update spreadsheet 02/17/2026,02/17/2026
+616,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Note: every second week wash car,every second week
+617,recurrence-only,,FREQ=WEEKLY;INTERVAL=3,Chore: book dentist every 3 weeks — asap,every 3 weeks
+618,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Chore: book dentist every 2 weeks (evening),every 2 weeks
+619,recurrence-only,,FREQ=DAILY;INTERVAL=2,Next: every 2 days on weekends book dentist #home,every 2 days on weekends
+620,date-only,2025-04-27T00:00:00+00:00,,Follow up: wash car 04/27/2025 with John,04/27/2025
+621,recurrence-only,,FREQ=MONTHLY;INTERVAL=3,Odd jobs: review PR every quarter at Bunnings,every quarter
+622,recurrence-only,,FREQ=WEEKLY;INTERVAL=4,Next: every 4 weeks at 9am mow the lawn at Bunnings,every 4 weeks at 9am
+623,recurrence-only,,FREQ=MONTHLY,Groceries: every month on the 1st mow the lawn for project X,every month on the 1st
+624,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,TODO: book dentist each fortnight on weekdays,each fortnight on weekdays
+625,date-only,2025-07-29T00:00:00+00:00,,07/29/2025 review PR,07/29/2025
+626,date-only,2025-11-16T00:00:00+00:00,,Note: review PR 2025-11-16 #home,2025-11-16
+627,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Chore: every second week email client (evening),every second week
+628,recurrence-only,,FREQ=DAILY;INTERVAL=5,TODO: call plumber every 5 days on weekdays,every 5 days on weekdays
+629,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Groceries: every 2 weeks on weekends water the plants,every 2 weeks on weekends
+630,date-only,2024-04-12T00:00:00+00:00,,Chore: water the plants 12/04/2024 — before lunch,12/04/2024
+631,recurrence-only,,FREQ=WEEKLY;BYDAY=SA,Task: book dentist every Saturday — asap,every Saturday
+632,recurrence+date,2024-10-06T00:00:00+00:00,FREQ=WEEKLY;BYDAY=MO,TODO: book dentist every Monday starting 2024-10-06 after work,every Monday starting 2024-10-06
+633,recurrence+date,2026-04-20T00:00:00+00:00,FREQ=WEEKLY;BYDAY=SA,Chore: wash car every Saturday starting 04/20/2026 — asap,every Saturday starting 04/20/2026
+634,recurrence+date,2025-12-25T00:00:00+00:00,FREQ=YEARLY,Odd jobs: update spreadsheet every year on 25/12 on weekends #home,every year on 25/12 on weekends
+635,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Bills: clean garage every 2 weeks,every 2 weeks
+636,date-only,2025-08-02T00:00:00+00:00,,Reminder: 02/08/2025 update spreadsheet (evening),02/08/2025
+637,recurrence-only,,FREQ=WEEKLY;BYDAY=FR,TODO: every Friday update spreadsheet,every Friday
+638,recurrence-only,,FREQ=DAILY;INTERVAL=3,Odd jobs: buy milk every 3 days,every 3 days
+639,recurrence-only,,FREQ=MONTHLY,Note: water the plants every month after work,every month
+640,date-only,2026-06-23T00:00:00+00:00,,Next: book dentist 06/23/2026,06/23/2026
+641,recurrence-only,,FREQ=WEEKLY;BYDAY=TH,Odd jobs: every Thursday mow the lawn for project X,every Thursday
+642,recurrence-only,,FREQ=DAILY;INTERVAL=4,Reminder: water the plants every 4 days,every 4 days
+643,date-only,2025-12-30T00:00:00+00:00,,Note: 30/12/2025 buy milk (low),30/12/2025
+644,recurrence+date,2026-04-21T00:00:00+00:00,FREQ=MONTHLY;INTERVAL=3,Errands: book dentist every quarter starting 04/21/2026,every quarter starting 04/21/2026
+645,date-only,2026-06-02T00:00:00+00:00,,Task: 02/06/2026 update spreadsheet at Bunnings,02/06/2026
+646,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Note: water the plants every second week at 9am with John,every second week at 9am
+647,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Bills: mow the lawn each fortnight on weekdays (evening),each fortnight on weekdays
+648,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Next: email client every second week at 9am,every second week at 9am
+649,recurrence-only,,FREQ=DAILY;INTERVAL=5,Plan: wash car every 5 days,every 5 days
+650,recurrence-only,,FREQ=MONTHLY,Task: every month on the 1st book dentist for project X,every month on the 1st
+651,recurrence-only,,FREQ=MONTHLY,update spreadsheet every month at 5:30pm — before lunch,every month at 5:30pm
+652,recurrence-only,,FREQ=WEEKLY;INTERVAL=3,Bills: every 3 weeks water the plants,every 3 weeks
+653,date-only,2025-10-20T00:00:00+00:00,,Follow up: book dentist 2025-10-20,2025-10-20
+654,date-only,2025-09-19T00:00:00+00:00,,Chore: clean garage 09/19/2025,09/19/2025
+655,recurrence-only,,FREQ=YEARLY,Follow up: every year review PR — asap,every year
+656,recurrence-only,,FREQ=WEEKLY;INTERVAL=4,Odd jobs: every 4 weeks on weekends buy milk,every 4 weeks on weekends
+657,recurrence+date,2026-04-21T00:00:00+00:00,FREQ=WEEKLY;BYDAY=WE,Follow up: every Wednesday starting 04/21/2026 buy milk at Bunnings,every Wednesday starting 04/21/2026
+658,recurrence-only,,FREQ=WEEKLY;BYDAY=TU,Errands: pay electricity bill every Tuesday (low),every Tuesday
+659,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Groceries: call plumber every 2 weeks at 5:30pm with John,every 2 weeks at 5:30pm
+660,recurrence-only,,FREQ=MONTHLY;INTERVAL=2,every 2 months call plumber for project X,every 2 months
+661,date-only,2026-04-16T00:00:00+00:00,,email client 16/04/2026,16/04/2026
+662,date-only,2026-02-24T00:00:00+00:00,,Follow up: buy milk 02/24/2026 (evening),02/24/2026
+663,recurrence-only,,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",TODO: call plumber every weekday for project X,every weekday
+664,recurrence-only,,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",Odd jobs: every Wednesday on weekdays backup photos at Bunnings,every Wednesday on weekdays
+665,date-only,2026-03-01T00:00:00+00:00,,Bills: email client 2026-03-01 at Bunnings,2026-03-01
+666,date-only,2024-11-07T00:00:00+00:00,,TODO: email client 07/11/2024 — before lunch,07/11/2024
+667,recurrence-only,,FREQ=MONTHLY,Plan: water the plants every month on the 1st at Bunnings,every month on the 1st
+668,date-only,2025-04-08T00:00:00+00:00,,book dentist 08/04/2025 after work,08/04/2025
+669,date-only,2024-10-28T00:00:00+00:00,,Reminder: pay electricity bill 28/10/2024 for project X,28/10/2024
+670,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Plan: each fortnight water the plants with John,each fortnight
+671,recurrence-only,,FREQ=DAILY;INTERVAL=4,Follow up: every 4 days at 9am wash car #home,every 4 days at 9am
+672,recurrence-only,,FREQ=WEEKLY;BYDAY=WE,TODO: every Wednesday email client after work,every Wednesday
+673,recurrence+date,2025-12-25T00:00:00+00:00,FREQ=YEARLY,Task: book dentist every year on 25/12 for project X,every year on 25/12
+674,recurrence-only,,FREQ=WEEKLY;INTERVAL=3,Follow up: pay electricity bill every 3 weeks #home,every 3 weeks
+675,date-only,2024-12-07T00:00:00+00:00,,Follow up: book dentist 2024-12-07 for project X,2024-12-07
+676,date-only,2026-09-08T00:00:00+00:00,,water the plants 08/09/2026,08/09/2026
+677,recurrence-only,,FREQ=WEEKLY;BYDAY=SU,Groceries: every Sunday buy milk (evening),every Sunday
+678,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,Next: every Monday at 9am mow the lawn (low),every Monday at 9am
+679,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Task: update spreadsheet every 2 weeks,every 2 weeks
+680,recurrence-only,,FREQ=DAILY;INTERVAL=2,wash car every 2 days,every 2 days
+681,date-only,2025-08-13T00:00:00+00:00,,Note: review PR 08/13/2025,08/13/2025
+682,date-only,2024-12-26T00:00:00+00:00,,Chore: 2024-12-26 clean garage (evening),2024-12-26
+683,recurrence-only,,FREQ=DAILY;INTERVAL=5,Bills: buy milk every 5 days on weekends (low),every 5 days on weekends
+684,recurrence-only,,FREQ=DAILY;INTERVAL=4,TODO: every 4 days at 9am clean garage #work,every 4 days at 9am
+685,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Reminder: call plumber every second week #home,every second week
+686,date-only,2024-10-29T00:00:00+00:00,,TODO: clean garage 29/10/2024 #home,29/10/2024
+687,recurrence-only,,FREQ=WEEKLY;BYDAY=TU,Note: every Tuesday at 5:30pm update spreadsheet #work,every Tuesday at 5:30pm
+688,recurrence-only,,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",Follow up: mow the lawn every Monday on weekdays — before lunch,every Monday on weekdays
+689,recurrence-only,,FREQ=WEEKLY;BYDAY=WE,Odd jobs: water the plants every Wednesday on weekends — asap,every Wednesday on weekends
+690,date-only,2026-03-14T00:00:00+00:00,,Follow up: mow the lawn 14/03/2026,14/03/2026
+691,recurrence-only,,FREQ=DAILY;INTERVAL=5,Task: wash car every 5 days,every 5 days
+692,date-only,2024-12-02T00:00:00+00:00,,Odd jobs: 2024-12-02 email client — asap,2024-12-02
+693,recurrence-only,,FREQ=MONTHLY;INTERVAL=2,Next: review PR every 2 months,every 2 months
+694,recurrence-only,,FREQ=WEEKLY;BYDAY=WE,Groceries: pay electricity bill every Wednesday #home,every Wednesday
+695,recurrence+date,2026-09-12T00:00:00+00:00,FREQ=MONTHLY,Note: mow the lawn every month on the 1st starting 12/09/2026 #home,every month on the 1st starting 12/09/2026
+696,date-only,2026-03-30T00:00:00+00:00,,Follow up: pay electricity bill 03/30/2026 — asap,03/30/2026
+697,date-only,2026-03-30T00:00:00+00:00,,Plan: email client 2026-03-30,2026-03-30
+698,date-only,2025-03-27T00:00:00+00:00,,water the plants 2025-03-27 with John,2025-03-27
+699,date-only,2026-04-16T00:00:00+00:00,,Bills: clean garage 16/04/2026,16/04/2026
+700,recurrence+date,2025-09-16T00:00:00+00:00,FREQ=DAILY;INTERVAL=5,Reminder: clean garage every 5 days starting 16/09/2025,every 5 days starting 16/09/2025
+701,recurrence-only,,FREQ=YEARLY,Chore: every year pay electricity bill (low),every year
+702,recurrence+date,2025-10-31T00:00:00+00:00,FREQ=DAILY;INTERVAL=3,update spreadsheet every 3 days starting 31/10/2025,every 3 days starting 31/10/2025
+703,recurrence-only,,FREQ=WEEKLY;BYDAY=SU,Plan: call plumber every Sunday #work,every Sunday
+704,date-only,2025-06-12T00:00:00+00:00,,Follow up: 2025-06-12 call plumber #home,2025-06-12
+705,date-only,2026-04-08T00:00:00+00:00,,clean garage 08/04/2026 with John,08/04/2026
+706,date-only,2026-07-14T00:00:00+00:00,,Odd jobs: water the plants 14/07/2026 after work,14/07/2026
+707,date-only,2025-03-28T00:00:00+00:00,,Chore: 2025-03-28 call plumber,2025-03-28
+708,recurrence-only,,FREQ=WEEKLY;BYDAY=WE,clean garage every Wednesday — asap,every Wednesday
+709,recurrence-only,,FREQ=DAILY;INTERVAL=5,Plan: every 5 days water the plants,every 5 days
+710,recurrence-only,,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",Follow up: wash car every year on weekdays — asap,every year on weekdays
+711,date-only,2025-06-23T00:00:00+00:00,,Follow up: buy milk 23/06/2025 — asap,23/06/2025
+712,date-only,2026-05-26T00:00:00+00:00,,Reminder: book dentist 26/05/2026 — asap,26/05/2026
+713,date-only,2026-09-20T00:00:00+00:00,,Chore: backup photos 2026-09-20,2026-09-20
+714,recurrence-only,,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",Plan: mow the lawn every day on weekdays #home,every day on weekdays
+715,date-only,2026-08-03T00:00:00+00:00,,Odd jobs: water the plants 03/08/2026,03/08/2026
+716,recurrence-only,,FREQ=WEEKLY;INTERVAL=4,Plan: every 4 weeks wash car,every 4 weeks
+717,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,email client every week on Monday — before lunch,every week on Monday
+718,recurrence-only,,FREQ=MONTHLY,Groceries: update spreadsheet every month on weekends (low),every month on weekends
+719,date-only,2025-08-09T00:00:00+00:00,,TODO: call plumber 09/08/2025,09/08/2025
+720,recurrence+date,2025-12-25T00:00:00+00:00,FREQ=YEARLY,Odd jobs: mow the lawn every year on 25/12,every year on 25/12
+721,date-only,2025-06-19T00:00:00+00:00,,2025-06-19 update spreadsheet,2025-06-19
+722,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Next: pay electricity bill every second week on weekends (low),every second week on weekends
+723,date-only,2024-09-28T00:00:00+00:00,,Plan: review PR 2024-09-28 at Bunnings,2024-09-28
+724,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Note: book dentist every 2 weeks on weekdays — asap,every 2 weeks on weekdays
+725,date-only,2025-07-17T00:00:00+00:00,,Task: review PR 2025-07-17 #work,2025-07-17
+726,recurrence-only,,FREQ=DAILY;INTERVAL=3,Odd jobs: wash car every 3 days on weekends #home,every 3 days on weekends
+727,date-only,2025-05-26T00:00:00+00:00,,Groceries: 05/26/2025 update spreadsheet (low),05/26/2025
+728,date-only,2026-06-04T00:00:00+00:00,,Note: call plumber 2026-06-04 at Bunnings,2026-06-04
+729,recurrence-only,,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",every Monday on weekdays update spreadsheet,every Monday on weekdays
+730,date-only,2026-09-08T00:00:00+00:00,,wash car 08/09/2026,08/09/2026
+731,recurrence+date,2025-12-25T00:00:00+00:00,FREQ=YEARLY,call plumber every year on 25/12 #work,every year on 25/12
+732,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Note: book dentist each fortnight,each fortnight
+733,recurrence-only,,FREQ=WEEKLY;BYDAY=SU,Chore: every Sunday water the plants with John,every Sunday
+734,date-only,2024-09-28T00:00:00+00:00,,TODO: pay electricity bill 09/28/2024 after work,09/28/2024
+735,recurrence-only,,FREQ=WEEKLY;BYDAY=WE,Follow up: update spreadsheet every Wednesday at Bunnings,every Wednesday
+736,recurrence-only,,FREQ=MONTHLY,Reminder: every month mow the lawn,every month
+737,date-only,2026-09-10T00:00:00+00:00,,Groceries: clean garage 10/09/2026 — asap,10/09/2026
+738,recurrence-only,,FREQ=WEEKLY;BYDAY=SA,pay electricity bill every Saturday (low),every Saturday
+739,date-only,2026-09-24T00:00:00+00:00,,Errands: 09/24/2026 book dentist for project X,09/24/2026
+740,recurrence-only,,FREQ=WEEKLY;INTERVAL=4,Errands: every 4 weeks wash car,every 4 weeks
+741,date-only,2026-06-14T00:00:00+00:00,,water the plants 2026-06-14,2026-06-14
+742,recurrence-only,,FREQ=WEEKLY;BYDAY=SA,Groceries: email client every Saturday,every Saturday
+743,recurrence-only,,FREQ=MONTHLY;INTERVAL=3,buy milk every quarter (evening),every quarter
+744,recurrence-only,,FREQ=DAILY;INTERVAL=5,Errands: clean garage every 5 days at Bunnings,every 5 days
+745,recurrence-only,,FREQ=WEEKLY;BYDAY=TH,Odd jobs: wash car every Thursday,every Thursday
+746,date-only,2026-02-05T00:00:00+00:00,,Next: 2026-02-05 book dentist after work,2026-02-05
+747,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Next: every 2 weeks on weekdays mow the lawn — asap,every 2 weeks on weekdays
+748,date-only,2025-11-16T00:00:00+00:00,,Bills: mow the lawn 16/11/2025 after work,16/11/2025
+749,recurrence+date,2025-10-29T00:00:00+00:00,FREQ=DAILY;INTERVAL=5,Groceries: mow the lawn every 5 days starting 2025-10-29 for project X,every 5 days starting 2025-10-29
+750,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,update spreadsheet every week on Monday with John,every week on Monday
+751,recurrence-only,,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",Note: every weekday at 9am water the plants,every weekday at 9am
+752,date-only,2025-09-03T00:00:00+00:00,,Chore: call plumber 2025-09-03 (low),2025-09-03
+753,recurrence-only,,FREQ=WEEKLY;BYDAY=TU,Groceries: pay electricity bill every Tuesday with John,every Tuesday
+754,recurrence-only,,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",Chore: every week on Monday on weekdays backup photos,every week on Monday on weekdays
+755,recurrence-only,,FREQ=DAILY;INTERVAL=3,TODO: water the plants every 3 days at 9am — asap,every 3 days at 9am
+756,recurrence-only,,FREQ=MONTHLY,Odd jobs: every month on the 1st pay electricity bill (evening),every month on the 1st
+757,recurrence-only,,FREQ=DAILY;INTERVAL=5,Errands: every 5 days call plumber — before lunch,every 5 days
+758,date-only,2026-01-31T00:00:00+00:00,,Task: water the plants 2026-01-31 (evening),2026-01-31
+759,recurrence-only,,FREQ=DAILY;INTERVAL=2,TODO: book dentist every second day,every second day
+760,date-only,2025-01-21T00:00:00+00:00,,Errands: 2025-01-21 buy milk at Bunnings,2025-01-21
+761,date-only,2025-02-19T00:00:00+00:00,,Reminder: pay electricity bill 2025-02-19 after work,2025-02-19
+762,recurrence-only,,FREQ=DAILY,Bills: every day email client (low),every day
+763,recurrence-only,,FREQ=WEEKLY;BYDAY=FR,TODO: wash car every Friday on weekends,every Friday on weekends
+764,date-only,2025-09-03T00:00:00+00:00,,Reminder: call plumber 03/09/2025 — asap,03/09/2025
+765,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,clean garage every second week on weekdays #work,every second week on weekdays
+766,recurrence-only,,FREQ=MONTHLY;INTERVAL=2,every 2 months at 9am buy milk,every 2 months at 9am
+767,recurrence+date,2025-12-25T00:00:00+00:00,FREQ=YEARLY,TODO: every year on 25/12 mow the lawn after work,every year on 25/12
+768,recurrence-only,,FREQ=MONTHLY,Task: every month on the 1st at 5:30pm pay electricity bill #home,every month on the 1st at 5:30pm
+769,recurrence-only,,FREQ=MONTHLY;INTERVAL=3,Next: wash car every quarter at 9am for project X,every quarter at 9am
+770,recurrence-only,,FREQ=MONTHLY;INTERVAL=2,every 2 months wash car — before lunch,every 2 months
+771,date-only,2024-03-12T00:00:00+00:00,,Odd jobs: 12/03/2024 pay electricity bill,12/03/2024
+772,recurrence-only,,FREQ=WEEKLY;BYDAY=FR,Groceries: call plumber every Friday,every Friday
+773,recurrence-only,,FREQ=DAILY;INTERVAL=2,every second day book dentist,every second day
+774,date-only,2026-01-28T00:00:00+00:00,,Next: 2026-01-28 update spreadsheet at Bunnings,2026-01-28
+775,recurrence-only,,FREQ=MONTHLY,Odd jobs: mow the lawn every month on the 1st — before lunch,every month on the 1st
+776,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,Plan: call plumber every week on Monday at 9am — before lunch,every week on Monday at 9am
+777,recurrence-only,,FREQ=WEEKLY,Next: every weekend clean garage — before lunch,every weekend
+778,recurrence-only,,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",Note: update spreadsheet every weekend on weekdays at Bunnings,every weekend on weekdays
+779,date-only,2024-10-26T00:00:00+00:00,,Odd jobs: 26/10/2024 clean garage (evening),26/10/2024
+780,date-only,2025-09-04T00:00:00+00:00,,Groceries: 04/09/2025 book dentist,04/09/2025
+781,recurrence+date,2025-12-25T00:00:00+00:00,FREQ=YEARLY,Chore: review PR every year on 25/12,every year on 25/12
+782,date-only,2025-05-06T00:00:00+00:00,,Odd jobs: 06/05/2025 buy milk,06/05/2025
+783,date-only,2025-11-10T00:00:00+00:00,,Task: pay electricity bill 10/11/2025 (low),10/11/2025
+784,recurrence-only,,FREQ=MONTHLY;INTERVAL=3,Task: update spreadsheet every quarter after work,every quarter
+785,date-only,2026-08-28T00:00:00+00:00,,Bills: review PR 08/28/2026 #work,08/28/2026
+786,date-only,2025-11-14T00:00:00+00:00,,Plan: buy milk 11/14/2025,11/14/2025
+787,recurrence-only,,FREQ=DAILY;INTERVAL=5,wash car every 5 days on weekends with John,every 5 days on weekends
+788,date-only,2026-01-08T00:00:00+00:00,,Task: pay electricity bill 08/01/2026 (low),08/01/2026
+789,recurrence-only,,FREQ=MONTHLY;INTERVAL=2,Groceries: backup photos every 2 months,every 2 months
+790,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,TODO: update spreadsheet each fortnight on weekdays (evening),each fortnight on weekdays
+791,recurrence-only,,FREQ=WEEKLY;BYDAY=TU,Next: every Tuesday buy milk — before lunch,every Tuesday
+792,recurrence-only,,FREQ=WEEKLY;INTERVAL=4,Reminder: every 4 weeks at 5:30pm backup photos #home,every 4 weeks at 5:30pm
+793,recurrence-only,,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",Next: clean garage every Monday on weekdays #work,every Monday on weekdays
+794,date-only,2025-06-17T00:00:00+00:00,,Plan: 17/06/2025 clean garage,17/06/2025
+795,recurrence+date,2026-04-05T00:00:00+00:00,FREQ=MONTHLY,Task: clean garage every month on the 1st starting 05/04/2026 — before lunch,every month on the 1st starting 05/04/2026
+796,recurrence-only,,FREQ=MONTHLY;INTERVAL=3,water the plants every quarter on weekends — before lunch,every quarter on weekends
+797,recurrence-only,,FREQ=WEEKLY;BYDAY=SU,Note: water the plants every Sunday after work,every Sunday
+798,recurrence-only,,FREQ=WEEKLY,Plan: review PR every weekend at 5:30pm,every weekend at 5:30pm
+799,recurrence-only,,FREQ=WEEKLY;INTERVAL=4,every 4 weeks book dentist #work,every 4 weeks
+800,date-only,2025-06-24T00:00:00+00:00,,Errands: wash car 2025-06-24 after work,2025-06-24
+801,recurrence-only,,FREQ=WEEKLY;BYDAY=SU,Note: every Sunday on weekends call plumber after work,every Sunday on weekends
+802,date-only,2025-04-22T00:00:00+00:00,,Note: wash car 22/04/2025 — before lunch,22/04/2025
+803,date-only,2026-02-09T00:00:00+00:00,,Plan: mow the lawn 2026-02-09 (evening),2026-02-09
+804,date-only,2026-08-24T00:00:00+00:00,,Odd jobs: 24/08/2026 update spreadsheet,24/08/2026
+805,recurrence-only,,FREQ=DAILY;INTERVAL=5,Task: wash car every 5 days,every 5 days
+806,recurrence-only,,FREQ=DAILY;INTERVAL=5,Follow up: update spreadsheet every 5 days,every 5 days
+807,recurrence-only,,FREQ=MONTHLY;INTERVAL=3,Odd jobs: review PR every quarter with John,every quarter
+808,recurrence-only,,FREQ=WEEKLY;BYDAY=FR,Note: every Friday book dentist #home,every Friday
+809,date-only,2024-10-24T00:00:00+00:00,,call plumber 24/10/2024,24/10/2024
+810,date-only,2026-02-14T00:00:00+00:00,,Bills: email client 14/02/2026,14/02/2026
+811,date-only,2024-11-18T00:00:00+00:00,,Follow up: 2024-11-18 pay electricity bill (evening),2024-11-18
+812,date-only,2024-11-22T00:00:00+00:00,,Bills: backup photos 11/22/2024 #home,11/22/2024
+813,recurrence-only,,FREQ=WEEKLY;BYDAY=FR,Bills: every Friday update spreadsheet #home,every Friday
+814,recurrence-only,,FREQ=WEEKLY;BYDAY=FR,Chore: wash car every Friday with John,every Friday
+815,date-only,2026-06-15T00:00:00+00:00,,Bills: 2026-06-15 call plumber #home,2026-06-15
+816,date-only,2025-06-17T00:00:00+00:00,,clean garage 17/06/2025,17/06/2025
+817,recurrence-only,,FREQ=WEEKLY;BYDAY=TH,Note: book dentist every Thursday at Bunnings,every Thursday
+818,date-only,2026-06-30T00:00:00+00:00,,Errands: 30/06/2026 book dentist at Bunnings,30/06/2026
+819,recurrence-only,,FREQ=MONTHLY;INTERVAL=2,Follow up: every 2 months backup photos at Bunnings,every 2 months
+820,recurrence-only,,FREQ=WEEKLY;INTERVAL=4,Bills: update spreadsheet every 4 weeks after work,every 4 weeks
+821,recurrence-only,,FREQ=DAILY;INTERVAL=3,update spreadsheet every 3 days,every 3 days
+822,date-only,2025-04-15T00:00:00+00:00,,Next: 2025-04-15 wash car,2025-04-15
+823,recurrence-only,,FREQ=DAILY;INTERVAL=4,Errands: pay electricity bill every 4 days,every 4 days
+824,date-only,2026-02-04T00:00:00+00:00,,04/02/2026 mow the lawn after work,04/02/2026
+825,recurrence-only,,FREQ=DAILY;INTERVAL=3,call plumber every 3 days,every 3 days
+826,recurrence-only,,FREQ=YEARLY,book dentist every year (evening),every year
+827,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Follow up: every 2 weeks clean garage — asap,every 2 weeks
+828,date-only,2026-06-10T00:00:00+00:00,,Bills: pay electricity bill 2026-06-10,2026-06-10
+829,date-only,2025-05-23T00:00:00+00:00,,Follow up: water the plants 05/23/2025 #work,05/23/2025
+830,date-only,2025-03-13T00:00:00+00:00,,Next: water the plants 2025-03-13 — before lunch,2025-03-13
+831,date-only,2024-10-19T00:00:00+00:00,,update spreadsheet 10/19/2024 — before lunch,10/19/2024
+832,date-only,2025-10-15T00:00:00+00:00,,Reminder: update spreadsheet 2025-10-15 #work,2025-10-15
+833,recurrence-only,,FREQ=DAILY;INTERVAL=4,Errands: every 4 days update spreadsheet,every 4 days
+834,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Reminder: review PR every second week,every second week
+835,recurrence+date,2026-03-15T00:00:00+00:00,FREQ=WEEKLY;BYDAY=SU,Next: every Sunday starting 15/03/2026 pay electricity bill — asap,every Sunday starting 15/03/2026
+836,recurrence-only,,FREQ=DAILY;INTERVAL=5,Chore: every 5 days wash car,every 5 days
+837,date-only,2025-01-24T00:00:00+00:00,,Reminder: wash car 01/24/2025 — before lunch,01/24/2025
+838,recurrence-only,,FREQ=WEEKLY;BYDAY=FR,Next: call plumber every Friday after work,every Friday
+839,date-only,2024-11-22T00:00:00+00:00,,TODO: pay electricity bill 11/22/2024,11/22/2024
+840,date-only,2025-04-23T00:00:00+00:00,,TODO: water the plants 2025-04-23 #home,2025-04-23
+841,date-only,2024-10-30T00:00:00+00:00,,Task: call plumber 10/30/2024,10/30/2024
+842,recurrence-only,,FREQ=DAILY,Plan: call plumber every day,every day
+843,recurrence-only,,FREQ=WEEKLY;INTERVAL=3,Plan: every 3 weeks review PR #work,every 3 weeks
+844,date-only,2024-10-25T00:00:00+00:00,,Reminder: book dentist 25/10/2024 #home,25/10/2024
+845,date-only,2026-04-25T00:00:00+00:00,,25/04/2026 water the plants (evening),25/04/2026
+846,recurrence-only,,FREQ=WEEKLY;BYDAY=TU,Note: book dentist every Tuesday at Bunnings,every Tuesday
+847,date-only,2026-08-24T00:00:00+00:00,,review PR 24/08/2026 (evening),24/08/2026
+848,recurrence-only,,FREQ=MONTHLY,TODO: update spreadsheet every month at 5:30pm (evening),every month at 5:30pm
+849,recurrence-only,,FREQ=MONTHLY;INTERVAL=3,mow the lawn every quarter,every quarter
+850,date-only,2024-10-08T00:00:00+00:00,,Task: 08/10/2024 book dentist (low),08/10/2024
+851,date-only,2026-05-21T00:00:00+00:00,,Reminder: update spreadsheet 2026-05-21,2026-05-21
+852,date-only,2026-07-07T00:00:00+00:00,,Errands: clean garage 2026-07-07 — before lunch,2026-07-07
+853,recurrence-only,,FREQ=WEEKLY;BYDAY=FR,Chore: water the plants every Friday at 9am for project X,every Friday at 9am
+854,recurrence-only,,FREQ=WEEKLY;BYDAY=TH,Follow up: update spreadsheet every Thursday,every Thursday
+855,recurrence-only,,FREQ=MONTHLY,Errands: pay electricity bill every month on the 1st at 9am,every month on the 1st at 9am
+856,recurrence-only,,FREQ=MONTHLY,Task: every month book dentist with John,every month
+857,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Chore: book dentist every 2 weeks on weekends,every 2 weeks on weekends
+858,recurrence-only,,FREQ=DAILY;INTERVAL=4,Odd jobs: backup photos every 4 days after work,every 4 days
+859,recurrence-only,,FREQ=WEEKLY;BYDAY=SA,Bills: review PR every Saturday (low),every Saturday
+860,recurrence-only,,FREQ=WEEKLY;BYDAY=TH,Plan: every Thursday mow the lawn for project X,every Thursday
+861,recurrence-only,,FREQ=WEEKLY;BYDAY=WE,review PR every Wednesday at Bunnings,every Wednesday
+862,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,review PR every second week — asap,every second week
+863,recurrence-only,,FREQ=DAILY;INTERVAL=2,Chore: every second day at 5:30pm pay electricity bill for project X,every second day at 5:30pm
+864,date-only,2026-07-29T00:00:00+00:00,,Odd jobs: 29/07/2026 review PR,29/07/2026
+865,recurrence+date,2026-09-17T00:00:00+00:00,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",TODO: update spreadsheet every weekday starting 09/17/2026 after work,every weekday starting 09/17/2026
+866,recurrence-only,,FREQ=WEEKLY;BYDAY=TU,Follow up: buy milk every Tuesday,every Tuesday
+867,recurrence-only,,FREQ=WEEKLY;BYDAY=TH,Plan: every Thursday backup photos #home,every Thursday
+868,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,mow the lawn each fortnight at 9am #work,each fortnight at 9am
+869,date-only,2025-04-10T00:00:00+00:00,,Groceries: water the plants 10/04/2025,10/04/2025
+870,recurrence-only,,FREQ=WEEKLY;INTERVAL=4,Bills: every 4 weeks email client,every 4 weeks
+871,recurrence-only,,FREQ=DAILY;INTERVAL=2,Next: every 2 days mow the lawn (low),every 2 days
+872,recurrence-only,,FREQ=MONTHLY;INTERVAL=3,Groceries: email client every quarter #work,every quarter
+873,date-only,2025-07-26T00:00:00+00:00,,Groceries: update spreadsheet 26/07/2025 — asap,26/07/2025
+874,date-only,2026-06-27T00:00:00+00:00,,TODO: 2026-06-27 buy milk — before lunch,2026-06-27
+875,recurrence-only,,FREQ=WEEKLY,Errands: every weekend book dentist for project X,every weekend
+876,recurrence-only,,FREQ=MONTHLY;INTERVAL=3,Bills: buy milk every quarter on weekends — asap,every quarter on weekends
+877,date-only,2025-08-16T00:00:00+00:00,,Note: 2025-08-16 email client after work,2025-08-16
+878,recurrence-only,,FREQ=WEEKLY;BYDAY=TU,Follow up: every Tuesday email client at Bunnings,every Tuesday
+879,date-only,2026-03-27T00:00:00+00:00,,TODO: 2026-03-27 buy milk #home,2026-03-27
+880,recurrence-only,,FREQ=WEEKLY;BYDAY=TH,Chore: update spreadsheet every Thursday #home,every Thursday
+881,recurrence+date,2026-06-29T00:00:00+00:00,FREQ=MONTHLY,Bills: call plumber every month on the 1st starting 2026-06-29,every month on the 1st starting 2026-06-29
+882,recurrence-only,,FREQ=WEEKLY,buy milk every weekend — before lunch,every weekend
+883,recurrence+date,2026-01-17T00:00:00+00:00,FREQ=WEEKLY;BYDAY=MO,Odd jobs: every Monday starting 17/01/2026 backup photos after work,every Monday starting 17/01/2026
+884,date-only,2026-03-13T00:00:00+00:00,,TODO: wash car 2026-03-13 with John,2026-03-13
+885,date-only,2025-12-05T00:00:00+00:00,,Follow up: 05/12/2025 mow the lawn,05/12/2025
+886,date-only,2026-05-11T00:00:00+00:00,,TODO: review PR 11/05/2026 with John,11/05/2026
+887,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,email client every 2 weeks (low),every 2 weeks
+888,recurrence-only,,FREQ=WEEKLY;INTERVAL=4,Bills: update spreadsheet every 4 weeks for project X,every 4 weeks
+889,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,Reminder: email client every Monday (low),every Monday
+890,recurrence-only,,FREQ=YEARLY,clean garage every year,every year
+891,recurrence-only,,FREQ=WEEKLY;BYDAY=SA,Errands: every Saturday wash car,every Saturday
+892,recurrence-only,,FREQ=MONTHLY;INTERVAL=3,Odd jobs: mow the lawn every quarter for project X,every quarter
+893,date-only,2025-03-17T00:00:00+00:00,,Follow up: email client 2025-03-17,2025-03-17
+894,recurrence-only,,FREQ=DAILY;INTERVAL=2,Plan: pay electricity bill every second day on weekdays at Bunnings,every second day on weekdays
+895,recurrence-only,,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",book dentist every weekday at Bunnings,every weekday
+896,recurrence-only,,FREQ=WEEKLY;BYDAY=TH,Errands: email client every Thursday #work,every Thursday
+897,recurrence-only,,FREQ=MONTHLY;INTERVAL=3,Task: review PR every quarter,every quarter
+898,recurrence+date,2026-09-08T00:00:00+00:00,FREQ=MONTHLY,Odd jobs: backup photos every month starting 2026-09-08,every month starting 2026-09-08
+899,date-only,2024-10-05T00:00:00+00:00,,Next: 05/10/2024 book dentist,05/10/2024
+900,date-only,2025-04-20T00:00:00+00:00,,Follow up: email client 04/20/2025 #home,04/20/2025
+901,recurrence-only,,FREQ=WEEKLY;BYDAY=SU,Follow up: every Sunday update spreadsheet,every Sunday
+902,recurrence-only,,FREQ=WEEKLY;BYDAY=SU,Errands: backup photos every Sunday,every Sunday
+903,date-only,2026-05-01T00:00:00+00:00,,Note: update spreadsheet 2026-05-01 (evening),2026-05-01
+904,recurrence-only,,FREQ=WEEKLY;BYDAY=FR,Chore: every Friday call plumber,every Friday
+905,recurrence-only,,FREQ=WEEKLY;BYDAY=FR,Bills: water the plants every Friday (evening),every Friday
+906,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Reminder: every second week review PR — asap,every second week
+907,date-only,2025-11-24T00:00:00+00:00,,Follow up: 24/11/2025 buy milk #work,24/11/2025
+908,date-only,2026-08-16T00:00:00+00:00,,buy milk 2026-08-16 after work,2026-08-16
+909,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,every 2 weeks water the plants,every 2 weeks
+910,recurrence-only,,FREQ=MONTHLY,Follow up: water the plants every month — asap,every month
+911,date-only,2025-01-14T00:00:00+00:00,,Next: water the plants 14/01/2025 (evening),14/01/2025
+912,recurrence-only,,FREQ=WEEKLY;INTERVAL=3,Errands: book dentist every 3 weeks,every 3 weeks
+913,date-only,2025-07-10T00:00:00+00:00,,Plan: water the plants 10/07/2025 (low),10/07/2025
+914,date-only,2024-09-29T00:00:00+00:00,,Next: 29/09/2024 call plumber — asap,29/09/2024
+915,recurrence-only,,FREQ=DAILY;INTERVAL=2,Plan: every second day clean garage — before lunch,every second day
+916,date-only,2025-07-28T00:00:00+00:00,,Groceries: book dentist 07/28/2025,07/28/2025
+917,recurrence-only,,FREQ=WEEKLY,Task: backup photos every weekend with John,every weekend
+918,recurrence+date,2025-12-25T00:00:00+00:00,FREQ=YEARLY,Reminder: every year on 25/12 wash car — before lunch,every year on 25/12
+919,recurrence-only,,FREQ=WEEKLY;INTERVAL=4,Follow up: every 4 weeks call plumber at Bunnings,every 4 weeks
+920,recurrence-only,,FREQ=DAILY;INTERVAL=4,Reminder: update spreadsheet every 4 days at Bunnings,every 4 days
+921,date-only,2026-07-03T00:00:00+00:00,,Plan: mow the lawn 03/07/2026,03/07/2026
+922,recurrence-only,,FREQ=MONTHLY,Next: every month on the 1st on weekends email client at Bunnings,every month on the 1st on weekends
+923,recurrence+date,2025-01-24T00:00:00+00:00,FREQ=WEEKLY;BYDAY=SU,Odd jobs: wash car every Sunday starting 24/01/2025 at Bunnings,every Sunday starting 24/01/2025
+924,date-only,2025-06-17T00:00:00+00:00,,Reminder: 17/06/2025 backup photos with John,17/06/2025
+925,recurrence-only,,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",Follow up: every year on weekdays book dentist for project X,every year on weekdays
+926,date-only,2024-11-24T00:00:00+00:00,,wash car 2024-11-24 #work,2024-11-24
+927,recurrence-only,,FREQ=MONTHLY;INTERVAL=2,Task: buy milk every 2 months,every 2 months
+928,date-only,2024-12-02T00:00:00+00:00,,Task: 2024-12-02 call plumber (evening),2024-12-02
+929,recurrence-only,,FREQ=MONTHLY;INTERVAL=2,Plan: backup photos every 2 months at Bunnings,every 2 months
+930,date-only,2026-09-23T00:00:00+00:00,,Groceries: buy milk 09/23/2026 — before lunch,09/23/2026
+931,recurrence-only,,FREQ=WEEKLY;BYDAY=SU,TODO: every Sunday at 5:30pm update spreadsheet — asap,every Sunday at 5:30pm
+932,date-only,2024-12-22T00:00:00+00:00,,Follow up: review PR 12/22/2024 at Bunnings,12/22/2024
+933,recurrence-only,,FREQ=MONTHLY,TODO: mow the lawn every month #home,every month
+934,date-only,2025-11-26T00:00:00+00:00,,Next: backup photos 26/11/2025 after work,26/11/2025
+935,date-only,2026-03-04T00:00:00+00:00,,Groceries: buy milk 04/03/2026 after work,04/03/2026
+936,recurrence-only,,FREQ=DAILY;INTERVAL=3,mow the lawn every 3 days for project X,every 3 days
+937,date-only,2025-07-04T00:00:00+00:00,,TODO: review PR 2025-07-04 after work,2025-07-04
+938,date-only,2025-09-04T00:00:00+00:00,,Chore: 04/09/2025 book dentist (evening),04/09/2025
+939,recurrence-only,,FREQ=WEEKLY;BYDAY=TH,clean garage every Thursday for project X,every Thursday
+940,date-only,2025-09-14T00:00:00+00:00,,Plan: wash car 14/09/2025,14/09/2025
+941,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,Reminder: water the plants every Monday (evening),every Monday
+942,date-only,2026-01-15T00:00:00+00:00,,Groceries: update spreadsheet 2026-01-15,2026-01-15
+943,date-only,2025-02-20T00:00:00+00:00,,Task: call plumber 20/02/2025 after work,20/02/2025
+944,recurrence-only,,FREQ=YEARLY,Bills: every year buy milk,every year
+945,date-only,2025-01-02T00:00:00+00:00,,backup photos 02/01/2025,02/01/2025
+946,recurrence-only,,FREQ=WEEKLY;BYDAY=WE,Follow up: every Wednesday review PR for project X,every Wednesday
+947,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,Task: every week on Monday email client — asap,every week on Monday
+948,date-only,2025-03-11T00:00:00+00:00,,Next: 2025-03-11 water the plants,2025-03-11
+949,recurrence-only,,FREQ=WEEKLY;BYDAY=WE,every Wednesday backup photos — asap,every Wednesday
+950,date-only,2025-10-08T00:00:00+00:00,,Reminder: email client 2025-10-08 after work,2025-10-08
+951,recurrence-only,,FREQ=WEEKLY;INTERVAL=2,Reminder: every 2 weeks at 5:30pm mow the lawn (evening),every 2 weeks at 5:30pm
+952,date-only,2026-03-21T00:00:00+00:00,,Task: water the plants 03/21/2026 at Bunnings,03/21/2026
+953,date-only,2026-01-09T00:00:00+00:00,,Note: buy milk 09/01/2026,09/01/2026
+954,date-only,2025-03-26T00:00:00+00:00,,Plan: 26/03/2025 update spreadsheet (low),26/03/2025
+955,recurrence-only,,FREQ=WEEKLY;BYDAY=SA,Groceries: review PR every Saturday (evening),every Saturday
+956,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,TODO: update spreadsheet every week on Monday (evening),every week on Monday
+957,date-only,2026-01-03T00:00:00+00:00,,Errands: call plumber 2026-01-03 #work,2026-01-03
+958,recurrence-only,,FREQ=WEEKLY;BYDAY=FR,Errands: water the plants every Friday #work,every Friday
+959,recurrence-only,,FREQ=DAILY;INTERVAL=4,review PR every 4 days at 5:30pm (low),every 4 days at 5:30pm
+960,recurrence-only,,FREQ=WEEKLY;BYDAY=WE,buy milk every Wednesday #home,every Wednesday
+961,recurrence-only,,FREQ=MONTHLY;INTERVAL=2,every 2 months wash car,every 2 months
+962,recurrence-only,,FREQ=DAILY;INTERVAL=4,buy milk every 4 days — asap,every 4 days
+963,recurrence-only,,FREQ=DAILY;INTERVAL=4,call plumber every 4 days on weekends with John,every 4 days on weekends
+964,recurrence-only,,FREQ=YEARLY,Reminder: mow the lawn every year,every year
+965,date-only,2024-12-23T00:00:00+00:00,,Reminder: email client 2024-12-23,2024-12-23
+966,recurrence-only,,FREQ=MONTHLY,Plan: every month at 5:30pm pay electricity bill — asap,every month at 5:30pm
+967,date-only,2026-05-06T00:00:00+00:00,,TODO: buy milk 06/05/2026 for project X,06/05/2026
+968,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,Task: review PR every Monday — before lunch,every Monday
+969,recurrence+date,2025-09-18T00:00:00+00:00,FREQ=WEEKLY;BYDAY=FR,every Friday starting 18/09/2025 pay electricity bill at Bunnings,every Friday starting 18/09/2025
+970,recurrence-only,,FREQ=DAILY,Odd jobs: call plumber every day on weekends for project X,every day on weekends
+971,recurrence+date,2026-05-14T00:00:00+00:00,FREQ=WEEKLY;INTERVAL=2,TODO: each fortnight starting 05/14/2026 mow the lawn,each fortnight starting 05/14/2026
+972,recurrence-only,,FREQ=WEEKLY;BYDAY=MO,Groceries: clean garage every Monday with John,every Monday
+973,recurrence-only,,FREQ=DAILY,Groceries: backup photos every day,every day
+974,date-only,2025-06-11T00:00:00+00:00,,11/06/2025 mow the lawn — before lunch,11/06/2025
+975,recurrence-only,,FREQ=DAILY;INTERVAL=2,Task: every 2 days email client — asap,every 2 days
+976,date-only,2025-01-07T00:00:00+00:00,,TODO: update spreadsheet 07/01/2025,07/01/2025
+977,date-only,2026-01-23T00:00:00+00:00,,Next: backup photos 23/01/2026 for project X,23/01/2026
+978,recurrence-only,,FREQ=WEEKLY;BYDAY=TH,Odd jobs: clean garage every Thursday #work,every Thursday
+979,recurrence-only,,FREQ=MONTHLY;INTERVAL=3,update spreadsheet every quarter (evening),every quarter
+980,date-only,2025-02-14T00:00:00+00:00,,Task: 02/14/2025 clean garage — asap,02/14/2025
+981,date-only,2025-09-14T00:00:00+00:00,,Bills: email client 14/09/2025 #home,14/09/2025
+982,date-only,2026-08-14T00:00:00+00:00,,Plan: pay electricity bill 2026-08-14 with John,2026-08-14
+983,date-only,2025-05-14T00:00:00+00:00,,Note: 14/05/2025 call plumber #home,14/05/2025
+984,date-only,2025-04-13T00:00:00+00:00,,TODO: 13/04/2025 email client #home,13/04/2025
+985,recurrence-only,,FREQ=WEEKLY;INTERVAL=4,review PR every 4 weeks — before lunch,every 4 weeks
+986,recurrence-only,,FREQ=YEARLY,Note: every year buy milk for project X,every year
+987,recurrence+date,2025-12-25T00:00:00+00:00,FREQ=YEARLY,Next: pay electricity bill every year on 25/12 (evening),every year on 25/12
+988,date-only,2024-10-15T00:00:00+00:00,,Next: wash car 10/15/2024,10/15/2024
+989,date-only,2025-09-22T00:00:00+00:00,,Reminder: 22/09/2025 email client (low),22/09/2025
+990,recurrence-only,,FREQ=DAILY;INTERVAL=5,Note: every 5 days on weekends water the plants (evening),every 5 days on weekends
+991,date-only,2025-10-21T00:00:00+00:00,,mow the lawn 2025-10-21,2025-10-21
+992,date-only,2026-03-27T00:00:00+00:00,,27/03/2026 buy milk for project X,27/03/2026
+993,date-only,2024-10-31T00:00:00+00:00,,10/31/2024 email client,10/31/2024
+994,recurrence-only,,FREQ=WEEKLY;INTERVAL=4,Note: every 4 weeks update spreadsheet with John,every 4 weeks
+995,date-only,2026-01-19T00:00:00+00:00,,Errands: water the plants 2026-01-19 after work,2026-01-19
+996,date-only,2025-11-22T00:00:00+00:00,,Reminder: update spreadsheet 2025-11-22 (low),2025-11-22
+997,recurrence-only,,FREQ=WEEKLY;BYDAY=SA,every Saturday call plumber,every Saturday
+998,recurrence-only,,FREQ=DAILY;INTERVAL=4,book dentist every 4 days at 5:30pm at Bunnings,every 4 days at 5:30pm
+999,recurrence-only,,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",Next: mow the lawn every weekday for project X,every weekday
+1000,recurrence+date,2025-12-25T00:00:00+00:00,"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",review PR every year on 25/12 on weekdays #work,every year on 25/12 on weekdays
