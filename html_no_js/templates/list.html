@@ -1168,7 +1168,7 @@
             </tr>
           </thead>
           {% endif %}
-          <tbody>
+          <tbody{% if original_priority_order and completed_after %} data-priority-order="{{ original_priority_order|join(',') }}"{% endif %}>
           {% for t in todos %}
             <tr id="todo-{{ t.id }}" data-priority="{{ t.priority if t.priority is not none else '' }}">
               <td>
@@ -1475,82 +1475,82 @@
   <script>
   (function(){
     var cb = document.getElementById('completed-after-checkbox');
-  var form = document.getElementById('completed-after-form');
-  var hidden = document.getElementById('completed-after-hidden');
+    var form = document.getElementById('completed-after-form');
+    var hidden = document.getElementById('completed-after-hidden');
     if (!cb) return;
 
     var initialized = false;
 
     function attachOnce(container){
       if (initialized) return; initialized = true;
-  var isTable = !!container.closest('table');
-  // In table layout, rows do not have class="todo"; match by id prefix
-  var initialItems = Array.from(container.querySelectorAll(isTable ? 'tr[id^="todo-"]' : 'li.todo'));
-      var originalOrder = initialItems.map(function(it){ return it.id; });
+      var isTable = !!container.closest('table');
+      var selector = isTable ? 'tr[id^="todo-"]' : 'li.todo';
+      // Baseline priority order (pre grouping) passed from server if grouping was applied.
+      var attrOrder = (container.getAttribute('data-priority-order') || '').trim();
+      var baselinePriorityOrder = attrOrder ? attrOrder.split(',').map(function(s){ return s.trim(); }).filter(Boolean) : [];
+      if (!baselinePriorityOrder.length){
+        // Fall back to current DOM order (already priority sorted if preference off).
+        baselinePriorityOrder = Array.from(container.querySelectorAll(selector)).map(function(it){ return it.id; });
+      }
 
-  // init from server-rendered value (already applied via checked attribute)
+      function ensureIncludesNewItems(){
+        // Add any newly created todos (e.g., via create form) to the end of baseline order if missing.
+        Array.from(container.querySelectorAll(selector)).forEach(function(it){ if (it.id && baselinePriorityOrder.indexOf(it.id) === -1) baselinePriorityOrder.push(it.id); });
+      }
 
       function isCompletedElem(it){
-        // Only consider the default completion control when deciding if a row is completed.
-        // Extra completion types also use "/complete_type" endpoints and must not flip
-        // the ordering. The default checkbox form is marked with data-default-completion="true".
         var chk = it.querySelector('form[data-default-completion="true"] button');
         if (chk && chk.textContent && chk.textContent.indexOf('☑') !== -1) return true;
         if (it.querySelector('.todo-title-inline.done')) return true;
         return false;
       }
 
-      function reorder(){
+      function applyOrdering(){
         try {
-          var currentItems = Array.from(container.querySelectorAll(isTable ? 'tr[id^="todo-"]' : 'li.todo'));
+          ensureIncludesNewItems();
           var map = {};
-          currentItems.forEach(function(it){ if (it.id) map[it.id] = it; });
-
-          if (!cb.checked) {
-            // restore original server order (for items present) then append any new items in their current order
-            originalOrder.forEach(function(id){ var el = map[id]; if (el) container.appendChild(el); });
-            currentItems.forEach(function(it){ if (!it.id || originalOrder.indexOf(it.id) === -1) container.appendChild(it); });
+          Array.from(container.querySelectorAll(selector)).forEach(function(it){ if (it.id) map[it.id] = it; });
+          if (!cb.checked){
+            // Restore baseline priority ordering exactly.
+            baselinePriorityOrder.forEach(function(id){ var el = map[id]; if (el) container.appendChild(el); });
+            // Append any stray nodes not in baseline (safety)
+            Object.keys(map).forEach(function(id){ if (baselinePriorityOrder.indexOf(id) === -1) container.appendChild(map[id]); });
             return;
           }
-
-          var incomplete = [], completed = [];
-          // iterate originalOrder first so we preserve server ordering within groups
-          var orderedIds = originalOrder.concat(currentItems.map(function(it){ return it.id; }).filter(function(id){ return originalOrder.indexOf(id) === -1; }));
-          orderedIds.forEach(function(id){ var el = map[id]; if (!el) return; if (isCompletedElem(el)) completed.push(el); else incomplete.push(el); });
-          incomplete.concat(completed).forEach(function(el){ container.appendChild(el); });
+          // Group incomplete first preserving baseline internal order
+            var incomplete = [], completed = [];
+            baselinePriorityOrder.forEach(function(id){ var el = map[id]; if (!el) return; (isCompletedElem(el) ? completed : incomplete).push(el); });
+            incomplete.concat(completed).forEach(function(el){ container.appendChild(el); });
         } catch(e){ /* ignore */ }
       }
 
       cb.addEventListener('change', function(){
         try {
           if (hidden) hidden.value = cb.checked ? 'true' : 'false';
-          if (!form) { reorder(); return; }
-          var fd = new FormData(form);
-          // include csrf already in form; ensure completed_after present
-          if (!fd.has('completed_after')) fd.append('completed_after', cb.checked ? 'true' : 'false');
-          fetch(form.action, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
-            .then(function(res){ if (!res.ok) throw new Error('save failed'); return res.json().catch(function(){ return null; }); })
-            .then(function(){ /* saved ok */ })
-            .catch(function(){ /* ignore; UI still updates locally */ })
-            .finally(function(){ reorder(); });
-        } catch(e){ reorder(); }
+          if (form){
+            var fd = new FormData(form);
+            if (!fd.has('completed_after')) fd.append('completed_after', cb.checked ? 'true' : 'false');
+            fetch(form.action, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+              .catch(function(){ /* ignore network errors for UX */ })
+              .finally(function(){ applyOrdering(); });
+          } else {
+            applyOrdering();
+          }
+        } catch(e){ applyOrdering(); }
       });
-      // initial ordering based on cookie
-      reorder();
+      // NOTE: No initial call; server already rendered according to preference.
     }
 
-    function findOrWaitForUl(){
-  var container = document.querySelector('table[data-extra-type-ids] tbody') || document.querySelector('table tbody') || document.querySelector('.todos-list');
+    function init(){
+      var container = document.querySelector('table[data-extra-type-ids] tbody') || document.querySelector('table tbody') || document.querySelector('.todos-list');
       if (container) return attachOnce(container);
-      // wait for UL to appear (e.g., template renders after this script or a partial renders)
-      var ro = new MutationObserver(function(mutations, obs){
-  var u = document.querySelector('table[data-extra-type-ids] tbody') || document.querySelector('table tbody') || document.querySelector('.todos-list');
-  if (u) { obs.disconnect(); attachOnce(u); }
+      var ro = new MutationObserver(function(_m, obs){
+        var u = document.querySelector('table[data-extra-type-ids] tbody') || document.querySelector('table tbody') || document.querySelector('.todos-list');
+        if (u){ obs.disconnect(); attachOnce(u); }
       });
-      try { ro.observe(document.body || document.documentElement, { childList: true, subtree: true }); } catch(e){ /* ignore */ }
+      try { ro.observe(document.body || document.documentElement, { childList: true, subtree: true }); } catch(_){ }
     }
-
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', findOrWaitForUl); else findOrWaitForUl();
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
   })();
   </script>
   {% endif %}

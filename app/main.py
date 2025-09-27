@@ -11939,6 +11939,22 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
                 completed_after_pref = bool(getattr(row, 'completed_after', False))
     except Exception:
         completed_after_pref = False
+    # Apply server-side ordering for completed_after preference.
+    # If enabled, move completed todos to the end while preserving their relative
+    # priority/date ordering established earlier. Expose the original priority
+    # ordering so the client can restore it when the user toggles the option off.
+    original_priority_order: list[int] = []
+    try:
+        if completed_after_pref and isinstance(todo_rows, list) and todo_rows:
+            # Capture the original (priority-based) ordering before grouping.
+            original_priority_order = [int(r.get('id')) for r in todo_rows if r.get('id') is not None]
+            incomplete = [r for r in todo_rows if not r.get('completed')]
+            completed_list = [r for r in todo_rows if r.get('completed')]
+            # Reassign in-place to keep reference if template still holds it.
+            todo_rows[:] = incomplete + completed_list
+    except Exception:
+        # Fail safe: leave ordering untouched if any unexpected structure occurs.
+        original_priority_order = []
     return TEMPLATES.TemplateResponse(
         request,
         "list.html",
@@ -11956,6 +11972,7 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
             "active_collations": active_collations,
             "todo_collation_linked": {int(k): list(v) for k, v in todo_collation_linked.items()},
             "completed_after": completed_after_pref,
+            "original_priority_order": original_priority_order,
         },
     )
 
