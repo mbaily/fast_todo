@@ -35,6 +35,26 @@
     <script src="/static/no_js/log.js"></script>
   </head>
   <body>
+  <!-- Slim icon-only toolbar for iOS Safari index -->
+  <nav class="ios-slim-bar" role="navigation" aria-label="Primary">
+    <style>
+  .ios-slim-bar { position:sticky; top:0; z-index:1000; display:flex; align-items:center; gap:0.25rem; padding:0.2rem 0.35rem; background:#111; border-bottom:1px solid #1f2937; }
+  .ios-slim-bar a, .ios-slim-bar button { background:none; border:none; padding:0.2rem 0.3rem; margin:0; line-height:1; font-size:1.1rem; text-decoration:none; color:#e5e7eb; display:inline-flex; align-items:center; justify-content:center; min-width:1.7rem; min-height:1.7rem; border-radius:5px; }
+      .ios-slim-bar a:focus-visible, .ios-slim-bar button:focus-visible { outline:2px solid #2563eb; outline-offset:2px; }
+      .ios-slim-bar a:hover, .ios-slim-bar button:hover { background:#1e293b; }
+      .ios-slim-bar form { display:inline; }
+      .ios-slim-bar .spacer { flex:1 1 auto; }
+    </style>
+    <a href="/html_no_js/" aria-label="Home" title="Home">🏠</a>
+    <a href="/html_no_js/recent" aria-label="Recent" title="Recent lists">🕒</a>
+    <a href="/html_no_js/calendar" aria-label="Calendar" title="Calendar">📅</a>
+  <a href="/html_no_js/trash" aria-label="Trash" title="Trash" style="margin-left:0.1rem;">🗑</a>
+  <a href="/html_no_js/priorities" aria-label="Priorities" title="Priorities">🔺</a>
+    <form method="post" action="/html_no_js/logout" style="display:inline;">
+      {% if csrf_token %}<input type="hidden" name="_csrf" value="{{ csrf_token }}">{% endif %}
+      <button type="submit" aria-label="Logout" title="Logout">🚪</button>
+    </form>
+  </nav>
   
  
 
