@@ -1,0 +1,44 @@
+In the sublist sections of list.html and todo.html, put a 'Hide Done' option for the sublists, to the right of the 'Top' checkbox. With 'Hide Done' ticked the completed sublists are hidden.
+
+The 'Hide Done' option requires a database backing for the ListState. Server sided rendering for page load should acknowledge this option. Also when unticking or ticking the 'Hide Done' option requires a JS dom update to hide or show the affected lists. 
+
+The ListState hide_done field is for the todos not for the sublists section. You can give it a different column name in ListState, call it 'sublists_hide_done'. Also you need a new column 'sublists_hide_done' for the Todo model.
+
+
+Create an e2e test that is not part of the main pytest suite for testing this.
+
+The e2e test will use a chrome remote debugging instance and I have set up a chrome browser instance on port 9222. It should be ready to go. The e2e test should drive the chrome instance for testing and reading the DOM for debugging.
+
+In the e2e test for todo 571 and list 490, I have set these up with 3 sublists each. In each, 1 is hidden, 2 are not. So the e2e test should test for 1 sublist showing with 'hide done' for sublists ticked, and 3 sublists showing for sublists unticked. As well as page reload, check the 'hide done' JS update toggling using the e2e test. When toggling from 'hide done' off to on it should show 1 sublist (without page reload) and when toggling from 'hide done' on to off it should show 3 sublists (without page reload).
+
+
+By modifying the web app source code, create/modify e2e test for this as needed, and interating until feature implemented, you should have the feature implemented. Make sure the number of sublists is right for 'hide done' for sublists ticked (1) and unticked (3), before you consider the feature as implemented.
+
+The browser is already logged to the server so no login details required. The URL's for testing are:
+https://0.0.0.0:10443/html_no_js/todos/571
+https://0.0.0.0:10443/html_no_js/lists/490
+
+Also put debugging HTML attributes for all new HTML attributes you added and make sure the e2e test tests for the presence of these attributes and hence the new HTML elements.
+Keep iterating modifying web app source code and modifying e2e test if you need until the feature is implemented ('hide done' for sublists in both html_no_js/todo.html and html_no_js/list.html
+
+Use chrome remote debugging port 9222 and create an e2e test which drives the chrome browser instance on port 9222 (not headless) to test the 'hide done' feature which is currently not working for doing a JS DOM update when unticking the 'hide done' checkbox for sublists in html_no_js/todo.html and html_no_js/list.html.  The database persistence is working fine. There should be 1 list with hide done ticked  in each of todo 571 and list list 490 , and 3 lists with hide done unticked. keep iterating, modfiying the e2e test and the web app source code until you get 3 sublists visisble in each todo and list once you've unticked 'hide done'
+
+The chrome browser instance is already waiting to go on port 9222.
+
+Note this bug is only in the JS DOM update. The database persistence and SSR page reload is working fine.
+Again don't use a headless or seperate e2e test to the chrome remote debugging port 9222 browser instance.
+
+You don't need to login - the browser instance is already set up and logged in. The tabs aren't open to the right page, just the browser window logged in. There is only one window on that port open in that browser on port 9222.  
+
+Browser URL for cookies is logged in at https://127.0.0.1:10443/html_no_js/
+
+Note for the JS DOM update for unticking 'hide done' for sublists. I believe the current best way to do it would be to render the whole list of sublists again including all the same elements as the SSR would do for a unticked 'hide done'.
+
+Spec tests to pass
+1) Check 'hide done' for sublists for both todo ID 571 and list id 491. Do a page reload and check SSR 'hide done' for sublists is checked (ticked).
+2) Uncheck 'hide done' for sublists for both todo ID 571 and list id 491. Do a page reload and check SSR 'hide done' for sublists is unchecked (unticked).
+3) Page reload - SSR with 'hide done' for sublists already checked. Tick it first, then page reload and test todo ID 571 and list id 490 both show 2 sublists.
+4) Page reload - SSR with 'hide done' for sublists already unchecked uncheck it first, then page reload and test todo ID 571 and list id 490 both show 3 sublists.
+5) Check 'hide done' for sublists for todo ID 571 and list ID 490. Then do a page reload. Then uncheck 'hide done' for sublists. Both pages should show 3 sublists visible. 
+6) Uncheck 'hide done' for sublists for todo ID 571 and list ID 490. Then do a page reload. Then check 'hide done' for sublists. Both pages should show 2 sublists visible. 
+
