@@ -29,7 +29,9 @@ class LocalStore:
                     modified_at TEXT,
                     expanded BOOLEAN DEFAULT 1,
                     hide_done BOOLEAN DEFAULT 0,
+                    sublists_hide_done BOOLEAN DEFAULT 0,
                     lists_up_top BOOLEAN DEFAULT 0,
+                    sublists_hide_done BOOLEAN DEFAULT 0,
                     hide_icons BOOLEAN DEFAULT 0,
                     completed BOOLEAN DEFAULT 0,
                     category_id INTEGER,
@@ -104,7 +106,7 @@ class LocalStore:
         with sqlite3.connect(self.db_path) as conn:
             conn.executemany('''
                 INSERT OR REPLACE INTO lists (
-                    id, name, owner_id, created_at, modified_at, expanded, hide_done,
+                    id, name, owner_id, created_at, modified_at, expanded, hide_done, sublists_hide_done,
                     lists_up_top, hide_icons, completed, category_id, parent_todo_id,
                     parent_todo_position, parent_list_id, parent_list_position, priority
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -112,7 +114,7 @@ class LocalStore:
                 (
                     lst['id'], lst['name'], lst.get('owner_id'),
                     lst.get('created_at'), lst.get('modified_at'),
-                    lst.get('expanded', True), lst.get('hide_done', False),
+                    lst.get('expanded', True), lst.get('hide_done', False), lst.get('sublists_hide_done', False),
                     lst.get('lists_up_top', False), lst.get('hide_icons', False),
                     lst.get('completed', False), lst.get('category_id'),
                     lst.get('parent_todo_id'), lst.get('parent_todo_position'),
@@ -147,12 +149,12 @@ class LocalStore:
                 {
                     'id': row[0], 'name': row[1], 'owner_id': row[2],
                     'created_at': row[3], 'modified_at': row[4],
-                    'expanded': bool(row[5]), 'hide_done': bool(row[6]),
-                    'lists_up_top': bool(row[7]), 'hide_icons': bool(row[8]),
-                    'completed': bool(row[9]), 'category_id': row[10],
-                    'parent_todo_id': row[11], 'parent_todo_position': row[12],
-                    'parent_list_id': row[13], 'parent_list_position': row[14],
-                    'priority': row[15]
+                    'expanded': bool(row[5]), 'hide_done': bool(row[6]), 'sublists_hide_done': bool(row[7]),
+                    'lists_up_top': bool(row[8]), 'hide_icons': bool(row[9]),
+                    'completed': bool(row[10]), 'category_id': row[11],
+                    'parent_todo_id': row[12], 'parent_todo_position': row[13],
+                    'parent_list_id': row[14], 'parent_list_position': row[15],
+                    'priority': row[16]
                 }
                 for row in rows
             ]

@@ -341,6 +341,39 @@
   </script>
   {% endif %}
 
+  <script>
+  // Hide Done toggle for sublists (list page). Applies to all sublists sections.
+  (function(){
+    function applyHide(){
+      try {
+        var on = !!document.querySelector('[data-sublists-hide-done-toggle]:checked');
+        document.querySelectorAll('section[aria-label="Sublists"] ul.lists-list li.list-item').forEach(function(li){
+          var done = (li.getAttribute('data-completed')||'').toLowerCase()==='true';
+            if (done) li.style.display = on ? 'none' : '';
+        });
+      } catch(e) { /* silent */ }
+    }
+    function persist(val){
+      try {
+        var listId = {{ list.id }};
+        var fd = new FormData();
+        fd.append('sublists_hide_done', val ? 'true' : 'false');
+        fetch('/lists/' + listId + '/state', { method:'POST', body: fd, credentials:'same-origin' }).catch(function(){});
+      } catch(e){}
+    }
+    function init(){
+      var cbs = document.querySelectorAll('[data-sublists-hide-done-toggle]');
+      if (!cbs.length) return;
+      cbs.forEach(function(cb){
+        if (cb._ft_bound) return; cb._ft_bound = true;
+        cb.addEventListener('change', function(){ applyHide(); persist(cb.checked); });
+      });
+      applyHide();
+    }
+    if (document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
+  })();
+  </script>
+
   {# Sublist toolbar: show if this list is owned by a todo and/or another list #}
   {% if list.parent_todo_id or list.parent_list_id %}
   <nav class="page-toolbar" role="toolbar" aria-label="Sublist actions" style="display:flex;gap:0.5rem;align-items:center;margin:0.4rem 0 0.6rem 0;flex-wrap:wrap;">
@@ -401,6 +434,12 @@
         <label style="display:inline-flex; align-items:center; gap:0.4rem;">
           <input type="checkbox" id="lists_up_top_checkbox_{{ list.id }}" {% if list.lists_up_top %}checked{% endif %}>
           <span>Up top</span>
+        </label>
+      </form>
+      <form method="post" action="/lists/{{ list.id }}/state" style="display:inline; margin-left:0.5rem;">
+        <label style="display:inline-flex; align-items:center; gap:0.4rem;">
+          <input type="checkbox" name="sublists_hide_done" data-sublists-hide-done-toggle {% if list.sublists_hide_done %}checked{% endif %}>
+          <span>Hide Done</span>
         </label>
       </form>
     </div>
@@ -1584,6 +1623,12 @@
         <label style="display:inline-flex; align-items:center; gap:0.4rem;">
           <input type="checkbox" id="lists_up_top_checkbox_{{ list.id }}" {% if list.lists_up_top %}checked{% endif %}>
           <span>Up top</span>
+        </label>
+      </form>
+      <form method="post" action="/lists/{{ list.id }}/state" style="display:inline; margin-left:0.5rem;">
+        <label style="display:inline-flex; align-items:center; gap:0.4rem;">
+          <input type="checkbox" name="sublists_hide_done" data-sublists-hide-done-toggle {% if list.sublists_hide_done %}checked{% endif %}>
+          <span>Hide Done</span>
         </label>
       </form>
     </div>

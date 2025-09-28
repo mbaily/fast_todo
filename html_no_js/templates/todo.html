@@ -190,6 +190,13 @@
             <span>Up top</span>
           </label>
         </form>
+        <form method="post" action="/html_no_js/todos/{{ todo.id }}/sublists_hide_done" style="display:inline; margin-left:0.5rem;">
+          {{ csrf_field() }}
+          <label style="display:inline-flex; align-items:center; gap:0.4rem;">
+            <input type="checkbox" name="sublists_hide_done" data-todo-sublists-hide-done-toggle {% if todo.sublists_hide_done %}checked{% endif %}>
+            <span>Hide Done</span>
+          </label>
+        </form>
       </div>
 
       <form method="post" action="/html_no_js/todos/{{ todo.id }}/sublists/create" style="margin:0 0 .4rem 0" autocomplete="off">
@@ -252,6 +259,37 @@
       {% endif %}
     </section>
   {% endif %}
+  <script>
+  // Hide Done toggle for todo sublists.
+  (function(){
+    function apply(){
+      try {
+        var on = !!document.querySelector('[data-todo-sublists-hide-done-toggle]:checked');
+        document.querySelectorAll('section[aria-label="Sublists"] ul.lists-list li.list-item').forEach(function(li){
+          var done = (li.getAttribute('data-completed')||'').toLowerCase()==='true';
+          if (done) li.style.display = on ? 'none' : '';
+        });
+      }catch(_){ }
+    }
+    function persist(val){
+      try {
+        var fd = new FormData();
+        fd.append('sublists_hide_done', val ? 'true':'false');
+        // Add CSRF token (grab from first hidden _csrf input or inline value)
+        var tokEl = document.querySelector('input[name="_csrf"]');
+        var tok = tokEl ? tokEl.value : '{{ csrf_token }}';
+        if (tok) fd.append('_csrf', tok);
+        fetch('/html_no_js/todos/{{ todo.id }}/sublists_hide_done', { method:'POST', body: fd, credentials:'same-origin' }).catch(function(){});
+      }catch(_){ }
+    }
+    function init(){
+      var cbs = document.querySelectorAll('[data-todo-sublists-hide-done-toggle]');
+      if (!cbs.length) return; cbs.forEach(function(cb){ if (cb._ft_bound) return; cb._ft_bound = true; cb.addEventListener('change', function(){ apply(); persist(cb.checked); }); });
+      apply();
+    }
+    if (document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
+  })();
+  </script>
 
   <!-- Section: Creation and modification timestamps -->
   <p class="meta">Created: {{ todo.created_at|in_tz(client_tz, '%d/%m %-I:%M%p') }} &nbsp; Modified: {{ todo.modified_at|in_tz(client_tz, '%d/%m %-I:%M%p') }}</p>
@@ -344,6 +382,13 @@
           <label style="display:inline-flex; align-items:center; gap:0.4rem;">
             <input type="checkbox" id="lists_up_top_checkbox_{{ todo.id }}" {% if todo.lists_up_top %}checked{% endif %}>
             <span>Up top</span>
+          </label>
+        </form>
+        <form method="post" action="/html_no_js/todos/{{ todo.id }}/sublists_hide_done" style="display:inline; margin-left:0.5rem;">
+          {{ csrf_field() }}
+          <label style="display:inline-flex; align-items:center; gap:0.4rem;">
+            <input type="checkbox" name="sublists_hide_done" data-todo-sublists-hide-done-toggle {% if todo.sublists_hide_done %}checked{% endif %}>
+            <span>Hide Done</span>
           </label>
         </form>
       </div>

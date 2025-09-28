@@ -245,6 +245,13 @@ def _ensure_sqlite_minimal_migrations(url: str | None) -> None:
                             conn.commit()
                         except Exception:
                             pass
+                    # New: ensure sublists_hide_done column exists for todo page sublists preference
+                    if 'sublists_hide_done' not in tcols:
+                        try:
+                            cur.execute("ALTER TABLE todo ADD COLUMN sublists_hide_done BOOLEAN DEFAULT 0")
+                            conn.commit()
+                        except Exception:
+                            pass
                     try:
                         cur.execute("CREATE INDEX IF NOT EXISTS ix_todo_calendar_ignored ON todo(calendar_ignored)")
                         conn.commit()
@@ -611,6 +618,19 @@ def _ensure_sqlite_minimal_migrations(url: str | None) -> None:
                     if lcols and 'pinned' not in lcols:
                         cur.execute("ALTER TABLE liststate ADD COLUMN pinned INTEGER DEFAULT 0 NOT NULL")
                         conn.commit()
+                except Exception:
+                    pass
+                # Ensure sublists_hide_done preference column exists
+                try:
+                    if lcols and 'sublists_hide_done' not in lcols:
+                        cur.execute("ALTER TABLE liststate ADD COLUMN sublists_hide_done BOOLEAN DEFAULT 0")
+                        conn.commit()
+                        # refresh lcols so subsequent logic sees it
+                        try:
+                            cur.execute("PRAGMA table_info('liststate')")
+                            lcols = [row[1] for row in cur.fetchall()]
+                        except Exception:
+                            pass
                 except Exception:
                     pass
                 try:

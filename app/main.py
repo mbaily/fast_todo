@@ -6019,7 +6019,7 @@ async def remove_todo_hashtag(todo_id: int, tag: str, current_user: _Optional[Us
 
 
 @app.post("/lists/{list_id}/state")
-async def set_list_state(list_id: int, expanded: Optional[bool] = None, hide_done: Optional[bool] = None, current_user: User = Depends(require_login)):
+async def set_list_state(list_id: int, expanded: Optional[bool] = None, hide_done: Optional[bool] = None, sublists_hide_done: Optional[str] = Form(None), current_user: User = Depends(require_login)):
     async with async_session() as sess:
         q = await sess.scalars(select(ListState).where(ListState.id == list_id))
         lst = q.first()
@@ -6031,6 +6031,18 @@ async def set_list_state(list_id: int, expanded: Optional[bool] = None, hide_don
             lst.expanded = expanded
         if hide_done is not None:
             lst.hide_done = hide_done
+        # Parse sublists_hide_done form/query value
+        eff_sublists = None
+        if sublists_hide_done is not None:
+            try:
+                eff_sublists = str(sublists_hide_done).lower() in ('1','true','yes','on')
+            except Exception:
+                eff_sublists = None
+        if eff_sublists is not None:
+            try:
+                setattr(lst, 'sublists_hide_done', bool(eff_sublists))
+            except Exception:
+                lst.sublists_hide_done = bool(eff_sublists)
         sess.add(lst)
         await sess.commit()
         await sess.refresh(lst)
@@ -11451,6 +11463,8 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
             "category_id": getattr(lst, 'category_id', None),
             "list_id": lst.id,
             "lists_up_top": getattr(lst, 'lists_up_top', False),
+            # new: whether to hide completed sublists (list->list nesting)
+            "sublists_hide_done": getattr(lst, 'sublists_hide_done', False),
             "priority": getattr(lst, 'priority', None),
             # include bookmarked for initial SSR toggle state
             "bookmarked": getattr(lst, 'bookmarked', False),
@@ -11747,6 +11761,12 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
                 pass
         except Exception:
             sublists = []
+        # Apply sublists_hide_done preference (filter out completed sublists server-side so tests asserting absence pass)
+        try:
+            if list_row.get('sublists_hide_done') and isinstance(sublists, list):
+                sublists = [s for s in sublists if not s.get('completed')]
+        except Exception:
+            pass
     # Fetch outgoing links from this list (to todos or lists), order by position then created_at
         links: list[dict] = []
         try:
@@ -14727,6 +14747,8 @@ async def html_view_todo(request: Request, todo_id: int, current_user: User = De
             "first_date_only": getattr(todo, 'first_date_only', False),
             # persist UI preference so template can render checkbox state
             "lists_up_top": getattr(todo, 'lists_up_top', False),
+            # new: hide completed sublists preference (todo->list nesting)
+            "sublists_hide_done": getattr(todo, 'sublists_hide_done', False),
             # persist Sort Links preference so template can render checkbox state
             "sort_links": getattr(todo, 'sort_links', False),
             "recurrence_rrule": getattr(todo, 'recurrence_rrule', False),
@@ -14847,6 +14869,12 @@ async def html_view_todo(request: Request, todo_id: int, current_user: User = De
                     pass
         except Exception:
             # failure computing overrides should not break todo rendering
+            pass
+        # Apply sublists_hide_done filtering (remove completed sublists server-side)
+        try:
+            if todo_row.get('sublists_hide_done') and isinstance(sublists, list):
+                sublists = [s for s in sublists if not s.get('completed')]
+        except Exception:
             pass
         # Fetch outgoing links from this todo
         links: list[dict] = []
@@ -15096,6 +15124,39 @@ async def html_view_todo(request: Request, todo_id: int, current_user: User = De
 
     # pass plain dicts (with datetime objects preserved) to avoid lazy DB loads
     return TEMPLATES.TemplateResponse(request, 'todo.html', {"request": request, "todo": todo_row, "completed": completed, "list": list_row, "csrf_token": csrf_token, "client_tz": client_tz, "tags": todo_tags, "all_hashtags": all_hashtags, 'sublists': sublists, 'links': links, 'active_collations': active_collations})
+
+@app.post('/html_no_js/todos/{todo_id}/sublists_hide_done')
+async def html_set_todo_sublists_hide_done(request: Request, todo_id: int, sublists_hide_done: str = Form(None), current_user: User = Depends(require_login)):
+    """Toggle hide-completed-sublists preference for a todo (affects todo page Sublists sections)."""
+    form = await request.form()
+    token = form.get('_csrf')
+    from .auth import verify_csrf_token
+    if not token or not verify_csrf_token(token, current_user.username):
+        raise HTTPException(status_code=403, detail='invalid csrf token')
+    async with async_session() as sess:
+        todo = await sess.get(Todo, todo_id)
+        if not todo:
+            raise HTTPException(status_code=404, detail='todo not found')
+        # ownership via parent list
+        ql = await sess.exec(select(ListState).where(ListState.id == todo.list_id))
+        lst = ql.first()
+        if not lst or lst.owner_id != current_user.id:
+            raise HTTPException(status_code=403, detail='forbidden')
+        if sublists_hide_done is not None:
+            val = str(sublists_hide_done).lower() in ('1','true','on','yes')
+            try:
+                setattr(todo, 'sublists_hide_done', val)
+            except Exception:
+                todo.sublists_hide_done = val
+            sess.add(todo)
+            try:
+                await sess.commit()
+            except Exception:
+                await sess.rollback()
+    accept = (request.headers.get('Accept') or '')
+    if 'application/json' in accept.lower():
+        return JSONResponse({'ok': True, 'id': todo_id, 'sublists_hide_done': bool(val) if 'val' in locals() else None})
+    return RedirectResponse(url=f'/html_no_js/todos/{todo_id}', status_code=303)
 
 
 # ===== Links: add/remove for list and todo (no-JS HTML and JSON) =====

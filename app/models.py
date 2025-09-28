@@ -32,6 +32,8 @@ class ListState(SQLModel, table=True):
     modified_at: datetime | None = Field(default_factory=now_utc)
     expanded: bool = Field(default=True)
     hide_done: bool = Field(default=False)
+    # When true, hide completed sublists (list->list nesting) in the Sublists section
+    sublists_hide_done: bool = Field(default=False)
     # When true, this list is bookmarked and should appear in the Bookmarks section on index
     bookmarked: bool = Field(default=False, index=True)
     # When true, this list is pinned and should appear in the Pinned section on index
@@ -170,6 +172,8 @@ class Todo(SQLModel, table=True):
     lists_up_top: bool = Field(default=False)
     # When true, sort inline fn:link occurrences by priority when rendering the note
     sort_links: bool = Field(default=False)
+    # When true, hide completed sublists (todo->list nesting) in the Sublists section
+    sublists_hide_done: bool = Field(default=False)
     # Arbitrary JSON metadata (JSON-encoded string)
     metadata_json: Optional[str] = None
 
