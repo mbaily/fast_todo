@@ -570,8 +570,11 @@
 (function(){
 	try{
 		document.body.addEventListener('click', function(ev){
-			var btn = ev.target; if (!btn || btn.tagName !== 'BUTTON') return;
-			if (!btn.hasAttribute('data-ft-remove-tag')) return;
+			var btn = ev.target;
+			if (btn && btn.tagName !== 'BUTTON') {
+				try { btn = btn.closest && btn.closest('button[data-ft-remove-tag]'); } catch(_){ btn = null; }
+			}
+			if (!btn || !btn.hasAttribute('data-ft-remove-tag')) return;
 			ev.preventDefault();
 			ev.stopPropagation();
 			try{
