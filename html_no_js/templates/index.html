@@ -135,7 +135,7 @@
             {% if pinned_lists and pinned_lists|length > 0 %}
               {% for lst in (pinned_lists | sort(attribute='name', case_sensitive=false)) %}
                 <li>
-                  <span class="list-icon" title="List">📍📁</span>
+                  <span class="list-icon" title="List">📍🗁<</span>
                   <a class="list-title" href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>
                   {% set lp = lst.priority %}
                   {% set op = lst.override_priority %}

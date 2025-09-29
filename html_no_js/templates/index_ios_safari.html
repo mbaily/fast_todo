@@ -132,7 +132,7 @@
     <ul style="padding-left: 0; list-style: none; margin: 0;">
       {% for lst in (pinned_lists | sort(attribute='name', case_sensitive=false)) %}
         <li>
-          📍📁 <a href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>
+          📍🗁 <a href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>
         </li>
       {% endfor %}
     </ul>
@@ -190,7 +190,7 @@
     <ul style="padding-left: 0; list-style: none; margin: 0;">
       {% for lst in (bookmarked_lists | sort(attribute='name', case_sensitive=false)) %}
         <li>
-          🔖📁 <a href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>
+          🔖🗁 <a href="/html_no_js/lists/{{ lst.id }}">{{ lst.name }}</a>
           {# show primary and (when higher) override priorities #}
           {% set lp = lst.priority %}
           {% set op = lst.override_priority %}
