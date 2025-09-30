@@ -276,6 +276,35 @@
         fetchOccurrencesForCurrentWindow();
       });
     }
+    // If the URL has no year/month params, prefer the user's local timezone month
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (!params.get('year') && !params.get('month')) {
+        const nowLocal = new Date();
+        const yLocal = nowLocal.getFullYear();
+        const mLocal = nowLocal.getMonth() + 1;
+        // Update the URL without reloading so subsequent logic uses these params
+        const newUrl = `${location.pathname}?year=${yLocal}&month=${mLocal}`;
+        try { history.replaceState(null, '', newUrl); } catch (e) {}
+        // Update header text
+        try {
+          const h2 = document.querySelector('section.full-bleed h2');
+          if (h2) { h2.textContent = `Calendar - ${yLocal}-${String(mLocal).padStart(2,'0')}`; }
+        } catch (e) {}
+        // Update prev/next links in the nav
+        try {
+          const prevMonth = (mLocal - 1) < 1 ? 12 : (mLocal - 1);
+          const prevYear = (mLocal - 1) < 1 ? (yLocal - 1) : yLocal;
+          const nextMonth = (mLocal + 1) > 12 ? 1 : (mLocal + 1);
+          const nextYear = (mLocal + 1) > 12 ? (yLocal + 1) : yLocal;
+          const anchors = document.querySelectorAll('section.full-bleed a.button');
+          if (anchors && anchors.length >= 2) {
+            anchors[0].setAttribute('href', `/html_no_js/calendar?year=${prevYear}&month=${prevMonth}`);
+            anchors[1].setAttribute('href', `/html_no_js/calendar?year=${nextYear}&month=${nextMonth}`);
+          }
+        } catch (e) {}
+      }
+    } catch (e) { /* ignore URL parsing errors */ }
   // initial load
   fetchOccurrencesForCurrentWindow();
   // emit a Puppeteer-friendly debug event if helper is available
