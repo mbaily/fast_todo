@@ -70,6 +70,19 @@ DEV_MODE = _trueish(os.getenv('DEV_MODE', '0'))
 
 DOKUWIKI_NOTE_LINK_PREFIX = os.getenv('DOKUWIKI_NOTE_LINK_PREFIX', 'https://myserver.hopto.org/dokuwiki/doku.php?id=')
 
+# Default SQLite database filename used when a full DATABASE_URL is not
+# provided in the environment. Change FAST_TODO_DB_FILE to override at runtime.
+# We intentionally pick a new filename (fast_todo_main.db) instead of the legacy
+# fast_todo.db so that local developers can keep the old file around while
+# migrating. The db module will fall back to fast_todo.db automatically if the
+# new file does not yet exist but the legacy file does.
+#DEFAULT_SQLITE_DB_FILENAME = os.getenv('FAST_TODO_DB_FILE', 'fast_todo.db')
+#DEFAULT_SQLITE_DB_FILENAME = 'story.db'
+
+
+#Force new DB via env:
+#export DATABASE_URL=sqlite+aiosqlite:///./story.db
+
 # Optional local overrides: define variables in app/local_config.py to extend or
 # override the defaults above without changing versioned config.
 # Don't put your server for dokuwiki in version control in this project's git

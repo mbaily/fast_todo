@@ -8,6 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.pool import NullPool
 
 import os
+from . import config as app_config
 import logging
 import contextvars
 import time
@@ -100,7 +101,36 @@ try:
 except Exception:
     pass
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./fast_todo.db")
+def _resolve_default_database_url() -> str:
+    """Determine the default DATABASE_URL.
+
+    Priority:
+      1. Explicit DATABASE_URL env var
+      2. If FAST_TODO_DB_FILE / DEFAULT_SQLITE_DB_FILENAME exists, use it
+      3. If legacy fast_todo.db exists (backward compatibility), use it
+      4. Fall back to new default filename even if it does not exist yet
+    """
+    # 1. Explicit env var wins
+    env_url = os.getenv('DATABASE_URL')
+    if env_url:
+        return env_url
+    # 2. Preferred new filename from config / env
+    new_name = getattr(app_config, 'DEFAULT_SQLITE_DB_FILENAME', 'fast_todo_main.db')
+    try:
+        # Normalize to relative path in current working directory
+        new_path = os.path.abspath(new_name)
+    except Exception:
+        new_path = os.path.abspath('fast_todo_main.db')
+    if os.path.exists(new_path):
+        return f'sqlite+aiosqlite:///{new_path}'
+    # 3. Legacy fallback
+    legacy_path = os.path.abspath('fast_todo.db')
+    if os.path.exists(legacy_path):
+        return f'sqlite+aiosqlite:///{legacy_path}'
+    # 4. Default new path (create lazily later when first connection happens)
+    return f'sqlite+aiosqlite:///{new_path}'
+
+DATABASE_URL = _resolve_default_database_url()
 
 # Best-effort import-time safeguard: if using a local SQLite file and the
 # database already exists with an older schema, add new lightweight columns

@@ -130,9 +130,9 @@ fi
 
 # Ensure DATABASE_URL is set (default to local fast_todo.db with aiosqlite)
 #export DATABASE_URL="sqlite+aiosqlite:///./fast_todo.db.server_copy"
-export DATABASE_URL="sqlite+aiosqlite:///./fast_todo.db"
+#export DATABASE_URL="sqlite+aiosqlite:///./fast_todo.db"
 if [ -z "${DATABASE_URL-}" ]; then
-  #export DATABASE_URL="sqlite+aiosqlite:///./fast_todo.db.server_copy"
+  export DATABASE_URL="sqlite+aiosqlite:///./fast_todo.db"
   echo "[run_server] DATABASE_URL not set; defaulting to $DATABASE_URL"
 fi
 
