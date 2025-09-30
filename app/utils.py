@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from sqlmodel import select
 import os
 import json
 import logging
@@ -772,6 +773,121 @@ def extract_dates(text: str | None) -> list[datetime]:
     except Exception:
         logger.exception('extract_dates failed')
         return []
+
+
+async def inject_phantom_occurrences(owner_id: int, occurrences: list, sess=None):
+    """Async helper to inject phantom occurrences for CompletedOccurrence rows
+    that no longer correspond to currently-generated occurrences.
+
+    - owner_id: user id
+    - occurrences: list of occurrence dicts (mutated in-place)
+    - sess: optional async session; if omitted a new session is created
+    """
+    try:
+        def _parse_iso_z_local(s):
+            try:
+                ss = (s or '').replace('Z', '+00:00')
+                d = datetime.fromisoformat(ss) if not isinstance(s, datetime) else s
+                if d.tzinfo is None:
+                    d = d.replace(tzinfo=timezone.utc)
+                return d.astimezone(timezone.utc)
+            except Exception:
+                return None
+
+        existing_keys = set()
+        for o in occurrences:
+            try:
+                dt = _parse_iso_z_local(o.get('occurrence_dt'))
+                existing_keys.add((str(o.get('item_type')), int(o.get('id')) if o.get('id') is not None else None, dt))
+            except Exception:
+                continue
+
+        async def _do_with_session(s):
+            from app.db import async_session as _async_session
+            import app.models as _models
+            qdone = await s.exec(select(_models.CompletedOccurrence).where(_models.CompletedOccurrence.user_id == owner_id))
+            done_rows2 = qdone.all()
+            for r in done_rows2:
+                try:
+                    itype = getattr(r, 'item_type', None)
+                    iid = getattr(r, 'item_id', None)
+                    odt = getattr(r, 'occurrence_dt', None)
+                    if not itype or iid is None or odt is None:
+                        continue
+                    try:
+                        d = odt
+                        if d.tzinfo is None:
+                            d = d.replace(tzinfo=timezone.utc)
+                        d = d.astimezone(timezone.utc)
+                    except Exception:
+                        continue
+                    key = (str(itype), int(iid), d)
+                    if key in existing_keys:
+                        continue
+                    title = ''
+                    list_id = None
+                    if str(itype) == 'todo':
+                        try:
+                            trow = await s.get(_models.Todo, int(iid))
+                            if trow is None:
+                                continue
+                            title = getattr(trow, 'text', '') or ''
+                            list_id = getattr(trow, 'list_id', None)
+                        except Exception:
+                            continue
+                    elif str(itype) == 'list':
+                        try:
+                            lrow = await s.get(_models.ListState, int(iid))
+                            if lrow is None:
+                                continue
+                            title = getattr(lrow, 'name', '') or ''
+                        except Exception:
+                            continue
+                    else:
+                        continue
+                    # If the CompletedOccurrence row stored a title in metadata_json, prefer that
+                    try:
+                        md = getattr(r, 'metadata_json', None)
+                        if md:
+                            import json as _json
+                            parsed_md = _json.loads(md)
+                            stored_title = parsed_md.get('title') if isinstance(parsed_md, dict) else None
+                            if stored_title:
+                                title = stored_title
+                    except Exception:
+                        pass
+
+                    ph = {
+                        'occurrence_dt': d.isoformat(),
+                        'occurrence_date': d.date().isoformat() if hasattr(d, 'date') else d.isoformat().split('T')[0],
+                        'item_type': str(itype),
+                        'id': int(iid),
+                        'list_id': list_id,
+                        'title': title,
+                        'dtstart': None,
+                        'is_recurring': False,
+                        'rrule': '',
+                        'recurrence_meta': None,
+                        'occ_hash': getattr(r, 'occ_hash', None),
+                        'occ_ts': int(d.timestamp()) if hasattr(d, 'timestamp') else 0,
+                        'source': 'phantom-completed',
+                        'effective_priority': None,
+                        'completed': True,
+                        'historic': True,
+                        'phantom': True,
+                    }
+                    occurrences.append(ph)
+                except Exception:
+                    continue
+
+        if sess is not None:
+            await _do_with_session(sess)
+        else:
+            from app.db import async_session as _async_session
+            async with _async_session() as s2:
+                await _do_with_session(s2)
+    except Exception:
+        logger.exception('inject_phantom_occurrences failed')
 
 
 def extract_dates_meta(text: str | None) -> list[dict]:

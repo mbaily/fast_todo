@@ -36,6 +36,7 @@ from .utils import extract_dates
 from .utils import extract_dates_meta
 from .utils import remove_hashtags_from_text
 from .utils import parse_text_to_rrule, recurrence_dict_to_rrule_params, parse_text_to_rrule_string
+from .utils import inject_phantom_occurrences
 from .models import Session
 import logging
 from . import config
@@ -4344,6 +4345,25 @@ async def calendar_occurrences(request: Request,
         qc = await sess.exec(select(CompletedOccurrence).where(CompletedOccurrence.user_id == owner_id))
         done_rows = qc.all()
         done_set = set(r.occ_hash for r in done_rows)
+        # Build a metadata-based lookup for stable completion fallback when
+        # occ_hash changes (for example, due to title edits). Use a set of
+        # tuples (item_type, item_id, occurrence_dt_utc) where occurrence_dt_utc
+        # is a timezone-aware UTC datetime to allow reliable comparisons.
+        meta_done = set()
+        for r in done_rows:
+            try:
+                if getattr(r, 'item_type', None) and getattr(r, 'item_id', None) and getattr(r, 'occurrence_dt', None):
+                    dt = getattr(r, 'occurrence_dt')
+                    try:
+                        if dt.tzinfo is None:
+                            # assume stored datetimes without tz are UTC
+                            dt = dt.replace(tzinfo=timezone.utc)
+                        dt_utc = dt.astimezone(timezone.utc)
+                    except Exception:
+                        dt_utc = dt
+                    meta_done.add((str(getattr(r, 'item_type')), int(getattr(r, 'item_id')), dt_utc))
+            except Exception:
+                continue
         qi = await sess.exec(select(IgnoredScope).where(IgnoredScope.user_id == owner_id).where(IgnoredScope.active == True))
         ign_rows = qi.all()
         # partition ignore scopes by type for matching
@@ -4409,8 +4429,22 @@ async def calendar_occurrences(request: Request,
                             is_ignored = True
             except Exception:
                 pass
-            # mark completed occurrences
-            o['completed'] = (o.get('occ_hash') in done_set)
+            # mark completed occurrences: prefer direct hash match, but also
+            # allow metadata-based stable fallback when occ_hash differs.
+            completed_by_hash = (o.get('occ_hash') in done_set)
+            if completed_by_hash:
+                o['completed'] = True
+            else:
+                # Try metadata fallback: compare (item_type, id, occurrence_dt)
+                try:
+                    occ_dt = _parse_iso_z(o.get('occurrence_dt'))
+                    key = (str(o.get('item_type')), int(o.get('id')) if o.get('id') is not None else None, occ_dt)
+                    if occ_dt is not None and (key[0], key[1], occ_dt) in meta_done:
+                        o['completed'] = True
+                    else:
+                        o['completed'] = False
+                except Exception:
+                    o['completed'] = False
             if include_ignored:
                 o['ignored'] = is_ignored
                 if is_ignored:
@@ -4423,6 +4457,23 @@ async def calendar_occurrences(request: Request,
                 continue
             filtered.append(o)
         occurrences = filtered
+
+        # Optionally inject phantom occurrences for completed rows that no
+        # longer correspond to currently-generated occurrences. This preserves
+        # completion history after rule/title changes. Triggered when client
+        # requests include_historic (truthy query param: 1/true/yes).
+        try:
+            include_historic_flag = str(request.query_params.get('include_historic') or '').lower() in ('1', 'true', 'yes')
+        except Exception:
+            include_historic_flag = False
+
+        if include_historic_flag:
+            try:
+                # Use extracted helper to keep logic testable and compact.
+                await inject_phantom_occurrences(owner_id, occurrences, sess)
+            except Exception:
+                logger.exception('failed to inject phantom occurrences')
+
         logger.info('calendar_occurrences returning %d occurrences after filters (ignored_scopes=%d, completed=%d, include_ignored=%s)', len(occurrences), len(ign_rows), len(done_set), include_ignored)
         try:
             logger.info('calendar_occurrences.returning_items %s', [(o.get('item_type'), o.get('id'), (o.get('title') or '')[:40], o.get('occurrence_dt')) for o in occurrences])
@@ -4500,7 +4551,7 @@ async def calendar_occurrences(request: Request,
 
 
 @app.post('/occurrence/complete')
-async def mark_occurrence_completed(request: Request, hash: str = Form(...), current_user: User = Depends(require_login)):
+async def mark_occurrence_completed(request: Request, hash: str = Form(...), item_type: str | None = Form(None), item_id: int | None = Form(None), occurrence_dt: str | None = Form(None), current_user: User = Depends(require_login)):
     """Mark a single occurrence hash as completed for the current user.
 
     For browser clients using cookie/session authentication require a valid
@@ -4677,6 +4728,72 @@ async def mark_occurrence_completed(request: Request, hash: str = Form(...), cur
             pass
 
     from .models import CompletedOccurrence
+    # If the optional form values were not provided (e.g. client POSTed JSON
+    # or body was consumed earlier), try to extract them from the request
+    # body (form or JSON) so we can persist them. This makes the endpoint
+    # tolerant of both form-encoded and JSON clients.
+    try:
+        form_data = form if 'form' in locals() else None
+    except Exception:
+        form_data = None
+
+    if (item_type is None or item_id is None or occurrence_dt is None) and form_data is None:
+        try:
+            # Attempt to read form data (harmless if already parsed)
+            form_data = await request.form()
+        except Exception:
+            form_data = None
+
+    # If still missing, try JSON body
+    json_data = None
+    if (item_type is None or item_id is None or occurrence_dt is None):
+        try:
+            json_data = await request.json()
+        except Exception:
+            json_data = None
+
+    # Prefer explicit function args (FastAPI-bound); fall back to form then JSON
+    if item_type is None:
+        try:
+            if form_data is not None:
+                item_type = form_data.get('item_type')
+            if item_type is None and json_data is not None:
+                item_type = json_data.get('item_type')
+        except Exception:
+            pass
+    if item_id is None:
+        try:
+            if form_data is not None and form_data.get('item_id') is not None:
+                item_id = int(form_data.get('item_id'))
+            if (item_id is None or item_id == '') and json_data is not None and json_data.get('item_id') is not None:
+                item_id = int(json_data.get('item_id'))
+        except Exception:
+            # leave item_id as None on parse error
+            item_id = None
+    # Normalize incoming occurrence_dt (ISO string) into a datetime so DB stores
+    # a proper datetime object instead of a string.
+    parsed_occ_dt = None
+    if occurrence_dt is None:
+        try:
+            if form_data is not None:
+                occurrence_dt = form_data.get('occurrence_dt')
+            if occurrence_dt is None and json_data is not None:
+                occurrence_dt = json_data.get('occurrence_dt')
+        except Exception:
+            occurrence_dt = None
+
+    if occurrence_dt:
+        try:
+            # Accept RFC3339-like 'Z' marker by converting to +00:00 for fromisoformat
+            s = occurrence_dt
+            if isinstance(s, str) and s.endswith('Z'):
+                s = s.replace('Z', '+00:00')
+            from datetime import datetime as _dt
+            parsed_occ_dt = _dt.fromisoformat(s)
+        except Exception:
+            # If parsing fails, leave parsed_occ_dt as None; don't block completion
+            parsed_occ_dt = None
+
     async with async_session() as sess:
         # idempotent upsert: insert row if not exists
         exists_q = await sess.scalars(select(CompletedOccurrence).where(CompletedOccurrence.user_id == current_user.id).where(CompletedOccurrence.occ_hash == hash))
@@ -4686,11 +4803,38 @@ async def mark_occurrence_completed(request: Request, hash: str = Form(...), cur
             except Exception:
                 pass
             return {'ok': True, 'created': False}
-        row = CompletedOccurrence(user_id=current_user.id, occ_hash=hash)
+        # Attempt to capture the item's title at completion time and store in metadata_json
+        meta_json = None
+        try:
+            title_val = None
+            if item_type and item_id is not None:
+                if str(item_type) == 'todo':
+                    from app.models import Todo as _Todo
+                    trow = await sess.get(_Todo, int(item_id))
+                    if trow is not None:
+                        title_val = getattr(trow, 'text', None) or None
+                elif str(item_type) == 'list':
+                    from app.models import ListState as _ListState
+                    lrow = await sess.get(_ListState, int(item_id))
+                    if lrow is not None:
+                        title_val = getattr(lrow, 'name', None) or None
+            if title_val:
+                try:
+                    meta_json = validate_metadata_for_storage({'title': title_val})
+                except Exception:
+                    meta_json = None
+        except Exception:
+            meta_json = None
+
+        row = CompletedOccurrence(user_id=current_user.id, occ_hash=hash, item_type=item_type, item_id=item_id, occurrence_dt=parsed_occ_dt, metadata_json=meta_json)
         sess.add(row)
         await sess.commit()
         try:
             logger.info('/occurrence/complete persisted completion user_id=%s hash=%s', getattr(current_user, 'id', None), hash)
+            try:
+                logger.info('/occurrence/complete metadata stored user_id=%s item_type=%s item_id=%s occurrence_dt=%s', getattr(current_user, 'id', None), item_type, item_id, (parsed_occ_dt.isoformat() if parsed_occ_dt is not None else None))
+            except Exception:
+                pass
             csrf_assert(True, 'csrf_complete_persisted', user_id=getattr(current_user, 'id', None), occ_hash=hash)
         except Exception:
             pass
