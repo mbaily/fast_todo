@@ -39,10 +39,10 @@
       {% if occurrences_sorted and occurrences_sorted|length > 0 %}
       <ul class="todos-list">
       {% for ev in occurrences_sorted %}
-        <li class="todo">
+        <li class="todo" data-occ-id="{{ ev.occ_id or ev.occ_hash or '' }}">
             <div class="controls-left">
-            <input type="checkbox" class="occ-complete" data-hash="{{ ev.occ_hash }}" data-item-type="{{ ev.item_type }}" data-item-id="{{ ev.id }}" data-occ-dt="{{ ev.occurrence_dt }}" data-phantom="{{ '1' if ev.phantom else '' }}" {% if ev.completed %}checked{% endif %} {% if ev.phantom %}disabled title="Historic completion (read-only)"{% endif %} aria-label="mark occurrence complete">
-            <button type="button" class="occ-ignore-occ" data-occ="{{ ev.occ_hash }}" title="Ignore in calendar altogether." aria-label="Ignore this occurrence" style="margin-left:0.25rem;padding:0.1rem 0.25rem;font-size:0.9rem;">🔕</button>
+            <input type="checkbox" class="occ-complete" data-occ-id="{{ ev.occ_id or ev.occ_hash or '' }}" data-hash="{{ ev.occ_hash or '' }}" data-item-type="{{ ev.item_type }}" data-item-id="{{ ev.id }}" data-occ-dt="{{ ev.occurrence_dt }}" data-phantom="{{ '1' if ev.phantom else '' }}" {% if ev.completed %}checked{% endif %} {% if ev.phantom %}disabled title="Historic completion (read-only)"{% endif %} aria-label="mark occurrence complete">
+            <button type="button" class="occ-ignore-occ" data-occ="{{ ev.occ_id or ev.occ_hash or '' }}" data-item-id="{{ ev.id }}" title="Ignore in calendar altogether." aria-label="Ignore this todo from calendar" style="margin-left:0.25rem;padding:0.1rem 0.25rem;font-size:0.9rem;">🔕</button>
             <button type="button" class="occ-ignore-from" data-todo="{{ ev.id }}" data-occ-dt="{{ ev.occurrence_dt }}" title="Ignore from this date" aria-label="Ignore from this date" style="margin-left:0.25rem;padding:0.1rem 0.25rem;font-size:0.9rem;">⏭️</button>
           </div>
           <div class="todo-content">
@@ -81,7 +81,8 @@
   <script>
   console.log('DEBUG: calendar page script loaded');
   // Abort controller for deduplicating fetches when users toggle options rapidly
-  let __occFetchController = null;
+  // Use var instead of let to allow redeclaration if script runs multiple times
+  var __occFetchController = null;
   function setCookie(name, value, days) {
     let expires = '';
     if (days) { const d = new Date(); d.setTime(d.getTime() + (days*24*60*60*1000)); expires = '; expires=' + d.toUTCString(); }
@@ -141,9 +142,10 @@
           const bTitle = (b && b.title) ? String(b.title) : '';
           const tCmp = aTitle.localeCompare(bTitle, undefined, {sensitivity: 'base'});
           if (tCmp !== 0) return tCmp;
-          const ah = (a && a.occ_hash) ? String(a.occ_hash) : '';
-          const bh = (b && b.occ_hash) ? String(b.occ_hash) : '';
-          return ah.localeCompare(bh);
+          // Phase 2: Use occ_id for stable sorting
+          const aId = (a && (a.occ_id || a.occ_hash)) ? String(a.occ_id || a.occ_hash) : '';
+          const bId = (b && (b.occ_id || b.occ_hash)) ? String(b.occ_id || b.occ_hash) : '';
+          return aId.localeCompare(bId);
         } catch(e) { return 0; }
       });
       // Apply client-side filtering for "Hide completed" when enabled (default ON)
@@ -167,21 +169,22 @@
       }
       const parent = container && container.parentNode; if (!parent) return;
         if (occs && occs.length > 0) {
-        // Build a list of occ_hashes for the fetched occurrences
-        const newHashes = occs.map(function(ev){ return ev && ev.occ_hash ? String(ev.occ_hash) : ''; });
+        // Phase 2: Build list of occ_ids (or fallback to hash for old data)
+        const newIds = occs.map(function(ev){ return ev && (ev.occ_id || ev.occ_hash) ? String(ev.occ_id || ev.occ_hash) : ''; });
         // Read current DOM occurrence order (if present) to avoid unnecessary reflows
-  const existingHashes = Array.from((parent.querySelectorAll('li.todo[data-hash]')||[])).map(function(el){ return el.getAttribute('data-hash') || ''; });
-        // If the order of occ_hashes is identical, avoid full replace; instead update checkbox states and ignored markers
-  if (existingHashes.length === newHashes.length && existingHashes.every(function(h, i){ return h === newHashes[i]; })) {
+  const existingIds = Array.from((parent.querySelectorAll('li.todo[data-occ-id]')||[])).map(function(el){ return el.getAttribute('data-occ-id') || el.getAttribute('data-hash') || ''; });
+        // If the order of occ_ids is identical, avoid full replace; instead update checkbox states and ignored markers
+  if (existingIds.length === newIds.length && existingIds.every(function(h, i){ return h === newIds[i]; })) {
           try {
             occs.forEach(function(ev){
               try {
-                const li = parent.querySelector('li.todo[data-hash="' + ev.occ_hash + '"]');
+                const occId = ev.occ_id || ev.occ_hash || '';
+                const li = parent.querySelector('li.todo[data-occ-id="' + occId + '"]');
                 if (!li) return;
-                const chk = li.querySelector('.occ-complete[data-hash="' + ev.occ_hash + '"]');
+                const chk = li.querySelector('.occ-complete[data-occ-id="' + occId + '"]');
                 if (chk) {
                   // preserve any in-flight user action when present
-                  if (!window.__occInFlight || !window.__occInFlight[ev.occ_hash]) {
+                  if (!window.__occInFlight || !window.__occInFlight[occId]) {
                     chk.checked = !!ev.completed;
                     // ensure disabled state for phantom occurrences
                     if (ev.phantom) {
@@ -204,30 +207,35 @@
         // read global in-flight map if present so we can preserve user actions
         const occInFlight = (window.__occInFlight || {});
         for (const ev of occs) {
-          // if a change for this occ_hash is in-flight, prefer the current DOM
+          // Phase 2: Use occ_id for in-flight check
+          const occId = ev.occ_id || ev.occ_hash || `${ev.item_type}:${ev.id}:${ev.occurrence_dt}`;
+          // if a change for this occurrence is in-flight, prefer the current DOM
           // checkbox state (user action) instead of the server-provided value
           try {
-            if (ev && ev.occ_hash && occInFlight[ev.occ_hash]) {
-              const existing = document.querySelector(`.occ-complete[data-hash="${ev.occ_hash}"]`);
+            if (occId && occInFlight[occId]) {
+              const existing = document.querySelector(`.occ-complete[data-occ-id="${occId}"]`);
               if (existing) {
                 ev.completed = !!existing.checked;
               }
             }
           } catch (e) { /* ignore DOM lookup failures */ }
-          const li = document.createElement('li'); li.className = 'todo'; li.setAttribute('data-hash', ev.occ_hash || '');
+          const li = document.createElement('li'); li.className = 'todo'; li.setAttribute('data-occ-id', occId || '');
           const title = ev.item_type === 'todo' ? `<a href="/html_no_js/todos/${ev.id}">${ev.title}</a>` : ev.item_type === 'list' ? `<a href="/html_no_js/lists/${ev.id}">${ev.title}</a>` : ev.title;
           // Build a left-controls column so checkboxes and ignore buttons sit to the left of the content
           // small icon buttons: single-occurrence ignore and ignore-from-date
-          // use data attributes: data-occ for occ_hash, data-todo for the todo/list id
+          // use data attributes: data-occ for occ_id, data-todo for the todo/list id
             // prefer server-supplied date-only string when available
             const occDate = (ev.occurrence_date || ev.occurrence_dt);
+            // Phase 2: occId already declared above
             let occControls = `<div class="controls-left">
-            <input type="checkbox" class="occ-complete" data-hash="${ev.occ_hash}" data-item-type="${ev.item_type || ''}" data-item-id="${ev.id || ''}" data-occ-dt="${occDate || ''}" data-phantom="${ev.phantom ? '1' : ''}" ${ev.completed ? 'checked' : ''} ${ev.phantom ? 'disabled title="Historic completion (read-only)"' : ''} aria-label="mark occurrence complete">
-            <button type="button" class="occ-ignore-occ" data-occ="${ev.occ_hash}" title="Ignore in calendar altogether" aria-label="Ignore this occurrence" style="margin-left:0.25rem;padding:0.1rem 0.25rem;font-size:0.9rem;">🔕</button>
+            <input type="checkbox" class="occ-complete" data-occ-id="${occId}" data-hash="${ev.occ_hash || ''}" data-item-type="${ev.item_type || ''}" data-item-id="${ev.id || ''}" data-occ-dt="${occDate || ''}" data-phantom="${ev.phantom ? '1' : ''}" ${ev.completed ? 'checked' : ''} ${ev.phantom ? 'disabled title="Historic completion (read-only)"' : ''} aria-label="mark occurrence complete">
+            <button type="button" class="occ-ignore-occ" data-occ="${occId}" data-item-id="${ev.id || ''}" title="Ignore in calendar altogether" aria-label="Ignore this todo from calendar" style="margin-left:0.25rem;padding:0.1rem 0.25rem;font-size:0.9rem;">🔕</button>
             <button type="button" class="occ-ignore-from" data-todo="${ev.id}" data-occ-dt="${occDate}" title="Ignore from this date" aria-label="Ignore from this date" style="margin-left:0.25rem;padding:0.1rem 0.25rem;font-size:0.9rem;">⏭️</button>`;
           if (showIgnored && ev.ignored) {
             // show an unignore control (checkbox or button) when item is ignored
-            occControls += ` <button type="button" class="occ-unignore" data-occ="${ev.occ_hash}" data-item-id="${ev.id}" title="Unignore" aria-label="Unignore" style="margin-left:0.25rem;padding:0.1rem 0.25rem;font-size:0.9rem;">↩️</button>`;
+            // Check if ignored due to calendar_ignored flag (vs other scope types)
+            const isCalIgnored = ev.ignored_scopes && ev.ignored_scopes.includes('calendar_ignored') ? '1' : '0';
+            occControls += ` <button type="button" class="occ-unignore" data-occ="${occId}" data-item-id="${ev.id}" data-calendar-ignored="${isCalIgnored}" title="Unignore" aria-label="Unignore" style="margin-left:0.25rem;padding:0.1rem 0.25rem;font-size:0.9rem;">↩️</button>`;
           }
           occControls += `</div>`;
           const ignoredStyle = (showIgnored && ev.ignored) ? ' style="opacity:0.6;"' : '';
@@ -313,15 +321,17 @@
 
   // ignore and complete handlers
   document.addEventListener('click', function(e){
-    // single-occurrence ignore button
+    // ignore todo from calendar altogether (all occurrences)
     const igOcc = e.target.closest('.occ-ignore-occ');
     if (igOcc) {
-      const occ = igOcc.getAttribute('data-occ'); if (!occ) return;
+      // Phase 2: Use item_id from occurrence metadata to set calendar_ignored flag on todo
+      const itemId = igOcc.getAttribute('data-item-id');
+      if (!itemId) return;
       const csrf = getCookie('csrf_token') || '';
-      const body = `_csrf=${encodeURIComponent(csrf)}&scope_type=occurrence&scope_key=${encodeURIComponent(occ)}`;
-      fetch('/ignore/scope', { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: body, credentials: 'same-origin' })
-        .then(async r => { let j=null; try{ j = await r.json(); }catch(e){ j={error:'invalid-json'};} console.log('DEBUG: ignore_response', {status:r.status, body:j}); const el = igOcc.closest('.todo'); if (el) el.style.display='none'; })
-        .catch(err => console.error('DEBUG: ignore_error', err));
+      const body = `_csrf=${encodeURIComponent(csrf)}&calendar_ignored=1`;
+      fetch(`/html_no_js/todos/${itemId}/calendar_ignored`, { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: body, credentials: 'same-origin' })
+        .then(async r => { let j=null; try{ j = await r.json(); }catch(e){ j={error:'invalid-json'};} console.log('DEBUG: calendar_ignore_response', {status:r.status, body:j}); fetchOccurrencesForCurrentWindow(); })
+        .catch(err => console.error('DEBUG: calendar_ignore_error', err));
       return;
     }
     // ignore from this date button
@@ -336,18 +346,28 @@
         .catch(err => console.error('DEBUG: ignore_from_error', err));
       return;
     }
-    // unignore button
+    // unignore button (handles both scope-based ignores and calendar_ignored flag)
     const unIg = e.target.closest('.occ-unignore');
     if (unIg) {
       const occ = unIg.getAttribute('data-occ');
       const itemId = unIg.getAttribute('data-item-id');
+      const isCalendarIgnored = unIg.getAttribute('data-calendar-ignored') === '1';
       const csrf = getCookie('csrf_token') || '';
-      if (occ) {
+      
+      if (isCalendarIgnored && itemId) {
+        // Unset calendar_ignored flag on the todo
+        const body = `_csrf=${encodeURIComponent(csrf)}&calendar_ignored=0`;
+        fetch(`/html_no_js/todos/${itemId}/calendar_ignored`, { method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded'}, body: body, credentials: 'same-origin' })
+          .then(async r => { try{ await r.json(); }catch(e){} fetchOccurrencesForCurrentWindow(); })
+          .catch(err => console.error('DEBUG: unignore_calendar_error', err));
+      } else if (occ) {
+        // Legacy: unignore specific occurrence scope
         const body = `_csrf=${encodeURIComponent(csrf)}&scope_type=occurrence&scope_key=${encodeURIComponent(occ)}`;
         fetch('/ignore/unscope', { method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded'}, body: body, credentials: 'same-origin' })
           .then(async r => { try{ await r.json(); }catch(e){} fetchOccurrencesForCurrentWindow(); })
           .catch(err => console.error('DEBUG: unignore_occ_error', err));
       } else if (itemId) {
+        // Unignore todo_from scope
         const body = `_csrf=${encodeURIComponent(csrf)}&scope_type=todo_from&scope_key=${encodeURIComponent(itemId)}`;
         fetch('/ignore/unscope', { method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded'}, body: body, credentials: 'same-origin' })
           .then(async r => { try{ await r.json(); }catch(e){} fetchOccurrencesForCurrentWindow(); })
@@ -359,36 +379,39 @@
   });
 
   document.addEventListener('change', function(e){
-  const cb = e.target.closest('.occ-complete'); if (!cb) return; const hash = cb.getAttribute('data-hash'); if (!hash) return;
-  // If this checkbox represents a phantom (historic) occurrence, ignore change events
-  const isPhantom = cb.getAttribute('data-phantom');
-  if (isPhantom) { try { cb.checked = true; } catch(e){} return; }
+  const cb = e.target.closest('.occ-complete'); if (!cb) return;
+  // Phase 2: Use metadata as primary identifier (hash optional for backward compat)
   const itemType = cb.getAttribute('data-item-type') || '';
   const itemId = cb.getAttribute('data-item-id') || '';
   const occDt = cb.getAttribute('data-occ-dt') || '';
+  const occId = cb.getAttribute('data-occ-id') || `${itemType}:${itemId}:${occDt}`;
+  if (!itemType || !itemId || !occDt) { console.debug('missing metadata'); return; }
+  // If this checkbox represents a phantom (historic) occurrence, ignore change events
+  const isPhantom = cb.getAttribute('data-phantom');
+  if (isPhantom) { try { cb.checked = true; } catch(e){} return; }
     // simple in-flight and debounce guard to prevent duplicate toggles
-    // caused by rapid duplicate events when fetchOccurrencesForCurrentWindow
-    // replaces DOM or on initial page refresh. Keyed by occ_hash.
+    // Phase 2: Key by occ_id instead of hash
     window.__occInFlight = window.__occInFlight || {};
     window.__occLastProcessed = window.__occLastProcessed || {};
     const now = Date.now();
-    // ignore event if a request for this hash is already in-flight
-    if (window.__occInFlight[hash]) {
-      console.debug('IGNORING duplicate change - in-flight', hash);
+    // ignore event if a request for this occurrence is already in-flight
+    if (window.__occInFlight[occId]) {
+      console.debug('IGNORING duplicate change - in-flight', occId);
       return;
     }
-    // ignore if we processed a change for this hash very recently (debounce 800ms)
-    const last = window.__occLastProcessed[hash] || 0;
+    // ignore if we processed a change for this occurrence very recently (debounce 800ms)
+    const last = window.__occLastProcessed[occId] || 0;
     if (now - last < 800) {
-      console.debug('IGNORING duplicate change - debounced', hash, now - last);
+      console.debug('IGNORING duplicate change - debounced', occId, now - last);
       return;
     }
     if (cb.checked) {
   // mark in-flight and disable checkbox to avoid duplicate clicks and optimistic race
-  window.__occInFlight[hash] = true;
+  window.__occInFlight[occId] = true;
   cb.disabled = true;
       const csrf = getCookie('csrf_token') || '';
-  const body = `_csrf=${encodeURIComponent(csrf)}&hash=${encodeURIComponent(hash)}&item_type=${encodeURIComponent(itemType)}&item_id=${encodeURIComponent(itemId)}&occurrence_dt=${encodeURIComponent(occDt)}`;
+  // Phase 2: Send only metadata, no hash needed
+  const body = `_csrf=${encodeURIComponent(csrf)}&item_type=${encodeURIComponent(itemType)}&item_id=${encodeURIComponent(itemId)}&occurrence_dt=${encodeURIComponent(occDt)}`;
       (async () => {
         // Helper to retry once after attempting CSRF refresh
         async function postComplete() {
@@ -420,13 +443,14 @@
           } catch (e) { /* ignore storage/DOM errors */ }
         }
       })().catch(err => { console.error('DEBUG: complete_error', err); cb.checked = false; })
-      .finally(() => { cb.disabled = false; window.__occInFlight[hash] = false; window.__occLastProcessed[hash] = Date.now(); });
+      .finally(() => { cb.disabled = false; window.__occInFlight[occId] = false; window.__occLastProcessed[occId] = Date.now(); });
     } else {
   // mark in-flight and disable checkbox to avoid duplicate clicks and optimistic race
-  window.__occInFlight[hash] = true;
+  window.__occInFlight[occId] = true;
   cb.disabled = true;
       const csrf = getCookie('csrf_token') || '';
-  const body = `_csrf=${encodeURIComponent(csrf)}&hash=${encodeURIComponent(hash)}&item_type=${encodeURIComponent(itemType)}&item_id=${encodeURIComponent(itemId)}&occurrence_dt=${encodeURIComponent(occDt)}`;
+  // Phase 2: Send only metadata, no hash needed
+  const body = `_csrf=${encodeURIComponent(csrf)}&item_type=${encodeURIComponent(itemType)}&item_id=${encodeURIComponent(itemId)}&occurrence_dt=${encodeURIComponent(occDt)}`;
       (async () => {
         async function postUncomplete() {
           const r = await fetch('/occurrence/uncomplete', { method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded'}, body: body, credentials: 'same-origin' });
@@ -444,7 +468,7 @@
           cb.checked = true;
         }
       })().catch(err => { console.error('DEBUG: uncomplete_error', err); cb.checked = true; })
-      .finally(() => { cb.disabled = false; window.__occInFlight[hash] = false; window.__occLastProcessed[hash] = Date.now(); });
+      .finally(() => { cb.disabled = false; window.__occInFlight[occId] = false; window.__occLastProcessed[occId] = Date.now(); });
     }
   });
   // Wire include_historic checkbox

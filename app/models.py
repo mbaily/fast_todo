@@ -306,10 +306,14 @@ class RecentTodoVisit(SQLModel, table=True):
 
 
 class CompletedOccurrence(SQLModel, table=True):
-    """Persisted completed occurrence hashes per-user."""
+    """Persisted completed occurrence hashes per-user.
+    
+    Phase 1: occ_hash is now optional/nullable. Use metadata fields instead:
+    (user_id, item_type, item_id, occurrence_dt) forms the natural key.
+    """
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key='user.id', index=True)
-    occ_hash: str = Field(index=True, sa_column_kwargs={"unique": False})
+    occ_hash: Optional[str] = Field(default=None, index=True, sa_column_kwargs={"unique": False})  # Phase 1: Made nullable
     item_type: Optional[str] = None
     item_id: Optional[int] = None
     occurrence_dt: Optional[datetime] = None

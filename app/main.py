@@ -3186,7 +3186,11 @@ async def calendar_events(request: Request, start: Optional[str] = None, end: Op
 
         todos = []
         if list_ids:
-            qtodos = await sess.exec(select(Todo).where(Todo.list_id.in_(list_ids)).where(Todo.calendar_ignored == False))
+            qt_stmt = select(Todo).where(Todo.list_id.in_(list_ids))
+            # Only filter out calendar_ignored todos if NOT showing ignored items
+            if not include_ignored:
+                qt_stmt = qt_stmt.where(Todo.calendar_ignored == False)
+            qtodos = await sess.exec(qt_stmt)
             todos = qtodos.all()
         logger.info('calendar_occurrences fetched %d todos for owner_id=%s', len(todos) if todos is not None else 0, owner_id)
 
@@ -3447,7 +3451,10 @@ async def calendar_occurrences(request: Request,
         todos = []
         if list_ids:
             t_fetch_todos = _pt('fetch_todos')
-            qt_stmt = select(Todo).where(Todo.list_id.in_(list_ids)).where(Todo.calendar_ignored == False)
+            qt_stmt = select(Todo).where(Todo.list_id.in_(list_ids))
+            # Only filter out calendar_ignored todos if NOT showing ignored items
+            if not include_ignored:
+                qt_stmt = qt_stmt.where(Todo.calendar_ignored == False)
             # Defensive: also exclude todos under Trash list id in case list_ids
             # contained it due to unforeseen conditions.
             if trash_id is not None:
@@ -3535,9 +3542,16 @@ async def calendar_occurrences(request: Request,
                     pass
                 truncated = True
                 return
-            # compute occurrence hash for client/server idempotency
-            from .utils import occurrence_hash
-            occ_hash = occurrence_hash(item_type, item_id, occ_dt, rrule_str or '', title)
+            # Phase 2: Generate stable occurrence ID from metadata (no hash computation)
+            # Format: {item_type}:{item_id}:{iso_date}
+            try:
+                occ_dt_normalized = occ_dt
+                if hasattr(occ_dt_normalized, 'tzinfo') and occ_dt_normalized.tzinfo is None:
+                    occ_dt_normalized = occ_dt_normalized.replace(tzinfo=timezone.utc)
+                occ_id = f"{item_type}:{item_id}:{occ_dt_normalized.isoformat()}"
+            except Exception:
+                occ_id = f"{item_type}:{item_id}:{occ_dt.isoformat() if hasattr(occ_dt, 'isoformat') else str(occ_dt)}"
+            
             # precompute a numeric timestamp to avoid repeated ISO parsing during sort
             try:
                 _od = occ_dt
@@ -3558,7 +3572,8 @@ async def calendar_occurrences(request: Request,
                 'is_recurring': bool(is_rec),
                 'rrule': rrule_str or '',
                 'recurrence_meta': rec_meta,
-                'occ_hash': occ_hash,
+                'occ_id': occ_id,  # Phase 2: Use stable ID instead of hash
+                'occ_hash': None,  # Phase 2: No longer computed
                 'occ_ts': _occ_ts,
                 'source': source or None,
                 # effective priority: for todos use todo.priority, for lists use max(list.priority, highest uncompleted todo priority in that list)
@@ -4344,11 +4359,8 @@ async def calendar_occurrences(request: Request,
         # fetch user's completed occ_hashes and active ignore scope_hashes
         qc = await sess.exec(select(CompletedOccurrence).where(CompletedOccurrence.user_id == owner_id))
         done_rows = qc.all()
-        done_set = set(r.occ_hash for r in done_rows)
-        # Build a metadata-based lookup for stable completion fallback when
-        # occ_hash changes (for example, due to title edits). Use a set of
-        # tuples (item_type, item_id, occurrence_dt_utc) where occurrence_dt_utc
-        # is a timezone-aware UTC datetime to allow reliable comparisons.
+        # Phase 1: Use only metadata-based lookup (no longer need hash set)
+        # Build a set of tuples (item_type, item_id, occurrence_dt_utc) for O(1) completion checks
         meta_done = set()
         for r in done_rows:
             try:
@@ -4429,22 +4441,17 @@ async def calendar_occurrences(request: Request,
                             is_ignored = True
             except Exception:
                 pass
-            # mark completed occurrences: prefer direct hash match, but also
-            # allow metadata-based stable fallback when occ_hash differs.
-            completed_by_hash = (o.get('occ_hash') in done_set)
-            if completed_by_hash:
-                o['completed'] = True
-            else:
-                # Try metadata fallback: compare (item_type, id, occurrence_dt)
-                try:
-                    occ_dt = _parse_iso_z(o.get('occurrence_dt'))
-                    key = (str(o.get('item_type')), int(o.get('id')) if o.get('id') is not None else None, occ_dt)
-                    if occ_dt is not None and (key[0], key[1], occ_dt) in meta_done:
-                        o['completed'] = True
-                    else:
-                        o['completed'] = False
-                except Exception:
+            # Phase 1: Use metadata-only for completion checks (no longer use hash)
+            # Check if (item_type, id, occurrence_dt) exists in meta_done set
+            try:
+                occ_dt = _parse_iso_z(o.get('occurrence_dt'))
+                key = (str(o.get('item_type')), int(o.get('id')) if o.get('id') is not None else None, occ_dt)
+                if occ_dt is not None and key in meta_done:
+                    o['completed'] = True
+                else:
                     o['completed'] = False
+            except Exception:
+                o['completed'] = False
             if include_ignored:
                 o['ignored'] = is_ignored
                 if is_ignored:
@@ -4501,7 +4508,7 @@ async def calendar_occurrences(request: Request,
                 # Non-fatal: if dedupe fails, continue with injected list
                 pass
 
-        logger.info('calendar_occurrences returning %d occurrences after filters (ignored_scopes=%d, completed=%d, include_ignored=%s)', len(occurrences), len(ign_rows), len(done_set), include_ignored)
+        logger.info('calendar_occurrences returning %d occurrences after filters (ignored_scopes=%d, completed=%d, include_ignored=%s)', len(occurrences), len(ign_rows), len(meta_done), include_ignored)
         try:
             logger.info('calendar_occurrences.returning_items %s', [(o.get('item_type'), o.get('id'), (o.get('title') or '')[:40], o.get('occurrence_dt')) for o in occurrences])
         except Exception:
@@ -4578,7 +4585,7 @@ async def calendar_occurrences(request: Request,
 
 
 @app.post('/occurrence/complete')
-async def mark_occurrence_completed(request: Request, hash: str = Form(...), item_type: str | None = Form(None), item_id: int | None = Form(None), occurrence_dt: str | None = Form(None), current_user: User = Depends(require_login)):
+async def mark_occurrence_completed(request: Request, hash: str | None = Form(None), item_type: str | None = Form(None), item_id: int | None = Form(None), occurrence_dt: str | None = Form(None), current_user: User = Depends(require_login)):
     """Mark a single occurrence hash as completed for the current user.
 
     For browser clients using cookie/session authentication require a valid
@@ -4822,14 +4829,32 @@ async def mark_occurrence_completed(request: Request, hash: str = Form(...), ite
             parsed_occ_dt = None
 
     async with async_session() as sess:
-        # idempotent upsert: insert row if not exists
-        exists_q = await sess.scalars(select(CompletedOccurrence).where(CompletedOccurrence.user_id == current_user.id).where(CompletedOccurrence.occ_hash == hash))
-        if exists_q.first():
-            try:
-                logger.info('/occurrence/complete idempotent (already completed) user_id=%s hash=%s', getattr(current_user, 'id', None), hash)
-            except Exception:
-                pass
-            return {'ok': True, 'created': False}
+        # Phase 1: Use metadata for idempotency check instead of hash
+        # Check if completion already exists using natural key (item_type, item_id, occurrence_dt)
+        if item_type and item_id is not None and parsed_occ_dt is not None:
+            exists_q = await sess.scalars(
+                select(CompletedOccurrence)
+                .where(CompletedOccurrence.user_id == current_user.id)
+                .where(CompletedOccurrence.item_type == item_type)
+                .where(CompletedOccurrence.item_id == item_id)
+                .where(CompletedOccurrence.occurrence_dt == parsed_occ_dt)
+            )
+            if exists_q.first():
+                try:
+                    logger.info('/occurrence/complete idempotent (already completed) user_id=%s item_type=%s item_id=%s occurrence_dt=%s', 
+                               getattr(current_user, 'id', None), item_type, item_id, (parsed_occ_dt.isoformat() if parsed_occ_dt else None))
+                except Exception:
+                    pass
+                return {'ok': True, 'created': False}
+        else:
+            # Fallback: if metadata is missing, try hash-based check for backward compatibility
+            exists_q = await sess.scalars(select(CompletedOccurrence).where(CompletedOccurrence.user_id == current_user.id).where(CompletedOccurrence.occ_hash == hash))
+            if exists_q.first():
+                try:
+                    logger.info('/occurrence/complete idempotent (already completed, fallback to hash) user_id=%s hash=%s', getattr(current_user, 'id', None), hash)
+                except Exception:
+                    pass
+                return {'ok': True, 'created': False}
         # Attempt to capture the item's title at completion time and store in metadata_json
         meta_json = None
         try:
@@ -4853,7 +4878,8 @@ async def mark_occurrence_completed(request: Request, hash: str = Form(...), ite
         except Exception:
             meta_json = None
 
-        row = CompletedOccurrence(user_id=current_user.id, occ_hash=hash, item_type=item_type, item_id=item_id, occurrence_dt=parsed_occ_dt, metadata_json=meta_json)
+        # Phase 2: Store NULL hash for new completions (hash parameter ignored)
+        row = CompletedOccurrence(user_id=current_user.id, occ_hash=None, item_type=item_type, item_id=item_id, occurrence_dt=parsed_occ_dt, metadata_json=meta_json)
         sess.add(row)
         await sess.commit()
         try:
@@ -4888,12 +4914,12 @@ async def mark_occurrence_completed(request: Request, hash: str = Form(...), ite
 
 
 @app.post('/occurrence/uncomplete')
-async def unmark_occurrence_completed(request: Request, hash: str = Form(...), current_user: User = Depends(require_login)):
-    """Unmark a single occurrence hash as completed for the current user.
+async def unmark_occurrence_completed(request: Request, hash: str = Form(None), item_type: str | None = Form(None), item_id: int | None = Form(None), occurrence_dt: str | None = Form(None), current_user: User = Depends(require_login)):
+    """Unmark a single occurrence as completed for the current user.
 
-    Mirrors /occurrence/complete but removes any CompletedOccurrence rows for
-    (user_id, occ_hash). Cookie-authenticated browsers must provide CSRF; bearer
-    token API clients can omit CSRF.
+    Phase 1: Prefers metadata (item_type, item_id, occurrence_dt) for lookup.
+    Falls back to hash for backward compatibility if metadata not provided.
+    Cookie-authenticated browsers must provide CSRF; bearer token API clients can omit CSRF.
     """
     # Require CSRF for cookie-authenticated browser requests. Allow bearer
     # token clients to call without CSRF. Add verbose debugging similar to
@@ -5021,16 +5047,62 @@ async def unmark_occurrence_completed(request: Request, hash: str = Form(...), c
             raise HTTPException(status_code=403, detail='invalid csrf token')
 
     from .models import CompletedOccurrence
+    
+    # Parse occurrence_dt if provided
+    parsed_occ_dt = None
+    if occurrence_dt:
+        try:
+            s = occurrence_dt
+            if isinstance(s, str) and s.endswith('Z'):
+                s = s.replace('Z', '+00:00')
+            from datetime import datetime as _dt
+            parsed_occ_dt = _dt.fromisoformat(s)
+        except Exception:
+            parsed_occ_dt = None
+    
     async with async_session() as sess:
-        # delete all rows matching this user+hash (should be at most one)
-        q = await sess.scalars(select(CompletedOccurrence).where(CompletedOccurrence.user_id == current_user.id).where(CompletedOccurrence.occ_hash == hash))
-        rows = q.all()
+        # Phase 1: Use metadata for deletion instead of hash
         deleted = 0
-        for r in rows:
-            await sess.delete(r)
-            deleted += 1
-        if deleted:
-            await sess.commit()
+        
+        if item_type and item_id is not None and parsed_occ_dt is not None:
+            # Prefer metadata-based lookup (natural key)
+            q = await sess.scalars(
+                select(CompletedOccurrence)
+                .where(CompletedOccurrence.user_id == current_user.id)
+                .where(CompletedOccurrence.item_type == item_type)
+                .where(CompletedOccurrence.item_id == item_id)
+                .where(CompletedOccurrence.occurrence_dt == parsed_occ_dt)
+            )
+            rows = q.all()
+            for r in rows:
+                await sess.delete(r)
+                deleted += 1
+            if deleted:
+                await sess.commit()
+                try:
+                    logger.info('/occurrence/uncomplete deleted by metadata user_id=%s item_type=%s item_id=%s occurrence_dt=%s deleted=%s',
+                               getattr(current_user, 'id', None), item_type, item_id, (parsed_occ_dt.isoformat() if parsed_occ_dt else None), deleted)
+                except Exception:
+                    pass
+        elif hash:
+            # Fallback: use hash-based lookup for backward compatibility
+            q = await sess.scalars(
+                select(CompletedOccurrence)
+                .where(CompletedOccurrence.user_id == current_user.id)
+                .where(CompletedOccurrence.occ_hash == hash)
+            )
+            rows = q.all()
+            for r in rows:
+                await sess.delete(r)
+                deleted += 1
+            if deleted:
+                await sess.commit()
+                try:
+                    logger.info('/occurrence/uncomplete deleted by hash (fallback) user_id=%s hash=%s deleted=%s',
+                               getattr(current_user, 'id', None), hash, deleted)
+                except Exception:
+                    pass
+        
         return {'ok': True, 'deleted': deleted}
 
 
@@ -9695,7 +9767,21 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
 
             qc = await sess.exec(select(CompletedOccurrence).where(CompletedOccurrence.user_id == owner_id))
             done_rows = qc.all()
-            done_set = set(r.occ_hash for r in done_rows)
+            # Phase 1: Build metadata-based completion set instead of hash set
+            meta_done = set()
+            for r in done_rows:
+                try:
+                    if getattr(r, 'item_type', None) and getattr(r, 'item_id', None) and getattr(r, 'occurrence_dt', None):
+                        dt = getattr(r, 'occurrence_dt')
+                        try:
+                            if dt.tzinfo is None:
+                                dt = dt.replace(tzinfo=timezone.utc)
+                            dt_utc = dt.astimezone(timezone.utc)
+                        except Exception:
+                            dt_utc = dt
+                        meta_done.add((str(getattr(r, 'item_type')), int(getattr(r, 'item_id')), dt_utc))
+                except Exception:
+                    continue
             qi = await sess.exec(select(IgnoredScope).where(IgnoredScope.user_id == owner_id).where(IgnoredScope.active == True))
             ign_rows = qi.all()
             occ_ignore_hashes = set(r.scope_hash for r in ign_rows if getattr(r, 'scope_type', '') == 'occurrence' and r.scope_hash)
@@ -9740,10 +9826,18 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
                 try:
                     if occ_dt.tzinfo is None:
                         occ_dt = occ_dt.replace(tzinfo=timezone.utc)
-                    occ_hash = occurrence_hash(item_type, item_id, occ_dt, rrule_str or '', title)
-                    if occ_hash in done_set:
+                    # Phase 2: Check completion using metadata
+                    occ_dt_utc = occ_dt.astimezone(timezone.utc) if hasattr(occ_dt, 'astimezone') else occ_dt
+                    key = (str(item_type), int(item_id), occ_dt_utc)
+                    if key in meta_done:
                         return None
-                    if occ_hash in occ_ignore_hashes:
+                    # Phase 2: Generate stable ID instead of hash for ignore checks
+                    occ_id = f"{item_type}:{item_id}:{occ_dt_utc.isoformat()}"
+                    # Still need to check ignore hashes (that system still uses hashes)
+                    # We compute hash only for ignore checks, not for the occurrence itself
+                    from .utils import occurrence_hash
+                    occ_hash_for_ignore = occurrence_hash(item_type, item_id, occ_dt, rrule_str or '', title)
+                    if occ_hash_for_ignore in occ_ignore_hashes:
                         return None
                     if item_type == 'list' and str(item_id) in list_ignore_ids:
                         return None
@@ -9760,7 +9854,7 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
                                 return None
                         except Exception:
                             continue
-                    return occ_hash
+                    return occ_id  # Phase 2: Return ID instead of hash
                 except Exception:
                     return None
 
@@ -9780,9 +9874,9 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
                         r = rrulestr(rec_rrule, dtstart=rec_dtstart)
                         occs = list(r.between(cal_start, cal_end, inc=True))[:3]
                         for od in occs:
-                            oh = _occ_allowed('list', l.id, od, rec_rrule, title=(l.name or ''), list_id=None)
-                            if oh:
-                                calendar_occurrences.append({'occurrence_dt': od.isoformat(), 'item_type': 'list', 'id': l.id, 'list_id': None, 'title': l.name, 'occ_hash': oh, 'is_recurring': True, 'rrule': rec_rrule})
+                            occ_id = _occ_allowed('list', l.id, od, rec_rrule, title=(l.name or ''), list_id=None)
+                            if occ_id:
+                                calendar_occurrences.append({'occurrence_dt': od.isoformat(), 'item_type': 'list', 'id': l.id, 'list_id': None, 'title': l.name, 'occ_id': occ_id, 'occ_hash': None, 'is_recurring': True, 'rrule': rec_rrule})
                     except Exception:
                         pass
                 try:
@@ -9801,9 +9895,9 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
                                     except Exception:
                                         pass
                                 if d and d >= cal_start and d <= cal_end:
-                                    oh = _occ_allowed('list', l.id, d, '', title=(l.name or ''), list_id=None)
-                                    if oh:
-                                        calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'list', 'id': l.id, 'list_id': None, 'title': l.name, 'occ_hash': oh, 'is_recurring': False, 'rrule': ''})
+                                    occ_id = _occ_allowed('list', l.id, d, '', title=(l.name or ''), list_id=None)
+                                    if occ_id:
+                                        calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'list', 'id': l.id, 'list_id': None, 'title': l.name, 'occ_id': occ_id, 'occ_hash': None, 'is_recurring': False, 'rrule': ''})
                                     else:
                                         try:
                                             from .utils import index_calendar_assert
@@ -9828,9 +9922,9 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
                                                 except Exception:
                                                     pass
                                                 if d and d >= cal_start and d <= cal_end:
-                                                    oh = _occ_allowed('list', l.id, d, '', title=(l.name or ''), list_id=None)
-                                                    if oh:
-                                                        calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'list', 'id': l.id, 'list_id': None, 'title': l.name, 'occ_hash': oh, 'is_recurring': False, 'rrule': ''})
+                                                    occ_id = _occ_allowed('list', l.id, d, '', title=(l.name or ''), list_id=None)
+                                                    if occ_id:
+                                                        calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'list', 'id': l.id, 'list_id': None, 'title': l.name, 'occ_id': occ_id, 'occ_hash': None, 'is_recurring': False, 'rrule': ''})
                                                     else:
                                                         try:
                                                             from .utils import index_calendar_assert
@@ -9846,9 +9940,9 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
                                     else:
                                         d = candidates
                                         if d and d >= cal_start and d <= cal_end:
-                                            oh = _occ_allowed('list', l.id, d, '', title=(l.name or ''), list_id=None)
-                                            if oh:
-                                                calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'list', 'id': l.id, 'list_id': None, 'title': l.name, 'occ_hash': oh, 'is_recurring': False, 'rrule': ''})
+                                            occ_id = _occ_allowed('list', l.id, d, '', title=(l.name or ''), list_id=None)
+                                            if occ_id:
+                                                calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'list', 'id': l.id, 'list_id': None, 'title': l.name, 'occ_id': occ_id, 'occ_hash': None, 'is_recurring': False, 'rrule': ''})
                                 except Exception:
                                     pass
                         except Exception:
@@ -9871,9 +9965,9 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
                         r = rrulestr(rec_rrule, dtstart=rec_dtstart)
                         occs = list(r.between(cal_start, cal_end, inc=True))[:3]
                         for od in occs:
-                            oh = _occ_allowed('todo', t.id, od, rec_rrule, title=(t.text or ''), list_id=t.list_id)
-                            if oh:
-                                calendar_occurrences.append({'occurrence_dt': od.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': True, 'rrule': rec_rrule, 'priority': getattr(t, 'priority', None)})
+                            occ_id = _occ_allowed('todo', t.id, od, rec_rrule, title=(t.text or ''), list_id=t.list_id)
+                            if occ_id:
+                                calendar_occurrences.append({'occurrence_dt': od.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_id': occ_id, 'occ_hash': None, 'is_recurring': True, 'rrule': rec_rrule, 'priority': getattr(t, 'priority', None)})
                     except Exception:
                         pass
                 else:
@@ -9889,9 +9983,9 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
                             occs = list(r_obj.between(cal_start, cal_end, inc=True))[:3]
                             _dt, rrule_str_local = parse_text_to_rrule_string(t.text + '\n' + (t.note or ''))
                             for od in occs:
-                                oh = _occ_allowed('todo', t.id, od, rrule_str_local, title=(t.text or ''), list_id=t.list_id)
-                                if oh:
-                                    calendar_occurrences.append({'occurrence_dt': od.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': True, 'rrule': rrule_str_local, 'priority': getattr(t, 'priority', None)})
+                                occ_id = _occ_allowed('todo', t.id, od, rrule_str_local, title=(t.text or ''), list_id=t.list_id)
+                                if occ_id:
+                                    calendar_occurrences.append({'occurrence_dt': od.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_id': occ_id, 'occ_hash': None, 'is_recurring': True, 'rrule': rrule_str_local, 'priority': getattr(t, 'priority', None)})
                     except Exception:
                         pass
                 try:
@@ -9911,9 +10005,9 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
                                     except Exception:
                                         pass
                                 if d and d >= cal_start and d <= cal_end:
-                                    oh = _occ_allowed('todo', t.id, d, '', title=(t.text or ''), list_id=t.list_id)
-                                    if oh:
-                                        calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': False, 'rrule': '', 'priority': getattr(t, 'priority', None)})
+                                    occ_id = _occ_allowed('todo', t.id, d, '', title=(t.text or ''), list_id=t.list_id)
+                                    if occ_id:
+                                        calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_id': occ_id, 'occ_hash': None, 'is_recurring': False, 'rrule': '', 'priority': getattr(t, 'priority', None)})
                                     else:
                                         try:
                                             from .utils import index_calendar_assert
@@ -9938,9 +10032,9 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
                                             except Exception:
                                                 pass
                                             if d and d >= cal_start and d <= cal_end:
-                                                oh = _occ_allowed('todo', t.id, d, '', title=(t.text or ''), list_id=t.list_id)
-                                                if oh:
-                                                    calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': False, 'rrule': '', 'priority': getattr(t, 'priority', None)})
+                                                occ_id = _occ_allowed('todo', t.id, d, '', title=(t.text or ''), list_id=t.list_id)
+                                                if occ_id:
+                                                    calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_id': occ_id, 'occ_hash': None, 'is_recurring': False, 'rrule': '', 'priority': getattr(t, 'priority', None)})
                                                 else:
                                                     try:
                                                         from .utils import index_calendar_assert
@@ -9956,9 +10050,9 @@ async def _prepare_index_context(request: Request, current_user: User | None) ->
                                     else:
                                         d = candidates
                                         if d and d >= cal_start and d <= cal_end:
-                                            oh = _occ_allowed('todo', t.id, d, '', title=(t.text or ''), list_id=t.list_id)
-                                            if oh:
-                                                calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_hash': oh, 'is_recurring': False, 'rrule': '', 'priority': getattr(t, 'priority', None)})
+                                            occ_id = _occ_allowed('todo', t.id, d, '', title=(t.text or ''), list_id=t.list_id)
+                                            if occ_id:
+                                                calendar_occurrences.append({'occurrence_dt': d.isoformat(), 'item_type': 'todo', 'id': t.id, 'list_id': t.list_id, 'title': t.text, 'occ_id': occ_id, 'occ_hash': None, 'is_recurring': False, 'rrule': '', 'priority': getattr(t, 'priority', None)})
                                 except Exception:
                                     pass
                         except Exception:
