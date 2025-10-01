@@ -775,13 +775,15 @@ def extract_dates(text: str | None) -> list[datetime]:
         return []
 
 
-async def inject_phantom_occurrences(owner_id: int, occurrences: list, sess=None):
+async def inject_phantom_occurrences(owner_id: int, occurrences: list, sess=None, start_dt=None, end_dt=None):
     """Async helper to inject phantom occurrences for CompletedOccurrence rows
     that no longer correspond to currently-generated occurrences.
 
     - owner_id: user id
     - occurrences: list of occurrence dicts (mutated in-place)
     - sess: optional async session; if omitted a new session is created
+    - start_dt: optional start datetime to filter completions (only inject phantoms within window)
+    - end_dt: optional end datetime to filter completions (only inject phantoms within window)
     """
     try:
         def _parse_iso_z_local(s):
@@ -820,6 +822,13 @@ async def inject_phantom_occurrences(owner_id: int, occurrences: list, sess=None
                             d = d.replace(tzinfo=timezone.utc)
                         d = d.astimezone(timezone.utc)
                     except Exception:
+                        continue
+                    # Filter by date window if provided to avoid injecting phantoms
+                    # outside the viewing window (e.g., don't inject October completions
+                    # when viewing September)
+                    if start_dt is not None and d < start_dt:
+                        continue
+                    if end_dt is not None and d > end_dt:
                         continue
                     key = (str(itype), int(iid), d)
                     if key in existing_keys:

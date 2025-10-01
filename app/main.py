@@ -4470,7 +4470,8 @@ async def calendar_occurrences(request: Request,
         if include_historic_flag:
             try:
                 # Use extracted helper to keep logic testable and compact.
-                await inject_phantom_occurrences(owner_id, occurrences, sess)
+                # Pass date window to avoid injecting phantoms outside the viewing window
+                await inject_phantom_occurrences(owner_id, occurrences, sess, start_dt=start_dt, end_dt=end_dt)
             except Exception:
                 logger.exception('failed to inject phantom occurrences')
 
