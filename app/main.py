@@ -4474,6 +4474,32 @@ async def calendar_occurrences(request: Request,
             except Exception:
                 logger.exception('failed to inject phantom occurrences')
 
+            # After injecting phantom occurrences, it's possible the phantom
+            # entry has the same occ_hash as an existing generated occurrence
+            # (for example when completedOccurrence was recorded but the
+            # underlying todo later changed in a way that would otherwise
+            # produce the same occ_hash). To avoid presenting duplicate
+            # items to the client, perform an order-preserving de-duplication
+            # by occ_hash, keeping the first occurrence seen.
+            try:
+                seen_hashes = set()
+                deduped_by_hash = []
+                for o in occurrences:
+                    h = o.get('occ_hash')
+                    # Treat None/empty as distinct; include them but avoid
+                    # grouping empty strings together.
+                    if h and h in seen_hashes:
+                        continue
+                    if h:
+                        seen_hashes.add(h)
+                    deduped_by_hash.append(o)
+                if len(deduped_by_hash) != len(occurrences):
+                    logger.info('calendar_occurrences.dedup_by_hash removed=%s before=%s after=%s', (len(occurrences) - len(deduped_by_hash)), len(occurrences), len(deduped_by_hash))
+                occurrences = deduped_by_hash
+            except Exception:
+                # Non-fatal: if dedupe fails, continue with injected list
+                pass
+
         logger.info('calendar_occurrences returning %d occurrences after filters (ignored_scopes=%d, completed=%d, include_ignored=%s)', len(occurrences), len(ign_rows), len(done_set), include_ignored)
         try:
             logger.info('calendar_occurrences.returning_items %s', [(o.get('item_type'), o.get('id'), (o.get('title') or '')[:40], o.get('occurrence_dt')) for o in occurrences])
