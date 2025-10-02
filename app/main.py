@@ -3419,6 +3419,9 @@ async def calendar_occurrences(request: Request,
         logger.exception('error evaluating ENABLE_CALENDAR_BREAKPOINT')
     t_fetch_lists = _pt('fetch_lists')
     async with async_session() as sess:
+        # Expire all cached objects to ensure we read fresh data from DB
+        # This is critical for calendar refresh after ignore button clicks
+        sess.expire_all()
         # fetch lists for this owner
         qlists = await sess.exec(select(ListState).where(ListState.owner_id == owner_id).where(ListState.parent_todo_id == None).where(ListState.parent_list_id == None))
         lists = qlists.all()
@@ -3454,6 +3457,7 @@ async def calendar_occurrences(request: Request,
             qt_stmt = select(Todo).where(Todo.list_id.in_(list_ids))
             # Only filter out calendar_ignored todos if NOT showing ignored items
             if not include_ignored:
+                logger.info('calendar_occurrences filtering out calendar_ignored=True todos')
                 qt_stmt = qt_stmt.where(Todo.calendar_ignored == False)
             # Defensive: also exclude todos under Trash list id in case list_ids
             # contained it due to unforeseen conditions.
@@ -3462,9 +3466,19 @@ async def calendar_occurrences(request: Request,
                     qt_stmt = qt_stmt.where(Todo.list_id != trash_id)
                 except Exception:
                     pass
+            # Force SQLAlchemy to fetch fresh data from DB, not use cached/stale objects
+            # This ensures we see recent calendar_ignored flag changes
+            from sqlalchemy.orm import Query
+            qt_stmt = qt_stmt.execution_options(populate_existing=True)
             qtodos = await sess.exec(qt_stmt)
             todos = qtodos.all()
             _pa('fetch_todos', t_fetch_todos)
+            logger.info('calendar_occurrences fetched %d todos (include_ignored=%s)', len(todos), include_ignored)
+            if not include_ignored:
+                # Log any todos that slipped through with calendar_ignored=True
+                ignored_count = sum(1 for t in todos if bool(getattr(t, 'calendar_ignored', False)))
+                if ignored_count > 0:
+                    logger.warning('calendar_occurrences: %d todos with calendar_ignored=True still in results!', ignored_count)
         _sse_debug('calendar_occurrences.todos_fetched', {'count': len(todos)})
         _pc('todos_count', len(todos))
         # Build helper maps for todos and lists and compute per-list override priorities
@@ -11110,7 +11124,22 @@ async def html_calendar(request: Request, year: Optional[int] = None, month: Opt
         TEMPLATES.env.cache.clear()
     except Exception:
         pass
-    return TEMPLATES.TemplateResponse('calendar.html', {'request': request, 'year': y, 'month': m, 'occurrences_sorted': occurrences_sorted, 'prev_year': prev_year, 'prev_month': prev_month, 'next_year': next_year, 'next_month': next_month})
+    
+    # Serialize occurrences for Preact initialization
+    import json
+    occurrences_json = json.dumps(occurrences_sorted) if occurrences_sorted else '[]'
+    
+    return TEMPLATES.TemplateResponse('calendar.html', {
+        'request': request, 
+        'year': y, 
+        'month': m, 
+        'occurrences_sorted': occurrences_sorted, 
+        'occurrences_json': occurrences_json,
+        'prev_year': prev_year, 
+        'prev_month': prev_month, 
+        'next_year': next_year, 
+        'next_month': next_month
+    })
 
 
 @app.post("/html_no_js/lists/create")
@@ -12966,6 +12995,17 @@ async def html_set_todo_calendar_ignored(request: Request, todo_id: int, calenda
         todo.modified_at = now_utc()
         sess.add(todo)
         await sess.commit()
+        logger.info(f'Set calendar_ignored={val} for todo {todo_id}')
+        # Explicitly close session to ensure SQLite WAL mode writes are visible
+        # to subsequent connections (needed for calendar refresh after ignore)
+        await sess.close()
+    # Verify the write actually persisted
+    async with async_session() as verify_sess:
+        verify_todo = await verify_sess.get(Todo, todo_id)
+        if verify_todo:
+            logger.info(f'Verification: todo {todo_id} calendar_ignored={verify_todo.calendar_ignored}')
+        else:
+            logger.error(f'Verification failed: todo {todo_id} not found!')
     accept = (request.headers.get('Accept') or '')
     if 'application/json' in accept.lower():
         return JSONResponse({'ok': True, 'id': todo_id, 'calendar_ignored': val})
