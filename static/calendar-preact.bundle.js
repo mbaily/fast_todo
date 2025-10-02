@@ -1065,9 +1065,10 @@ function CalendarOccurrence({ occurrence }) {
     const isChecked = e4.target.checked;
     setCompleted(isChecked);
     const csrf = getCookie("csrf_token") || "";
-    const body = `_csrf=${encodeURIComponent(csrf)}&occ_id=${encodeURIComponent(occurrence.occ_id || "")}&completed=${isChecked ? "1" : "0"}`;
+    const body = `_csrf=${encodeURIComponent(csrf)}&hash=${encodeURIComponent(occurrence.occ_hash || "")}&item_type=${encodeURIComponent(occurrence.item_type || "todo")}&item_id=${encodeURIComponent(occurrence.id || "")}&occurrence_dt=${encodeURIComponent(occurrence.occurrence_dt || "")}`;
     try {
-      await fetch("/calendar/complete_occurrence", {
+      const endpoint = isChecked ? "/occurrence/complete" : "/occurrence/uncomplete";
+      await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body,
