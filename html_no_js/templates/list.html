@@ -876,7 +876,8 @@
   // Log add todo
   try{ if (window.ftLog){ var nm=(document.querySelector('.list-title')||{}).textContent||''; window.ftLog('Added todo', { item_type:'todo', item_id: Number(todo.id||0), label: nm + ' — ' + (todo.text || text) }); } }catch(_){ }
   input.value = '';
-        try { var priSel2 = document.getElementById('new-todo-priority'); if (priSel2) priSel2.value = ''; } catch(_ignore) {}
+  // Priority persistence: previously we reset the selector each add; comment out to keep selected value for multiple entries.
+  // try { var priSel2 = document.getElementById('new-todo-priority'); if (priSel2) priSel2.value = ''; } catch(_ignore) {}
         if (submitBtn) submitBtn.disabled = false;
         try { input.focus(); } catch(e) {}
       } catch(err) {
