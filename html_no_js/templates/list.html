@@ -574,7 +574,7 @@
     <input type="hidden" name="list_id" value="{{ list.id }}">
   <label for="new-todo-priority" class="sr-only">Priority</label>
   <select id="new-todo-priority" name="priority" style="max-width:4.2rem; flex:0 0 auto;" title="Priority">
-    <option value="">(none)</option>
+    <option value=""></option>
     {% for p in range(1, 11) %}
       <option value="{{ p }}">{{ p }}</option>
     {% endfor %}
