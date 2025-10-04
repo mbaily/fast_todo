@@ -572,6 +572,13 @@
   <input id="new-todo-text" name="text" placeholder="Todo text" required autofocus autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false">
   <div id="hashtag-suggest" class="hashtag-suggest" role="listbox" aria-label="Hashtag suggestions" data-tags="{% if all_hashtags and all_hashtags|length > 0 %}{% for tag in all_hashtags %}{{ tag }}{% if not loop.last %},{% endif %}{% endfor %}{% endif %}"></div>
     <input type="hidden" name="list_id" value="{{ list.id }}">
+  <label for="new-todo-priority" class="sr-only">Priority</label>
+  <select id="new-todo-priority" name="priority" style="max-width:4.2rem; flex:0 0 auto;" title="Priority">
+    <option value="">(none)</option>
+    {% for p in range(1, 11) %}
+      <option value="{{ p }}">{{ p }}</option>
+    {% endfor %}
+  </select>
   <button type="submit" onclick="if (window.createTodoClick){ try { window.createTodoClick(event); } catch(e){}; return false; }">Add</button>
   </form>
 
@@ -608,6 +615,14 @@
   var apiUrl = '/todos';
   var body = { text: text };
   if (typeof listIdVal !== 'undefined') body.list_id = listIdVal;
+  // include priority if user selected a value
+  try {
+    var priSel = document.getElementById('new-todo-priority');
+    if (priSel && priSel.value) {
+      var pv = parseInt(priSel.value, 10);
+      if (!isNaN(pv)) body.priority = pv;
+    }
+  } catch(_e) {}
   var res = await fetch(apiUrl, { method: 'POST', credentials: 'same-origin', headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         if (!res.ok) {
           var body = await res.text().catch(function(){ return null; });
@@ -861,6 +876,7 @@
   // Log add todo
   try{ if (window.ftLog){ var nm=(document.querySelector('.list-title')||{}).textContent||''; window.ftLog('Added todo', { item_type:'todo', item_id: Number(todo.id||0), label: nm + ' — ' + (todo.text || text) }); } }catch(_){ }
   input.value = '';
+        try { var priSel2 = document.getElementById('new-todo-priority'); if (priSel2) priSel2.value = ''; } catch(_ignore) {}
         if (submitBtn) submitBtn.disabled = false;
         try { input.focus(); } catch(e) {}
       } catch(err) {
