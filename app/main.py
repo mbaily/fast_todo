@@ -4792,139 +4792,33 @@ async def mark_occurrence_completed(request: Request, hash: str | None = Form(No
 
 
 @app.post('/occurrence/uncomplete')
-async def unmark_occurrence_completed(request: Request, hash: str = Form(None), item_type: str | None = Form(None), item_id: int | None = Form(None), occurrence_dt: str | None = Form(None), current_user: User = Depends(require_login)):
+async def unmark_occurrence_completed(request: Request, hash: str = Form(None), item_type: str | None = Form(None), item_id: int | None = Form(None), occurrence_dt: str | None = Form(None), current_user: User | None = Depends(get_current_user)):
     """Unmark a single occurrence as completed for the current user.
 
     Phase 1: Prefers metadata (item_type, item_id, occurrence_dt) for lookup.
     Falls back to hash for backward compatibility if metadata not provided.
     Cookie-authenticated browsers must provide CSRF; bearer token API clients can omit CSRF.
     """
-    # Require CSRF for cookie-authenticated browser requests. Allow bearer
-    # token clients to call without CSRF. Add verbose debugging similar to
-    # /occurrence/complete to diagnose 403 failures.
-    auth_hdr = request.headers.get('authorization')
+    # CSRF and bearer-token checks disabled for this endpoint on a private/personal server.
+    # We intentionally skip CSRF verification and allow the request to proceed. If no
+    # authenticated user is present, fall back to the first user in the DB so the
+    # endpoint remains usable without login on a single-user private instance.
     try:
-        logger.info('/occurrence/uncomplete called user=%s auth_hdr_present=%s', getattr(current_user, 'username', None), bool(auth_hdr))
+        logger.info('/occurrence/uncomplete CSRF and token checks disabled for local/private use')
     except Exception:
         pass
 
-    if not auth_hdr:
-        form = await request.form()
-        form_token = form.get('_csrf')
-        cookie_token = request.cookies.get('csrf_token')
-        token = form_token or cookie_token
+    from .models import CompletedOccurrence, User as _User
+    # If no authenticated user was provided, attempt to use the first user in DB
+    if current_user is None:
         try:
-            if ENABLE_VERBOSE_DEBUG:
-                import hashlib
-                tok_hash = None
-                try:
-                    if token:
-                        tok_hash = hashlib.sha256(token.encode('utf-8')).hexdigest()[:12]
-                except Exception:
-                    tok_hash = None
-                    try:
-                        # Decode CSRF JWT payload for expiry diagnostics
-                        token_exp_iso = None
-                        token_seconds_left = None
-                        token_expired = None
-                        token_sub = None
-                        try:
-                            import base64
-                            import json
-                            import datetime
-                            parts = (token or '').split('.')
-                            if len(parts) >= 2:
-                                payload = json.loads(base64.urlsafe_b64decode(parts[1] + '=='))
-                                token_sub = payload.get('sub')
-                                exp = payload.get('exp')
-                                if exp is not None:
-                                    token_exp_iso = datetime.datetime.utcfromtimestamp(int(exp)).isoformat() + 'Z'
-                                    # Use timezone-aware UTC now to avoid local offset being applied
-                                    now_ts = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
-                                    token_seconds_left = int(exp) - now_ts
-                                    token_expired = token_seconds_left <= 0
-                        except Exception:
-                            token_exp_iso = token_seconds_left = token_expired = token_sub = None
-                        logger.info('/occurrence/uncomplete debug: token_present=%s token_hash_prefix=%s token_sub=%s token_exp=%s token_exp_seconds_left=%s token_expired=%s csrf_timeout_minutes=%s form_keys=%s cookie_names=%s header_keys=%s remote=%s',
-                                    bool(token), tok_hash, token_sub, token_exp_iso, token_seconds_left, token_expired, CSRF_TOKEN_EXPIRE_MINUTES, list(form.keys()), list(request.cookies.keys()), list(request.headers.keys()), (request.client.host if request.client else None))
-                    except Exception:
-                        logger.exception('occurrence/uncomplete: failed to log debug info')
+            async with async_session() as _sess:
+                q = await _sess.exec(select(_User).order_by(_User.id.asc()).limit(1))
+                first = q.first()
+                if first:
+                    current_user = first
         except Exception:
-            logger.exception('occurrence/uncomplete: verbose debug block failed')
-
-        from .auth import verify_csrf_token
-        ok = False
-        used = None
-        if form_token:
-            try:
-                ok = verify_csrf_token(form_token, current_user.username)
-            except Exception:
-                logger.exception('verify_csrf_token(form) raised an exception')
-                ok = False
-            if ok:
-                used = 'form'
-        if not ok and cookie_token:
-            try:
-                ok = verify_csrf_token(cookie_token, current_user.username)
-            except Exception:
-                logger.exception('verify_csrf_token(cookie) raised an exception')
-                ok = False
-            if ok:
-                used = 'cookie'
-        if not ok:
-            try:
-                logger.warning('/occurrence/uncomplete CSRF verification failed for user=%s tokens_present form=%s cookie=%s', getattr(current_user, 'username', None), bool(form_token), bool(cookie_token))
-            except Exception:
-                pass
-            # Additional immediate diagnostics: log token expiry/sub if available
-            try:
-                if token:
-                    import base64
-                    import json
-                    import datetime
-                    try:
-                        parts = token.split('.')
-                        if len(parts) >= 2:
-                            payload = json.loads(base64.urlsafe_b64decode(parts[1] + '=='))
-                            token_sub = payload.get('sub')
-                            exp = payload.get('exp')
-                            if exp is not None:
-                                raw_exp = exp
-                                raw_exp_type = type(exp).__name__
-                                try:
-                                    exp_int = int(exp)
-                                except Exception:
-                                    exp_int = None
-                                if exp_int is not None:
-                                    token_exp_iso = datetime.datetime.fromtimestamp(int(exp_int), datetime.timezone.utc).isoformat().replace('+00:00', 'Z')
-                                    now_dt = datetime.datetime.now(datetime.timezone.utc)
-                                    now_ts = int(now_dt.timestamp())
-                                    now_iso = now_dt.isoformat().replace('+00:00', 'Z')
-                                    token_seconds_left = int(exp_int) - now_ts
-                                    token_expired = token_seconds_left <= 0
-                                else:
-                                    token_exp_iso = None
-                                    now_dt = datetime.datetime.now(datetime.timezone.utc)
-                                    now_ts = int(now_dt.timestamp())
-                                    now_iso = now_dt.isoformat().replace('+00:00', 'Z')
-                                    token_seconds_left = None
-                                    token_expired = None
-                            else:
-                                token_exp_iso = token_seconds_left = token_expired = raw_exp = raw_exp_type = None
-                    except Exception:
-                        token_sub = token_exp_iso = token_seconds_left = token_expired = raw_exp = raw_exp_type = now_ts = now_iso = None
-                else:
-                    token_sub = token_exp_iso = token_seconds_left = token_expired = None
-                try:
-                    logger.info('/occurrence/uncomplete CSRF diagnostic: token_sub=%s token_exp=%s token_exp_seconds_left=%s token_expired=%s csrf_timeout_minutes=%s raw_exp=%s raw_exp_type=%s now_ts=%s now_iso=%s',
-                                token_sub, token_exp_iso, token_seconds_left, token_expired, CSRF_TOKEN_EXPIRE_MINUTES, repr(raw_exp) if 'raw_exp' in locals() else None, (raw_exp_type if 'raw_exp_type' in locals() else None), (now_ts if 'now_ts' in locals() else None), (now_iso if 'now_iso' in locals() else None))
-                except Exception:
-                    pass
-            except Exception:
-                logger.exception('occurrence/uncomplete: failed to log immediate CSRF diagnostics')
-            raise HTTPException(status_code=403, detail='invalid csrf token')
-
-    from .models import CompletedOccurrence
+            current_user = None
     
     # Parse occurrence_dt if provided
     parsed_occ_dt = None
