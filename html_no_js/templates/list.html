@@ -1446,6 +1446,8 @@
                 var existingWrap = titleInline.querySelector('.wrap-text') || titleInline.querySelector('a.wrap-text');
                 var createdAt = existingWrap && (existingWrap.getAttribute('data-created-at') || existingWrap.getAttribute('data-created_at') || existingWrap.getAttribute('data-created-at'));
                 var dataDate = existingWrap && (existingWrap.getAttribute('data-date') || existingWrap.getAttribute('data-date'));
+                // preserve server-rendered short date (dd/mm or mm/dd) if present
+                var createdShort = existingWrap && (existingWrap.getAttribute('data-created-short') || existingWrap.getAttribute('data-created_short'));
                 var noteNode = li.querySelector('.note-text .note-body') || li.querySelector('.meta.line-clamp-1.wrap-text');
                 var noteText = noteNode ? noteNode.textContent : '';
                 var text = '';
@@ -1456,15 +1458,14 @@
                 // Build new inner HTML for titleInline depending on hide
                 var titleHtml = '';
                 var titleAttr = createdAt ? (' title="' + esc(dataDate || '') + '"') : '';
-                var dataAttr = createdAt ? (' data-date="' + esc(dataDate || '') + '" data-created-at="' + esc(createdAt || '') + '"') : '';
+                var dataAttr = createdAt ? (' data-date="' + esc(dataDate || '') + '" data-created-at="' + esc(createdAt || '') + '"' + (createdShort ? ' data-created-short="' + esc(createdShort) + '"' : '')) : '';
                 if (hide) {
                   titleHtml = '<span class="wrap-text"' + titleAttr + dataAttr + '>' +
                               '<a class="wrap-text' + (completed ? ' done' : '') + '" href="/html_no_js/todos/' + esc(id) + '"' + titleAttr + dataAttr + '>' + esc(text) + '</a>' +
                               (noteText ? ' <span class="meta priority-inline"></span>' : '') +
                               ' <a href="/html_no_js/todos/' + esc(id) + '" class="todo-open-link" aria-label="View todo ' + esc(id) + '" style="margin-left:0.25rem; text-decoration:none;">🔎</a>' +
+                              (createdShort ? (' <span class="meta created-short" data-created-short="' + esc(createdShort) + '">' + esc(createdShort) + '</span>') : '') +
                               '</span>';
-                              //(dtSimple ? (' <span class="meta created-short" data-created-short="' + esc(dtSimple) + '">' + esc(dtSimple) + '</span>') : '') +
-                              //'</span>';
                 } else {
                   titleHtml = '<a class="wrap-text' + (completed ? ' done' : '') + '" href="/html_no_js/todos/' + esc(id) + '"' + titleAttr + dataAttr + '>' + esc(text) + '</a>';
                 }
