@@ -1309,10 +1309,12 @@
                 <div class="todo-title-inline">
                   {% set dt_iso = t.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') %}
                   {% set dt_fmt = t.created_at|in_tz(client_tz, '%-d/%m %-I:%M%p') %}
+                  {% set _m = t.created_at|in_tz(client_tz, '%m')|int %}
+                  {% set _d = t.created_at|in_tz(client_tz, '%d')|int %}
                   {% if date_order == 'MDY' %}
-                    {% set dt_simple = t.created_at|in_tz(client_tz, '%m/%d') %}
+                    {% set dt_simple = _m ~ '/' ~ _d %}
                   {% else %}
-                    {% set dt_simple = t.created_at|in_tz(client_tz, '%d/%m') %}
+                    {% set dt_simple = _d ~ '/' ~ _m %}
                   {% endif %}
                   {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
                   <span class="wrap-text"{% if dt_iso %} data-created-at="{{ dt_iso }}"{% endif %}{% if dt_fmt %} data-date="{{ dt_fmt }}" title="{{ dt_fmt }}"{% endif %}{% if dt_simple %} data-created-short="{{ dt_simple }}"{% endif %}>
