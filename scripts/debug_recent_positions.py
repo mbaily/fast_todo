@@ -1,6 +1,6 @@
 import asyncio
 import uuid
-from httpx import AsyncClient
+from httpx import AsyncClient, ASGITransport
 from app.main import app
 from app.db import async_session
 from app.models import User, ListState, Session as SessionModel
@@ -28,7 +28,8 @@ async def main():
         l2_id = l2.id
         l3_id = l3.id
 
-    async with AsyncClient(app=app, base_url='http://test') as client:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url='http://test') as client:
         # set cookie for session lookup
         client.cookies.set('session_token', token)
         # visit L1
