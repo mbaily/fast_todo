@@ -4599,7 +4599,7 @@ async def calendar_occurrences(request: Request,
 
 
 @app.post('/occurrence/complete')
-async def mark_occurrence_completed(request: Request, hash: str | None = Form(None), item_type: str | None = Form(None), item_id: int | None = Form(None), occurrence_dt: str | None = Form(None), current_user: User | None = Depends(get_current_user)):
+async def mark_occurrence_completed(request: Request, hash: str | None = Form(None), item_type: str | None = Form(None), item_id: int | None = Form(None), occurrence_dt: str | None = Form(None), current_user: User = Depends(require_login)):
     """Mark a single occurrence hash as completed for the current user.
 
     For browser clients using cookie/session authentication require a valid
@@ -4620,26 +4620,18 @@ async def mark_occurrence_completed(request: Request, hash: str | None = Form(No
     except Exception:
         pass
 
-    # CSRF and bearer-token checks disabled for this endpoint on a private/personal server.
-    # We intentionally skip CSRF verification and allow the request to proceed. If no
-    # authenticated user is present, fall back to the first user in the DB so the
-    # endpoint remains usable without login on a single-user private instance.
-    try:
-        csrf_logger.info('/occurrence/complete CSRF and token checks disabled for local/private use')
-    except Exception:
-        pass
-
-    from .models import CompletedOccurrence, User as _User
-    # If no authenticated user was provided, attempt to use the first user in DB
-    if current_user is None:
-        try:
-            async with async_session() as _sess:
-                q = await _sess.exec(select(_User).order_by(_User.id.asc()).limit(1))
-                first = q.first()
-                if first:
-                    current_user = first
-        except Exception:
-            current_user = None
+    # Determine whether request used bearer token (Authorization header)
+    auth_hdr = request.headers.get('authorization')
+    # For cookie-authenticated browser requests require a CSRF token. Bearer-token
+    # API clients (Authorization header) are allowed to call this endpoint without CSRF.
+    if not auth_hdr:
+        form = await request.form()
+        form_token = form.get('_csrf')
+        cookie_token = request.cookies.get('csrf_token')
+        token = form_token or cookie_token
+        from .auth import verify_csrf_token
+        if not token or not verify_csrf_token(token, current_user.username):
+            raise HTTPException(status_code=403, detail='invalid csrf token')
     # If the optional form values were not provided (e.g. client POSTed JSON
     # or body was consumed earlier), try to extract them from the request
     # body (form or JSON) so we can persist them. This makes the endpoint
@@ -4792,33 +4784,27 @@ async def mark_occurrence_completed(request: Request, hash: str | None = Form(No
 
 
 @app.post('/occurrence/uncomplete')
-async def unmark_occurrence_completed(request: Request, hash: str = Form(None), item_type: str | None = Form(None), item_id: int | None = Form(None), occurrence_dt: str | None = Form(None), current_user: User | None = Depends(get_current_user)):
+async def unmark_occurrence_completed(request: Request, hash: str = Form(None), item_type: str | None = Form(None), item_id: int | None = Form(None), occurrence_dt: str | None = Form(None), current_user: User = Depends(require_login)):
     """Unmark a single occurrence as completed for the current user.
 
     Phase 1: Prefers metadata (item_type, item_id, occurrence_dt) for lookup.
     Falls back to hash for backward compatibility if metadata not provided.
     Cookie-authenticated browsers must provide CSRF; bearer token API clients can omit CSRF.
     """
-    # CSRF and bearer-token checks disabled for this endpoint on a private/personal server.
-    # We intentionally skip CSRF verification and allow the request to proceed. If no
-    # authenticated user is present, fall back to the first user in the DB so the
-    # endpoint remains usable without login on a single-user private instance.
-    try:
-        logger.info('/occurrence/uncomplete CSRF and token checks disabled for local/private use')
-    except Exception:
-        pass
+    # Determine whether request used bearer token (Authorization header)
+    auth_hdr = request.headers.get('authorization')
+    # For cookie-authenticated browser requests require a CSRF token. Bearer-token
+    # API clients (Authorization header) are allowed to call this endpoint without CSRF.
+    if not auth_hdr:
+        form = await request.form()
+        form_token = form.get('_csrf')
+        cookie_token = request.cookies.get('csrf_token')
+        token = form_token or cookie_token
+        from .auth import verify_csrf_token
+        if not token or not verify_csrf_token(token, current_user.username):
+            raise HTTPException(status_code=403, detail='invalid csrf token')
 
-    from .models import CompletedOccurrence, User as _User
-    # If no authenticated user was provided, attempt to use the first user in DB
-    if current_user is None:
-        try:
-            async with async_session() as _sess:
-                q = await _sess.exec(select(_User).order_by(_User.id.asc()).limit(1))
-                first = q.first()
-                if first:
-                    current_user = first
-        except Exception:
-            current_user = None
+    from .models import CompletedOccurrence
     
     # Parse occurrence_dt if provided
     parsed_occ_dt = None
