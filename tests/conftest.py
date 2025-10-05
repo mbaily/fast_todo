@@ -311,7 +311,8 @@ async def client(ensure_db):
     # use the AutoAuthAsyncClient for the `client` fixture so tests that
     # rely on it remain authenticated, but leave the global AsyncClient
     # unchanged so tests can create unauthenticated clients when needed.
-    async with AutoAuthAsyncClient(transport=transport, base_url="http://test") as ac:
+    # Use a plain AsyncClient so we control exactly which user is authenticated.
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
         # Ensure a test user exists and authenticate to get a bearer token
         from app.db import async_session
         from app.models import User
@@ -328,12 +329,30 @@ async def client(ensure_db):
                     await sess.commit()
                 except Exception:
                     await sess.rollback()
+            else:
+                # Ensure the stored password hash matches the expected test password
+                try:
+                    from app.auth import verify_password as _verify_pw
+                    ok = await _verify_pw("testpass", u.password_hash)
+                except Exception:
+                    ok = False
+                if not ok:
+                    try:
+                        u.password_hash = pwd_context.hash("testpass")
+                        sess.add(u)
+                        await sess.commit()
+                    except Exception:
+                        await sess.rollback()
         # obtain token
         resp = await ac.post("/auth/token", json={"username": "testuser", "password": "testpass"})
         if resp.status_code == 200:
             token = resp.json().get("access_token")
             if token:
+                # Provide both Authorization header and cookie so endpoints
+                # that rely on cookie-based fallback (e.g. when token param
+                # injection fails) still authenticate.
                 ac.headers.update({"Authorization": f"Bearer {token}"})
+                ac.cookies.set("access_token", token)
         yield ac
 
 
