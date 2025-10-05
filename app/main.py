@@ -3111,7 +3111,7 @@ def _parse_iso_to_utc(s: Optional[str]) -> Optional[datetime]:
 
 
 @app.get('/calendar/events')
-async def calendar_events(request: Request, start: Optional[str] = None, end: Optional[str] = None, current_user: User = Depends(require_login)):
+async def calendar_events(request: Request, start: Optional[str] = None, end: Optional[str] = None, include_ignored: bool = False, current_user: User = Depends(require_login)):
     """Return lists and todos that contain parsed dates.
 
     Scans list names and todo text/note for date-like strings using dateparser.
