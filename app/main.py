@@ -4632,6 +4632,8 @@ async def mark_occurrence_completed(request: Request, hash: str | None = Form(No
         from .auth import verify_csrf_token
         if not token or not verify_csrf_token(token, current_user.username):
             raise HTTPException(status_code=403, detail='invalid csrf token')
+
+    from .models import CompletedOccurrence
     # If the optional form values were not provided (e.g. client POSTed JSON
     # or body was consumed earlier), try to extract them from the request
     # body (form or JSON) so we can persist them. This makes the endpoint
