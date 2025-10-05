@@ -13,6 +13,7 @@ Key Behaviors
 - Complementary endpoint `POST /ignore/unscope` reactivates future occurrences.
 - Scopes are stored in `IgnoredScope` with a canonical hash derived from todo id and normalized datetime.
 - Bearer-token clients may call without CSRF; session-based calls require a valid CSRF token.
+- Responses from `/calendar/occurrences` must remain chronologically sorted (ascending by `occ_ts`/`occurrence_dt`) on initial load and after any ignore/unignore changes.
 
 Assumptions & Dependencies
 --------------------------
@@ -52,7 +53,11 @@ Test Plan Overview
    - Verify response `{ok: True, updated: >=1}`.
    - Fetch October and November occurrences again; confirm future dates reappear and completions remain for earlier ones.
 
-8. **(Optional Future Tests)**
+8. **Order Preservation Checks**
+   - After each fetch (baseline, post-ignore, post-unignore) assert that the returned `occurrences` array is sorted ascending by `occurrence_dt`/`occ_ts`.
+   - Include variants for `include_ignored=1` to ensure ordering is stable when suppressed items are surfaced.
+
+9. **(Optional Future Tests)**
    - Validate partial-date inputs and timezone normalization.
    - Confirm idempotent behavior of repeated ignore/unscope calls.
 
@@ -61,3 +66,4 @@ Acceptance Criteria
 - Calendar responses post-ignore omit occurrences starting at the ignore date.
 - Historical completed occurrences remain accessible and marked as completed.
 - No new completions are recorded after the ignore date unless scope is removed.
+- All `/calendar/occurrences` responses (default and `include_ignored`) remain chronologically ordered before and after ignore/unignore operations.

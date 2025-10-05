@@ -994,6 +994,58 @@ function getCookie(name) {
   if (parts.length === 2) return parts.pop().split(";").shift();
   return null;
 }
+var MAX_TS = Number.MAX_SAFE_INTEGER;
+function sortOccurrences(list) {
+  if (!Array.isArray(list)) {
+    return [];
+  }
+  const resolveTs = (occ) => {
+    if (!occ) return MAX_TS;
+    const rawTs = occ.occ_ts;
+    if (typeof rawTs === "number" && !Number.isNaN(rawTs)) {
+      return rawTs;
+    }
+    const numericTs = Number(rawTs);
+    if (!Number.isNaN(numericTs)) {
+      return numericTs;
+    }
+    const iso = occ.occurrence_dt || occ.occurrence_date;
+    if (iso) {
+      const parsed = Date.parse(iso);
+      if (!Number.isNaN(parsed)) {
+        return parsed;
+      }
+    }
+    return MAX_TS;
+  };
+  const arr = list.slice();
+  arr.sort((a4, b3) => {
+    const aTs = resolveTs(a4);
+    const bTs = resolveTs(b3);
+    if (aTs !== bTs) {
+      return aTs - bTs;
+    }
+    const aDt = a4 && (a4.occurrence_dt || a4.occurrence_date) || "";
+    const bDt = b3 && (b3.occurrence_dt || b3.occurrence_date) || "";
+    const cmpDt = aDt.localeCompare(bDt);
+    if (cmpDt !== 0) {
+      return cmpDt;
+    }
+    const aTitle = a4 && a4.title || "";
+    const bTitle = b3 && b3.title || "";
+    const cmpTitle = aTitle.localeCompare(bTitle);
+    if (cmpTitle !== 0) {
+      return cmpTitle;
+    }
+    const aId = Number(a4 && a4.id);
+    const bId = Number(b3 && b3.id);
+    if (!Number.isNaN(aId) && !Number.isNaN(bId)) {
+      return aId - bId;
+    }
+    return 0;
+  });
+  return arr;
+}
 function CalendarOccurrence({ occurrence }) {
   console.log("CalendarOccurrence component rendering for:", occurrence.title?.substring(0, 30));
   const [ignoredScopes, setIgnoredScopes] = d2(occurrence.ignored_scopes || []);
@@ -1166,10 +1218,10 @@ function CalendarOccurrenceList({ occurrences }) {
   `;
 }
 function CalendarApp({ initialOccurrences }) {
-  const [occurrences, setOccurrences] = d2(initialOccurrences || []);
+  const [occurrences, setOccurrences] = d2(sortOccurrences(initialOccurrences || []));
   const [loading, setLoading] = d2(false);
   window.refreshCalendarOccurrences = (newOccurrences) => {
-    setOccurrences(newOccurrences);
+    setOccurrences(sortOccurrences(newOccurrences || []));
   };
   return html`
     <div id="calendar-occurrences-container">

@@ -16,6 +16,60 @@ function getCookie(name) {
   return null;
 }
 
+const MAX_TS = Number.MAX_SAFE_INTEGER;
+
+function sortOccurrences(list) {
+  if (!Array.isArray(list)) {
+    return [];
+  }
+  const resolveTs = (occ) => {
+    if (!occ) return MAX_TS;
+    const rawTs = occ.occ_ts;
+    if (typeof rawTs === 'number' && !Number.isNaN(rawTs)) {
+      return rawTs;
+    }
+    const numericTs = Number(rawTs);
+    if (!Number.isNaN(numericTs)) {
+      return numericTs;
+    }
+    const iso = occ.occurrence_dt || occ.occurrence_date;
+    if (iso) {
+      const parsed = Date.parse(iso);
+      if (!Number.isNaN(parsed)) {
+        return parsed;
+      }
+    }
+    return MAX_TS;
+  };
+  const arr = list.slice();
+  arr.sort((a, b) => {
+    const aTs = resolveTs(a);
+    const bTs = resolveTs(b);
+    if (aTs !== bTs) {
+      return aTs - bTs;
+    }
+    const aDt = (a && (a.occurrence_dt || a.occurrence_date)) || '';
+    const bDt = (b && (b.occurrence_dt || b.occurrence_date)) || '';
+    const cmpDt = aDt.localeCompare(bDt);
+    if (cmpDt !== 0) {
+      return cmpDt;
+    }
+    const aTitle = (a && a.title) || '';
+    const bTitle = (b && b.title) || '';
+    const cmpTitle = aTitle.localeCompare(bTitle);
+    if (cmpTitle !== 0) {
+      return cmpTitle;
+    }
+    const aId = Number(a && a.id);
+    const bId = Number(b && b.id);
+    if (!Number.isNaN(aId) && !Number.isNaN(bId)) {
+      return aId - bId;
+    }
+    return 0;
+  });
+  return arr;
+}
+
 // CalendarOccurrence component - one per event
 function CalendarOccurrence({ occurrence }) {
   console.log('CalendarOccurrence component rendering for:', occurrence.title?.substring(0, 30));
@@ -216,12 +270,12 @@ function CalendarOccurrenceList({ occurrences }) {
 
 // CalendarApp - Main app wrapper
 function CalendarApp({ initialOccurrences }) {
-  const [occurrences, setOccurrences] = useState(initialOccurrences || []);
+  const [occurrences, setOccurrences] = useState(sortOccurrences(initialOccurrences || []));
   const [loading, setLoading] = useState(false);
   
   // Expose refresh function globally
   window.refreshCalendarOccurrences = (newOccurrences) => {
-    setOccurrences(newOccurrences);
+    setOccurrences(sortOccurrences(newOccurrences || []));
   };
   
   return html`

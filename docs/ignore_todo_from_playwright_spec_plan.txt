@@ -53,6 +53,11 @@ High-Level Scenarios
    - Reload the page (full navigation) after unignore to ensure state is restored from API, not cached client-side only.
    - Optionally switch to a different month and back to verify Preact store resets correctly.
 
+9. **Ordering Preservation**
+   - Capture the DOM order of `data-occ-dt` values on initial load and assert it matches chronological ascending order.
+   - Repeat ordering assertions immediately after each ignore action (`occ-ignore-occ`, `occ-ignore-from`) and after unignore to ensure UI refreshes keep the list sorted.
+   - Include a matrix with `Show ignored` enabled/disabled to ensure suppressed items reappear without breaking ordering.
+
 Optional Edge Scenarios
 -----------------------
 - **Date-only Input Handling:** Trigger ignore using a UI control that submits a date without time component; ensure it matches server expectations.
@@ -72,3 +77,4 @@ Exit Criteria
 - Playwright suite validates the full ignore/unignore lifecycle, reflects completion state consistency, and ensures UI toggles (`include ignored`) behave as expected.
 - Tests run headless and (optionally) headed with consistent results.
 - All steps map back to server spec behaviours ensuring end-to-end parity.
+- Calendar ordering assertions pass before and after ignore/unignore actions, demonstrating the UI remains chronologically sorted.
