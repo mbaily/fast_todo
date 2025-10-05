@@ -68,7 +68,7 @@ export function setupEventDelegation() {
       console.log('DEBUG: Ignore-from clicked for todo:', todoId, 'from date:', occDt);
       
       const csrf = getCookie('csrf_token') || '';
-      const body = `_csrf=${encodeURIComponent(csrf)}&scope_type=todo_from&scope_key=${encodeURIComponent(todoId)}&scope_value=${encodeURIComponent(occDt)}`;
+  const body = `_csrf=${encodeURIComponent(csrf)}&scope_type=todo_from&scope_key=${encodeURIComponent(todoId)}&from_dt=${encodeURIComponent(occDt)}`;
       
       try {
         const res = await fetch('/ignore/scope', {
@@ -87,6 +87,9 @@ export function setupEventDelegation() {
           }
         } else {
           console.error('Ignore-from failed:', res.status);
+          if (res.status === 400) {
+            alert('Could not ignore from this date. Please try again.');
+          }
         }
       } catch (err) {
         console.error('Ignore-from error:', err);

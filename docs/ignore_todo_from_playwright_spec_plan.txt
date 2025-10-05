@@ -1,0 +1,74 @@
+WEB UI – Ignore "todo_from" Scope Playwright Test Plan
+=====================================================
+
+Purpose
+-------
+Validate that the Preact-based calendar UI correctly reflects the server-side "Ignore from this date onwards" behaviour for recurring todos, including rendering, completion markers, ignore toggles, and in-page state updates.
+
+Preconditions
+-------------
+- Server API adheres to the contract defined in `docs/ignore_todo_from_spec_plan.txt`.
+- Calendar page renders occurrences via API calls (likely `/calendar/occurrences`).
+- UI provides controls to mark occurrences complete, open the ignore dialog/menu, and toggle the "include ignored" view.
+- Test user credentials available (fixture or env) and seeded list view accessible at `/html_no_js` or Preact calendar route.
+
+High-Level Scenarios
+--------------------
+1. **Recurring Todo Setup in UI**
+   - Log in via UI (form submission or cookie helper).
+   - Create a list and a recurring todo (text hint: "Recurring every five days starting Oct 5").
+   - Confirm the todo appears in list view and occurrences render for the current month.
+
+2. **Baseline Calendar Rendering**
+   - Navigate to calendar view.
+   - Assert occurrences for expected dates (05, 10, 15, 20, 25, 30) render in the grid/list (matching the server test schedule).
+   - Capture DOM attributes (data-occurrence-id, text, completed state false).
+
+3. **Mark Initial Occurrences Complete**
+   - Click completion controls for Oct 5 and Oct 10 occurrences.
+   - Wait for UI confirmation (completed badge/strikethrough).
+   - Reload calendar via navigation or API retry; ensure completed state persists (compare to API server response for parity).
+
+4. **Apply Ignore Scope via UI**
+   - Use UI affordance (overflow menu or button) on the Oct 25 occurrence to select "Ignore from this date onwards".
+   - Handle any confirmation modal, ensuring a CSRF token (if required) is sent.
+   - Expect success toast/notification.
+
+5. **Post-Ignore Rendering**
+   - Calendar should immediately remove occurrences on/after Oct 25 while retaining earlier ones.
+   - Verify Oct 5 and Oct 10 remain visible and still show completed markers.
+   - Navigate to November; confirm no occurrences for the recurring todo appear.
+
+6. **include_ignored Toggle**
+   - Activate the "include ignored" view (toggle or filter).
+   - Verify previously hidden occurrences (Oct 25 onward, November dates) reappear with UI indication of being ignored (badge, dim styling).
+   - Confirm tooltip or detail panel lists active `todo_from` scope metadata.
+
+7. **Unignore Flow**
+   - Use UI control to "Stop ignoring" (likely from the include-ignored view).
+   - Ensure success notification, then verify October and November occurrences repopulate fully and completed states remain.
+   - Disable include-ignored; occurrences should still remain (ignore removed).
+
+8. **Persistence and Reload Checks**
+   - Reload the page (full navigation) after unignore to ensure state is restored from API, not cached client-side only.
+   - Optionally switch to a different month and back to verify Preact store resets correctly.
+
+Optional Edge Scenarios
+-----------------------
+- **Date-only Input Handling:** Trigger ignore using a UI control that submits a date without time component; ensure it matches server expectations.
+- **Undo Toast Shortcut:** If UI supports quick undo of ignore, verify it calls `/ignore/unscope` and restores occurrences.
+- **Multiple Recurring Todos:** Confirm ignoring one todo does not hide occurrences for another list or todo.
+- **Mobile Layout:** Run the core scenario in viewport emulating mobile to ensure controls accessible.
+
+Playwright Implementation Notes
+-------------------------------
+- Reuse fixtures for authentication and API setup (e.g., create baseline data via direct API before UI navigation to reduce UI form time when desired).
+- Use `expect.poll` or request interception to wait for API responses when verifying state changes.
+- Store selectors in a helper module to keep tests resilient to markup tweaks (`data-test` attributes recommended).
+- Snapshot calendar sections before and after ignore/unignore for visual regression, if feasible.
+
+Exit Criteria
+-------------
+- Playwright suite validates the full ignore/unignore lifecycle, reflects completion state consistency, and ensures UI toggles (`include ignored`) behave as expected.
+- Tests run headless and (optionally) headed with consistent results.
+- All steps map back to server spec behaviours ensuring end-to-end parity.

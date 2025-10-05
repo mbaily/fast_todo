@@ -1,0 +1,63 @@
+SERVER ONLY - Ignore "todo_from" Scope – Specification Summary
+====================================================
+
+Purpose
+-------
+Allow a user to suppress future calendar occurrences for a specific todo starting at a chosen occurrence date while preserving historical data (previous occurrences, including those already completed).
+
+Key Behaviors
+-------------
+- Endpoint: `POST /ignore/scope` with `scope_type="todo_from"`, `scope_key=<todo_id>`, and optional `from_dt` (ISO datetime).
+- When active, all generated occurrences for the todo at `from_dt` and later are filtered from calendar results for that user.
+- Previously generated occurrences before `from_dt` remain visible, including completion metadata.
+- Complementary endpoint `POST /ignore/unscope` reactivates future occurrences.
+- Scopes are stored in `IgnoredScope` with a canonical hash derived from todo id and normalized datetime.
+- Bearer-token clients may call without CSRF; session-based calls require a valid CSRF token.
+
+Assumptions & Dependencies
+--------------------------
+- Calendar expansion honors `IgnoredScope` rows during occurrence generation.
+- Recurring todos use `recurrence_rrule` + `recurrence_dtstart` to define schedule.
+- Completed occurrences are recorded via `/occurrence/complete` and should still render in historical views even after ignoring future dates.
+
+Test Plan Overview
+------------------
+1. **Setup**
+   - Create list via `/lists` and todo via `/todos`.
+   - Backfill todo with deterministic recurrence (`FREQ=DAILY;INTERVAL=5`) starting 2025-10-05.
+
+2. **Baseline Occurrence Validation**
+   - Fetch October 2025 occurrences via `/calendar/occurrences`.
+   - Assert expected dates (05, 10, 15, 20, 25, 30) appear for this todo.
+
+3. **Record Completions**
+   - Mark October 5 and October 10 occurrences complete via `/occurrence/complete`.
+   - Re-fetch October occurrences; verify the two dates are flagged `completed=True`.
+
+4. **Apply Ignore Scope**
+   - Call `/ignore/scope` with `scope_type="todo_from"`, `scope_key=<todo_id>`, `from_dt="2025-10-25T00:00:00+00:00"`.
+   - Expect response `{ok: True, ...}`.
+
+5. **Post-Ignore Validation – Current Month**
+   - Fetch October occurrences again.
+   - Confirm occurrences on/after 2025-10-25 are absent.
+   - Confirm earlier occurrences remain and previously completed entries still report `completed=True`.
+
+6. **Future Month Validation**
+   - Fetch November 2025 occurrences.
+   - Assert no occurrences for the ignored todo appear.
+
+7. **Unignore Scenario**
+   - Call `/ignore/unscope` with matching `scope_type`, `scope_key`, and `from_dt`.
+   - Verify response `{ok: True, updated: >=1}`.
+   - Fetch October and November occurrences again; confirm future dates reappear and completions remain for earlier ones.
+
+8. **(Optional Future Tests)**
+   - Validate partial-date inputs and timezone normalization.
+   - Confirm idempotent behavior of repeated ignore/unscope calls.
+
+Acceptance Criteria
+-------------------
+- Calendar responses post-ignore omit occurrences starting at the ignore date.
+- Historical completed occurrences remain accessible and marked as completed.
+- No new completions are recorded after the ignore date unless scope is removed.
