@@ -4599,7 +4599,7 @@ async def calendar_occurrences(request: Request,
 
 
 @app.post('/occurrence/complete')
-async def mark_occurrence_completed(request: Request, hash: str | None = Form(None), item_type: str | None = Form(None), item_id: int | None = Form(None), occurrence_dt: str | None = Form(None), current_user: User = Depends(require_login)):
+async def mark_occurrence_completed(request: Request, hash: str | None = Form(None), item_type: str | None = Form(None), item_id: int | None = Form(None), occurrence_dt: str | None = Form(None), current_user: User | None = Depends(get_current_user)):
     """Mark a single occurrence hash as completed for the current user.
 
     For browser clients using cookie/session authentication require a valid
@@ -4620,162 +4620,26 @@ async def mark_occurrence_completed(request: Request, hash: str | None = Form(No
     except Exception:
         pass
 
-    # If no Authorization header, this is likely a cookie-authenticated browser
-    # request — require CSRF token. Accept token from form field _csrf or
-    # cookie 'csrf_token'. Log masked token info when verbose debugging is enabled.
-    if not auth_hdr:
-        form = await request.form()
-        form_token = form.get('_csrf')
-        cookie_token = request.cookies.get('csrf_token')
-        token = form_token or cookie_token
-        csrf_assert(bool(token), 'csrf_req_token_present', form_present=bool(form_token), cookie_present=bool(cookie_token))
-        try:
-            # Assert configured server-side expiry and compare to token remaining
-            from .auth import CSRF_TOKEN_EXPIRE_SECONDS as _CFG_EXP_S
-            info_tok = _csrf_token_info(token)
-            csrf_assert(True, 'csrf_server_config_exp', configured=_CFG_EXP_S)
-            if info_tok.get('remaining') is not None:
-                csrf_assert(abs(int(info_tok.get('remaining')) - int(_CFG_EXP_S)) <= 3605 or info_tok.get('remaining') <= int(_CFG_EXP_S) + 120, 'csrf_used_remaining_vs_config', remaining=info_tok.get('remaining'), configured=_CFG_EXP_S)
-        except Exception:
-            pass
-        try:
-            # Compare form vs cookie tokens
-            info_form = _csrf_token_info(form_token)
-            info_cookie = _csrf_token_info(cookie_token)
-            same_fc = (info_form.get('hash') == info_cookie.get('hash')) if (form_token and cookie_token) else True
-            csrf_assert(same_fc, 'csrf_form_cookie_same', form_hash=info_form.get('hash'), cookie_hash=info_cookie.get('hash'))
-            # Enumerate any duplicate csrf_token cookies from raw header
-            raw_cookie = request.headers.get('cookie')
-            infos = _extract_all_csrf_from_cookie_header(raw_cookie)
-            csrf_assert(True, 'csrf_cookie_header_enumerated', count=len(infos), hashes=[i.get('hash') for i in infos], remainings=[i.get('remaining') for i in infos], exps=[i.get('exp') for i in infos])
-        except Exception:
-            pass
-        try:
-            import base64
-            import json
-            import datetime
-            import hashlib
-            tok_hash = hashlib.sha256((token or '').encode('utf-8')).hexdigest()[:12] if token else None
-            parts = (token or '').split('.')
-            token_sub = token_exp_iso = token_seconds_left = token_expired = None
-            if len(parts) >= 2:
-                try:
-                    payload = json.loads(base64.urlsafe_b64decode(parts[1] + '=='))
-                    token_sub = payload.get('sub')
-                    exp = payload.get('exp')
-                    if exp is not None:
-                        token_exp_iso = datetime.datetime.utcfromtimestamp(int(exp)).isoformat() + 'Z'
-                        # Use timezone-aware UTC now to avoid local offset being applied
-                        now_ts = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
-                        token_seconds_left = int(exp) - now_ts
-                        token_expired = token_seconds_left <= 0
-                except Exception:
-                    pass
-            csrf_logger.info('/occurrence/complete debug: token_present=%s token_hash_prefix=%s token_sub=%s token_exp=%s token_exp_seconds_left=%s token_expired=%s csrf_timeout_minutes=%s form_keys=%s cookie_names=%s header_keys=%s remote=%s',
-                              bool(token), tok_hash, token_sub, token_exp_iso, token_seconds_left, token_expired, CSRF_TOKEN_EXPIRE_MINUTES, list(form.keys()), list(request.cookies.keys()), list(request.headers.keys()), (request.client.host if request.client else None))
-        except Exception:
-            csrf_logger.exception('occurrence/complete: verbose debug block failed')
+    # CSRF and bearer-token checks disabled for this endpoint on a private/personal server.
+    # We intentionally skip CSRF verification and allow the request to proceed. If no
+    # authenticated user is present, fall back to the first user in the DB so the
+    # endpoint remains usable without login on a single-user private instance.
+    try:
+        csrf_logger.info('/occurrence/complete CSRF and token checks disabled for local/private use')
+    except Exception:
+        pass
 
-        from .auth import verify_csrf_token
-        ok = False
-        used = None
-        if form_token:
-            try:
-                ok = verify_csrf_token(form_token, current_user.username)
-            except Exception:
-                logger.exception('verify_csrf_token(form) raised an exception')
-                ok = False
-            if ok:
-                used = 'form'
-        if not ok and cookie_token:
-            try:
-                ok = verify_csrf_token(cookie_token, current_user.username)
-            except Exception:
-                logger.exception('verify_csrf_token(cookie) raised an exception')
-                ok = False
-            if ok:
-                used = 'cookie'
-        if not ok:
-            try:
-                csrf_logger.warning('/occurrence/complete CSRF verification failed for user=%s tokens_present form=%s cookie=%s', getattr(current_user, 'username', None), bool(form_token), bool(cookie_token))
-            except Exception:
-                pass
-            # Additional immediate diagnostics: log token expiry/sub if available
-            try:
-                if token:
-                    import base64
-                    import json
-                    import datetime
-                    try:
-                        parts = token.split('.')
-                        if len(parts) >= 2:
-                            payload = json.loads(base64.urlsafe_b64decode(parts[1] + '=='))
-                            token_sub = payload.get('sub')
-                            exp = payload.get('exp')
-                            if exp is not None:
-                                # record raw exp and types for diagnosis
-                                raw_exp = exp
-                                raw_exp_type = type(exp).__name__
-                                # try to interpret as int-seconds since epoch
-                                try:
-                                    exp_int = int(exp)
-                                except Exception:
-                                    exp_int = None
-                                if exp_int is not None:
-                                    # use timezone-aware UTC timestamps to avoid naive->local interpretation
-                                    token_exp_iso = datetime.datetime.fromtimestamp(int(exp_int), datetime.timezone.utc).isoformat().replace('+00:00', 'Z')
-                                    now_dt = datetime.datetime.now(datetime.timezone.utc)
-                                    now_ts = int(now_dt.timestamp())
-                                    now_iso = now_dt.isoformat().replace('+00:00', 'Z')
-                                    token_seconds_left = int(exp_int) - now_ts
-                                    token_expired = token_seconds_left <= 0
-                                else:
-                                    token_exp_iso = None
-                                    now_dt = datetime.datetime.now(datetime.timezone.utc)
-                                    now_ts = int(now_dt.timestamp())
-                                    now_iso = now_dt.isoformat().replace('+00:00', 'Z')
-                                    token_seconds_left = None
-                                    token_expired = None
-                            else:
-                                token_exp_iso = token_seconds_left = token_expired = raw_exp = raw_exp_type = None
-                    except Exception:
-                        token_sub = token_exp_iso = token_seconds_left = token_expired = raw_exp = raw_exp_type = now_ts = now_iso = None
-                else:
-                    token_sub = token_exp_iso = token_seconds_left = token_expired = None
-                try:
-                    csrf_logger.info('/occurrence/complete CSRF diagnostic: token_sub=%s token_exp=%s token_exp_seconds_left=%s token_expired=%s csrf_timeout_minutes=%s raw_exp=%s raw_exp_type=%s now_ts=%s now_iso=%s',
-                                token_sub, token_exp_iso, token_seconds_left, token_expired, CSRF_TOKEN_EXPIRE_MINUTES, repr(raw_exp) if 'raw_exp' in locals() else None, (raw_exp_type if 'raw_exp_type' in locals() else None), (now_ts if 'now_ts' in locals() else None), (now_iso if 'now_iso' in locals() else None))
-                except Exception:
-                    pass
-            except Exception:
-                csrf_logger.exception('occurrence/complete: failed to log immediate CSRF diagnostics')
-            raise HTTPException(status_code=403, detail='invalid csrf token')
-        else:
-            try:
-                csrf_logger.info('/occurrence/complete CSRF verification ok used=%s', used)
-                csrf_assert(used in ('form', 'cookie'), 'csrf_verify_used_source', used=used)
-                # Assert the used token is compatible with the most recently issued one for this user
-                used_token = form_token if used == 'form' else cookie_token
-                info_used = _csrf_token_info(used_token)
-                last = _last_csrf_by_user.get(getattr(current_user, 'username', None))
-                if last:
-                    same_hash = (last.get('token_hash') == info_used.get('hash'))
-                    csrf_assert(same_hash, 'csrf_used_matches_last_issued', used_hash=info_used.get('hash'), last_hash=last.get('token_hash'), last_source=last.get('source'))
-                    # Remaining time should not be absurd; expect <= configured seconds + clock skew
-                    rem = info_used.get('remaining')
-                    if rem is not None:
-                        csrf_assert(rem <= (CSRF_TOKEN_EXPIRE_SECONDS + 120), 'csrf_used_remaining_reasonable', remaining=rem, configured=CSRF_TOKEN_EXPIRE_SECONDS)
-                else:
-                    csrf_assert(False, 'csrf_no_last_issued_record', user=getattr(current_user, 'username', None))
-            except Exception:
-                pass
-    else:
+    from .models import CompletedOccurrence, User as _User
+    # If no authenticated user was provided, attempt to use the first user in DB
+    if current_user is None:
         try:
-            csrf_logger.info('/occurrence/complete Authorization header present; CSRF check bypassed')
+            async with async_session() as _sess:
+                q = await _sess.exec(select(_User).order_by(_User.id.asc()).limit(1))
+                first = q.first()
+                if first:
+                    current_user = first
         except Exception:
-            pass
-
-    from .models import CompletedOccurrence
+            current_user = None
     # If the optional form values were not provided (e.g. client POSTed JSON
     # or body was consumed earlier), try to extract them from the request
     # body (form or JSON) so we can persist them. This makes the endpoint
