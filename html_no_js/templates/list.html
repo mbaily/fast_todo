@@ -1309,8 +1309,13 @@
                 <div class="todo-title-inline">
                   {% set dt_iso = t.created_at|in_tz(client_tz, '%Y-%m-%dT%H:%M:%S') %}
                   {% set dt_fmt = t.created_at|in_tz(client_tz, '%-d/%m %-I:%M%p') %}
+                  {% if date_order == 'MDY' %}
+                    {% set dt_simple = t.created_at|in_tz(client_tz, '%m/%d') %}
+                  {% else %}
+                    {% set dt_simple = t.created_at|in_tz(client_tz, '%d/%m') %}
+                  {% endif %}
                   {% set circ = {1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦',8:'⑧',9:'⑨',10:'⑩'} %}
-                  <span class="wrap-text"{% if dt_iso %} data-created-at="{{ dt_iso }}"{% endif %}{% if dt_fmt %} data-date="{{ dt_fmt }}" title="{{ dt_fmt }}"{% endif %}>
+                  <span class="wrap-text"{% if dt_iso %} data-created-at="{{ dt_iso }}"{% endif %}{% if dt_fmt %} data-date="{{ dt_fmt }}" title="{{ dt_fmt }}"{% endif %}{% if dt_simple %} data-created-short="{{ dt_simple }}"{% endif %}>
                     <a class="wrap-text{% if t.completed %} done{% endif %}" href="/html_no_js/todos/{{ t.id }}"{% if dt_iso %} data-created-at="{{ dt_iso }}"{% endif %}{% if dt_fmt %} data-date="{{ dt_fmt }}" title="{{ dt_fmt }}"{% endif %}>{{ t.text }}</a>{% if t.priority %} <span class="meta priority-inline"><span class="priority-circle">{{ circ.get(t.priority, t.priority) }}</span></span>{% endif %}
                     <a href="/html_no_js/todos/{{ t.id }}" class="todo-open-link" aria-label="View todo {{ t.id }}" style="margin-left:0.25rem; text-decoration:none;">🔎</a>
                   </span>
@@ -1458,6 +1463,8 @@
                               (noteText ? ' <span class="meta priority-inline"></span>' : '') +
                               ' <a href="/html_no_js/todos/' + esc(id) + '" class="todo-open-link" aria-label="View todo ' + esc(id) + '" style="margin-left:0.25rem; text-decoration:none;">🔎</a>' +
                               '</span>';
+                              //(dtSimple ? (' <span class="meta created-short" data-created-short="' + esc(dtSimple) + '">' + esc(dtSimple) + '</span>') : '') +
+                              //'</span>';
                 } else {
                   titleHtml = '<a class="wrap-text' + (completed ? ' done' : '') + '" href="/html_no_js/todos/' + esc(id) + '"' + titleAttr + dataAttr + '>' + esc(text) + '</a>';
                 }

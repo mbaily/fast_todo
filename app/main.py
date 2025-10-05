@@ -12033,6 +12033,7 @@ async def html_view_list(request: Request, list_id: int, current_user: User = De
             "todo_collation_linked": {int(k): list(v) for k, v in todo_collation_linked.items()},
             "completed_after": completed_after_pref,
             "original_priority_order": original_priority_order,
+            "date_order": config.DATE_ORDER,
         },
     )
 
